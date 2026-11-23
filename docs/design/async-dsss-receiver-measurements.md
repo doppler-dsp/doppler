@@ -1811,6 +1811,447 @@ Magnitudes are written `abs(·)` so the table's cells hold.
 | code loop error             | `abs(E)² − abs(L)²` of the window's magnitudes (`dll_core.c:256`)                         | look SNR 2.55 / 2.75 dB | **complies**: powers, no decision                                                              |
 | code lock                   | `R = sqrt(2 Σ abs(P)² / noise)` over n looks                                              | the same                | **complies**                                                                                   |
 
+### §4.10's opening, D0, the code look, the π slip, the demodulator's loops, the three reds and the validation plan, as proposed (page text at 7b86529c9)
+
+Moved unchanged with the carrier text above. Of its decisions, D1, D3, the carrier lock and D5's sizing are built and stated on the design page's §4.10; D0, D2, D5's choice on ended windows, D6, D8 and D11 are not built.
+
+### 4.10 The tracking stage, derived (proposed, not built)
+
+**Status.** This is a proposal for the owner's ruling. None of it is in the code except the `carrier_window` removal this branch is written on (`72f577f90`, D1, pending). The comparison runs that led here are committed on a parked branch (`park/look-comparison-3134`, 54374605a), not on the line to main, and are not cited. Each part names the decision it serves (D0 to D14), and the validation plan at the end gives each decision its row. Every number below is derived here, cited to a committed file, or marked *uncommitted, to be rerun*. Where a derivation does not exist, the part says **not derived** and what it needs.
+
+**Inputs: nothing new.** Every size in this section follows from arguments `dp_async_dsss_receiver_create()` already takes: `chip_rate`, `symbol_rate`, `sample_rate`, `segments` (K), `cn0_dbhz` (the design C/N0), `pfa`, `pd` and the code. No new required argument appears. The receiver sizes for the C/N0 the caller states. A link stronger than stated keeps the floor's sizing: at 10 dB on a receiver designed for the 4 dB floor, the code look keeps n = 19 (2.2 GHz), so it decides about 6 times more slowly than a 10 dB design would (n = 3), and misses less. Every derived value has a setter that overrides it, named in each part (the card's principle 8: least input, every knob behind it).
+
+#### D0: the carrier error on the epoch the code loop finds (proposed)
+
+**The code at `edea9c649`.** The Dll makes two window choices. The symbol-period aid
+(`aid_look()`, `dll_core.c:209`) keeps `Q = ⌈P⌉` boundary hypotheses, an EMA
+of each one's window power over about 32 symbols, and steers the code loop
+once a symbol on the winner's window. The per-epoch look-back
+(`dll_core.c:1207-1229`) takes, at each epoch boundary, the argmax of `|Σ|`
+over K one-epoch windows shifted by whole partials, with no memory. It runs
+whether or not the aid is on, and its winner is `win_p`, which
+`dp_dll_get_window_sum()` returns. With the aid on, the look-back has two
+consumers left: the output level and the carrier, which forms its error
+from `win_p` (`adr_track_period()`). No design reason is recorded for the
+carrier taking the look-back's window; §4.4 states the choice and not why.
+
+**Proposed.** The carrier's error is formed on the window the aid looks at:
+the winner's coherent prompt sum `Σ_k ring_p[k]` over its window, which
+`aid_look()` already forms. The window is the one D5 decides: one epoch,
+K partials, chosen on ended windows. The shipped aid's window, `L = ⌊P⌋ − 1`
+partials, is 3 at 2.2 GHz and 4 at 2.8 GHz. At 2.2 GHz it is always
+transition-free, since its slack `P − L` is 1.19, but it holds 3/4 of a
+code period. Under §4.8's variance model, below, that costs the carrier
+1.2 dB of loop SNR against the epoch window's placement cost, so the
+carrier takes the epoch window (D5), not L.
+
+**The window's sum, from the rings.** The aid's rings hold the last
+`aid_ring` partial prompts (`ring_p`). A look is the sum over the
+winner's window, `start … i`, and only the winner's look is formed
+(`aid_look()`'s second pass). D0 needs it kept: the Dll stores the look's
+prompt sum and counts its looks, and the receiver forms one carrier update
+per new look. Both are a field and an accessor on the Dll, beside
+`dp_dll_get_window_sum()`. A window holding a data transition at
+`x` partials from its edge sums to `(1 − 2x/K)` of the clean amplitude,
+still on the carrier's axis: squaring removes the sign, and the
+transition costs amplitude, not phase. With a residual frequency `δf`, the
+two signs' parts differ in phase by at most `ε = 2π δf T`. That biases the
+squared phase by about `ε · x/(K − 2x)`: 2.2° at `x` = 1 partial and
+`δf` = 37.6 Hz, the reliable pull-in (twice the bound). A window centred on a transition
+(`x = K/2`) has no signal at all; its EMA power is the lowest, so the
+aid does not choose it once it has settled.
+
+**What changes in the loop.**
+
+- **Cadence.** One update a look, once a symbol. Consecutive looks are
+    `⌊P⌋` or `⌈P⌉` partials apart (4 or 5 at 2.2 GHz, 5 or 6 at 2.8), with
+    mean `T_sym` = 333.3 µs, 1.0475 T at 2.2 GHz and 1.333 T at 2.8. The Costas
+    instance is created with `tsamps` = the symbol in samples, rounded (3,667 at
+    11 MSa/s). Its frequency conversion, `integ / tsamps`, then holds on the
+    mean interval to 10⁻⁴. A loop created with the code period's `tsamps`
+    and updated once a symbol would scale its integral path by `P/K`.
+- **The rule's bn is per update and unchanged** (§1.3: `bn = ρ/200`, `ρ`
+    the window's SNR, which is still one code period's). The loop SNR does
+    not move, and the loop's bandwidth in hertz falls by `K/P`:
+    `B_L = bn / T_sym`, 36.0 Hz at 2.2 GHz (37.7 today) and 28.2 Hz at
+    2.8 GHz (37.6).
+- **The reliable pull-in** (twice `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`, which is `bn / T_u`) falls with it: from 37.7 to 36.0 Hz
+    at 2.2 GHz, and from 37.6 to 28.2 Hz at 2.8. The uncommitted hand-over
+    errors at 2.8 GHz 4 dB (90th percentile 22.8 Hz, worst 68.8 Hz) put
+    more of the tail outside it. D2's row reads it. This sharpens the
+    question the Costas part leaves **not derived**: whether the tail past
+    the bound needs a wide acquisition bn that narrows after pull-in. At
+    2.8 GHz the bound the tail is set against is 37.6 Hz today and 28.2 Hz
+    under D0.
+- **The ramp lag** at 11 Hz/s scales as `T_u²`: 0.86° at 2.2 GHz and
+    1.40° at 2.8, against 0.78° and 0.79° on the code-period cadence. Both
+    stay under the jitter's 5°.
+- **The squaring detector's unambiguous range**, `±1/(4 T_u)`, goes from
+    786 and 1,000 Hz to 750 Hz at both carriers. That is far outside the
+    pull-in bound. It matters only to a carrier break (red 1, below).
+- **The delay** from a window's centre to its update is at most 1.5 T.
+    That is `ωn τ` of 1.9° of phase margin at 2.2 GHz and 1.1° at 2.8.
+
+**When the aid's winner changes.** The new window sits a whole number of
+partials from the old one. Its phase differs only by the residual frequency
+over that shift: 1.1° a partial at the 37.6 Hz reliable pull-in, and nothing once the
+loop holds the frequency. So a change of winner steps the phase by no more
+than that. If the new winner's window overlaps the last look, `aid_look()`
+skips it (`aid_last_end`), and the carrier skips that update. On signal,
+the winner changed between neighbours 1,800 to 5,500 times in 20 s
+(#3134, the 2026-11-19 comment, integ `d2e66eea9`), at most 9% of the
+symbols. That is a gain loss of at most 9% while it lasts. The error's gain
+also follows the new window's placement, through `g(ρ)` below.
+
+**Before the hypothesis settles: the pull-in rule.** The carrier loop
+does not switch (owner, 2026-11-21: "There should be no switching in the
+carrier loop; always on"). At the chain's build the aid's EMAs are zero.
+Its first look comes after one window ends, so the first carrier update
+comes within two symbols of the hand-over; until then the NCO holds the
+seed's frequency. From the first look on, the carrier takes the aid's
+window. Before the EMAs settle, the winner may be a neighbour one partial
+off. On a symbol with a transition, its window carries `1 − 2/K` = 0.5 of
+the amplitude (−6 dB on that update), with the phase bias bounded above,
+about 2°. The cost is a lower window SNR on some updates for as long as
+the aid takes to settle, and that time is not derived (the EMA length,
+D5). There is one window source, one cadence, no switch condition and no
+added state. If D0's row refutes it, what stands is today's look-back,
+which does not switch either. The rules weighed against it are in
+[the measurements companion](async-dsss-receiver-measurements.md#1231-what-was-weighed-2026-11-21-the-carriers-window-before-the-hypothesis-settles).
+
+**The expected effect, with numbers.** §4.8's variance model gives the loop
+phase variance as `σ² = 2 bn · E[e²] / ḡ²`, with `g` and `E[e²]` from the
+phase density by quadrature. At high SNR that is `bn/ρ`. A window's
+amplitude `a` sets its SNR to `ρa²`, and half the boundaries carry a
+transition. The model's loop SNR (`1/σ²`) at the rule's bn:
+
+| window                                                        | 2.2 GHz 4 / 10 dB | 2.8 GHz 4 / 10 dB                                                                 |
+| ------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------- |
+| one epoch, always clean (the bound)                           | 21.8 / 28.8 dB    | 21.4 / 28.7 dB                                                                    |
+| one epoch, the aid's fixed hypothesis (D0)                    | 20.9 / 28.0 dB    | 21.3 / 28.7 dB                                                                    |
+| one epoch, the look-back's best placement, noise-free         | 21.2 / 28.3 dB    | 21.4 / 28.7 dB                                                                    |
+| the shipped aid's `L` (3 partials at 2.2 GHz), clean          | 20.0 / 27.4 dB    | = the epoch                                                                       |
+| the symbol's span, `⌊P⌋` partials, at its own rule bn (below) | = the epoch       | 21.2 / 28.3 dB placed by its own hypothesis; 20.6 / 27.7 dB placed by the epoch's |
+
+The two choices place windows differently. The look-back picks, per
+epoch, the whole-partial start nearest the clean span of *that* symbol.
+The aid's hypotheses are whole partials too (`⌊h + nP + ½⌋`, h an
+integer), so one fixed hypothesis sits at an offset from the true
+boundary whose fractional part the signal sets and no hypothesis can
+choose. Its rounding then sweeps a unit interval across the symbols.
+Averaged over the boundary's phase:
+
+- **At 2.2 GHz (slack 0.19 partial).** The look-back's noise-free
+    placement leaves a transition window at most 0.405 partial of the wrong
+    sign (amplitude ≥ 0.795, mean 0.918). The aid's fixed hypothesis leaves
+    up to 0.9 partial (amplitude ≥ 0.551, mean 0.877). **In this model D0
+    costs 0.34 dB** of loop SNR at 2.2 GHz (20.9 against 21.2 dB), against
+    0.55 dB that the look-back already pays to the always-clean bound.
+- **At 2.8 GHz (slack 1.33).** The fixed hypothesis rounds a window up to
+    0.16 partial past a boundary on some symbols, which costs 0.04 dB.
+- **What D0 removes is the look-back's choice on its own noise.** The argmax of `|Σ|`
+    over overlapping windows also picks a transition window when the noise
+    favours it. The same kind of choice measured 1.7 to 2.6 times its Pfa in
+    the code look (§4.10's code look, below). For the carrier, that effect is
+    **not derived**.
+
+**A third window: the symbol's whole transition-free span.** This is
+`⌊P⌋` partials on a symbol hypothesis. At 2.2 GHz that is 4, the epoch
+itself. At 2.8 GHz it is 5 of the 5.33 partials a symbol holds, where the
+epoch window uses 4. Derived at 2.8 GHz, 4 dB, on the same model and the
+same integer hypotheses:
+
+- **Slack and placement.** The slack is `P − 5` = 0.33 partial, against
+    the epoch's 1.33.
+
+    - Placed by its own best hypothesis, a transition window keeps a mean
+        0.923 of the amplitude (worst 0.670).
+    - Placed by the epoch's choice, it keeps a mean 0.845 (worst 0.473). The
+        aid ranks hypotheses on epoch power, and at 2.8 GHz two neighbours'
+        epochs lie clean inside a symbol and rank alike. So the fifth partial
+        lands past the boundary about half the time.
+
+- **The rule's bn.** The window's SNR is 3.72 dB (`ρ · 5/4`), so §1.3's
+    rule gives bn 0.0118 per update, against the epoch's 0.0094.
+
+- **The bandwidth.** `B_L` is 35.3 Hz, and so is the reliable pull-in (28.2 Hz
+    for the epoch, 37.6 Hz today). The ramp lag at 11 Hz/s is 0.89°
+    (1.39° for the epoch).
+
+- **The loop SNR.**
+
+    | window                                   | at its own rule bn | at an equal 35.3 Hz |
+    | ---------------------------------------- | ------------------ | ------------------- |
+    | 5 partials, placed by its own hypothesis | 21.2 dB            | 21.2 dB             |
+    | 5 partials, placed by the epoch's choice | 20.6 dB            | 20.6 dB             |
+    | the epoch                                | 21.3 dB            | 20.4 dB             |
+
+    The epoch pays `10 log10(35.3/28.2)` = 0.96 dB to widen to 35.3 Hz. At
+    equal bandwidth the 5-partial window then gains 0.8 dB placed by its own
+    hypothesis, and 0.2 dB placed by the epoch's choice.
+
+- **The cost in the Dll.** The code look stays one epoch, which is the
+    owner's fixed-epoch ruling (D5), and nothing here changes it.
+
+    - The 5-partial sum is the look's sum plus the next partial, read from
+        the same ring (32 slots already cover it). It is ready one partial
+        later: one more add, one more field, and 0.25 T more delay.
+    - The 0.8 dB needs its own placement, and that is a second choice. The
+        hypothesis ranking is on epoch power, which cannot tell the clean
+        5-partial position from its neighbour. Placing it needs an EMA bank of
+        its own over 5-partial windows, or a rule that takes the earlier of two
+        hypotheses tied on epoch power. That is a second choice on the same
+        hypotheses, against one window chosen one way.
+
+**So the 5-partial window does not earn a second window length.** Placed
+by the one choice, it gains 0.2 dB at equal bandwidth, which is no
+margin. Its 0.8 dB needs a second placement mechanism.
+
+What it buys is bandwidth: 35.3 Hz of pull-in against 28.2. The epoch
+window can have the same bandwidth by raising its bn per update, for
+0.96 dB of loop SNR, which on this model still leaves it at 20.4 dB, above
+the rule's 20. Whether to do that belongs to D2's row (the hand-over tail
+against the bound) and to the wide-acquisition question in the Costas
+part, not to a second window.
+
+The slips this tests are not steady-state noise. On the doubled phase, a
+first-order loop's mean time to slip, `π² ρ₂ I₀(ρ₂)² / (2 B_L)` with
+`ρ₂` = loop SNR/4, is over 10¹⁵ s at 19 dB or more. One draw in ten
+slipping within 59 s needs a loop SNR near 13 dB at both carriers.
+(This is the first-order result, used here as an order of magnitude.) The
+uncommitted 5 to 6 of 60 slipping draws at 2.2 GHz, at a measured 20.6 dB,
+are events. D0's prediction follows. If the look-back's noise-driven
+choice is the event, D0 clears the 2.2 GHz slips. If it is not, they are
+unchanged and the cause is open (D4).
+
+**The row.** The pull-in validator at 4 dB, static, both carriers,
+`--bn-carrier rule`, on the same seeds in each arm: the look-back window
+(today) against D0. It runs 120 draws at 2.2 GHz and 60 at 2.8. Each arm reports draws with
+`car_slips` > 0, `ho_slips`, and `err.car_deg`'s sd. The decision is a
+paired sign test on the draws whose slip outcome differs between arms.
+D0 clears the 2.2 GHz slips if those pairs favour it at one-sided
+p ≤ 0.05; with none against it, that is 5 or more of 5. It is **refuted**
+as their cause otherwise: D4 stays open and D3 stays held. D0 is harmful,
+and refuted as a change, if the D0 arm is worse at p ≤ 0.05 on
+`car_slips` at 2.8 GHz or on `ho_slips` at either carrier. The loop SNR
+is predicted 0.34 dB lower in the D0 arm at 2.2 GHz, and equal at 2.8. A
+D0 arm more than 0.8 dB below the look-back arm at 2.2 GHz, or 0.5 dB
+below it at 2.8, refutes the placement model.
+
+#### The code look (the Dll, `dp_dll_state_t`)
+
+- **Window: one code period, K partials, coherent** (the owner's fixed-epoch ruling). A window one epoch long avoids a data transition only when it lies inside a symbol, so its position matters.
+- **Position: the Dll's symbol-period hypotheses** (`dp_dll_set_symbol_period()`, §3.7). `Q = ⌈P⌉` hypotheses, boundary `n` of `h` at `⌊h + nP + ½⌋`. The hypothesis whose windows carry the most power is the timing, and its windows are the looks. The power is an EMA over **about 32 symbols** (`DLL_AID_EMA_SYMBOLS`). That length is **not derived**: it needs the probability that the EMA's argmax is the true hypothesis, as a function of its length and the floor's ρ, set against how quickly a re-acquired timing must be found. Under Doppler, the chip and symbol clocks scale together, so `P` does not change and a fixed hypothesis needs no drift tracking.
+- **Why the choice is independent of the window looked at.** The EMAs take a window only once it has ended *and* the window to be looked at has not started. At partial `i` they fold the windows that ended at `i − L`, and the winner is read after that. No partial of a looked-at window is in any window the choice has seen, so under noise the look is the single window det's model sizes for. The choice is one window late. The reason, measured (committed, `data/sweep.txt`, `# code_lock_pinned` and `# code_lock_noise`, integ `d2e66eea9`): the shipped choice, which reads the current window's own power, false-declares 1.66 to 2.64 × 10⁻³ per decision against det's 10⁻³. The same look held at one hypothesis reads 0.98 to 1.20 × 10⁻³.
+- **The statistic.** `R = sqrt(2 Σ|P|² / E|O|²)` over `n` looks. It is χ² with 2n degrees of freedom under noise and non-central under signal, and its threshold is `det_threshold_noncoherent(Pfa, n)`. `E|O|²` is a running estimate. Its effect on the tail is **not derived**; the held control's 1.0 to 1.2 × 10⁻³ is the only reading of it.
+- **Derates, from the code and the geometry.**
+    - **The replica:** `(1 − p/4)² / (1 − p/3)` = 0.392 dB for the 415.1 Gold code (`p = 544/1023`). It is held on the replica by `test_dll_core.c`, `replica_terms_follow_transitions` (`bc2b41de9`), and read at the receiver by `# code_lock_terms` (`110ee156e`).
+    - **The placement** of an epoch-long window on the partial grid, derived from the slack `s = P − K`. The window starts `u` partials after the true boundary. The edge partial then carries a wrong-sign fraction `x = −u` (u < 0), `0` (0 ≤ u ≤ s) or `u − s` (u > s), and with a transition the amplitude is `1 − 2x/K`. Transitions fall on half the boundaries (random data; the frame's code-only symbols are not counted on). The hypotheses are whole partials (`⌊h + nP + ½⌋`, h an integer), so the fractional part of a hypothesis's offset from the true boundary is set by the signal, not chosen. Along the symbols the rounding sweeps `u` over a unit interval around that offset. The winning hypothesis is the best of its integer neighbours, and the cost is averaged over the boundary's phase. The look's statistic is a power, so the derate is the RMS amplitude, which is what `# code_lock_terms` reads as ρ (`sqrt(E|P|²)/L`).
+        - **At K = 4 (D5):** RMS amplitude 0.9436 (0.50 dB) at 2.2 GHz, where `s` = 0.19. At 2.8 GHz, where `s` = 1.33, it is 0.997 (0.026 dB): a fixed hypothesis still rounds a window up to 0.16 partial past a boundary on some symbols. Re-derived for this commit, §4.10's 2.2 GHz figure was already the fixed hypothesis averaged over phase, and it stands.
+        - **It is an expectation, not a bound.** No whole-partial placement can do better than choosing afresh for each symbol, and that gives 0.961, a cost of 0.34 dB. So placement alone costs between 0.34 dB (per-symbol best) and 0.50 dB (one hypothesis) at 2.2 GHz.
+        - **The uncommitted 0.25 dB reading at 2.2 GHz is not inside that range:** it is 0.09 dB under the best any placement can do. It was taken on the shipped aid, which chooses on the current window's own power. That inflates the power read, as the free look against the held one shows (#3134, the 2026-11-19 comment). Under D5's choice on ended windows the prediction is 0.50 dB, and the 0.25 dB reading is no evidence for it either way.
+- **n and thresholds**, from `det_n_noncoh(a, N, Pd 0.99, Pfa 10⁻³)`, with `a` the per-sample amplitude times both derates (computed with the library's own functions):
+
+| cell          | look SNR, derated | n   | threshold | predicted miss / decision | decisions / s (`symbol_rate / n`) |
+| ------------- | ----------------- | --- | --------- | ------------------------- | --------------------------------- |
+| 2.2 GHz 4 dB  | 2.90 dB           | 19  | 8.409     | 0.0087                    | 158                               |
+| 2.2 GHz 10 dB | 8.90 dB           | 3   | 4.739     | 0.0057                    | 1,000                             |
+| 2.8 GHz 4 dB  | 2.33 dB           | 23  | 9.022     | 0.0091                    | 130                               |
+| 2.8 GHz 10 dB | 8.33 dB           | 4   | 5.111     | 0.0023                    | 750                               |
+
+The false declare is 10⁻³ per decision by construction, before the noise reference's effect. The verify counts are `n_up = det_verify_count(10⁻³, 10⁻⁶)` = 2 and `n_down = det_verify_count(0.01, 10⁻⁶)` = 3. Overrides: `dp_dll_configure_lock()`, `dp_dll_set_lock_verify()`, and the receiver's `configure_lock_raw()`.
+
+- **The option at 2.2 GHz: K = 8** (`segments`, an existing argument). The placement grid halves, so `s` = 0.38 of a partial. On the same fixed-hypothesis average the RMS amplitude becomes 0.9788 (0.19 dB), against 0.988 (0.10 dB) for the per-symbol best. That halving is what K = 8 buys. The look SNR at 2.2 GHz becomes 3.22 / 9.22 dB. n at 4 dB moves from 19 to 17 (threshold 8.078, miss 0.0089); at 10 dB it stays at 3 (threshold 4.739, miss 0.0028). 2.8 GHz is unaffected. The costs:
+
+    - the Dll's partial buffers and look-back candidates double;
+    - Q rises to 9 (2.2 GHz) and 11 (2.8 GHz);
+    - the EMA work per partial doubles.
+
+    The per-partial SNR halves, which matters only to per-partial consumers; there are none in this design.
+
+- **Steer and carrier on the same window.** The code loop's discriminator and the pre-despread carrier's error both take the looked-at window. Today the carrier takes `dp_dll_get_window_sum()`, the per-epoch look-back's winner; D0 above moves it. One window, chosen one way, feeds all three.
+
+#### The π slip
+
+**Not designed.** A carrier π slip (seed 11 at 55.3 s, *uncommitted*) inverts every later symbol, and none of the five flags sees it: `sym.locked` and `demod.car.locked` read cos 2φ-type statistics, which are blind to π; `demod.sync.locked` is an eye ratio, blind to sign; and the code and pre-despread carrier statistics are magnitudes. The receiver has no polarity reference. The 415.1 frame has one: its 275 code-only symbols in every 1,000 are known (unmodulated) and would read inverted after a slip. No frame layer in the tree uses them for polarity. The design's answer is the rule's bandwidth, which takes carrier-slip draws from 32 to 1 of 60 at the floor (*uncommitted*); it is not a detector.
+
+#### The demodulator's carrier loop (`MpskReceiver`, `mpsk_rx_loops_t`)
+
+- **What it is for, once the first loop is at the rule.** It is handed the first loop's residual: zero-mean jitter of about 5.4° in a band of `bn / T` ≈ 38 Hz, plus the ramp's 0.8° steady error. At its shipped bn of 0.01 a symbol (`ASYNC_DSSS_RX_DEMOD_BN_CARRIER`, 30 Hz), its own loop SNR at the floor is `Es/N0 − 10 log10(2 bn)` = 21 dB, so it adds about 5° and cannot remove jitter that sits in a band as wide as its own. Measured at the decisions (*uncommitted, to be rerun*; upper bounds): 7.35° total against 5.36° handed over at 2.2 GHz at the rule's bn, a quadrature excess of 5.0°, which is its own noise.
+- **Proposed: bn 0.001 a symbol**, for a quasi-static offset: 31 dB of its own (1.6°). The time it must take to remove the hand-over's phase is **not derived**; it needs the error-rate harness's settling budget (`dp_ber_settle()`). Whether to track at all is open: a fixed rotation set once fails when the first loop's steady error moves.
+- **Setter: none.** The bn is `MpskReceiver`'s create argument, passed by the receiver's track-chain build. `configure_chain_raw()` re-pins segments, sps and n, but not this.
+
+#### The demodulator's timing loop (`RateSync`, `ratesync_loop_t`, inside `MpskReceiver`)
+
+**Not derived, and not measured.**
+
+- Shipped bn: 0.005 a symbol (`ASYNC_DSSS_RX_DEMOD_BN_TIMING`), ported from DsssReceiver, where it was chosen on steady-state EVM.
+- The rule it needs is §1.3's loop-SNR form with the Gardner detector's gain and noise on the integrate-and-dump pulse. The gain exists (`dp_symsync_ted_slope()`, which `ted_scale` inverts). The detector's noise variance at the floor, thermal plus self-noise for this pulse, is not derived.
+- Measuring it needs the strobe's input-sample time as telemetry ([#3177](https://github.com/doppler-dsp/doppler/issues/3177)).
+- **Setter: none** (a create argument, like the carrier's).
+
+#### The removal's three reds (D1)
+
+72f577f90 diagnosed three reds and fixed none. D1 keeps the one mode only
+if each ends as a fix or a declared limit. Each is written here before
+any run.
+
+**Red 1: code lock falls after a carrier break, without `reacquire`**
+(`_test_reacquire_is_symbol_lock_alone`, `code_held == 1` fails twice;
+there is one check per arm, so both arms fail).
+
+- **The fixture:** a 7-chip code at 1 Mcps, 4 samples a chip, 35,714
+    symbols a second, so `P` = 16 partials. The aid's window is `L` = 15
+    partials (26.25 µs), at 70 dB-Hz. A 20 kHz carrier step is applied, with
+    a 0.02 s confirm interval.
+- **What was measured** (72f577f90's message; the run is not committed): at
+    every step of 10 kHz or more, code lock falls 0.12 to 0.14 s after the
+    break.
+- **The step alone does not do it.** The look's coherent loss at the step
+    is `sinc²(δf · T_look)` = −4.4 dB at 20 kHz, against a look SNR of
+    24 dB (70 dB-Hz over 26.25 µs). The fall comes from the carrier NCO
+    moving after the step, and how it moves is **not derived**. The
+    code-period loop's pull-in at this fixture is `bn/T` = 0.04/7 µs =
+    5.7 kHz, and its unambiguous range is ±35.7 kHz, so the step sits outside
+    the pull-in and is not aliased. The partials form updated four times a
+    code period, and the test's own comment records that it re-locked at
+    16 kHz.
+- **Declared limit.** A carrier break outside the pull-in takes the code
+    lock with it, because the code look is coherent over the carrier's
+    wipe-off. The test's control arm assumed a code loop blind to the
+    carrier, which was a property of the `partials` form. With
+    `reacquire` (D9) the break is a release and a new search, which is the
+    intended behaviour.
+- **Fix to the test:** its claim stands (reacquire's trigger is symbol lock
+    alone), but it is pinned on a step inside the code look's coherence and
+    outside the carrier's pull-in.
+    - On this tree that band is 5.7 kHz (the pull-in) to 7.6 kHz
+        (`δf · T_look ≤ 0.2`, a 0.6 dB look loss).
+    - Under D0 the cadence is a symbol (28 µs) and the window is one epoch
+        (7 µs). The pull-in is 1.4 kHz, the unambiguous range ±8.9 kHz, and
+        the coherence 28.6 kHz.
+    - A **6.5 kHz** step lies inside both trees' bands.
+- **Refuted if,** at 6.5 kHz, the control arm's code lock falls within the
+    0.02 s confirm interval of symbol lock's fall. That would mean the NCO's
+    walk, not the step, sets the timing. The claim would then need a stimulus
+    that leaves the carrier loop where it is, and none is designed.
+- Both arms failing `code_held` means that in the reacquire arm the code
+    lock fell before the release. The release's timing is not in the
+    message, so the run must print it.
+- **Now green, both arms, on its fixture unchanged,** with the pre-despread
+    loop `carrier_nda` at M = 2 (`730820f5e`; the gate run at `e6a47ba9f`).
+    What turned it back is not isolated: the swap changed the detector, its
+    denominator, the bandwidth rule and the lock statistic at once. The
+    refutation above (the 6.5 kHz step) still stands as the claim's test.
+
+**Red 2: the lifecycle example loses lock after its 10 ms fade.**
+
+- **The example:** the retired 3.069 Mcps point, 2,700 symbols a second,
+    10 dB, carrier bn 0.04, and a fade of 30 code periods (333.3 µs each).
+- **Why both loops run on noise through the fade.** Neither flag falls in
+    10 ms: the code lock needs `n_down` decisions, and the symbol lock 15
+    symbols below 0.3 on a 30-symbol EMA. So the coast (both flags down)
+    never engages.
+- **The walk, derived.** On noise the folded phase is uniform: the error
+    has mean 0 and `E[e²] = ½`. The integrator random-walks, with
+    `σ_f = ki √(N/2) / (2π T)`. `dp_loop_filter`'s gains at bn 0.04 and
+    ζ 0.707 are kp 0.1011 and ki 5.39 × 10⁻³. That gives σ_f = 10.0 Hz and a
+    phase walk of 31° over the fade.
+- **Measured** (72f577f90's message, one draw): 17 Hz (1,517 against
+    1,500), which is 1.7 σ. The `partials` form walked 9.5 Hz on the same
+    draw. One draw each says nothing about which form walks less.
+- **Under D0** the error on noise is the same. On noise the aid's EMAs
+    decay together and the winner holds. Only the cadence moves the walk:
+    with bn per update fixed, `σ_f ∝ T_u^(−3/2)`, so 2,700 symbols a second
+    (370 µs) walks 15% less.
+- **At the 415.1 point at the rule's bn** (D3) the same formula gives
+    1.0 Hz and 7° at 2.2 GHz, and 0.9 Hz and 7° at 2.8, over 10 ms. That
+    is 30 to 40 times inside the pull-in. At bn 0.04 it is 10.7 Hz and
+    15.4 Hz, still inside the 126 and 160 Hz pull-in.
+- **What is not derived:** the walk stays inside the pull-in, so why the
+    carrier, demodulator-carrier and symbol flags fall *after* the fade.
+    The candidate is the re-pull of a 30° to 40° phase walk against the
+    symbol flag's 15-symbol drop count.
+- **Fix:** the example moves to 415.1-B-1 (with the rest of the line) at
+    the bn D3 decides. **Declared limit** until D3 rules: a fade shorter than
+    the flags' drop time is ridden by loops running on noise, with the walk
+    above.
+- **Row:** the example at 415.1 with its 10 ms fade, plus the fades at
+    415.1 the report lacks (§2 of the plan). It is **refuted** if any flag
+    falls after a 10 ms fade at the rule's bn, at 10 dB.
+- **Now green, both faces, on the example unchanged,** with the
+    pre-despread loop `carrier_nda` at M = 2 (`730820f5e`; the gate run at
+    `e6a47ba9f`). As for red 1, what turned it back is not isolated, and the
+    row above is still its test.
+
+**Red 3: `pullin --check` at 10 dB static** (2.8 GHz, one 20 s draw).
+
+- **Read as #3134** (its 2026-11-18 comment): the code lock's
+    `det_n_noncoh` takes the antenna's C/N0 with no replica derate and picks
+    n = 3 where 4 holds. That gives a miss of 1.6 to 2.0% a decision, and
+    drops at about 1.5 × miss³, because decisions share the noise reference.
+- Which flag changed in the failing draw is not in 72f577f90's message.
+    If it is not the code lock, this reading is wrong, and the run must
+    print it.
+- **Fix: D5's derates.** The replica's 0.39 dB and the 0.026 dB placement
+    cost at 2.8 GHz give n = 4 at 2.8 GHz 10 dB (the receiver is designed
+    at the true C/N0 in the pull-in validator). That is a predicted miss of
+    0.0023 a decision. A 20 s check at 750 decisions a second then expects
+    `1.5 × 0.0023³ × 15,000` ≈ 3 × 10⁻⁴ drops, and the 60-draw, 60 s row
+    0.05.
+- **Refuted if** the `--check` fails at D5's sizing, or the 60-draw
+    10 dB static row shows any code-lock drop.
+
+#### What retires
+
+- The `partials` carrier window: removed on this branch, pending D1. Its evidence is measurements §12.30. `refine` as an argument (it always runs), proposed as D2.
+- The symbol aid's choice made on the current window (the shipped `aid_look()`), replaced by the choice on ended windows.
+- The aid's window `L = ⌊P⌋ − 1`, replaced by the epoch, K partials.
+- The per-epoch look-back's argmax as the source of the steer's and the carrier's window. The output level it supplies today would read the looked-at window instead; that is **not derived**.
+- `ASYNC_DSSS_RX_NO_REFINE_MIN_BINS`, with `refine` as an argument.
+- The shipped constants this replaces with derived values: carrier bn 0.04; the Costas default lock rule for this loop; the demod carrier's bn 0.01.
+- The receiver's symbol-lock EMA and `MpskReceiver`'s carrier-lock EMA, replaced by the block decisions of D8 (each as an opt-in mode of its object).
+
+#### What moves
+
+- `validate_async_dsss_near_far` and `validate_async_dsss_receiver_release` run at their own older points with `carrier_freq_hz` 0, the aid off. Each moves to the 415.1 point, with the aid on, when its inventory item comes up. Their present mode is not a choice.
+- The comment in `adr_track_period()` (`async_dsss_receiver_core.c:928`) names a 500 Hz/s ramp. The specified rate is 11 Hz/s (§1.8). The build step corrects it.
+
+#### Validation plan (written before any of it runs)
+
+Each row confirms or refutes one prediction. Unless a row says otherwise it
+runs at the four cells (2.2 and 2.8 GHz, 4 and 10 dB), with 60 draws (the
+pull-in validator) or 300 s of noise (the lock harness), on the same seeds
+as the committed runs, one heavy run at a time. Every decision of the
+session plan has a row. One marked "n/a" is the owner's to state, and has
+nothing to refute.
+
+|               | prediction                                                                                                                                                                                                                                                                                                                                       | row that tests it                                                                                                      | refuted if                                                                                                                                                                                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D0            | the carrier on the found epoch clears the 2.2 GHz carrier slips, if the look-back's own-noise choice causes them; its loop SNR on §4.8's model is 0.34 dB under the look-back's at 2.2 GHz (20.9 against 21.2 dB) and equal at 2.8 (21.3)                                                                                                        | D0's row above: pull-in, 4 dB static, rule bn, look-back against D0, same seeds, 120 draws at 2.2 GHz and 60 at 2.8    | the paired sign test on slip draws does not favour D0 at one-sided p ≤ 0.05 (then the cause is open, D4); or D0 is worse at p ≤ 0.05 on 2.8 GHz `car_slips` or either carrier's `ho_slips`; or its loop SNR is more than 0.8 dB under the look-back arm's at 2.2 GHz, or 0.5 dB at 2.8 |
+| D1            | `code_period` is the one mode                                                                                                                                                                                                                                                                                                                    | the committed comparison holds it (`window_comparison.txt`); the three reds' rows above                                | a red ends as a defect of the mode itself, not a fix or a declared limit                                                                                                                                                                                                               |
+| D1, red 1     | at a 6.5 kHz step, symbol lock falls and code lock holds past the 0.02 s interval                                                                                                                                                                                                                                                                | `_test_reacquire_is_symbol_lock_alone` at 6.5 kHz, both arms                                                           | the control's code lock falls within 0.02 s of symbol lock's fall                                                                                                                                                                                                                      |
+| D1, red 2     | a 10 ms fade at 415.1 and the rule's bn walks about 1 Hz and 7° (1 σ), and every flag holds                                                                                                                                                                                                                                                      | the lifecycle example at 415.1-B-1, 10 dB, with its fade                                                               | any flag falls after the fade                                                                                                                                                                                                                                                          |
+| D1, red 3     | D5's n = 4 at 2.8 GHz 10 dB: about 3 × 10⁻⁴ drops in the 20 s check                                                                                                                                                                                                                                                                              | `pullin --check`; the 10 dB static row                                                                                 | the check fails, or any code-lock drop in 60 draws                                                                                                                                                                                                                                     |
+| D2            | the refine's hand-over error stays inside the reliable pull-in, twice the bound, at the cadence D0 decides (36.0 / 28.2 Hz under D0; 37.7 / 37.6 Hz today)                                                                                                                                                                                       | pull-in: untracked or unsettled draws against `ho_err_hz`                                                              | any failure with `ho_err_hz` inside the bound                                                                                                                                                                                                                                          |
+| D3            | the loop SNR at the floor, on §4.8's variance model: 21.2 dB at 2.2 GHz and 21.4 at 2.8 on today's window (sd 5.0° and 4.9°); 20.9 dB at 2.2 GHz on D0's (sd 5.2°). §1.3's form, read as `1/σ²`, gives 19.2 / 19.0 dB at the same bn: it is 3 dB under `bn/ρ` before the squaring and placement terms. This row decides which describes the loop | capture `err.car_deg` sd at the rule's bn, both carriers; and the pull-in `car_slips` at the shipped and the rule's bn | the sd lies outside ±1 dB of the variance model (4.4° to 5.6° at 2.2 GHz, 4.4° to 5.5° at 2.8); or, once D0's row has run, the rule bn's slip-draw interval excludes 0                                                                                                                 |
+| D4            | the 2.2 GHz slip cause is the one D0 tests                                                                                                                                                                                                                                                                                                       | D0's row                                                                                                               | the slips are unchanged after D0: the cause is open, and D3 stays held                                                                                                                                                                                                                 |
+| D5            | the code look's false declare is 10⁻³, free and held                                                                                                                                                                                                                                                                                             | `# code_lock_noise`, both looks                                                                                        | either is outside its 95% interval around 10⁻³                                                                                                                                                                                                                                         |
+| D5            | the look's miss is 0.23 to 0.91% a decision                                                                                                                                                                                                                                                                                                      | `# code_lock`, misses over decisions                                                                                   | any cell is above 1%, outside its interval                                                                                                                                                                                                                                             |
+| D5            | placement, from the fixed hypothesis averaged over phase: ρ ≈ 0.818 at 2.2 GHz (0.9436 × 0.867) and 0.864 at 2.8 (0.997 × 0.867); the per-symbol best gives 0.833 at 2.2 GHz                                                                                                                                                                     | `# code_lock_terms`, ρ on clean draws                                                                                  | 2.2 GHz is below 0.818, or 2.8 GHz is below 0.864, by more than seed scatter; or 2.2 GHz is above 0.833, which no whole-partial placement reaches, and would mean the choice is reading its own window again                                                                           |
+| D6            | K = 8 at 2.2 GHz: ρ ≈ 0.849 (0.9788 × 0.867), at most 0.857 (the per-symbol best)                                                                                                                                                                                                                                                                | `# code_lock_terms` at `segments` 8; run only if D5's 2.2 GHz row fails                                                | below the bound                                                                                                                                                                                                                                                                        |
+| D7            | `car.locked` on blocks of 30 / 41 at 0.810 / 0.785 holds in the data                                                                                                                                                                                                                                                                             | capture at 4 dB static: changes of the flag after settling                                                             | any change                                                                                                                                                                                                                                                                             |
+| D8            | `sym.locked` on blocks of 40 / 41 at 0.463 / 0.458, and `demod.car.locked` on blocks of 35 / 36 at 0.369 / 0.364, hold in the data. Their signal means at the floor are 0.66 / 0.66 and 0.57 / 0.56, with timing loss 0                                                                                                                          | capture at 4 and 10 dB static: each flag's changes after settling, and each statistic's mean on signal                 | any change at 4 dB static; or a measured signal mean more than 3 standard errors under the prediction, which would mean the timing loss is not 0 and the sizing must be redone; `demod.sync.locked` has no prediction until its pulse is derived                                       |
+| D8, no toggle | a working link at 10 dB: no change of **any** of the five flags after settling                                                                                                                                                                                                                                                                   | pull-in `works`                                                                                                        | under 57 of 60 at either carrier                                                                                                                                                                                                                                                       |
+| D9            | `reacquire` releases a wrong-Doppler lock (#3092)                                                                                                                                                                                                                                                                                                | #3092's runs at 415.1 on the decided tree                                                                              | a wrong-Doppler lock that does not release                                                                                                                                                                                                                                             |
+| D10           | n/a: the owner chooses a π-slip detector or the bandwidth alone                                                                                                                                                                                                                                                                                  | the slip rate at the decided bn (D3's row) is printed for that choice                                                  | n/a                                                                                                                                                                                                                                                                                    |
+| D11           | the demodulator's carrier adds 1.6° or less at bn 0.001                                                                                                                                                                                                                                                                                          | capture `err.demod_car_deg` against `err.car_deg`, after #3177's probe; not this session                               | a quadrature excess above 2.5°                                                                                                                                                                                                                                                         |
+| D12           | n/a: the owner states the allowed loss, time to decode, dropout time and lock budget (#3157)                                                                                                                                                                                                                                                     | they become the report's limits                                                                                        | n/a                                                                                                                                                                                                                                                                                    |
+| D13           | BER loss over unslipped draws: replica 0.39 + band 0.24 / 0.38 + carrier jitter `4.34 σ²` ≈ 0.06 dB; timing and the band-replica interaction are not derived                                                                                                                                                                                     | pull-in, pooled errors over unslipped draws                                                                            | more than 0.2 dB above the predicted total                                                                                                                                                                                                                                             |
+| D14           | n/a: the PR stack                                                                                                                                                                                                                                                                                                                                | —                                                                                                                      | n/a                                                                                                                                                                                                                                                                                    |
+| ramp          | the lag at 11 Hz/s at the rule's bn is 0.78 / 0.79° on today's cadence, and 0.86 / 1.40° under D0                                                                                                                                                                                                                                                | `--dynamics pass`, the carrier error's mean                                                                            | outside ±0.3°                                                                                                                                                                                                                                                                          |
+| timing        | —                                                                                                                                                                                                                                                                                                                                                | none until #3177                                                                                                       | —                                                                                                                                                                                                                                                                                      |
+
 ______________________________________________________________________
 
 ## 6 and 9. The pool's runs

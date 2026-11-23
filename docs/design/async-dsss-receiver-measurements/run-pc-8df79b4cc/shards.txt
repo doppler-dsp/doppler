@@ -1,0 +1,102 @@
+== s0.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (4)
+== s1.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+validate_async_dsss_pool_ghosts FAILED (7)
+== s2.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (4)
+== s3.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: the ghost rule never releases a distinct emitter on its parent's carrier
+FAIL: the ghost rule never releases a distinct emitter on its parent's carrier
+FAIL: receiver 0 tracks A with code lock
+FAIL: the ghost rule never releases a distinct emitter on its parent's carrier
+FAIL: the ghost rule never releases a distinct emitter on its parent's carrier
+FAIL: receiver 0 tracks A with code lock
+validate_async_dsss_pool_ghosts FAILED (10)
+== s4.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL: the ghost rule never releases a distinct emitter on its parent's carrier
+FAIL: receiver 0 tracks A with code lock
+validate_async_dsss_pool_ghosts FAILED (5)
+== s5.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (2)
+== s6.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+validate_async_dsss_pool_ghosts FAILED (3)
+== s7.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+validate_async_dsss_pool_ghosts FAILED (7)
+== s8.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (2)
+== s9.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+validate_async_dsss_pool_ghosts FAILED (4)
+== s10.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (2)
+== s11.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+validate_async_dsss_pool_ghosts FAILED (6)
+== s12.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+validate_async_dsss_pool_ghosts FAILED (4)
+== s13.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+validate_async_dsss_pool_ghosts FAILED (4)
+== s14.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (2)
+== s15.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL: receiver 0 tracks A with code lock
+validate_async_dsss_pool_ghosts FAILED (4)

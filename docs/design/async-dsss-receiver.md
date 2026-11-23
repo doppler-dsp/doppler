@@ -44,9 +44,9 @@ not invented.
 | carrier frequency F_fwd                 | 2.2 to 2.8 GHz                                                                                                                                                  | owner                                                                                      |
 | chip rate, epoch rate                   | 3.2146 to 4.0913 Mcps; 3,142.3 to 3,999.3 Hz                                                                                                                    | derived from the two rows above                                                            |
 | frequency uncertainty                   | Doppler pre-compensated; the received signal within ±1,500 Hz of best lock                                                                                      | owner-adopted: the owner sets it, taking 415.1-B-1 §7.4.1's figure; pre-compensation, §6.1 |
-| frequency rate                          | 400 Hz/s selects which passes are in scope; the pre-compensated residual's rate, 11 Hz/s (`R_env`, §1.8), is the one the tracking loops are sized and judged at | owner; the 11 Hz/s ruled the governing rate, 2026-11-21                                    |
+| frequency rate                          | 400 Hz/s selects which passes are in scope; the pre-compensated residual's rate, 11 Hz/s (`R_env`, §1.8), is the one the tracking loops are sized and judged at | owner; the 11 Hz/s decided as the governing rate, 2026-11-21                               |
 | acquisition                             | short-code PN lock with probability at least 90% within 20 s of arrival, the signal within ±1,500 Hz of best lock                                               | 415.1-B-1 §7.4.1                                                                           |
-| sensitivity floor                       | Es/N0 = 4 dB: C/N0 38.8 dB-Hz; the BPSK bound there is a symbol error rate of 1.25%                                                                             | owner, the same ruling                                                                     |
+| sensitivity floor                       | Es/N0 = 4 dB: C/N0 38.8 dB-Hz; the BPSK bound there is a symbol error rate of 1.25%                                                                             | owner, the same decision                                                                   |
 | the receiver's design C/N0 (`cn0_dbhz`) | the floor's, 38.77 dB-Hz, at every level: a receiver is built once, for its weakest signal                                                                      | owner, 2026-11-21                                                                          |
 | capture                                 | complex samples at 11 MSa/s                                                                                                                                     | owner                                                                                      |
 | data                                    | the stimulus of §1.4: one CCSDS TC transfer frame a period, 8 to 1,024 octets, with its error control field; no SDLS                                            | owner; 232.0-B-4 §4.1, each field's section in §1.4                                        |
@@ -56,7 +56,7 @@ not invented.
 Carrier and code come from one timebase, the chip rate a fixed fraction of
 the carrier, and Doppler moves them together; the data clock belongs to
 neither (§1.6). The point is one case, a symbol at least a code period
-long (§1.5). What the owner has not ruled is §1.7. The receiver at this
+long (§1.5). What is not yet decided is §1.7. The receiver at this
 point is §4.10 to §4.12, its runs [the record](async-dsss-receiver-measurements.md). A number in §2, §3 or §5–§11 names the point it is
 measured at: the certification's 3.069 Mcps point, below, or the pool's
 5 Mcps sizing point (§5).
@@ -331,13 +331,13 @@ carrier, so table 4-2's 0.01 chips/s has no stimulus.
 
 ### 1.7 Open decisions
 
-Not ruled by the owner, and not decided here:
+Not yet decided:
 
 1. **Where Es/N0 is defined**: at the source, or in the capture. The
     11 MSa/s capture reads 0.06 to 0.17 dB under the source's, mostly from
     its bandwidth; [the record](async-dsss-receiver-measurements.md)'s runs (§4.2) set it at the source.
 1. **The gap's length.** Twice the search model's need (§1.4) is the rule
-    proposed, not ruled.
+    proposed, not decided.
 1. **Keeping the EB90 start sequence** (§1.4).
 1. **`reacquire` as the default.** It is off by default; at this point a lock
     on the wrong Doppler never releases without it
@@ -1881,7 +1881,7 @@ The receiver meets R_env (§1.8), so at the spec point the axis is off. The 400 
 - **The spectral estimate leaves the decision.** Its value is kept as a probe beside the fine one, and the `d-6fc84cc80` rows count where the two disagree.
 - **A new source:** `ho_src` 3, the fine estimate.
 
-**The total dwell, derived.** It is the smallest whole number of refine blocks (5.33 ms each) with `P_w + P_miss ≤ 1 − P_ho`. Here `P_ho` is the ruled 0.99, and `P_miss` is the check's (non-central χ², Marcum Q). It is evaluated at the design C/N0, `e` 3,000 Hz and `ε` 0.25. The design point's columns are `_test_fine_design`'s printout; the median columns are this section's formulas at the same `N_s`.
+**The total dwell, derived.** It is the smallest whole number of refine blocks (5.33 ms each) with `P_w + P_miss ≤ 1 − P_ho`. Here `P_ho` is the agreed 0.99, and `P_miss` is the check's (non-central χ², Marcum Q). It is evaluated at the design C/N0, `e` 3,000 Hz and `ε` 0.25. The design point's columns are `_test_fine_design`'s printout; the median columns are this section's formulas at the same `N_s`.
 
 | carrier | blocks, `D`  | `N_s` | at the design bound: `ρ`, `P_w`, `P_miss`, sd | at the rows' median (`ε` 0.13, `e` 0): `ρ`, sd |
 | ------- | ------------ | ----- | --------------------------------------------- | ---------------------------------------------- |
@@ -1910,7 +1910,7 @@ At 10 dB the same total dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 
 - **The ambiguity control discriminates at 2.2 GHz only.** The deeper search moved the seeds, and 2 of those 8 draws seed past `±1/(4T)` this run: 2.2 GHz seeds 13 and 5 (+1,031 / −1,037 Hz). There `K = 1` hands over +1,571.06 / −1,571.18 Hz, one ambiguity interval off, and `K = 5` hands over −0.01 / +0.04 Hz. **The 2.8 GHz ambiguity claim is untested**: no 2.8 GHz draw seeded past 1,000 Hz. A row that forces the seed's offset past it is owed.
 - **Lock inside 20 s:** every draw of every cell. The worst is 3.49 s at the floor; the medians are 0.70 / 0.76 s at 4 dB, 0.57 to 0.66 s at 5 dB and 0.41 to 0.54 s at 10 dB.
 - **The first detection** (`seed_t_s`) at 10 dB is 0.092 / 0.090 s on every draw: two total dwells after arrival (2 × 45.8 / 45.0 ms), the partly filled one and a whole one. At the floor the median is 0.138 / 0.135 s, three total dwells. The search's predicted Pd at the design C/N0 (`pd_predicted`, the `# search` section of `--design`) reads 1.000000 at both carriers, so the design Pd has no margin left in which a depth's gain could show. What the R_env sizing buys is the hand-over's frequency error, through the narrower row (§2.3), not detection.
-- **No phase reversal after the declared lock.** The fold crossings after it (`slips_post`) and the net π reversals (`net_rev_post`) are 0 in all 12 cells, over 33,000 s of on-code tracking after the declared lock. The crossings before it (`slips_pre`, 0 to 9 a cell) are printed, never gated, as ruled. The design reason is the loop SNR: Lindsey's first-order mean time to a slip, `π ρ′ I₀(ρ′)² / (2 B_L)`, at the ruled `ρ_L` of 20 dB, gives about 10²⁰ s at `B_L` 31.1 / 29.6 Hz. `ρ_L` already counts the squaring loss. The further `ρ′ = ρ_L / 4` is the M = 2 loop's phase process, `2φ` (a factor of M² on the phase), not the squaring loss a second time.
+- **No phase reversal after the declared lock.** The fold crossings after it (`slips_post`) and the net π reversals (`net_rev_post`) are 0 in all 12 cells, over 33,000 s of on-code tracking after the declared lock. The crossings before it (`slips_pre`, 0 to 9 a cell) are printed, never gated. The design reason is the loop SNR: Lindsey's first-order mean time to a slip, `π ρ′ I₀(ρ′)² / (2 B_L)`, at the agreed `ρ_L` of 20 dB, gives about 10²⁰ s at `B_L` 31.1 / 29.6 Hz. `ρ_L` already counts the squaring loss. The further `ρ′ = ρ_L / 4` is the M = 2 loop's phase process, `2φ` (a factor of M² on the phase), not the squaring loss a second time.
 - **The error rate** of the aligned, unslipped draws, pooled: 2.0 × 10⁻² / 1.1 × 10⁻² / 3.3 × 10⁻⁵ at 4 / 5 / 10 dB, against BPSK's 1.25 × 10⁻² / 6.0 × 10⁻³ / 3.9 × 10⁻⁶. As an Es/N0 loss that is 0.76 / 0.78 / 1.0 dB, the same at both carriers. The derived part is the replica's 0.39 dB (§3.6); the rest is open.
     - The loss grows with Es/N0, and thermal timing jitter falls with it even in a loop wider than its stated bn. So the remainder points at something deterministic: the `Dll` increment's truncation (#3249, a loop frozen between least significant bits), the timing detector's pattern self-noise, or the replica and interpolation geometry.
     - #3249's test is the loss at 10 dB at an integer against a non-integer samples-a-chip. This run cannot read it: both carriers are non-integer (3.42 and 2.69 samples a chip), and their 10 dB losses agree.
@@ -1922,7 +1922,7 @@ At 10 dB the same total dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 
 - **The refine period.** After `dp_dll_steps()`, the dumps are summed in groups to `fine.k` sums a period, squared, and appended to the fine buffer. The buffer holds the total dwell and a period, and slides if the refine runs longer, so the estimate is always the latest total dwell's.
 - **At the refine's decision.** It waits out the fine hand-over's total dwell (`adr_refine_decided`): `dwell_target` is the larger of `CarrierAcquisition`'s detection total dwell and the fine one, and a sequential estimator that fires early waits for it too. Then `dp_ppe_estimate()` runs, the check is applied, and the result divided by M is handed over against the frozen carrier's reference (`ASYNC_DSSS_RX_HO_FINE`, 3). Refused, it falls back to `CarrierAcquisition`'s estimate if it fired, otherwise the seed. A give-up at the block cap runs the same check, so the fine estimate can be handed over there too.
 - **Probes:** `rx.ref_fine.hz`, `.snr_db`, `.n`, once at the decision, whether or not the check passed.
-- **Configuration.** The design is derived at create from `cn0_dbhz`, `m`, the code's flips, `refine_segments`, `doppler_uncertainty`, `doppler_rate`, the search's half sample, the refine block, `pfa` and `refine_max_n_blocks`, plus one constant, `ASYNC_DSSS_RX_FINE_P_HO` (0.99, ruled). The caller passes no new argument, and no mutator reaches any of them. It is off where the design refuses (M other than 2).
+- **Configuration.** The design is derived at create from `cn0_dbhz`, `m`, the code's flips, `refine_segments`, `doppler_uncertainty`, `doppler_rate`, the search's half sample, the refine block, `pfa` and `refine_max_n_blocks`, plus one constant, `ASYNC_DSSS_RX_FINE_P_HO` (0.99, agreed). The caller passes no new argument, and no mutator reaches any of them. It is off where the design refuses (M other than 2).
 - **State.** The `PolynomialPhaseEstimator` child is stateless and outside the blob. The buffer and its count go in, after the hand-over ring: `ASYNC_DSSS_RECEIVER_STATE_VERSION` 23. The buffer's size, `fine_cap`, follows from create's C/N0, so a blob from a receiver built at another C/N0 is refused on size.
 - **`ho_src`** is refused past 3.
 - **Its near-far tolerance is about 23 dB at every lag (at K 5),** below tracking's 60.2 dB on three quarters of the lags: a stronger emitter's partial-period leak can carry the hand-over a whole ambiguity interval onto its own lines. Declared in §8.2, with the measurement and doppler#3263.
@@ -1937,7 +1937,7 @@ At 10 dB the same total dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 
 Every harness that scores the receiver's errors scores them in one window,
 which opens at the observed lock. The 415.1-B-1 allocation gives a signal
 20 s to lock (§7.4.1, `DP_S415_LOCK_S`), and the requirement is that a link
-at 4 and 5 dB locks inside it (the owner's ruling;
+at 4 and 5 dB locks inside it (agreed;
 `validate_async_dsss_receiver_pullin`'s `check_acq()` holds it per cell).
 
 - **The start** is the latest of the five flags' sustained times
@@ -2316,8 +2316,7 @@ refuses a context shared across its receivers
 seeded on a strong emitter's Doppler-offset sidelobe holds a phase hundreds
 of chips from the emitter's and despreads the emitter's own data, so it
 tracks a copy no exclusion names. The controller releases such a ghost on
-two of its traits together, each over the same trailing 0.2 s (owner ruling
-on doppler#2529):
+two of its traits together, each over the same trailing 0.2 s (doppler#2529):
 
 - **its carrier moves in lockstep with a stronger holder's** (stronger as
     each was estimated at its seed, `status().cn0_dbhz_est`), a whole nonzero

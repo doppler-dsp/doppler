@@ -442,10 +442,14 @@ hb_nda_cfgs (hb_nda_t *n)
           n[i].gamma_fl = pow (10.0, (dp_s415_cn0 (DP_S415_FLOOR_DB)
                                       + 10.0 * log10 (n[i].c.t_upd))
                                          / 10.0);
-          /* The receiver's own sizing: the unit form's jitter at the
-             rule's bn, bn (1 + 1/(2 gamma)) / gamma, and the exact tail
-             (det_ratio_block_len): 33 at 2.2 GHz, 43 at 2.8. The sweep's
-             committed rows (sweep-1b7312b09) ran the page's 31 / 40. */
+          /* The receiver's sizing before it moved to the loop's
+             delivered bandwidth: the unit form's jitter at the rule's bn,
+             bn (1 + 1/(2 gamma)) / gamma, and the exact tail
+             (det_ratio_block_len), 33 at 2.2 GHz and 43 at 2.8, at this
+             sweep's own update period. The receiver now sizes at
+             dp_async_dsss_receiver_carrier_phase_var() (34 / 43); this
+             sweep keeps the rule's. Its committed rows (sweep-1b7312b09)
+             ran the page's 31 / 40. */
           n[i].blk = (uint32_t)dp_det_ratio_block_len (
               n[i].gamma_fl,
               bn * (1.0 + 1.0 / (2.0 * n[i].gamma_fl)) / n[i].gamma_fl,

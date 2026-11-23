@@ -2258,8 +2258,11 @@ _test_near_far_levels (void)
 
 /* The carrier lock is sized or the receiver is refused (owner,
  * 2026-11-23: "no lock length reaches the detection probability means
- * raise"). At the 415.1-B-1 point the count is 33 at 2.2 GHz and 43 at 2.8
- * GHz at the floor, read back through the getter and the status record.
+ * raise"). At the 415.1-B-1 point the count is 34 at 2.2 GHz and 43 at 2.8
+ * GHz at the floor and 4 segments, sized at the loop's delivered bandwidth
+ * at its detector delay (ASYNC_DSSS_RX_CAR_LOOP_DELAY), read back through
+ * the getter and the status record. Sabotage: the delay forced to 0 (the
+ * rule's bandwidth) -> 33 at 2.2 GHz, red.
  * Falling C/N0 grows it until no count up to CARRIER_NDA_BLOCK_MAX_LEN
  * reaches Pd ASYNC_DSSS_RX_CAR_LOCK_PD: the edge is found through the
  * public count itself on the 7-chip fixture, create() refuses a design at
@@ -2276,13 +2279,13 @@ _test_unsized_carrier_lock_is_refused (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  static const uint32_t want[2] = { 33u, 43u };
+  static const uint32_t want[2] = { 34u, 43u };
   const double          fcs[2]  = { DP_S415_FC_LO, DP_S415_FC_HI };
   for (int f = 0; f < 2; f++)
     {
       const double chip = dp_s415_chip_rate (fcs[f]);
       DP_CHECK (dp_async_dsss_receiver_carrier_lock_n_noncoh (
-                    dp_s415_cn0 (DP_S415_FLOOR_DB), chip, DP_S415_SF)
+                    dp_s415_cn0 (DP_S415_FLOOR_DB), chip, DP_S415_SF, 4)
                 == want[f]);
       dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fcs[f], true);
       DP_REQUIRE (rx != NULL);
@@ -2298,14 +2301,14 @@ _test_unsized_carrier_lock_is_refused (void)
      alone takes minutes. */
   double edge = NAN;
   for (double c = 40.0; c > 0.0; c -= 0.5)
-    if (dp_async_dsss_receiver_carrier_lock_n_noncoh (c, 1.0e6, 7) == 0u)
+    if (dp_async_dsss_receiver_carrier_lock_n_noncoh (c, 1.0e6, 7, 4) == 0u)
       {
         edge = c;
         break;
       }
   DP_REQUIRE_MSG (!isnan (edge), "the model has an edge above 0 dB-Hz");
   const uint32_t above
-      = dp_async_dsss_receiver_carrier_lock_n_noncoh (edge + 0.5, 1.0e6, 7);
+      = dp_async_dsss_receiver_carrier_lock_n_noncoh (edge + 0.5, 1.0e6, 7, 4);
   const double t7 = 7.0 / 1.0e6; /* the fixture's code period, s */
   printf ("  carrier lock, 7 chips at 1 Mcps (T %.0f us): refused at update "
           "SNR gamma = C/N0 T %.4g (%.1f dB-Hz) and below; built at gamma "
@@ -7061,8 +7064,8 @@ _test_carrier_bn_follows_the_loop_snr_rule (void)
      public count (dp_async_dsss_receiver_carrier_lock_n_noncoh()). */
   {
     const double g = pow (10.0, 38.77 / 10.0) * 7.0 / 1.0e6;
-    const int    b
-        = (int)dp_async_dsss_receiver_carrier_lock_n_noncoh (38.77, 1.0e6, 7);
+    const int    b = (int)dp_async_dsss_receiver_carrier_lock_n_noncoh (
+        38.77, 1.0e6, 7, 4);
     printf ("  carrier lock: gamma %.4f, block %u (derived %d), threshold "
             "%.3f\n",
             rx->car_gamma, rx->car_blk, b,

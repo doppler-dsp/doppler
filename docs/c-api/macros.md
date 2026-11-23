@@ -40,6 +40,7 @@
 * **ASYNC\_DSSS\_RX\_CAR\_DEN\_ALPHA** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_CAR\_LOCK\_PD** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_CAR\_LOCK\_PFA** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
+* **ASYNC\_DSSS\_RX\_CAR\_LOOP\_DELAY** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_DEMOD\_BN\_CARRIER** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_DEMOD\_BN\_TIMING** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_DEMOD\_LOCK\_THRESH** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))

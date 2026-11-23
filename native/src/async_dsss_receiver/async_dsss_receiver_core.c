@@ -1,6 +1,8 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include "doppler/detection/detection_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/state_filter/state_filter_core.h"
 #include "doppler/util/util_core.h"
 #include <math.h>
 #include <stdlib.h>
@@ -142,9 +144,13 @@ adr_enter (dp_async_dsss_receiver_state_t *s, int state)
 /* The carrier loop's design point and block lock, from the design C/N0.
  * gamma is the update's SNR, C/N0 over a code period. The loop's jitter is
  * the unit denominator's: its error, divided by the slope, has variance
- * (1 + 1/(2 gamma)) / (2 gamma) an update, and the closed loop passes 2 bn
- * of it (pin 18 of test_carrier_nda_core.c measures that law), so
- * phase_var = bn (1 + 1/(2 gamma)) / gamma: 1/200 rad^2 at the rule's bn.
+ * (1 + 1/(2 gamma)) / (2 gamma) an update, and the closed loop passes 2 B
+ * of it, B the bandwidth it delivers (pin 18 of test_carrier_nda_core.c
+ * measures that law), so phase_var = B (1 + 1/(2 gamma)) / gamma. B is the
+ * rule's bn through the loop filter's gains at the loop's detector delay
+ * (ASYNC_DSSS_RX_CAR_LOOP_DELAY) and unit slope: 1.059 / 1.044 times the
+ * rule's at 2.2 / 2.8 GHz and 4 segments, where the rule's bn alone gives
+ * 1/200 rad^2.
  * The count is the least whose ratio of sums detects at Pd
  * ASYNC_DSSS_RX_CAR_LOCK_PD against the exact threshold at Pfa
  * ASYNC_DSSS_RX_CAR_LOCK_PFA. */
@@ -154,20 +160,35 @@ adr_carrier_gamma (double cn0_dbhz, double chip_rate, size_t code_len)
   return pow (10.0, cn0_dbhz / 10.0) * (double)code_len / chip_rate;
 }
 
+double
+dp_async_dsss_receiver_carrier_phase_var (double cn0_dbhz, double chip_rate,
+                                          size_t code_len, size_t segments)
+{
+  const double g = adr_carrier_gamma (cn0_dbhz, chip_rate, code_len);
+  if (!(isfinite (g) && g > 0.0) || segments == 0)
+    return NAN;
+  const double bn
+      = dp_async_dsss_receiver_carrier_bn (cn0_dbhz, chip_rate, code_len);
+  dp_loop_filter_state_t lf;
+  dp_loop_filter_init (&lf, bn, 0.707, 1.0);
+  const double bd = dp_state_filter_loop_bandwidth (
+      2, lf.kp, lf.ki, 0.0, ASYNC_DSSS_RX_CAR_LOOP_DELAY (segments), 1.0);
+  return bd * (1.0 + 1.0 / (2.0 * g)) / g; /* NaN: not stable there */
+}
+
 uint32_t
 dp_async_dsss_receiver_carrier_lock_n_noncoh (double cn0_dbhz,
                                               double chip_rate,
-                                              size_t code_len)
+                                              size_t code_len, size_t segments)
 {
-  const double g = adr_carrier_gamma (cn0_dbhz, chip_rate, code_len);
-  if (!(isfinite (g) && g > 0.0))
+  const double g   = adr_carrier_gamma (cn0_dbhz, chip_rate, code_len);
+  const double var = dp_async_dsss_receiver_carrier_phase_var (
+      cn0_dbhz, chip_rate, code_len, segments);
+  if (!(isfinite (var) && var > 0.0))
     return 0u;
-  const double bn
-      = dp_async_dsss_receiver_carrier_bn (cn0_dbhz, chip_rate, code_len);
-  const double var = bn * (1.0 + 1.0 / (2.0 * g)) / g;
-  const int    b = dp_det_ratio_block_len (g, var, ASYNC_DSSS_RX_CAR_LOCK_PFA,
-                                           ASYNC_DSSS_RX_CAR_LOCK_PD,
-                                           (int)CARRIER_NDA_BLOCK_MAX_LEN);
+  const int b = dp_det_ratio_block_len (g, var, ASYNC_DSSS_RX_CAR_LOCK_PFA,
+                                        ASYNC_DSSS_RX_CAR_LOCK_PD,
+                                        (int)CARRIER_NDA_BLOCK_MAX_LEN);
   return b > 0 ? (uint32_t)b : 0u;
 }
 
@@ -1676,7 +1697,7 @@ dp_async_dsss_receiver_create (
       = dp_async_dsss_receiver_carrier_bn (cn0_dbhz, chip_rate, code_len);
   const double   car_gamma = adr_carrier_gamma (cn0_dbhz, chip_rate, code_len);
   const uint32_t car_blk   = dp_async_dsss_receiver_carrier_lock_n_noncoh (
-      cn0_dbhz, chip_rate, code_len);
+      cn0_dbhz, chip_rate, code_len, segments);
   if (!(isfinite (car_gamma) && car_gamma > 0.0)
       || !dp_loop_filter_params_ok (car_bn, 0.707, 1.0) || car_blk == 0u)
     return NULL;

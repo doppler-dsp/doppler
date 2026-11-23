@@ -37,6 +37,8 @@
 #include "doppler/ber/ber_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/state_filter/state_filter_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -48,6 +50,8 @@ extern "C"
 #define ASYNC_DSSS_RX_CAR_DEN_ALPHA (1.0 / 256.0)
 #define ASYNC_DSSS_RX_CAR_LOCK_PFA 1e-3
 #define ASYNC_DSSS_RX_CAR_LOCK_PD 0.99
+#define ASYNC_DSSS_RX_CAR_LOOP_DELAY(segments)                                \
+  (2.0 - 1.0 / (double)(segments))
 #define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(bn, chip_rate, code_len)              \
   ((bn) * (chip_rate) / (2.0 * (double)(code_len)))
 #define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn)                                  \
@@ -56,9 +60,15 @@ extern "C"
   double dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
                                             size_t code_len);
 
+  double dp_async_dsss_receiver_carrier_phase_var (double cn0_dbhz,
+                                                   double chip_rate,
+                                                   size_t code_len,
+                                                   size_t segments);
+
   uint32_t dp_async_dsss_receiver_carrier_lock_n_noncoh (double cn0_dbhz,
                                                          double chip_rate,
-                                                         size_t code_len);
+                                                         size_t code_len,
+                                                         size_t segments);
 
   typedef struct
   {

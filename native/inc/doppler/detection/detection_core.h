@@ -562,9 +562,11 @@ double dp_det_ratio_pd(int n, double pfa, double gamma, double phase_var);
  * the model, so the block's decisions have the stated rates, and blocks
  * are disjoint, so verify counts on them count independent decisions. At
  * the 415.1-B-1 floor's window sums (`gamma` 2.397 and 1.884) it is 33 at
- * 2.2 GHz and 43 at 2.8 GHz at the async receiver's carrier jitter, 1/200
- * rad^2 (4.05 deg, the unit form at the rule's bn), and 34 and 43 at 4.40
- * and 4.50 deg.
+ * 2.2 GHz and 43 at 2.8 GHz at 1/200 rad^2 (4.05 deg, the unit form at the
+ * async receiver's rule bn), and 34 and 43 at 4.40 and 4.50 deg; the
+ * receiver sizes at its loop's delivered bandwidth
+ * (dp_async_dsss_receiver_carrier_phase_var(), 5.295 and 5.219e-3 rad^2),
+ * 34 and 43.
  *
  * @param gamma      Signal-to-noise ratio a term, linear, > 0.
  * @param phase_var  Phase jitter, rad^2, >= 0.

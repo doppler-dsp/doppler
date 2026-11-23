@@ -325,6 +325,7 @@
 * **dp\_\_async\_dsss\_pool\_ghost\_of\_any\_k** ([**async\_dsss\_pool\_private.h**](async__dsss__pool__private_8h.md))
 * **dp\_async\_dsss\_receiver\_carrier\_bn** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **dp\_async\_dsss\_receiver\_carrier\_lock\_n\_noncoh** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
+* **dp\_async\_dsss\_receiver\_carrier\_phase\_var** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **dp\_async\_dsss\_receiver\_configure\_chain\_raw** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **dp\_async\_dsss\_receiver\_configure\_lock\_raw** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **dp\_async\_dsss\_receiver\_configure\_search\_raw** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))

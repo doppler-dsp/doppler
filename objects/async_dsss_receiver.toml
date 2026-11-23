@@ -36,6 +36,10 @@ depends_on = [
     { name = "ppe", link = true },
     { name = "RateConverter", link = true },
     { name = "mpsk_receiver", link = true },
+    # the carrier lock is sized at the loop's delivered bandwidth
+    # (dp_state_filter_loop_bandwidth on dp_loop_filter_init's gains).
+    { name = "loop_filter", link = true },
+    { name = "state_filter", link = true },
     # RateConverter's own cascade components -- jm's depends_on linking is
     # not recursively transitive (dsss_receiver.toml's own comment on this
     # applies verbatim here).

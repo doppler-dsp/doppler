@@ -1536,23 +1536,32 @@ carrier implies; only an unseeded step's acquisition is bounded.
     `dp_det_ratio_block_len()` gives the least number of updates whose
     decision detects at `ASYNC_DSSS_RX_CAR_LOCK_PD` (0.99) against that
     threshold, at the design update SNR `car_gamma` and the loop's jitter
-    there, `bn (1 + 1/(2γ)) / γ`, through one public function,
-    `dp_async_dsss_receiver_carrier_lock_n_noncoh()`, which `create()` calls.
-    At the floor that is 33 updates at 2.2 GHz and 43 at 2.8 GHz: the
+    there, `B_d (1 + 1/(2γ)) / γ`
+    (`dp_async_dsss_receiver_carrier_phase_var()`), through one public
+    function, `dp_async_dsss_receiver_carrier_lock_n_noncoh()`, which
+    `create()` calls. `B_d` is the bandwidth the loop delivers at its
+    detector delay, `ASYNC_DSSS_RX_CAR_LOOP_DELAY(segments)` = `2 − 1/segments`
+    updates (the window's age at the update, under one, plus the look-back's
+    borrow, at most `(segments − 1)/segments`; a worst case), 1.059 / 1.044
+    times the rule's `bn` at 4 segments. Designing the loop so it delivers
+    the rule's `bn` at that delay instead is
+    [#3285](https://github.com/doppler-dsp/doppler/issues/3285).
+    At the floor that is 34 updates at 2.2 GHz and 43 at 2.8 GHz: the
     function, the built receiver's
     `dp_async_dsss_receiver_get_carrier_lock_n_noncoh()` and its status
     record's `carrier_lock_n_noncoh` all read it
     (`_test_unsized_carrier_lock_is_refused`), and so does the `car` row's
     `looks` column of `validate_async_dsss_receiver_pullin --emit`'s rule
     rows. The
-    detection module computes the same at the rule's jitter, 1/200 rad², and
-    the floor's update SNR:
+    detection module computes the same at that jitter (5.295 and 5.219 ×
+    10⁻³ rad², `validate_async_dsss_receiver_pullin --design`'s
+    `# carrier_lock` rows) and the floor's update SNR:
 
     ```pycon
     >>> from doppler.detection import det_ratio_block_len
-    >>> [det_ratio_block_len(g, 1 / 200, 1e-3, 0.99, 10**7)
-    ...  for g in (2.397, 1.884)]
-    [33, 43]
+    >>> [det_ratio_block_len(g, v, 1e-3, 0.99, 10**7)
+    ...  for g, v in ((2.397, 0.005295), (1.884, 0.005219))]
+    [34, 43]
     ```
 
     Where no length up to `CARRIER_NDA_BLOCK_MAX_LEN` reaches the detection
@@ -1565,7 +1574,7 @@ carrier implies; only an unseeded step's acquisition is bounded.
 - **The declare time it implies.** A decision sums the count's updates,
     one a code period, and the flag declares after
     `dp_det_verify_count(10⁻³, 10⁻⁶)` = 2 decisions in a row: at the floor
-    at least 2 × 33 × 318.2 µs = 21.0 ms at 2.2 GHz and 2 × 43 × 250.0 µs =
+    at least 2 × 34 × 318.2 µs = 21.6 ms at 2.2 GHz and 2 × 43 × 250.0 µs =
     21.5 ms at 2.8 GHz, which the application holds against its 20 s
     lock allocation (§4.12).
 
@@ -1675,7 +1684,7 @@ counts and length (the `.rules.csv` beside each capture).
 | flag                | statistic, per decision                                                                                                                                          | threshold, and where it comes from                                                                                            | counts (up / down)                                     | sized at the design C/N0?                                                                  |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
 | `code.locked`       | `R = sqrt(2 Σ abs(P)² / E abs(O)²)` over a non-coherent count of n = 22 / 20 coherent dwells, one a symbol, each the aid's window ("The code loop and its lock") | `det_threshold_noncoherent(10⁻³, n)`, 8.874 / 8.567: H0 at a stated Pfa                                                       | 2 / 3, `det_verify_count` at a 10⁻⁶ budget             | yes: n from `dp_det_n_noncoh()` at Pd 0.99                                                 |
-| `car.locked`        | `Σ(I² − Q²) / Σ(I² + Q²)` over `car_blk` = 33 / 43 window sums, one a code period ("The carrier lock")                                                           | the exact `Beta(car_blk/2, car_blk/2)` point at Pfa 10⁻³                                                                      | 2 / 3, the code lock's                                 | yes: `car_blk` from `dp_det_ratio_block_len()` at Pd 0.99                                  |
+| `car.locked`        | `Σ(I² − Q²) / Σ(I² + Q²)` over `car_blk` = 34 / 43 window sums, one a code period ("The carrier lock")                                                           | the exact `Beta(car_blk/2, car_blk/2)` point at Pfa 10⁻³                                                                      | 2 / 3, the code lock's                                 | yes: `car_blk` from `dp_det_ratio_block_len()` at Pd 0.99                                  |
 | `sym.locked`        | the receiver's power-weighted EMA, weight 1/30 a symbol (`ASYNC_DSSS_RX_LOCK_DWELL`), of `(I² − Q²)/(I² + Q²)` = `cos 2φ` on the demodulator's symbols           | up 0.5, down 0.3 (`ASYNC_DSSS_RX_LOCK_UP`, `ASYNC_DSSS_RX_LOCK_DOWN`): constants                                              | 30 / 15 symbols (`ASYNC_DSSS_RX_LOCK_N_UP`, `_N_DOWN`) | no: its rates are not stated ([#3253](https://github.com/doppler-dsp/doppler/issues/3253)) |
 | `demod.car.locked`  | `MpskReceiver`'s EMA, weight 0.05 a symbol (`CARRIER_NDA_LOCK_ALPHA`), of `Re((z/abs(z))²)` = `cos 2φ` of the on-time strobe                                     | up 0.3 (`ASYNC_DSSS_RX_DEMOD_LOCK_THRESH`), down 0.24: constants                                                              | 8 / 32 symbols                                         | no                                                                                         |
 | `demod.sync.locked` | `RateSync`'s `2(abs(on)² − abs(mid)²)/(abs(on)² + abs(mid)²)` averaged over 133 symbols                                                                          | 0.311: sized for symsync's pulse at roll-off 0.35 and Es/N0 10 dB (`ratesync_core.c`), not for this receiver's pulse or floor | 2 / 6                                                  | no                                                                                         |

@@ -35,6 +35,8 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 * `#include "doppler/ber/ber_core.h"`
 * `#include "doppler/doppler_channel/doppler_channel_core.h"`
 * `#include "doppler/dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/loop_filter/loop_filter_core.h"`
+* `#include "doppler/state_filter/state_filter_core.h"`
 
 
 
@@ -90,7 +92,8 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 | Type | Name |
 | ---: | :--- |
 |  double | [**dp\_async\_dsss\_receiver\_carrier\_bn**](#function-dp_async_dsss_receiver_carrier_bn) (double cn0\_dbhz, double chip\_rate, size\_t code\_len) <br>_The pre-despread carrier loop's bandwidth at a design C/N0: the loop-SNR rule (async-dsss-receiver.md §1.3), no wider than ASYNC\_DSSS\_RX\_BN\_CARRIER._  |
-|  uint32\_t | [**dp\_async\_dsss\_receiver\_carrier\_lock\_n\_noncoh**](#function-dp_async_dsss_receiver_carrier_lock_n_noncoh) (double cn0\_dbhz, double chip\_rate, size\_t code\_len) <br>_The pre-despread carrier lock's non-coherent count at a design C/N0: the updates one lock decision sums._  |
+|  uint32\_t | [**dp\_async\_dsss\_receiver\_carrier\_lock\_n\_noncoh**](#function-dp_async_dsss_receiver_carrier_lock_n_noncoh) (double cn0\_dbhz, double chip\_rate, size\_t code\_len, size\_t segments) <br>_The pre-despread carrier lock's non-coherent count at a design C/N0: the updates one lock decision sums._  |
+|  double | [**dp\_async\_dsss\_receiver\_carrier\_phase\_var**](#function-dp_async_dsss_receiver_carrier_phase_var) (double cn0\_dbhz, double chip\_rate, size\_t code\_len, size\_t segments) <br>_The pre-despread carrier loop's phase variance at a design C/N0, the one the carrier lock is sized at._  |
 |  int | [**dp\_async\_dsss\_receiver\_configure\_chain\_raw**](#function-dp_async_dsss_receiver_configure_chain_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t segments, size\_t sps, int n) <br>_Pin the live-tracking despread/resample/demod grid directly. The escape hatch for the composition-specific knob:_ `segments` _(the live Dll's tracking parameter) and_`sps` _/_`n` _(MpskReceiver's samples and terminal outputs per symbol) are independently overridable, still bridged by a freshly-sized_`RateConverter` _and never coupled to each other. While searching/refining it re-pins the grid used to build the next tracking chain; once tracking it rebuilds_`dll` _/_`rc` _/_`rx` _in place, allocating every replacement before adopting it, and re-seeds the rebuilt chain from the whole carrier_ _loop 1 plus loop 2's integrator, the sum status() reports_ _so a retune keeps the signal it was tracking._ |
 |  void | [**dp\_async\_dsss\_receiver\_configure\_lock\_raw**](#function-dp_async_dsss_receiver_configure_lock_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, size\_t n\_looks, double alpha, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the live-tracking Dll's code-lock detector directly. Forwards to_ `dp_dll_configure_lock_raw()` _on the live tracking Dll (the one behind_`get_code_locked()` _), NOT the refine-stage collection Dll. It retunes the Dll the receiver holds now; every chain build (a seed, the hand-over, reset() or configure\_chain\_raw()) replaces that Dll with a freshly sized one, so call it once tracking. The detector is the hysteretic lockdet over the DLL's per-N-look CFAR statistic — the levels and verify counts trade declare latency against false-alarm rate._ |
 |  int | [**dp\_async\_dsss\_receiver\_configure\_search\_raw**](#function-dp_async_dsss_receiver_configure_search_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded search's grid directly. Forwards to_ `dp_correlator_configure_search_raw()` __ _the escape hatch under this object's_`symbol_rate` _-driven auto-sizing, for a power user who wants a specific_`(doppler_bins, n_noncoh)` _. The pin replaces the whole auto-sized grid, the window-tiled search included. Only meaningful while searching; the search does not run again until the next_`reset()` _._ |
@@ -182,6 +185,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | define  | [**ASYNC\_DSSS\_RX\_CAR\_DEN\_ALPHA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_car_den_alpha)  `(1.0 / 256.0)`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CAR\_LOCK\_PD**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_car_lock_pd)  `0.99`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CAR\_LOCK\_PFA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_car_lock_pfa)  `1e-3`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_CAR\_LOOP\_DELAY**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_car_loop_delay) (segments) `(2.0 - 1.0 / (double)(segments))`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DEMOD\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_bn_carrier)  `0.01`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DEMOD\_BN\_TIMING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_bn_timing)  `0.005`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DEMOD\_LOCK\_THRESH**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_lock_thresh)  `0.3`<br> |
@@ -358,13 +362,14 @@ _The pre-despread carrier lock's non-coherent count at a design C/N0: the update
 uint32_t dp_async_dsss_receiver_carrier_lock_n_noncoh (
     double cn0_dbhz,
     double chip_rate,
-    size_t code_len
+    size_t code_len,
+    size_t segments
 ) 
 ```
 
 
 
-The lock is the ratio of sums of `I^2 - Q^2` over `I^2 + Q^2` over a run of updates (one a code period), decided against its exact threshold at Pfa ASYNC\_DSSS\_RX\_CAR\_LOCK\_PFA. The count is the least whose decision detects at Pd ASYNC\_DSSS\_RX\_CAR\_LOCK\_PD ([**dp\_det\_ratio\_block\_len()**](detection__core_8h.md#function-dp_det_ratio_block_len)) at the update SNR `gamma = C/N0 T` and the loop's phase jitter at its rule bandwidth ([**dp\_async\_dsss\_receiver\_carrier\_bn()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_bn)), `bn (1 + 1/(2 gamma)) / gamma` rad^2. At the 415.1-B-1 floor (C/N0 38.77 dB-Hz) it is 33 at 2.2 GHz and 43 at 2.8 GHz. It grows fast as C/N0 falls: 713 at 30 dB-Hz at 2.8 GHz. 0 when the design's update SNR, C/N0 x T, is too low for any count up to CARRIER\_NDA\_BLOCK\_MAX\_LEN to reach Pd, and [**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create) refuses that design: raise cn0\_dbhz.
+The lock is the ratio of sums of `I^2 - Q^2` over `I^2 + Q^2` over a run of updates (one a code period), decided against its exact threshold at Pfa ASYNC\_DSSS\_RX\_CAR\_LOCK\_PFA. The count is the least whose decision detects at Pd ASYNC\_DSSS\_RX\_CAR\_LOCK\_PD ([**dp\_det\_ratio\_block\_len()**](detection__core_8h.md#function-dp_det_ratio_block_len)) at the update SNR `gamma = C/N0 T` and the loop's phase variance, [**dp\_async\_dsss\_receiver\_carrier\_phase\_var()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_phase_var): at the bandwidth the loop delivers at its detector delay, wider than the rule's by that delay. At the 415.1-B-1 floor (C/N0 38.77 dB-Hz), 4 segments, it is 34 at 2.2 GHz and 43 at 2.8 GHz. It grows fast as C/N0 falls: 712 at 30 dB-Hz at 2.8 GHz. 0 when the design's update SNR, C/N0 x T, is too low for any count up to CARRIER\_NDA\_BLOCK\_MAX\_LEN to reach Pd, and [**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create) refuses that design: raise cn0\_dbhz.
 
 
 
@@ -375,12 +380,56 @@ The lock is the ratio of sums of `I^2 - Q^2` over `I^2 + Q^2` over a run of upda
 * `cn0_dbhz` Design C/N0, dB-Hz. 
 * `chip_rate` Chips per second, &gt; 0. 
 * `code_len` Chips a code period, &gt; 0. 
+* `segments` The Dll's segments a code period (create()'s), &gt;= 1. 
 
 
 
 **Returns:**
 
-The count, updates; 0 as above or for an update SNR that is not finite and positive. 
+The count, updates; 0 as above, for an update SNR that is not finite and positive, or for segments 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_carrier\_phase\_var 
+
+_The pre-despread carrier loop's phase variance at a design C/N0, the one the carrier lock is sized at._ 
+```C++
+double dp_async_dsss_receiver_carrier_phase_var (
+    double cn0_dbhz,
+    double chip_rate,
+    size_t code_len,
+    size_t segments
+) 
+```
+
+
+
+`B_d (1 + 1/(2 gamma)) / gamma` rad^2, `gamma = C/N0 T` the update's SNR and `B_d` the bandwidth the loop delivers: the rule's bandwidth ([**dp\_async\_dsss\_receiver\_carrier\_bn()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_bn)) through [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init)'s gains at the detector delay [**ASYNC\_DSSS\_RX\_CAR\_LOOP\_DELAY(segments)**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_car_loop_delay) and unit slope ([**dp\_state\_filter\_loop\_bandwidth()**](state__filter__core_8h.md#function-dp_state_filter_loop_bandwidth)). The unit denominator's error, divided by its slope, has variance `(1 + 1/(2 gamma)) / (2 gamma)` an update, and the closed loop passes `2 B_d` of it. At the 415.1-B-1 floor and 4 segments `B_d` is 1.059 / 1.044 times the rule's at 2.2 / 2.8 GHz, where the rule's alone gives 1/200 rad^2.
+
+
+
+
+**Parameters:**
+
+
+* `cn0_dbhz` Design C/N0, dB-Hz. 
+* `chip_rate` Chips per second, &gt; 0. 
+* `code_len` Chips a code period, &gt; 0. 
+* `segments` The Dll's segments a code period, &gt;= 1. 
+
+
+
+**Returns:**
+
+The variance, rad^2; NaN for an update SNR that is not finite and positive, segments 0, or a loop not stable at that delay. 
 
 
 
@@ -2738,6 +2787,29 @@ The carrier block lock's detection probability a block at the design C/N0, the c
 
 
 The carrier block lock's false-alarm rate a block, the code lock's. 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_CAR\_LOOP\_DELAY 
+
+```C++
+#define ASYNC_DSSS_RX_CAR_LOOP_DELAY (
+    segments
+) `(2.0 - 1.0 / (double)(segments))`
+```
+
+
+
+The pre-despread carrier loop's detector delay, updates, at `segments` Dll segments a code period: `2 - 1/segments`, a worst case and not a typical value. It is the delay of [**dp\_state\_filter\_loop\_bandwidth()**](state__filter__core_8h.md#function-dp_state_filter_loop_bandwidth)'s model, past that model's own one-update loop (at delay 0 a control reaches the next update's detector). Two terms, each a bound:
+* **the window's age at the update**, under one update: the loop updates once a code period, at the period's end, on the window the Dll's look-back picked, and that window ends at most a period before the update (less than 1; the lag instrument's `lag.epoch_T`, the Dll's code phase at the update in periods, reads it);
+* **the look-back's borrow**: the window may start in the previous period, by at most `segments - 1` of its `segments` chunks (the candidate loop in dll\_core.c, `best_widx <= w - 1`), so at most `(segments - 1)/segments` of a period. Their sum is under `1 + (segments - 1)/segments = 2 - 1/segments`: 1.75 at the receiver's 4. The carrier lock is sized at the loop's delivered bandwidth at this delay (the delay widens it). [**dp\_async\_dsss\_receiver\_carrier\_lock\_n\_noncoh()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_lock_n_noncoh). 
+
+
 
 
         

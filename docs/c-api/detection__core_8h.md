@@ -789,7 +789,7 @@ int dp_det_ratio_block_len (
 
 
 
-Sizes a block lock on R from the operating point: the smallest `n` with det\_ratio\_pd(n, pfa, gamma, phase\_var) &gt;= `pd`, searched by doubling and then bisection (the probability rises with `n`). Both sides are exact for the model, so the block's decisions have the stated rates, and blocks are disjoint, so verify counts on them count independent decisions. At the 415.1-B-1 floor's window sums (`gamma` 2.397 and 1.884) it is 33 at 2.2 GHz and 43 at 2.8 GHz at the async receiver's carrier jitter, 1/200 rad^2 (4.05 deg, the unit form at the rule's bn), and 34 and 43 at 4.40 and 4.50 deg.
+Sizes a block lock on R from the operating point: the smallest `n` with det\_ratio\_pd(n, pfa, gamma, phase\_var) &gt;= `pd`, searched by doubling and then bisection (the probability rises with `n`). Both sides are exact for the model, so the block's decisions have the stated rates, and blocks are disjoint, so verify counts on them count independent decisions. At the 415.1-B-1 floor's window sums (`gamma` 2.397 and 1.884) it is 33 at 2.2 GHz and 43 at 2.8 GHz at 1/200 rad^2 (4.05 deg, the unit form at the async receiver's rule bn), and 34 and 43 at 4.40 and 4.50 deg; the receiver sizes at its loop's delivered bandwidth ([**dp\_async\_dsss\_receiver\_carrier\_phase\_var()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_phase_var), 5.295 and 5.219e-3 rad^2), 34 and 43.
 
 
 

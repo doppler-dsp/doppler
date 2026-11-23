@@ -197,6 +197,19 @@ def test_auto_is_never_read_or_written():
     assert "constellation" not in rec["segments"][0]
 
 
+def test_an_explicit_zero_is_written_and_read_back():
+    """bpsk, 1/2 and none are index 0 of their choices, and a record keeps
+    them. Rejects the writer's omit-at-zero rule reaching these rows: an
+    explicit 6 Mb/s without the FCS would be written as nothing and reread
+    as 36 Mb/s with it."""
+    kw = {"constellation": "bpsk", "code_rate": "1/2", "mac": "none"}
+    c = Composer([Segment(type="ofdm", **kw)])
+    rec = json.loads(c.to_json())["segments"][0]
+    assert {k: rec.get(k) for k in kw} == kw
+    again = Composer.from_json(c.to_json())
+    np.testing.assert_array_equal(again.compose(), c.compose())
+
+
 def _synth_fs_default() -> float:
     """``WFM_SYNTH_FS_DEFAULT``, held equal to the manifest's literal.
 

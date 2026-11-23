@@ -715,6 +715,12 @@ and a `Synth`'s properties hold the resolved value, and a `wlan` source keeps
 `mac` none by its own zeros, as a zero-filled `window` is the rectangular one;
 `WFM_SOURCE_DEFAULTS` starts at `auto`.
 
+**A record keeps a zero.** bpsk, 1/2 and none are the first value of their
+choices, and the writer, which leaves a row out at its default and at zero,
+keeps the zero of a row whose default is not its first value, as it does
+for a default that names a constant: omitted, an explicit 6 Mb/s without
+the FCS would reread as the default.
+
 **At 10 and 5 MHz** the zero-config source is the same pair, so it carries 18
 or 9 Mb/s there; it is not `wlan`, so it is not refused.
 

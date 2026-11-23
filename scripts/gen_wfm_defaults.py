@@ -1146,10 +1146,19 @@ def render_surface() -> str:
             fields.append(".json_required = 1")
         if r["json_omit"] == "default":
             fields.append(".json_omit = 1")
-            # A default that names a constant is not 0, so a 0 the row holds
-            # is a value (an ofdm window of 0 is the rectangular one) and a
-            # record must carry it: "unset" is the constant, never the zero.
-            if is_named(r["default"]):
+            # A default that is not 0 makes a 0 the row holds a value, and a
+            # record must carry it: "unset" is the default, never the zero.
+            # Two ways a default is not 0: it names a constant (an ofdm window
+            # of 0 is the rectangular one), or it is a choice other than the
+            # first (an ofdm constellation of 0 is bpsk, given; its default is
+            # `auto`). Omitted at 0, either would reread as its default.
+            vals = r.get("values")
+            not_first = (
+                bool(vals)
+                and r["default"] in vals
+                and (vals.index(r["default"]) != 0)
+            )
+            if is_named(r["default"]) or not_first:
                 fields.append(".json_keep_zero = 1")
         if r["json_bool"]:
             fields.append(".json_bool = 1")

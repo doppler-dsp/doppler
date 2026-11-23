@@ -100,7 +100,10 @@ _OFDM = ["--fs", "20e6", "--data", "pn:800:15", "--data-len", "800"]
 #: Flags a row needs beside its own for the run to be buildable at all.
 EXTRA = {
     "wlan": _OFDM,
-    "constellation": _OFDM,
+    # a rate is given whole: each half of the pair brings the other. The
+    # constellation's probe, bpsk, is index 0, so with 1/2 this row also
+    # holds that a zero choice is written, not dropped as unset.
+    "constellation": [*_OFDM, "--code-rate", "1/2"],
     "code_rate": [*_OFDM, "--constellation", "qpsk"],
     "scrambler_init": _OFDM,
     "window": _OFDM,

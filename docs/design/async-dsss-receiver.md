@@ -1558,7 +1558,7 @@ A squared-stream estimator with a derived threshold was built beside it (`79fa50
 
 ### 4.8 The carrier loop's bandwidth
 
-**The detector this section's loop SNR assumes** is now `carrier_nda` at M = 2 on the window sum, with its squaring loss restated: see "The pre-despread carrier loop becomes `carrier_nda`", below.
+**The detector this section's loop SNR assumes** is `carrier_nda` at M = 2 on the window sum, with its squaring loss counted: see §4.10, "The pre-despread carrier loop" and "Its bandwidth".
 
 The bandwidth's rule is §1.3's: a loop SNR of 20 dB at the floor,
 `bn = ρ_floor/200`. The receiver holds the constant 0.04 until the
@@ -1882,331 +1882,131 @@ The false declare is 10⁻³ per decision by construction, before the noise refe
 
 - **Steer and carrier on the same window.** The code loop's discriminator and the pre-despread carrier's error both take the looked-at window. Today the carrier takes `dp_dll_get_window_sum()`, the per-epoch look-back's winner; D0 above moves it. One window, chosen one way, feeds all three.
 
-#### The pre-despread carrier loop (the existing `Costas`, `dp_costas_state_t`)
-
-The pre-despread loop **is** `dp_costas`: `dp_costas_init()` at `async_dsss_receiver_core.c:387` (and `:170` for the refine's frozen copy), with bn `ASYNC_DSSS_RX_BN_CARRIER` = 0.04 and ζ 0.707. Everything below is configuration of that object through setters it already has, except the lock metric's block average.
-
-- **bn from §1.3's rule**: `bn = ρ_floor · S_L / 200`, a loop SNR of 20 dB at the floor counting the squaring loss. That is 0.00993 at 2.2 GHz and 0.00744 at 2.8 GHz (`dp_async_dsss_receiver_carrier_bn()`).
-- **Order 2.** The use case's 11 Hz/s residual is a ramp, which a second-order loop holds with a steady phase error of `2π R T² / (ω_n T)²`, `ω_n T = 8ζ bn / (4ζ² + 1)`. At the rule's bn the pull-in validator's `--design` prints 1.16° (2.2 GHz) and 1.27° (2.8 GHz), under the loop's jitter, so a third order would remove an error that does not matter.
-- **Pull-in at hand-over.** Reliable to twice `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`: 31.2 Hz (2.2 GHz) and 29.8 Hz (2.8 GHz) at the rule's bn (the pull-in rows' `base_pullin_hz`, 15.59 / 14.89 Hz). Step D's worst fine hand-over error, 1.68 Hz over 720 draws, is far inside it.
-    - Whether the tail past 37.6 Hz needs a wide acquisition bn that narrows after pull-in is **not derived**: it needs the hand-over error's distribution at the floor, set against the bound.
-- **The search depth tied to bn.** `ASYNC_DSSS_RX_NO_REFINE_MIN_BINS` requires `coherent_bins ≥ 1/bn` for a receiver without the refine, so that half the search's Doppler row lies inside the pull-in bound. At the rule's bn that is 83 bins (2.2 GHz) and 106 (2.8 GHz). The engine runs 108 and 140 (the pull-in validator's `# search`), which holds with about 30% margin at both carriers. With `refine` always on (D2, proposed) the hand-over comes from the refine, not the search's row, so the requirement no longer binds. It moves with bn if it is kept.
-
-#### The pre-despread carrier loop becomes `carrier_nda`, and the half-bandwidth rule is tested on it (proposed; not built, not run)
-
-**The rulings (owner, 2026-11-22).**
-
-- A second-order loop is predictable for a frequency step under half its loop bandwidth, and where that holds "depends on the detector".
-- "The snr is too low for decision-directed".
-- Every loop and lock statistic "should be non data-aided", and "all be calculated on the despread signal".
-- The phase detector "should see unit amplitude - as far as possible".
-- The first loop is the library's NDA loop: "I thought we already had this NDA loop?", then, on this row's reuse answer, "Agreed, and the division is correct but the denominator could be averaged as well".
-
-**The word to build (owner, 2026-11-22): "Let's do it".** The owner gave it on the recommended set, as relayed by visionary-architect, who recorded it as five rulings:
-
-- The 20 dB loop-SNR rule counts the squaring loss: bn 0.00993 at 2.2 GHz and 0.00744 at 2.8 GHz.
-- The denominator is the unit amplitude. The averaged form `⟨abs(w)²⟩` bounds it from above, through the derived clamp below.
-- The error-rate window is as proposed ("The error-rate window", below).
-- The block lock detectors are sized as proposed ("The five lock detectors at today's settings", below). The sync detector waits for its derivation.
-- The hand-over is the M-th power of the summation's intermediate dumps ("The hand-over: the M-th power of the refine's partial dumps", below).
-
-They are built in this order, each step with its pin and its sabotage:
-
-1. the meter;
-1. `carrier_nda`'s options, on the object alone;
-1. the sweep below, on that commit.
-
-The receiver's swap to `carrier_nda`, the hand-over and the receiver's detector changes wait until the owner has read the sweep.
-
-So the pre-despread loop becomes `carrier_nda` at M = 2, fed the Dll's despread window sum once a code period, and `Costas` gains no detector mode. This row derives that loop at the four cells, compares its two denominators, and specifies the sweep that tests the half-bandwidth rule on it.
-
-**Every number in this row is printed by `validate_costas_pullin --design`.** It derives the S-curve by quadrature of the window sum's Gaussian noise and runs the loop's mean equations. It draws nothing and adds no noise. Its `today` rows are the present receiver's `Costas` detector, kept for comparison. Half the loop bandwidth is `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`, `bn / (2T)`: 18.84 Hz at both carriers at the rule's bn, where `B_L = bn / T` = 37.7 Hz.
-
-##### Today's detector, and why it goes
-
-`Costas`'s detector is `sgn(Re P) · Im P / |P|` (`costas_update()`), the sine of P's phase folded to ±90°. The receiver feeds it a unit phasor at half the angle of the squared window sum (`async_dsss_receiver_core.c:870-887`). `½ atan2` of the square is the same fold as the sign decision. So the error is decision-directed in effect, whichever feed it gets, and the comment at `:872-883` calling it "the NDA principle" of `MpskReceiver`'s loop is not what it computes.
-
-##### `carrier_nda` at M = 2, and its two denominators
-
-Its error is `Im((z/|z|)²) = 2IQ/(I² + Q²)`, the I·Q detector (`carrier_nda_disc()`, `carrier_nda_core.h:292`). Its lock signal is `(I² − Q²)/(I² + Q²)`. On the window sum `w = I + jQ` at update SNR `γ = C/N0 · T`, the two denominators are:
-
-- **as it is:** the update's own `I² + Q²`, a per-update limiter;
-- **the owner's option:** the same numerator over an average of `I² + Q²`.
-
-The average of `I² + Q²` is `A² + E|n|²`, signal plus noise. So the averaged form's gain is `A²/(A² + E|n|²) = γ/(γ + 1)`. That is the size of "as far as possible" without subtracting the noise: 0.706 (−1.51 dB) and 0.653 (−1.85 dB) at the floor, and 0.905 and 0.882 at 10 dB. Subtracting the Dll's noise estimate would take it to 1, at the cost of that estimate's own error. That is the `iq_unit` row, left for the owner.
-
-Slopes are given in the convention where an ideal detector's slope is 1 (`I·Q/A²`), so they compare directly with today's.
-
-| cell   | γ, dB | today: slope, `B_eff/B_L` | limiter: slope, `B_eff/B_L` | averaged: slope, `B_eff/B_L` | unit (noise subtracted): slope |
-| ------ | ----- | ------------------------- | --------------------------- | ---------------------------- | ------------------------------ |
-| 2.2/4  | 3.80  | 0.826, 0.884              | 0.621, 0.747                | 0.706, 0.804                 | 1, 1                           |
-| 2.8/4  | 2.75  | 0.761, 0.841              | 0.550, 0.700                | 0.653, 0.769                 | 1, 1                           |
-| 2.2/10 | 9.80  | 0.973, 0.982              | 0.895, 0.930                | 0.905, 0.937                 | 1, 1                           |
-| 2.8/10 | 8.75  | 0.964, 0.976              | 0.867, 0.911                | 0.882, 0.922                 | 1, 1                           |
-
-**Noise and loop SNR at the rule's bn.** `var(e)/K²` is the noise at the loop's input. The jitter is `σ_θ² = 2 B_eff T var(e)/K²`, and the loop SNR is `1/σ_θ²`.
-
-| cell   | limiter: var/K², σ_θ, loop SNR | averaged: var/K², σ_θ, loop SNR |
-| ------ | ------------------------------ | ------------------------------- |
-| 2.2/4  | 0.258, 3.89°, 23.4 dB          | 0.252, 3.99°, 23.1 dB           |
-| 2.8/4  | 0.352, 3.90°, 23.3 dB          | 0.336, 4.00°, 23.1 dB           |
-| 2.2/10 | 0.055, 2.01°, 29.1 dB          | 0.055, 2.02°, 29.1 dB           |
-| 2.8/10 | 0.071, 2.00°, 29.1 dB          | 0.071, 2.01°, 29.1 dB           |
-
-- **The averaged form has less noise at the loop's input**, by 0.10 dB at 2.2/4 and 0.20 dB at 2.8/4.
-- **Its σ_θ reads higher at the same bn only because it keeps more of its bandwidth.** The limiter's lower jitter is its narrower loop, not a better detector.
-- **Effective bn against design over 4 to 10 dB:** the limiter's spans 0.70 to 0.93, the averaged 0.77 to 0.94, today's 0.84 to 0.98.
-
-**The averaging length.** An EMA of α = 1/256 updates: 81 ms at 2.2 GHz and 64 ms at 2.8, against the loop's `1/(4 B_L)` = 6.6 ms.
-
-- **Slow enough not to modulate the error**, at 10 to 12 times slower. Its relative sd is `√(2γ + 1)/(γ + 1) · √(α/(2 − α))`: 3.1% / 3.3% at the floor and 1.9% / 2.1% at 10 dB.
-- **Fast enough for the use case's level changes**, which follow range over a pass, seconds and longer. After a step it follows in about 3 time constants (0.25 s). Until then the gain is off by the step's ratio.
-- **Before lock** it reads what it reads in lock: `|w|²` does not depend on the carrier phase. So the gain during pull-in is the gain in track. It needs only the code aligned, which the hand-over gives, and loses only the window's sinc to the frequency error: under 0.01 dB at 2 `B_L` and the rule's bn.
-- **It starts as a cumulative mean from the hand-over**, the Dll's own boot (`lock_nz`). After 16 updates (5 ms) its sd is under 20% at the floor.
-
-**The unit form: subtracting the noise, and what it costs.** "Unit amplitude - as far as possible" reaches 1 only if the noise is taken out of the denominator: `Â² = ⟨abs(w)²⟩ − N̂_w`, with `N̂_w` the Dll's offset-tap noise estimate (`noise_ema`, `dll_core.c:158`). It is converted from the look's normalization to the window sum's by the geometry's sample counts, a conversion pinned in the build. At the floor it moves the worst-start edge from 0.27 to 0.29 `B_L` to 0.38, and the effective bandwidth to the design bn.
-
-- **The noise estimate's own error.** `noise_ema` is an EMA of the offset tap's power, once a look (a symbol), at α = 1/1024 (the code rule's `alpha`, `rules.csv`), booted as a cumulative mean (`lock_nz`). One look's power is exponential, relative sd 1, so the EMA's relative sd is `√(α/(2 − α))` = 2.2%, over about 0.68 s.
-- **The gain's error.** In units of the noise power, `⟨abs(w)²⟩` at α = 1/256 has sd `√(2γ + 1) · 0.044`, and `N̂_w` has sd 0.022. So `Â²`'s relative sd is 4.5% (2.2/4), 5.3% (2.8/4), 2.1% (2.2/10) and 2.4% (2.8/10). That is the gain's sd, and about ±3% on the effective bn at the floor, against the averaged form's 3.1 to 3.3% on a gain that sits at 0.65 to 0.71.
-- **Its biases.** The offset code's Gold sidelobe in `N̂_w` is at most (65/1023)² of `A²`, a 0.4% gain error. The look-back's pick of the strongest window inflates `⟨abs(w)²⟩` under noise, in both forms alike. It is not derived; the run prints `Â²` beside the truth's `A²`.
-- **At boot, and when signal less noise goes small or negative.** Both averages boot as cumulative means. After 16 updates `Â²` has a relative sd of 27% (2.2/4) and 32% (2.8/4), and the chance it is at or below 0 is about 10⁻⁴. A small `Â²` is a large gain, and a negative one turns the loop's sign. So `Â²` is clamped between two values:
-    - **below,** at `⟨abs(w)²⟩ · γ_d / (γ_d + 1)`, with `γ_d` the update SNR at the receiver's design C/N0, which it is built with (`cn0_dbhz`). At the floor the gain is then at most 1, and at higher SNR the clamp lies below the estimate and is inactive.
-    - **above,** at `⟨abs(w)²⟩`, which is the averaged form.
-    - The clamp is derived from the design point, not fitted. With no signal it holds the gain at the averaged form's.
-
-**Recommendation: the unit form, with the clamp. The averaged form is its floor and its fallback.**
-
-- At the floor its no-slip edge is 0.38 `B_L` (14.4 Hz at today's rule bn) against 0.27 to 0.29 (10.3 to 10.9 Hz), 31 to 39% wider.
-- Its effective bandwidth is the design bn ±3% at every level, against 0.77 to 0.94.
-- It costs a dependence on the Dll's noise estimate, a gain sd of 4.5 to 5.3% at the floor against 3.1 to 3.3%, and a clamp at boot.
-- The dwell paper below sizes the refine to each, since the hand-over requirement is the edge: the averaged form's narrower edge needs a longer dwell.
-- Both forms are options in `carrier_nda`, with its default unchanged (the limiter). Each is pinned and sabotaged there: the slope at a known power, the gain against level, and the clamp at boot, with the option ignored as the failing case. `MpskReceiver`'s loop may take either later, on its own evidence; not in this change.
-
-**All of it on the despread signal.** The error, the averaged denominator and the lock statistic are all formed on the Dll's despread window sum, `w = dp_dll_get_window_sum()` (read at `async_dsss_receiver_core.c:884`), or on sums of it.
-
-- **Nothing in the carrier loop's gain path is measured before despreading.** The one pre-despread operation is the wipe-off, a rotation by the NCO once a sample. It measures nothing.
-- **The receiver's one AGC is `MpskReceiver`'s** (`MPSK_RX_AGC_BW_RATIO`, `:379`). It acts after despreading and feeds the demodulator's timing detector level, not this loop.
-- **Why**, in numbers:
-
-| cell   | SNR of one window sum (γ) | SNR of one pre-despread sample (C/N0 / 11 MSa/s) |
-| ------ | ------------------------- | ------------------------------------------------ |
-| 2.2/4  | 3.80 dB                   | −31.6 dB                                         |
-| 2.8/4  | 2.75 dB                   | −31.6 dB                                         |
-| 2.2/10 | 9.80 dB                   | −25.6 dB                                         |
-| 2.8/10 | 8.75 dB                   | −25.6 dB                                         |
-
-**The loop SNR rule counts the squaring loss** (§1.3, the owner's ruling): `bn = ρ · S_L / 200`, 0.00993 and 0.00744. I·Q's loss at the floor is 0.82 dB (2.2 GHz) and 1.02 dB (2.8 GHz), and the averaged denominator's gain moves the effective bandwidth further (0.80 / 0.77). §1.3's form `ρ/(2bn)` is 3 dB under `1/σ_θ²` for an ideal loop: the table's 23.1 dB at the floor is that form's 20 dB.
-
-##### The half-bandwidth rule on this detector: the mean loop's edge
-
-The S-curve is `sin 2φ` in shape: it peaks at ±45°, and its restoring range ends at the unstable null at ±90°, as today's does. Both 0 and π are lock points for BPSK. So a start near the null may end at the adjacent one: one lock point crossed, a choice of ambiguity resolved downstream. **A slip is two or more lock points crossed.**
-
-The edge below is the largest step from which no start phase slips (the worst start), and from which the start at 0 crosses none. It uses the mean equations, the detector's mean S-curve at its slope, and the rule's bn. Its peak restoring force is half of today's high-SNR peak (½ at 45° against today's 0.82 at 63° at 10 dB), and that is what sets the edge.
-
-| cell   | today: worst, start 0 | limiter: worst, start 0 | averaged: worst, start 0 | unit: worst, start 0 |
-| ------ | --------------------- | ----------------------- | ------------------------ | -------------------- |
-| 2.2/4  | 0.405, 0.482 `B_L`    | 0.263, 0.332            | 0.290, 0.361             | 0.382, 0.458         |
-| 2.8/4  | 0.368, 0.442          | 0.240, 0.307            | 0.274, 0.344             | 0.383, 0.459         |
-| 2.2/10 | 0.572, 0.653          | 0.349, 0.424            | 0.353, 0.428             | 0.382, 0.458         |
-| 2.8/10 | 0.553, 0.633          | 0.342, 0.416            | 0.347, 0.421             | 0.383, 0.459         |
-
-**What this does to the rule.** For `carrier_nda` at M = 2 the half-bandwidth rule is predicted not to hold at any cell. The worst-start edge is 0.27 to 0.29 `B_L` at the floor (10.3 to 10.9 Hz at the rule's bn) and 0.35 at 10 dB (13.1 to 13.3 Hz) with the averaged denominator. Even at unit amplitude it is 0.38. In units of the loop's own effective bandwidth the averaged edges are 0.36 at the floor and 0.38 at 10 dB: the gain lost to the noise explains part of the gap, the S-curve's half-height peak the rest. The hand-over requirement that follows from the owner's rule, for this detector, is that edge, not one half. The sweep tests it.
-
-##### The sweep, on `carrier_nda` at M = 2 (after its changes are built)
-
-It cannot run on today's `carrier_nda`, which updates once a sample and has no averaged denominator. It runs after the changes listed below, in the configuration the receiver would build: once a code period, on the window sum, ζ 0.707.
-
-- **Points:**
-    - the step `Δf/B_L` at 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.65, 1.0 and 2.0, both signs, read as separate sets of 60 and pooled;
-    - γ at the four cells;
-    - the rule's bn: 0.00993 / 0.00744 (§1.3, the 20 dB counting the squaring loss);
-    - three denominators: the limiter, the averaged, and the unit form with its clamp;
-    - 60 draws a point.
-    - That is 11 × 2 × 4 × 3 × 60 = 15,840 draws.
-- **Each draw** starts at a uniform phase from its own stream, independent of the sign, the data and the noise. The phase is `dp_xs32` seeded `104729 · seed + 7`, the data `7919 · seed + 3`, and the noise `dp_awgn` seeded `7919 · seed + 1`. A draw runs to its sustained lock plus 1,000 updates, capped at 20 s of updates.
-- **Readings, from the loop's probes**, with the `.nco` probe `carrier_nda` gains:
-    - **the phase error** at the update's middle: the truth's phase less the summed `.nco` command;
-    - **its pin:** the summed probe is the LO's phase word, and read one update late it is not;
-    - **the lock points crossed** by the lock time, and the gross crossings;
-    - **the lock time**, the start of the first 200-update run inside `3 σ_θ` of a lock point, then 90% of the rest (`dp_ber_lock_symbol()`). `σ_θ` is the derived jitter, checked on every draw against the folded error's sd past the lock;
-    - **beside it**, `.freq` within `B_L/4` (comparable with run 415's `t_pull_s`) and the `.locked` flag's sustained time;
-    - **the mean loop's prediction** for the draw's own start phase and step.
-- **The prediction, fixed before the run:**
-    1. **Slips.** At or below a configuration's worst-start edge, 0 of 60 draws a sign cross two or more lock points. Past it, the share is above 0 by the first grid point beyond the edge. The owner's one half is predicted to show slips at every cell.
-    1. **Lock points crossed.** Draws starting `3 σ_θ` or more from the null cross the number their own start predicts.
-    1. **Lock time.** Inside the edge, a draw starting `3 σ_θ` or more from the null locks by the point's budget. The budget is the worst over such starts of the mean loop's last update more than `σ_θ` from its lock point, printed by `--design`. `5 / B_eff` is printed beside it.
-        - A local pilot of today's detector (60 draws, one point) had 3 of 52 such draws past the budget, up to 0.128 s against 0.098 s.
-        - So this prediction may be refuted by the noise's delay of the first sustained run, which is not derived. The prediction is kept as written; a refutation is read as that.
-- **The control, which must fail:** a step of 10 `B_L`, both signs, 60 draws in each of the twelve configurations (four cells, three denominators). The mean loop spins through the whole 20 s cap in every configuration, so every draw should reach the cap slipping throughout. A draw that locks inside 20 s refutes that.
-- **Run:** 15,840 draws plus 1,440 control, one job on swiftgo-ai9465 from a clean detached tree at the commit that builds `carrier_nda`'s changes. About 5.3 CPU-hours, 20 minutes over 16 processes. One shard is timed first, and the rows are committed with their command.
-
-**`validate_costas_pullin --half-bw`** runs this sweep on `carrier_nda` from `1b7312b09`, where today's `Costas` draw was retired. `--design` prints the predictions below, the object's filter for each configuration, and each point's budget.
-
-##### The sweep's read, at `1b7312b09`
-
-The run: 17,280 draws (288 points × 60) in 16 shards, one job on swiftgo-ai9465 from a clean detached tree, 15 minutes. The rows, `--design`'s output and the read script are `async-dsss-receiver-measurements/sweep-1b7312b09/`. `python3 read_sweep.py .` prints every number below.
-
-**The configured loop is the design's, measured.** From the jitter, `B_eff` is the design's `B_eff` times (the tail's sd / the derived σ)², over the locked draws inside the edge. It reads 0.964 to 1.003 of the design at the twelve configurations. Eleven of the 95% intervals hold 1; the twelfth (2.8/10, averaged) is [0.929, 0.998].
-
-| prediction                                                                                     | verdict                | the reading                                                                                                                                                                                                                                                                                            |
-| ---------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 4. The 10 `B_L` control never locks inside 20 s                                                | **holds**              | 0 of 1,440 locked                                                                                                                                                                                                                                                                                      |
-| 1. At or below the worst-start edge, no draw slips; past it, some do from the first grid point | **refuted as written** | 13 (configuration, step) pairs inside the noise-free edge slipped, 1 to 8 draws in 120, all at the last one or two grid points under it. Past the edge every configuration slipped from the first point. The owner's one half slips at all twelve configurations, 72 to 120 draws in 120, as predicted |
-| 2. A draw starting 3 σ or more from the null crosses the lock points its start predicts        | **refuted as written** | 9,268 of 14,608 agree. Inside the edge 5,277 of 5,440 (97.0%); past it 3,991 of 9,168, where the mean loop spins and the noise picks where it stops                                                                                                                                                    |
-| 3. Inside the edge, such a draw locks by the point's budget                                    | **refuted as written** | 114 of 5,560 (2.1%) locked after it, by up to 0.088 s against budgets of 0.12 to 0.27 s. The pilot had flagged this: the noise's delay of the first sustained run is not derived                                                                                                                       |
-
-**The noise-free edge is not the noisy one.** In 120 draws no configuration slipped up to a step of 0.57 to 0.87 of its mean-loop edge, and the first slips came at 0.76 to 1.02 of it:
-
-| cell   | limiter: edge, last step with no slip, first slip | averaged          | unit              |
-| ------ | ------------------------------------------------- | ----------------- | ----------------- |
-| 2.2/4  | 0.263, 0.15, 0.20 `B_L`                           | 0.291, 0.20, 0.25 | 0.382, 0.25, 0.30 |
-| 2.8/4  | 0.240, 0.15, 0.20                                 | 0.274, 0.20, 0.25 | 0.383, 0.25, 0.30 |
-| 2.2/10 | 0.350, 0.30, 0.35                                 | 0.353, 0.30, 0.35 | 0.382, 0.30, 0.35 |
-| 2.8/10 | 0.343, 0.30, 0.35                                 | 0.347, 0.30, 0.35 | 0.383, 0.30, 0.35 |
-
-**What it says about the owner's rule.** For `carrier_nda` at M = 2 the half-bandwidth rule does not hold, at any cell or with any denominator. A step under the last slip-free one is the reach. 0 slips in 120 draws bounds the slip probability under 3% (95%). The reach is 0.15 to 0.25 `B_L` at the floor and 0.30 at 10 dB:
-
-- the unit form, 7.8 Hz (2.2 GHz) and 7.4 Hz (2.8 GHz) at the floor;
-- the averaged form, 6.2 and 6.0 Hz;
-- the limiter, 4.7 and 4.5 Hz;
-- 9.4 and 8.9 Hz at 10 dB for every form.
-
-`B_L` is 31.2 and 29.8 Hz at the rule's bn with the squaring loss. The hand-over requirement is that reach, not the mean-loop edge. The fine estimate proposed above (sd 0.2 Hz, age about 1 Hz at 11 Hz/s) sits inside it.
-
-**The `.nco` pin, and its limit.** The summed probe is the NCO's word to under 10⁻³ cycles on every draw of up to 4,145 updates (1.3 s). Past that the float probe's rounding accumulates: up to 1.2 × 10⁻² cycles (4.3°) on a locked draw and 1.9 × 10⁻² on a capped one. Read one update late it is off by at least 2.7 × 10⁻³ on every locked draw. The verdicts above rest on draws that lock inside their budgets, well under 1.3 s, or on counts of whole half-cycles, which 4° does not move. A rerun accumulates the phase from the NCO's word.
-
-**The owner's rulings on the sweep, 2026-11-22: "1 go, 2 yes, 3 lock time".**
-
-1. The receiver's swap to `carrier_nda` goes ahead.
-1. #3224, yes: the object accounts for its own detector slope, so `bn` is the loop's bandwidth.
-1. The hand-over's requirement is a lock time within a budget, not zero slips. With it: "Slips can't reliably be controlled". A cycle slip on the way in is therefore a reading, never a pass criterion: no check, pin or prediction may require zero slips during pull-in. Each is printed, and the gate is lock inside the budget and inside 20 s.
-
-**Prediction 3, restated as ruling 3 makes it.** The budget is a lock-time bound as a function of the hand-over error in `B_L`, taken from this sweep with its interval. It is not `5 / B_eff`, and not the mean loop's last excursion.
-
-- The table holds every draw of a step: both signs and every start phase, slips included.
-- The worst of 120 bounds the chance of a longer lock under 2.5% (95%, the rule of three).
-- `read_sweep.py` prints every step, with the 90th percentile beside these.
-
-Time to the sustained phase lock, s, median / worst of 120 draws, by the hand-over error:
-
-| cell   | form     | 0.25 `B_L`  | 0.5         | 1.0         | 2.0          | unlocked in 20 s |
-| ------ | -------- | ----------- | ----------- | ----------- | ------------ | ---------------- |
-| 2.2/4  | limiter  | 0.12 / 0.26 | 0.38 / 0.59 | 1.43 / 1.92 | 5.87 / 8.27  | 0 of 480         |
-| 2.2/4  | averaged | 0.10 / 0.23 | 0.29 / 0.45 | 1.16 / 1.67 | 4.40 / 7.32  | 0 of 480         |
-| 2.2/4  | unit     | 0.06 / 0.12 | 0.15 / 0.27 | 0.57 / 0.86 | 2.32 / 3.36  | 0 of 480         |
-| 2.8/4  | limiter  | 0.17 / 0.31 | 0.51 / 0.76 | 1.92 / 2.87 | 7.86 / 12.39 | 2 of 480         |
-| 2.8/4  | averaged | 0.11 / 0.24 | 0.36 / 0.66 | 1.38 / 2.18 | 5.52 / 7.83  | 0 of 480         |
-| 2.8/4  | unit     | 0.06 / 0.18 | 0.16 / 0.28 | 0.57 / 0.94 | 2.27 / 3.65  | 0 of 480         |
-| 2.2/10 | limiter  | 0.08 / 0.20 | 0.21 / 0.29 | 0.73 / 0.84 | 2.83 / 3.29  | 0 of 480         |
-| 2.2/10 | averaged | 0.08 / 0.16 | 0.21 / 0.32 | 0.71 / 0.86 | 2.75 / 3.30  | 0 of 480         |
-| 2.2/10 | unit     | 0.07 / 0.14 | 0.17 / 0.28 | 0.58 / 0.68 | 2.27 / 2.60  | 0 of 480         |
-| 2.8/10 | limiter  | 0.09 / 0.20 | 0.23 / 0.30 | 0.79 / 0.94 | 3.09 / 3.55  | 0 of 480         |
-| 2.8/10 | averaged | 0.09 / 0.19 | 0.22 / 0.32 | 0.77 / 0.92 | 2.97 / 3.62  | 0 of 480         |
-| 2.8/10 | unit     | 0.08 / 0.19 | 0.17 / 0.25 | 0.59 / 0.76 | 2.33 / 2.86  | 0 of 480         |
-
-The unit form locks about twice as fast as the averaged form at the floor. Up to 2 `B_L` every form locks inside 20 s, except 2 of 480 draws of the limiter at 2.8/4.
-
-##### `carrier_nda`'s options
-
-Built at `cac908f39`, step 2 of the build order, on the object alone; the review's four defects are fixed at the commit after it. Each option is off by default. `steps()`, `MpskReceiver` (which shares only `carrier_nda_disc()`) and every existing caller are unchanged.
-
-| option            | the call                                                    | what it does                                                                                                                                                                                                                                                                                                                                                                                            | its pin, in `test_carrier_nda_core.c` §17                                                                                                                                                                                                                                                                                                                                                       |
-| ----------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| the update period | `dp_carrier_nda_set_update_period (s, t_upd)`               | `bn` per update; the filter's output, cycles an update, is spread over the update's `t_upd` samples (`carrier_nda_steer()`), and `get_norm_freq` follows. `steps()` is the per-sample loop and returns 0 at any other period. On a running loop the integrator, cycles an update, is rescaled by new over old, so the tracked frequency holds through the call                                          | the steer against an independent filter, exactly; a composer's sums at 0.2 `B_L` settle on the step, and with the period left at 1 they do not; a loop tracking 0.004 cycles a sample keeps it through a change of period to 64, which unscaled would read 64 times low                                                                                                                         |
-| the denominator   | `dp_carrier_nda_set_denominator (s, alpha, gamma_d)`        | `alpha` 1 with `gamma_d` 0 is the limiter (the default, `carrier_nda_disc()`'s arithmetic); `alpha` < 1 the averaged form, an EMA booted as a cumulative mean; `gamma_d` > 0 the unit form, the average less the caller's noise power, clamped between `avg · γ_d/(γ_d + 1)` and `avg`. M = 2 only, except the limiter                                                                                  | the quotient on known inputs, exactly, against the limiter's value; the same at 10⁻³ and 10³ times the level; the clamp from below, from a noise past the power (the sign kept) and from above; the weight at α once the boot's 1/n falls under it; under noise at γ 2.4, the averaged gain 0.718 against `γ/(γ + 1)` = 0.706 and the unit gain 1.017 against 1, the limiter's 0.639 under both |
-| the block lock    | `dp_carrier_nda_set_block_lock (s, len, pfa, n_up, n_down)` | `R = Σ(I² − Q²)/Σ(I² + Q²)` on a block, once a block, against the Beta threshold through `dp_det_threshold_f()`: `r = (g − 1)/(g + 1)`. M = 2 only, and `len` at most `CARRIER_NDA_BLOCK_MAX_LEN` (10⁷): against scipy the quantile holds r to 10⁻⁹ relative there and fails outright between 2 × 10⁸ and 5 × 10⁸. `configure_lock()` returns to the EMA, so `block_thresh` and the rule deciding agree | 0.518 at 31 updates and 0.463 at 40 (this page's table); 211 crossings in 200,000 noise blocks against Pfa 10⁻³ (Wilson 99%); the decision's 2 up and 3 down; the length cap and a length past 2³¹ refused                                                                                                                                                                                      |
-| `.nco`            | `set_telemetry`                                             | the full NCO command, cycles a sample, a fifth probe                                                                                                                                                                                                                                                                                                                                                    | the probe list and its record, against `.freq`; the command and its record at a period of 64, the filter's output over the period                                                                                                                                                                                                                                                               |
-
-- **One update, for a composer:** `carrier_nda_update (s, z, noise_pw)` runs the configured denominator and lock on its integrate-and-dump `z`, then steers. `steps()` calls it, and at the defaults it is the same arithmetic in the same order.
-- **State version 6.** The options and their running sums are in the blob, and a blob its setters and an update could not leave is refused. That covers a period under 1, an unknown form or weight, an averaged form at M ≠ 2, a block of 1, a count past its block, sums an update could not give (`abs(num) > den`, `den < 0`, any sum with the block off or at a block's start), an average under 0 or left with the limiter, the lock rule apart from the block's threshold, the padding word, and a v5 blob. Fifteen forgeries are pinned.
-    - The block's threshold is checked against its `(len, pfa)` within 10⁻⁹ relative, not bit for bit. It comes out of a bisection over `lgamma` and a continued fraction, so a blob written on one libm may differ by ulps on another, and a threshold one ulp off restores (pinned).
-    - The four 32-bit fields sit together with a zero word (`opt_zero`), so the whole-struct blob has no padding among them.
-- **Sabotage.** Each of twenty breaks turns §17 red, from 1 to 10 checks:
-    - the steer not spread; the denominator ignored; the unit form unclamped; the average not booted; the weight held at 1/n;
-    - the block lock ignored; the threshold left as `g`; the threshold compared bit for bit; no length cap; `configure_lock()` leaving the block in force;
-    - no `.nco` emit; `steps()` ignoring a period; `get_norm_freq` not spread; the period's integrator not rescaled;
-    - the period, the block's sums, the sums with the block off, the limiter's average, the padding word or the lock rule's agreement left out of the blob check.
-- **The defaults, shown unchanged.**
-    - Every existing C, Python, stub and state-matrix test passes.
-    - `carrier_nda`'s validation report regenerates byte-identical data on this tree and on the base (`befe01125`). The committed data was already stale against that base. `cac908f39` carries its regeneration, and the data's change is not that commit's effect: the base regenerates the same bytes.
-- **The Python face grew.**
-    - `set_update_period`, `set_denominator`, `set_block_lock` and `block_thresh` are bound. #2022's gate probes every mutator, and its exempt list only shrinks, so a C-only setter could not land. Bound, the three read TRAVELS. A second state-matrix row, `CarrierNda_m2`, gives the probe the order they accept.
-    - `set_denominator` takes two numbers, not a mode name. A method's `string_enum` renders as `str` in the stub, which no probe can make; an init parameter's renders as `Literal`.
-    - The probe list gains `car.nco`.
-
-**The gains under noise read high, inside the interval.** §17's gain row measures the averaged form at 0.718 against `γ/(γ + 1)` = 0.706, and the unit form at 1.017 against 1.
-
-- Its estimate's sd, from the error's variance `2A² + 1` over 200,000 updates and divided by `sin 0.2`, is 0.0080 for the averaged form and 0.0113 for the unit form. Both readings are +1.5 σ.
-- The three forms read one noise stream (seed 99), so that is one draw seen twice, not two biases.
-- The quotient's own bias, `var(avg)/avg²` at α 1/256, is about 0.1%.
-
-**The detector's slope (#3224).**
-
-- **The finding.** `carrier_nda_disc()` is scaled to slope 2 at lock for every M (`sin 2θ` at M = 2), and `dp_loop_filter`'s gains assume the rest of the loop has unit gain.
-    - So the object's `bn` is its filter's design value, not its loop's bandwidth. At ζ 0.707 the closed loop runs about 1.67 times wider, at ζ about 1.0.
-    - This holds for `MpskReceiver`'s carrier loop too, and nothing in either validation report measures the bandwidth against `bn`. That is a fact about the shipped object, filed on the general object.
-- **The sweep's handling.** The sweep configures the object's filter so that the closed loop is the design's. It solves `2·kp′ = kp(bn, 0.707)` and `2·ki′ = ki(bn, 0.707)` on `dp_loop_filter_init()`'s own gains, giving bn′ 0.006593 / 0.004952 and ζ′ 0.498. The solve is pinned, and the sweep's read sets the jitter it measures against the design's.
-- **For the receiver swap, two options:**
-    - (a) **Configure (bn′, ζ′) at the call site,** as the sweep does. Nothing in the object changes. The receiver carries a solve, and `bn` stays nominal for every other caller.
-    - (b) **The object owns its slope,** so `bn` means the loop's bandwidth for every M and every denominator. The averaged form's `γ/(γ + 1)` is the same kind of term. That changes every caller's loop and every pinned pull-in and settling number in `carrier_nda`'s and `MpskReceiver`'s reports.
-    - **Recommended: (b),** once the owner rules on #3224. A general object's `bn` that names its loop's bandwidth is the object's job, and (a) would leave the receiver as the one caller whose `bn` means what it says. Until then the swap can use (a), which is exactly the configuration the sweep validates.
-
-**The receiver:**
-
-- `s->car`, `s->car_held` (the coast's snapshot) and `s->car_frozen` (the refine's) become `carrier_nda`, by-value POD; the boxcar ring is inline (`boxcar_core.h:61`), so the coast's struct copy holds.
-- Once a code period it calls `carrier_nda_disc()` on the window sum and `_steer()`, with the boxcar arm bypassed: the window sum is already the integrate-and-dump.
-- The rate aid's tap, `dp_costas_get_norm_freq (&s->car)` at `:901` and `:2339`, becomes `dp_carrier_nda_get_norm_freq()`.
-- The probes stay under `rx.car`, so the pull-in harness and its figures keep their names.
-- The receiver's state version moves.
-
-**Why two carrier loops in cascade.**
-
-- **The first loop runs before despreading.** It keeps the Dll's coherent integration coherent and supplies the code loop's rate aid, the coupling of §1.8 (`:901`).
-- **The second**, `MpskReceiver`'s at 0.01 a symbol, takes up the residual phase at the decision strobe, after `RateConverter` and the matched filter: the first loop's jitter where its bandwidth passes it, and the reference that moves with the timing.
-- **Control (b)** of run 415 shows the second loop alone carrying a 40 Hz hand-over error at 10 dB.
-
-##### The loop's lock statistic: `I² − Q²` on a block
-
-The owner's ruling, 2026-11-22.
-
-**The statistic** is on the window sum, summed over a block of B updates and dumped: `R = Σ(I² − Q²) / Σ(I² + Q²)`, D8's ratio-of-sums form. It replaces D7's block mean of `|Re P|/|P|`, whose `|·|` is the fold.
-
-- **Its noise scale** is the block's own total power. Under noise alone `(R + 1)/2` is exactly `Beta(B/2, B/2)`: mean 0, variance `1/(B + 1)`.
-- **The threshold** is that Beta's 10⁻³ upper point. It needs no noise estimate and no Gaussian approximation; the Dll's noise estimate would bring its own error into the threshold.
-
-**With signal at the floor, in lock,** the mean is `μ₁ = γ/(γ + 1) · E[cos 2θ]`, averaged over the loop's jitter at the rule's bn: the unit form's `σ_θ² = bn (1 + 1/(2γ))/γ`, 1/200 rad² (4.05°). The detection probability is exact for that model: `R > r` is `Σ((1 − r) I² − (1 + r) Q²) > 0`, a sum of independent terms, whose characteristic function is inverted (`det_ratio_pd()`). B is the least that reaches Pd 0.99 (`det_ratio_block_len()`). The length follows the jitter the denominator gives, so the receiver derives it at create from its design C/N0 (`adr_size_carrier_lock()`) and carries no table; `_test_carrier_bn_follows_the_loop_snr_rule` pins the loop it builds.
-
-| cell  | γ     | μ₁    | B            | threshold (Beta, Pfa 10⁻³) | Pd    | false unlock a decision |
-| ----- | ----- | ----- | ------------ | -------------------------- | ----- | ----------------------- |
-| 2.2/4 | 2.397 | 0.699 | 33 (10.5 ms) | 0.504                      | 0.990 | 1.0 × 10⁻²              |
-| 2.8/4 | 1.884 | 0.647 | 43 (10.8 ms) | 0.449                      | 0.991 | 8.8 × 10⁻³              |
-
-**A Gaussian for the ratio undersizes the block.** D8's delta method gives the per-update sd (0.417 / 0.484) and, with a Gaussian block mean, B = 31 / 40 at Pd 0.992 / 0.991 (at 4.40° / 4.50°). Measured, those blocks detect at 0.982 / 0.983, and the exact tail gives the same (0.9822 against 0.9827, `test_detection_core.c`, the ratio section). The Gaussian is optimistic in the lower tail, where Pd 0.99 is read. At 4.40° / 4.50° the exact B is 34 / 43.
-
-**Verify counts** are the code lock's budget, on independent block decisions: 2 up (`det_verify_count(10⁻³, 10⁻⁶)`) and 3 down (`(0.01, 10⁻⁶)`). The blocks are disjoint. Their only dependence is the loop's phase memory, about `1/(4 B_L)` = 6.6 ms, under one block.
-
-**Out of lock**, at a frequency offset `Δf`, `cos 2φ` turns at `2Δf` and the block mean falls as `sinc(2 Δf B T)`. It averages fully to 0 from `1/(2BT)` = 51 / 50 Hz. Below that a slow beat reads partly as lock.
-
-**A false lock exists** at `Δf = 1/(2T)` (1,571 / 2,000 Hz): the phase advances π an update and the square is still. The window sum's coherent loss there is 3.9 dB, and the statistic reads lock at that loss. It is past every hand-over error run 415 saw (worst 403 Hz).
-
-##### Non-data-aided, every loop and lock statistic
-
-The owner, 2026-11-22: "It should be non data-aided".
-
-Magnitudes are written `abs(·)` so the table's cells hold.
-
-| what                        | what it computes                                                                          | SNR a decision          | verdict                                                                                        |
-| --------------------------- | ----------------------------------------------------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
-| pre-despread carrier error  | `sgn(Re P) · Im P / abs(P)` on the folded phasor (`costas_update()`; the feed `:870-887`) | γ 3.80 / 2.75 dB        | **fails**: a sign decision, and a fold in the feed. `carrier_nda` on the window sum fixes both |
-| its lock metric             | EMA of `abs(Re P) / abs(P)` (`costas_update()`)                                           | the same                | **fails**: `abs` is the fold. `I² − Q²` on a block replaces it                                 |
-| its FLL assist              | data-wiped cross product, `sgn(Re)` on both prompts (`costas_update()`)                   | —                       | decision-directed, **off** in the receiver (`bn_fll` 0, `:392`), and gone with `Costas`        |
-| demodulator's carrier error | `carrier_nda_disc()`: `Im((z / abs(z))²)`, from `mpsk_rx_disc()` (`mpsk_rx_loops.h:590`)  | Es/N0 4 dB a symbol     | **complies**: no decision and no fold. Its limiter's gain falls with SNR (above)               |
-| its lock output             | `Re((z / abs(z))²) = cos 2ψ`, EMA α 0.05 (`mpsk_rx_loops.h:591`)                          | the same                | **complies** in form; its sizing is the detector table's                                       |
-| timing detector             | Gardner, `RATESYNC_TED_GARDNER` (`mpsk_receiver_core.c:419`), blind                       | the same                | **complies**                                                                                   |
-| sync lock                   | `2(abs(on)² − abs(mid)²) / (abs(on)² + abs(mid)²)`, block of 133                          | the same                | **complies** in form; not sized for this pulse (D8)                                            |
-| symbol lock                 | EMA of `(I² − Q²) / (I² + Q²)` (`async_dsss_receiver_core.c:972-976`)                     | the same                | **complies** in form; D8's block replaces the EMA                                              |
-| code loop error             | `abs(E)² − abs(L)²` of the window's magnitudes (`dll_core.c:256`)                         | look SNR 2.55 / 2.75 dB | **complies**: powers, no decision                                                              |
-| code lock                   | `R = sqrt(2 Σ abs(P)² / noise)` over n looks                                              | the same                | **complies**                                                                                   |
+#### The pre-despread carrier loop
+
+The loop that corrects the carrier before despreading is `carrier_nda` at
+M = 2 (`carrier_nda_core.h`), built for each tracking chain by
+`adr_build_track_chain()` and run by `adr_track_period()`.
+
+- **Wipe-off once a sample, update once a code period.** The loop's NCO
+    rotates every input sample (`carrier_nda_wipeoff()`). When the Dll
+    closes an epoch, the loop takes one update on the coherent sum over the
+    one-code-period window the Dll's look-back picked,
+    `dp_dll_get_window_sum()`, with the Dll's noise power on that sum,
+    `dp_dll_get_window_noise()` (`carrier_nda_update()`). The update period
+    is one code period in samples (`dp_carrier_nda_set_update_period()`), so
+    `bn` is per update. A period in which no epoch closes, and every period
+    of a coast, runs the NCO on the loop's integrator alone
+    (`dp_carrier_nda_hold()`).
+- **The error is non-data-aided.** `Im(w²)` over the denominator removes
+    the BPSK data (`d² = 1`) with no sign decision. The error, its
+    denominator and the carrier lock are all formed on the despread window
+    sum. The one operation before despreading is the wipe-off, which
+    measures nothing.
+- **The denominator is the unit form.** `dp_carrier_nda_set_denominator()`
+    takes `alpha` = `ASYNC_DSSS_RX_CAR_DEN_ALPHA` (1/256 updates) and
+    `gamma_d` = `car_gamma`, the update SNR `C/N0 · T` at the design C/N0
+    (`cn0_dbhz`). The error is divided by the running average of `abs(w)²`
+    less the Dll's window noise, clamped between `avg · γ_d / (γ_d + 1)` and
+    the average itself. Its gain is 1 while the noise estimate holds; the
+    clamp keeps it at most 1 at the design point and keeps the average's
+    sign at boot.
+- **The filter sees a slope of 1.** The discriminator's slope at lock is 2
+    (`CARRIER_NDA_DISC_SLOPE`), and `carrier_nda_loop_error()` divides it out
+    before the loop filter, so `bn` and ζ are the closed loop's.
+    `test_carrier_nda_core.c` section 18 (`test_bn_is_the_loops`) holds it:
+    the measured noise bandwidth is 1.00 to 1.04 of `bn` at every M and
+    every denominator.
+- **Order 2, ζ 0.707, no FLL.** The use case's residual is a ramp (§1.8),
+    which a second-order loop follows with a constant phase lag,
+    `2π R T² / (ω_n T)²` with `ω_n T = 8ζ bn / (4ζ² + 1)`.
+    `validate_async_dsss_receiver_pullin --design` prints it at each cell.
+
+#### Its bandwidth
+
+- **`bn` is §1.3's rule.** `dp_async_dsss_receiver_carrier_bn()` gives
+    `ρ · S_L / 200` at the design C/N0, no wider than
+    `ASYNC_DSSS_RX_BN_CARRIER` (0.04): 0.00993 at 2.2 GHz and 0.00744 at
+    2.8 GHz, held by `_test_carrier_bn_follows_the_loop_snr_rule`. The loop
+    bandwidth `B_L = bn / T` is 31.18 and 29.78 Hz, and the loop's phase
+    jitter at the floor is 4.05° at both carriers
+    (`validate_costas_pullin --design`, `# design_sweep`, the `unit` rows;
+    committed at
+    [sweep-1b7312b09/design.txt](async-dsss-receiver-measurements/sweep-1b7312b09/design.txt)).
+    The jitter is the rule's own: the unit form's phase variance,
+    `bn (1 + 1/(2γ)) / γ`, is 1/200 rad² wherever `bn` is the rule's.
+- **The acquisition bound.** `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` is
+    `bn / (2T)`, half the loop bandwidth: 15.59 Hz at 2.2 GHz and 14.89 Hz at
+    2.8 GHz at the rule's `bn` (the `base_pullin_hz` column of
+    [d-6fc84cc80/pullin_rows.csv](async-dsss-receiver-measurements/d-6fc84cc80/pullin_rows.csv)).
+    It is the one definition of the loop's pull-in on this page.
+- **The step the loop pulls in from without slipping.** On the mean loop,
+    a frequency step up to 0.382 `B_L` at 2.2 GHz and 0.383 `B_L` at 2.8 GHz
+    (11.9 and 11.4 Hz) crosses fewer than two lock points from every start
+    phase, and up to 0.459 and 0.460 `B_L` crosses none from a start at 0
+    (the same `# design_sweep` rows, `edge_worst` and `edge_start0`). That
+    edge is the hand-over's requirement ("The hand-over:
+    `CarrierAcquisition`'s dwell", below).
+- **A receiver without the refine needs a deep search.** Its hand-over is
+    the search's Doppler, so half a search row must lie inside the
+    acquisition bound: `coherent_bins ≥ ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn)`,
+    `1/bn` rounded, which is 101 at 2.2 GHz and 134 at 2.8 GHz at the rule's
+    `bn`. `create()` refuses a shallower search
+    (`_test_no_refine_needs_a_deep_search`). The search's depth at the
+    415.1-B-1 point is the `coherent_bins` column of
+    `validate_async_dsss_receiver_pullin`'s `# search` section.
+
+#### The rate aid
+
+With `carrier_freq_hz` set, the carrier loop steers the code NCO's rate.
+The tracking chain is built with the hand-over's Doppler over the carrier
+as the Dll's rate aid (`dp_dll_set_rate_aid()`), and after every carrier
+update the aid is refreshed to the loop's frequency over the carrier. A
+period without an update, a coast included, leaves the aid where the last
+update put it. The code loop then follows any constant code rate the
+carrier implies; only an unseeded step's acquisition is bounded
+(`dll_core.h`, `dp_dll_set_rate_aid()`).
+
+#### The carrier lock
+
+- **The statistic.** The ratio of sums `R = Σ(I² − Q²) / Σ(I² + Q²)` over
+    `car_blk` updates of the window sum, decided once per `car_blk`
+    updates (`dp_carrier_nda_set_block_lock()`). On noise alone `(R + 1)/2`
+    is exactly `Beta(car_blk/2, car_blk/2)`: the sums' own total power is the
+    noise reference, so the threshold, that law's upper point at
+    `ASYNC_DSSS_RX_CAR_LOCK_PFA` (10⁻³ a decision), needs no noise estimate.
+
+- **Its length, from the detection module.**
+    `dp_det_ratio_block_len()` gives the least number of updates whose
+    decision detects at `ASYNC_DSSS_RX_CAR_LOCK_PD` (0.99) against that
+    threshold, at the design update SNR `car_gamma` and the loop's jitter
+    there, `bn (1 + 1/(2γ)) / γ` (`adr_size_carrier_lock()`). At the floor
+    that is 33 updates at 2.2 GHz and 43 at 2.8 GHz: the `car` row's `looks`
+    column of `validate_async_dsss_receiver_pullin --emit`'s rule rows. The
+    detection module computes the same at the rule's jitter, 1/200 rad², and
+    the floor's update SNR:
+
+    ```pycon
+    >>> from doppler.detection import det_ratio_block_len
+    >>> [det_ratio_block_len(g, 1 / 200, 1e-3, 0.99, 10**7)
+    ...  for g in (2.397, 1.884)]
+    [33, 43]
+    ```
+
+    Where no length reaches the detection probability (`car_blk` 0), the
+    loop keeps `carrier_nda`'s EMA lock.
+
+- **Its counts.** LockDet declares on `dp_det_verify_count(10⁻³, 10⁻⁶)` =
+    2 decisions above the threshold and drops on
+    `dp_det_verify_count(0.01, 10⁻⁶)` = 3 below it, the code lock's counts
+    (the `n_up` and `n_down` columns of the same rule rows).
+
+- **Who decides what.** The detection module holds the statistical model
+    and sizes the length; LockDet holds the threshold and the counts; the
+    receiver chooses the rates, and its header carries them
+    (`ASYNC_DSSS_RX_CAR_LOCK_PFA`, `ASYNC_DSSS_RX_CAR_LOCK_PD`).
+    `_test_carrier_bn_follows_the_loop_snr_rule` holds that the loop the
+    receiver builds has the length `adr_size_carrier_lock()` sizes.
 
 #### The five lock flags
 

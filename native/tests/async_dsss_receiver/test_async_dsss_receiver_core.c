@@ -2118,6 +2118,84 @@ _fine_run (int signal, double *ho_hz, int *src)
   return tracking;
 }
 
+/* The near-far levels the design page declares (async-dsss-receiver.md,
+ * "The near-far limit"), computed from the code, never typed.
+ *
+ * Tracking, the full period: another emitter on the same Gold-1023 code
+ * reaches the tracked one's correlator at its autocorrelation at their
+ * offset, which takes three values, 63, -65 and -1 of 1023 (t(10) = 2^6 + 1
+ * and its partners). The tolerance at each is -20 log10 (|R| / 1023):
+ * 24.2, 23.9 and 60.2 dB, the first two on about three quarters of the
+ * lags.
+ *
+ * The fine hand-over, a K-th of a period: a partial correlation over N / K
+ * chips is a sum of about N / K terms of random sign whatever the lag, so
+ * its power over the partial peak's is about K / N: 10 log10 (K / N) =
+ * -23.1 dB at K 5 and -19.7 dB at K 11 (N 1023). Computed: the mean over
+ * every non-zero lag and every one of the K windows (boundaries at
+ * round(j N / K)), each window's sum squared over its own length squared,
+ * within 0.5 dB of the derivation at both K. The failing case: K 11's
+ * computed level against K 5's derivation, 3.4 dB off, is refused. */
+static double
+_partial_leak_db (const uint8_t *code, size_t n, size_t k)
+{
+  double acc = 0.0;
+  size_t cnt = 0;
+  for (size_t d = 1; d < n; d++)
+    for (size_t w = 0; w < k; w++)
+      {
+        const size_t a = (size_t)llround ((double)(w * n) / (double)k);
+        const size_t b = (size_t)llround ((double)((w + 1) * n) / (double)k);
+        long         r = 0;
+        for (size_t i = a; i < b; i++)
+          r += code[i] == code[(i + d) % n] ? 1 : -1;
+        acc += ((double)r * (double)r) / ((double)(b - a) * (double)(b - a));
+        cnt++;
+      }
+  return 10.0 * log10 (acc / (double)cnt);
+}
+
+static int
+_test_near_far_levels (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const size_t n   = 1023;
+  size_t       c63 = 0, c65 = 0, c1 = 0, other = 0;
+  for (size_t d = 1; d < n; d++)
+    {
+      long r = 0;
+      for (size_t i = 0; i < n; i++)
+        r += code[i] == code[(i + d) % n] ? 1 : -1;
+      c63 += r == 63;
+      c65 += r == -65;
+      c1 += r == -1;
+      other += r != 63 && r != -65 && r != -1;
+    }
+  DP_CHECK_MSG (other == 0, "the full-period sidelobes take three values");
+  const double t63 = -20.0 * log10 (63.0 / 1023.0),
+               t65 = -20.0 * log10 (65.0 / 1023.0),
+               t1  = -20.0 * log10 (1.0 / 1023.0);
+  printf ("  near-far, tracking (full period): %.1f dB on %zu lags (+63), "
+          "%.1f dB on %zu (-65), %.1f dB on %zu (-1) of %zu\n",
+          t63, c63, t65, c65, t1, c1, n - 1);
+  DP_CHECK (c63 + c65 > c1 / 2); /* the sidelobe lags are the many */
+  double              leak[2];
+  static const size_t ks[2] = { 5, 11 };
+  for (int j = 0; j < 2; j++)
+    {
+      leak[j]            = _partial_leak_db (code, n, ks[j]);
+      const double deriv = 10.0 * log10 ((double)ks[j] / (double)n);
+      printf ("  near-far, hand-over (a %zu-th of a period): leak computed "
+              "%.2f dB, derived 10 log10 (K / N) %.2f dB\n",
+              ks[j], leak[j], deriv);
+      DP_CHECK (fabs (leak[j] - deriv) < 0.5);
+    }
+  DP_CHECK_MSG (fabs (leak[1] - 10.0 * log10 (5.0 / (double)n)) >= 0.5,
+                "control: K 11's level is not K 5's");
+  return 0;
+}
+
 /* The seed's error bound the fine hand-over is designed to (create():
  * min(2 doppler_uncertainty, symbol_rate + the search's row); the design
  * page's "The seed's error bound"). At the 415.1-B-1 point it changes
@@ -6697,6 +6775,7 @@ main (void)
   DP_CHECK (_test_carrier_config_is_a_reject_key () == 0);
   DP_CHECK (_test_fine_design () == 0);
   DP_CHECK (_test_fine_seed_bound () == 0);
+  DP_CHECK (_test_near_far_levels () == 0);
   DP_CHECK (_test_fine_hands_over () == 0);
   (void)_test_reacquire_clock_restarts_on_lock ();
   (void)_test_configure_chain_raw_keeps_the_carrier ();

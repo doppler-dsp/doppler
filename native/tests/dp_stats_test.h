@@ -19,7 +19,30 @@
 #include <stdio.h>
 
 /**
- * The 95% Wilson score interval for @p k successes in @p n trials.
+ * The Wilson score interval for @p k successes in @p n trials at the
+ * normal quantile @p z (1.959964 for 95% two-sided; a family of m rows
+ * held to 95% together takes the 1 - 0.05/(2m) quantile, Bonferroni).
+ *
+ * @param k   Successes, 0 … n.
+ * @param n   Trials, at least 1.
+ * @param z   The two-sided interval's normal quantile, > 0.
+ * @param lo  Lower bound, written.
+ * @param hi  Upper bound, written.
+ */
+static inline void
+dp_wilson_z (double k, double n, double z, double *lo, double *hi)
+{
+  const double p = k / n, z2 = z * z;
+  const double c = (p + z2 / (2.0 * n)) / (1.0 + z2 / n);
+  const double h
+      = z * sqrt (p * (1.0 - p) / n + z2 / (4.0 * n * n)) / (1.0 + z2 / n);
+  *lo = c - h < 0.0 ? 0.0 : c - h;
+  *hi = c + h > 1.0 ? 1.0 : c + h;
+}
+
+/**
+ * The 95% Wilson score interval for @p k successes in @p n trials
+ * (dp_wilson_z() at z 1.959964).
  *
  * @param k   Successes, 0 … n.
  * @param n   Trials, at least 1.
@@ -29,12 +52,7 @@
 static inline void
 dp_wilson (double k, double n, double *lo, double *hi)
 {
-  const double z = 1.959964, p = k / n, z2 = z * z;
-  const double c = (p + z2 / (2.0 * n)) / (1.0 + z2 / n);
-  const double h
-      = z * sqrt (p * (1.0 - p) / n + z2 / (4.0 * n * n)) / (1.0 + z2 / n);
-  *lo = c - h < 0.0 ? 0.0 : c - h;
-  *hi = c + h > 1.0 ? 1.0 : c + h;
+  dp_wilson_z (k, n, 1.959964, lo, hi);
 }
 
 /** The most bins a dp_hist_t holds. */

@@ -145,9 +145,10 @@
  * 43 at 2.8 GHz at 4 segments, pinned) and, read off carrier_nda built
  * from the receiver's own loop and closed with one update of transport
  * delay, the false-alarm rate on noise against
- * ASYNC_DSSS_RX_CAR_LOCK_PFA (every read pooled, `# carrier_lock_pfa`)
- * and the miss rate at the floor against 1 - ASYNC_DSSS_RX_CAR_LOCK_PD,
- * at the count and, printed, at one fewer; `# carrier_lock_segments`: the
+ * ASYNC_DSSS_RX_CAR_LOCK_PFA (asserted on one 2,000,000-block noise read
+ * a carrier, family-wise 95% over the two, `# carrier_lock_pfa`) and the
+ * miss rate at the floor against 1 - ASYNC_DSSS_RX_CAR_LOCK_PD, at the
+ * count and, printed, at one fewer; `# carrier_lock_segments`: the
  * count at every segment count tried, with its delay.
  *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
@@ -2056,6 +2057,12 @@ check_cell (const draw_t *ds, size_t n)
    measured beside it. The data is left out: I^2 - Q^2 and I^2 + Q^2 are
    unchanged by z -> -z, so a BPSK symbol cannot move either sum. */
 #define PI_CL_BLOCKS 200000u
+/* The long noise-only read a carrier the false-alarm rate is asserted on:
+   2,000 expected hits at 1e-3, a 95% half-width of about 4.4e-5. */
+#define PI_CL_LONG 2000000u
+/* Its interval's quantile: 95% over the two rows together, 97.5% a row,
+   the normal's 1 - 0.025/2 point. */
+#define PI_CL_FW_Z 2.241403
 #define PI_SEG_MAX 16u /* --design's segment counts tried */
 #define PI_CL_BOOT                                                            \
   64u /* blocks: the denominator's average and the loop settle */
@@ -2071,7 +2078,7 @@ typedef struct
 
 static int
 pi_car_lock_read (const dp_carrier_nda_state_t *rxc, uint32_t n, uint64_t seed,
-                  pi_cl_t *out)
+                  size_t n_blocks, int noise_only, pi_cl_t *out)
 {
   /* The receiver's own carrier loop's configuration (R2): its bandwidth,
      damping, order, unit denominator and block lock's pfa, read off the
@@ -2080,13 +2087,13 @@ pi_car_lock_read (const dp_carrier_nda_state_t *rxc, uint32_t n, uint64_t seed,
      transport delay is one update (the receiver's is 1 to
      ASYNC_DSSS_RX_CAR_LOOP_DELAY(segments), 1.75 at 4 segments). */
   const double gamma = rxc->den_gamma, bn = rxc->bn;
-  pi_cl_t      r     = { n, 0.0, PI_CL_BLOCKS, 0, 0, 0.0 };
+  pi_cl_t      r     = { n, 0.0, n_blocks, 0, 0, NAN };
   const float  amp   = dp_awgn_amplitude_for_snr (0.0f, 1.0f); /* unit noise */
   dp_awgn_state_t *g = dp_awgn_create (seed, amp);
   DP_REQUIRE (g != NULL);
   double e2 = 0.0;
   size_t ne = 0;
-  for (int sig = 0; sig < 2; sig++)
+  for (int sig = 0; sig < (noise_only ? 1 : 2); sig++)
     {
       dp_carrier_nda_state_t *c
           = dp_carrier_nda_create (bn, rxc->zeta, 0.0, 8, 1, rxc->m);
@@ -2102,7 +2109,7 @@ pi_car_lock_read (const dp_carrier_nda_state_t *rxc, uint32_t n, uint64_t seed,
       const float _Complex s = (float)a * cexpf (I * 0.3f);
       float _Complex w[1];
       size_t blocks = 0;
-      for (size_t u = 0; blocks < PI_CL_BLOCKS; u++)
+      for (size_t u = 0; blocks < n_blocks; u++)
         {
           DP_REQUIRE (dp_awgn_generate (g, 1, w, 1) == 1);
           const float _Complex x = s + w[0];
@@ -2129,7 +2136,7 @@ pi_car_lock_read (const dp_carrier_nda_state_t *rxc, uint32_t n, uint64_t seed,
       dp_carrier_nda_destroy (c);
     }
   dp_awgn_destroy (g);
-  r.var_rad = ne ? e2 / (double)ne : NAN;
+  r.var_rad = ne ? e2 / (double)ne : NAN; /* NaN on noise only */
   *out      = r;
   return 0;
 }
@@ -2335,7 +2342,8 @@ pi_design (const double fcs[2], const double esn0s[4])
         {
           pi_cl_t r;
           if (pi_car_lock_read (&rx->car, n - (uint32_t)k,
-                                4510u + (uint64_t)(2 * f + k), &r)
+                                4510u + (uint64_t)(2 * f + k), PI_CL_BLOCKS, 0,
+                                &r)
               != 0)
             {
               DP_CHECK_MSG (0, "the carrier lock's rates are read");
@@ -2352,10 +2360,8 @@ pi_design (const double fcs[2], const double esn0s[4])
                   r.exceed, (double)r.exceed / (double)r.blocks, el, eh,
                   ASYNC_DSSS_RX_CAR_LOCK_PD, r.miss,
                   (double)r.miss / (double)r.blocks, ml, mh);
-          /* The threshold is exact on noise at any count, so every read is
-             one binomial at the design's rate: pooled below and asserted
-             once (four reads each held to its own 95% interval would fail
-             one in five runs of a correct threshold). */
+          /* The false-alarm rate is asserted on the long reads below; these
+             reads' intervals are printed. */
           pool_exceed += r.exceed;
           pool_blocks += r.blocks;
           if (k == 0)
@@ -2365,18 +2371,48 @@ pi_design (const double fcs[2], const double esn0s[4])
         }
       dp_async_dsss_receiver_destroy (rx);
     }
-  {
-    double pl, ph;
-    dp_wilson ((double)pool_exceed, (double)pool_blocks, &pl, &ph);
-    printf ("# carrier_lock_pfa\nexceed,blocks,rate,lo,hi\n%zu,%zu,%.3e,"
-            "%.3e,%.3e\n",
-            pool_exceed, pool_blocks,
-            (double)pool_exceed / (double)pool_blocks, pl, ph);
-    DP_CHECK_MSG (pool_blocks > 0 && pl <= ASYNC_DSSS_RX_CAR_LOCK_PFA
-                      && ASYNC_DSSS_RX_CAR_LOCK_PFA <= ph,
-                  "the carrier lock's false-alarm rate on noise is its Pfa "
-                  "(every read pooled)");
-  }
+  /* The false-alarm rate, asserted on one long noise-only read a carrier at
+     the count (PI_CL_LONG blocks, its own seed), each row held to the
+     Wilson interval at z PI_CL_FW_Z: 95% for the two rows together
+     (Bonferroni, 97.5% a row), set before the data. The threshold is exact
+     for independent terms; the terms here come from the closed loop on
+     noise, so this is the measurement that says whether it holds there.
+     The short reads above and their pool are printed only. */
+  printf ("# carrier_lock_pfa\nfc_ghz,n_noncoh,blocks,exceed,rate,lo,hi,z\n");
+  printf ("pooled_short,,%zu,%zu,%.4e,,,\n", pool_blocks, pool_exceed,
+          pool_blocks ? (double)pool_exceed / (double)pool_blocks : NAN);
+  for (int f = 0; f < 2; f++)
+    {
+      uint8_t code[SF];
+      for (size_t i = 0; i < SF; i++)
+        code[i] = (uint8_t)(i & 1u);
+      dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fcs[f], true);
+      if (!rx)
+        {
+          DP_CHECK_MSG (0, "the floor's receiver builds");
+          continue;
+        }
+      const uint32_t n
+          = (uint32_t)dp_async_dsss_receiver_get_carrier_lock_n_noncoh (rx);
+      pi_cl_t r;
+      if (pi_car_lock_read (&rx->car, n, 4610u + (uint64_t)f, PI_CL_LONG, 1,
+                            &r)
+          != 0)
+        DP_CHECK_MSG (0, "the carrier lock's long read runs");
+      else
+        {
+          double pl, ph;
+          dp_wilson_z ((double)r.exceed, (double)r.blocks, PI_CL_FW_Z, &pl,
+                       &ph);
+          printf ("%.1f,%u,%zu,%zu,%.4e,%.4e,%.4e,%.4f\n", fcs[f] / 1e9, n,
+                  r.blocks, r.exceed, (double)r.exceed / (double)r.blocks, pl,
+                  ph, PI_CL_FW_Z);
+          DP_CHECK_MSG (pl <= rx->car.blk_pfa && rx->car.blk_pfa <= ph,
+                        "the carrier lock's false-alarm rate on noise is "
+                        "its Pfa (long read, family-wise 95%)");
+        }
+      dp_async_dsss_receiver_destroy (rx);
+    }
 
   /* The count at every segment count create() accepts at the floor (1 to
      PI_SEG_MAX tried), with the delay ASYNC_DSSS_RX_CAR_LOOP_DELAY gives

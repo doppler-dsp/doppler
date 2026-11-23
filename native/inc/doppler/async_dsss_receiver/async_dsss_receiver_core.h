@@ -284,7 +284,11 @@ extern "C"
    * error, divided by its slope, has variance `(1 + 1/(2 gamma)) /
    * (2 gamma)` an update, and the closed loop passes `2 B_d` of it. At the
    * 415.1-B-1 floor and 4 segments `B_d` is 1.059 / 1.044 times the rule's
-   * at 2.2 / 2.8 GHz, where the rule's alone gives 1/200 rad^2.
+   * at 2.2 / 2.8 GHz, where the rule's alone gives 1/200 rad^2. Its callers:
+   * dp_async_dsss_receiver_carrier_lock_n_noncoh(), which sizes the lock
+   * at it; validate_async_dsss_receiver_pullin --design's `# carrier_lock`
+   * and `# carrier_lock_segments`, which print it; and the design page's
+   * carrier-lock section, which quotes it.
    *
    * @param cn0_dbhz   Design C/N0, dB-Hz.
    * @param chip_rate  Chips per second, > 0.

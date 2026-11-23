@@ -758,9 +758,17 @@ _test_clock_offset_decodes_inside_the_allocation (void)
           1.2 * ppm * 1e-6 * carrier, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
           100000, carrier, 0.0, false, 0.0, 0.0, true);
       DP_REQUIRE (rx != NULL);
-      size_t   ns = 0, run = 0, lock = SIZE_MAX;
+      size_t ns = 0, run = 0, lock = SIZE_MAX;
+      /* Each flag's longest sustained run, symbols: a draw that never
+         locks says which flag never held. */
+      size_t   qrun[DP_S415_N_FLAGS] = { 0 }, qbest[DP_S415_N_FLAGS] = { 0 };
       uint64_t first_in = UINT64_MAX;
-      double   t        = 0.0;
+      /* The hand-over's carrier against the truth at the first tracking
+         call, and its source: a carrier that never locks may have been
+         started outside the loop's edge. */
+      double ho_err = NAN;
+      int    ho_src = -1;
+      double t      = 0.0;
       for (uint64_t pos = 0;; pos += push)
         {
           t = (double)(pos + push) / fs;
@@ -772,11 +780,21 @@ _test_clock_offset_decodes_inside_the_allocation (void)
               rx, x, push, syms + ns, ns < cap ? cap - ns : 0);
           if (k && first_in == UINT64_MAX)
             first_in = pos + push; /* the first output's block */
+          if (isnan (ho_err) && rx->state == ASYNC_DSSS_RX_TRACKING)
+            {
+              ho_err = dp_async_dsss_receiver_get_doppler_hz (rx)
+                       - dp_air_truth (&air, 0, pos + push).car_hz;
+              ho_src = dp_async_dsss_receiver_get_handover_source (rx);
+            }
           unsigned char f[DP_S415_N_FLAGS];
           dp_s415_lock_flags (rx, f);
           int all = 1;
           for (size_t q = 0; q < DP_S415_N_FLAGS; q++)
-            all &= f[q] != 0;
+            {
+              all &= f[q] != 0;
+              qrun[q]  = f[q] ? qrun[q] + k : 0;
+              qbest[q] = qrun[q] > qbest[q] ? qrun[q] : qbest[q];
+            }
           for (size_t j = 0; j < k && lock == SIZE_MAX; j++)
             {
               run = all ? run + 1 : 0;
@@ -817,8 +835,14 @@ _test_clock_offset_decodes_inside_the_allocation (void)
             }
         }
       printf ("  clock offset %+.0f ppm, %.0f dB-Hz, seed %u: lock at %.2f s "
-              "(allocation %.0f s), BER %.4f over the second after it\n",
-              sign * ppm, cn0, seed, t_lock, DP_S415_LOCK_S, ber);
+              "(allocation %.0f s), BER %.4f over the second after it; "
+              "hand-over %+.2f Hz off (ho_src %d); "
+              "longest run up, symbols: sym %zu code %zu car %zu demod %zu "
+              "sync %zu\n",
+              sign * ppm, cn0, seed, t_lock, DP_S415_LOCK_S, ber, ho_err,
+              ho_src, qbest[DP_S415_FLAG_SYM], qbest[DP_S415_FLAG_CODE],
+              qbest[DP_S415_FLAG_CAR], qbest[DP_S415_FLAG_DEMOD],
+              qbest[DP_S415_FLAG_SYNC]);
       decoded += !isnan (t_lock) && t_lock <= DP_S415_LOCK_S && ber < 0.05;
       dp_async_dsss_receiver_destroy (rx);
       dp_air_free (&air);

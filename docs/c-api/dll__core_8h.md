@@ -381,6 +381,9 @@ JM_FORCEINLINE  JM_HOT void dll_set_inc (
 The one conversion of the loop's command: [**dll\_steer()**](dll__core_8h.md#function-dll_steer) uses it for a live steer and for a held one, so a held rate and a steered rate round the same way. Call it once per period boundary, never between two: the remainder is the running difference between the commanded and the applied phase, and a word replaced before a sample is stepped would count its command twice.
 
 
+The remainder lies from 0 to 2^-32, one phase-word step, inclusive, and a caller relies on that interval and on no value inside it. For a command in [-2^-53, 0) strict IEEE evaluation rounds `f - floor(f)` up to 1.0 and leaves exactly one step; a build that reassociates under -ffast-math (clang's -O3 on a command it can fold) computes `f - (floor(f) + word)`, the exact remainder, a hair under it. What is shown: by reasoning, for a command below about 2^20 cycles per sample in magnitude (where `floor(f) + word` is exact), and by a sweep of 20 million random commands and carried remainders under gcc and clang at -O3 -ffast-math. What is not: the bound beyond 2^20, which no loop reaches  a command is a fraction of a cycle per sample.
+
+
 
 
 **Parameters:**

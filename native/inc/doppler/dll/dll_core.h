@@ -195,10 +195,11 @@ typedef struct {
     uint64_t err_n;          /**< steers in err_sum.                       */
     double inc_resid;        /**< the fraction of a phase-word step the last
                                   steer's conversion to `phase_inc` dropped,
-                                  cycles per sample, in [0, 2^-32]: carried
-                                  into the next steer, so a command under one
-                                  step still moves the mean increment (the
-                                  conversion truncates).                     */
+                                  cycles per sample, from 0 to 2^-32 inclusive
+                                  (see dll_set_inc()): carried into the next
+                                  steer, so a command under one step still
+                                  moves the mean increment (the conversion
+                                  truncates).                                */
     double seed_chip;       /**< create-time code phase, for reset.       */
     double bn;               /**< loop noise bandwidth (retained).         */
     double zeta;             /**< damping factor (retained).               */
@@ -524,6 +525,18 @@ void dp_dll_lock_epoch(dp_dll_state_t *s);
  * remainder is the running difference between the commanded and the applied
  * phase, and a word replaced before a sample is stepped would count its
  * command twice.
+ *
+ * The remainder lies from 0 to 2^-32, one phase-word step, inclusive, and a
+ * caller relies on that interval and on no value inside it. For a command
+ * in [-2^-53, 0) strict IEEE evaluation rounds `f - floor(f)` up to 1.0 and
+ * leaves exactly one step; a build that reassociates under -ffast-math
+ * (clang's -O3 on a command it can fold) computes `f - (floor(f) + word)`,
+ * the exact remainder, a hair under it. What is shown: by reasoning, for a
+ * command below about 2^20 cycles per sample in magnitude (where
+ * `floor(f) + word` is exact), and by a sweep of 20 million random commands
+ * and carried remainders under gcc and clang at -O3 -ffast-math. What is
+ * not: the bound beyond 2^20, which no loop reaches -- a command is a
+ * fraction of a cycle per sample.
  *
  * @param s        DLL state.  Must be non-NULL.
  * @param command  The commanded increment, cycles per sample.

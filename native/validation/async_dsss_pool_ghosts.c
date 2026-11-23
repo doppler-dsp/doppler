@@ -49,7 +49,8 @@
  * FORCED k = 0 and 2 and SECOND at 38.8 and 50 dB-Hz, one draw each.
  *
  * Usage:  validate_async_dsss_pool_ghosts [--check] [--emit] [--draws N]
- *             [--shard i/n]
+ *             [--shard i/n] [--forced-s S]  (FORCED's run past the seed,
+ *             default GH_FORCED_S)
  */
 #include "async_dsss_receiver_common.h"
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
@@ -110,7 +111,44 @@ typedef struct
   int    outcome; /* 0 held, 1 released as a ghost, 2 freed as lost */
   double code_frac, sym_frac;
   int    any_k; /* the counterfactual took it while the rings were full */
+  /* FORCED, per receiver (0 the parent's, 1 the ghost's), from the seed:
+     the longest run of whole groups with the code flag down, and with both
+     flags down, s; for the ghost, its first and last code-up group after
+     the seed (NaN: none) and its carrier's offset from the parent's at the
+     end, Hz. The release rules' two candidates read against
+     lost_confirm_s. */
+  double code_down_s[2], both_down_s[2];
+  double t_code_first_s, t_code_last_s, df_end_hz;
 } gh_t;
+
+/* --forced-s: FORCED's run past the seed, s. */
+static double gh_forced_s = GH_FORCED_S;
+
+/* FORCED's every run, for the histogram (--emit's "# runs" section): one
+   record per run that ended, or was still open at the run's end. */
+typedef struct
+{
+  float    fc_ghz;
+  int      k, r, both; /* receiver; 0 the code flag down, 1 both down */
+  unsigned seed;
+  double   len_s;
+} gh_run_t;
+static gh_run_t *gh_runs;
+static size_t    gh_n_runs, gh_cap_runs;
+
+static void
+gh_run_add (double fc, int k, unsigned seed, int r, int both, double len_s)
+{
+  if (len_s <= 0.0)
+    return;
+  if (gh_n_runs == gh_cap_runs)
+    {
+      gh_cap_runs = gh_cap_runs ? 2 * gh_cap_runs : 1024;
+      gh_runs     = dp_xrealloc (gh_runs, gh_cap_runs * sizeof *gh_runs);
+    }
+  gh_runs[gh_n_runs++]
+      = (gh_run_t){ (float)(fc / 1e9), k, r, both, seed, len_s };
+}
 
 /* FORCED: receiver 1 on A's sidelobe at k lattice steps. */
 static int
@@ -130,7 +168,10 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
   const double level  = 20.0 * log10 (63.0 / 1023.0);
   double       t_seed = -1.0, t = 0.0;
   long         n = 0, code_up = 0, sym_up = 0;
+  const double dt       = (double)p->group / DP_S415_FS; /* one group, s */
+  double       run_c[2] = { 0, 0 }, run_b[2] = { 0, 0 };
   memset (o, 0, sizeof *o);
+  o->t_code_first_s = o->t_code_last_s = o->df_end_hz = NAN;
   for (;;)
     {
       DP_REQUIRE (gh_push (p, &air, x) == 0);
@@ -157,9 +198,37 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
           code_up += s1.code_locked != 0;
           sym_up += s1.locked != 0;
           o->any_k |= dp__async_dsss_pool_ghost_of_any_k (p, 0, 1);
+          if (s1.code_locked)
+            {
+              if (isnan (o->t_code_first_s))
+                o->t_code_first_s = t - t_seed;
+              o->t_code_last_s = t - t_seed;
+            }
+          o->df_end_hz = s1.doppler_hz - s0.doppler_hz;
         }
-      if (s1.state == ASYNC_DSSS_RX_IDLE || t - t_seed > GH_FORCED_S)
+      /* The runs, both receivers, while each tracks. */
+      const async_dsss_receiver_status_t sr[2] = { s0, s1 };
+      for (int r = 0; r < 2; r++)
+        {
+          const int tr = sr[r].state == ASYNC_DSSS_RX_TRACKING;
+          const int cd = tr && !sr[r].code_locked;
+          const int bd = cd && !sr[r].locked;
+          if (!cd)
+            gh_run_add (fc, k, seed, r, 0, run_c[r]);
+          if (!bd)
+            gh_run_add (fc, k, seed, r, 1, run_b[r]);
+          run_c[r]          = cd ? run_c[r] + dt : 0.0;
+          run_b[r]          = bd ? run_b[r] + dt : 0.0;
+          o->code_down_s[r] = fmax (o->code_down_s[r], run_c[r]);
+          o->both_down_s[r] = fmax (o->both_down_s[r], run_b[r]);
+        }
+      if (s1.state == ASYNC_DSSS_RX_IDLE || t - t_seed > gh_forced_s)
         break;
+    }
+  for (int r = 0; r < 2; r++) /* the runs still open at the end */
+    {
+      gh_run_add (fc, k, seed, r, 0, run_c[r]);
+      gh_run_add (fc, k, seed, r, 1, run_b[r]);
     }
   o->outcome   = p->released_ghost ? 1 : p->released_lost ? 2 : 0;
   o->code_frac = n ? (double)code_up / (double)n : NAN;
@@ -345,6 +414,8 @@ main (int argc, char **argv)
       emit |= strcmp (argv[i], "--emit") == 0;
       if (strcmp (argv[i], "--draws") == 0 && i + 1 < argc)
         draws = (unsigned)strtoul (argv[++i], NULL, 10);
+      else if (strcmp (argv[i], "--forced-s") == 0 && i + 1 < argc)
+        gh_forced_s = strtod (argv[++i], NULL);
       else if (strcmp (argv[i], "--shard") == 0 && i + 1 < argc)
         DP_REQUIRE (sscanf (argv[++i], "%u/%u", &shard, &shards) == 2
                     && shards > 0 && shard < shards);
@@ -357,11 +428,13 @@ main (int argc, char **argv)
   static const double b_lvls[5] = { 38.8, 42.0, 44.0, 46.0, 50.0 };
 
   if (emit)
-    printf ("# forced\nfc_ghz,k,seed,outcome,code_frac,sym_frac,any_k\n");
+    printf ("# forced\nfc_ghz,k,seed,outcome,code_frac,sym_frac,any_k,"
+            "code_down0_s,both_down0_s,code_down1_s,both_down1_s,"
+            "t_code_first_s,t_code_last_s,df_end_hz\n");
   else
     printf ("ghosts: 415.1-B-1, 11 MSa/s, a pool designed at 38.8 dB-Hz; "
             "FORCED on a %.0f dB-Hz parent's %u-chip sidelobe, %.0f s\n",
-            GH_PARENT_DBHZ, GH_SIDE, GH_FORCED_S);
+            GH_PARENT_DBHZ, GH_SIDE, gh_forced_s);
   for (int f = check ? 1 : 0; f < 2; f++)
     for (int k = -2; k <= 2; k++)
       {
@@ -385,8 +458,12 @@ main (int argc, char **argv)
               DP_CHECK_MSG (o.outcome != 1, "the ghost rule never takes a "
                                             "k = 0 ghost");
             if (emit)
-              printf ("%.1f,%d,%u,%d,%.3f,%.3f,%d\n", fcs[f] / 1e9, k, s,
-                      o.outcome, o.code_frac, o.sym_frac, o.any_k);
+              printf ("%.1f,%d,%u,%d,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.3f,%.3f,"
+                      "%.3f,%.1f\n",
+                      fcs[f] / 1e9, k, s, o.outcome, o.code_frac, o.sym_frac,
+                      o.any_k, o.code_down_s[0], o.both_down_s[0],
+                      o.code_down_s[1], o.both_down_s[1], o.t_code_first_s,
+                      o.t_code_last_s, o.df_end_hz);
           }
         if (!emit && n)
           {
@@ -396,6 +473,15 @@ main (int argc, char **argv)
             gh_rate ("held", held, n);
           }
       }
+  if (emit)
+    {
+      printf ("# runs\nfc_ghz,k,seed,receiver,both,len_s\n");
+      for (size_t i = 0; i < gh_n_runs; i++)
+        printf ("%.1f,%d,%u,%d,%d,%.4f\n", gh_runs[i].fc_ghz, gh_runs[i].k,
+                gh_runs[i].seed, gh_runs[i].r, gh_runs[i].both,
+                gh_runs[i].len_s);
+    }
+  free (gh_runs);
 
   if (emit)
     printf ("# second\nfc_ghz,b_dbhz,seed,outcome,code_frac,any_k\n");

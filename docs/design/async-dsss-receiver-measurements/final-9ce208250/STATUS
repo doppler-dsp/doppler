@@ -1,0 +1,26 @@
+head 9ce208250 docs(async_dsss_receiver): the carrier lock's record at 34 / 43, u4-bb dirty=0 start 15:52:28
+build rc=0 15:52:29
+ghosts exits:       8 0       8 1
+rows+k1 exits:      62 0      42 1
+done 16:43:33
+commands (swiftgo-ai9465, ~/bench-work/implementer/b, make build at the head; 16 jobs at once):
+  pullin_rows.csv: validate_async_dsss_receiver_pullin --emit --dynamics pass --fc F --esn0 E
+                   --draws 60 --shard i/16, F 2.2 2.8, E 4 5 10 (d-6fc84cc80's invocation)
+  k1_rows.csv:     validate_async_dsss_receiver_pullin --fine-k1 --telemetry DIR --draw F,10,0,S
+                   on 2.2:4,5,13,46,50 and 2.8:7,31,46
+  ghosts_*.csv:    validate_async_dsss_pool_ghosts --emit --forced-s 20 --second-s 20
+                   --shard i/16 (run-cen-0373a01d5's invocation)
+  Each CSV is that section's data rows from every shard, merged under one header
+  (checked identical across shards); the validators' printed notes are dropped.
+  shards.txt: every job's exit and FAIL lines.
+exits, by cause (shards.txt):
+  ghosts 8 x 1: "receiver 0 tracks A with code lock", 20 SECOND draws, B 44-50 dB-Hz
+    (#3263's near-far limit; predicted)
+  rows 37 + k1 4 x 1: the end-verdict controls (90dab3d55), "a slip before the end is
+    refused" on 40 jobs (36 rows, 4 k1) and "a clean end the sync cannot place is accepted
+    on its tail" on 2 rows (one of them also the first);
+    the controls run on each job's first aligned draw (not predicted; validator, not a row)
+  rows 1 x 1: 2.8 GHz 10 dB static seed 8 does not align at the start (as d-6fc84cc80)
+2.2 GHz FORCED draws held to 20 s (5 of 100; run-cen-0373a01d5 had 0 of 100; #3263):
+  k -2 seed 18, k -1 seed 17, k 0 seed 4, k 2 seeds 8 and 14
+  (longest both-down run 0.18 / 1.38 / 0.47 / 0.29 / 0.51 s against lost_confirm_s 2.0)

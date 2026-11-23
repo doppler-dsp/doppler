@@ -1,0 +1,5 @@
+head 34cfdce9b docs(async_dsss_receiver): the predicted Pd as --design prints it, and dirty=0 start 21:41:19
+build rc=0 21:41:20
+ghosts done 21:44:25 exits:      16 1
+captures done 21:45:16 exits:      12 0
+done 21:45:16

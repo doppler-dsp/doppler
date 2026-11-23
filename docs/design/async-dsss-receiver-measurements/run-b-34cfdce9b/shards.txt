@@ -1,0 +1,96 @@
+== gh/s0.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (4)
+== gh/s1.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_pool_ghosts.c:502  gh_second (code, fcs[f], b_lvls[l], s, &o) == 0
+== gh/s2.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (4)
+== gh/s3.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: the ghost rule never releases a distinct emitter on its parent's carrier
+FAIL: the ghost rule never releases a distinct emitter on its parent's carrier
+FAIL: receiver 0 tracks A with code lock
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_pool_ghosts.c:502  gh_second (code, fcs[f], b_lvls[l], s, &o) == 0
+== gh/s4.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_pool_ghosts.c:502  gh_second (code, fcs[f], b_lvls[l], s, &o) == 0
+== gh/s5.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (2)
+== gh/s6.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_pool_ghosts.c:502  gh_second (code, fcs[f], b_lvls[l], s, &o) == 0
+== gh/s7.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_pool_ghosts.c:502  gh_second (code, fcs[f], b_lvls[l], s, &o) == 0
+== gh/s8.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (2)
+== gh/s9.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_pool_ghosts.c:502  gh_second (code, fcs[f], b_lvls[l], s, &o) == 0
+== gh/s10.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (2)
+== gh/s11.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_pool_ghosts.c:502  gh_second (code, fcs[f], b_lvls[l], s, &o) == 0
+== gh/s12.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_pool_ghosts.c:502  gh_second (code, fcs[f], b_lvls[l], s, &o) == 0
+== gh/s13.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_pool_ghosts.c:502  gh_second (code, fcs[f], b_lvls[l], s, &o) == 0
+== gh/s14.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+validate_async_dsss_pool_ghosts FAILED (2)
+== gh/s15.err exit 1
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: a k = 2 sidelobe ghost is released by the ghost rule
+FAIL: receiver 0 tracks A with code lock
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_pool_ghosts.c:502  gh_second (code, fcs[f], b_lvls[l], s, &o) == 0
+== cd/2.2_4_-11_44.err exit 0
+== cd/2.2_4_0_12.err exit 0
+== cd/2.2_4_0_38.err exit 0
+== cd/2.2_4_0_54.err exit 0
+== cd/2.2_4_0_59.err exit 0
+== cd/2.8_4_-11_43.err exit 0
+== cd/2.8_4_-11_48.err exit 0
+== cd/2.8_4_-11_52.err exit 0
+== cd/2.8_4_0_16.err exit 0
+== cd/2.8_4_0_31.err exit 0
+== cd/2.8_4_0_36.err exit 0
+== cd/2.8_4_0_8.err exit 0

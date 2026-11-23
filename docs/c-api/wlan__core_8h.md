@@ -1738,7 +1738,7 @@ const char * dp_wlan_rate_resolve (
 
 
 
-A rate is a pair (docs/design/wlan.md, Ruled 8), so it is given whole:
+A rate is a pair (docs/design/wlan.md, section 10), so it is given whole:
 
 
 

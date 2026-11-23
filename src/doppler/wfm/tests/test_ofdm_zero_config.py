@@ -1,6 +1,6 @@
 """The 802.11 preset's zero-config defaults, on both faces (#3269).
 
-The owner's ruling: with nothing given, ``Wlan()`` and ``wfmgen --type
+The lead's decision: with nothing given, ``Wlan()`` and ``wfmgen --type
 ofdm`` are 36 Mb/s (16-QAM at 3/4), the source's MAC appends the FCS, its
 payload is 96 octets of PN15 (a 100-octet PSDU with the FCS, Annex I's
 length), and its ``fs`` is the bandwidth. The pair is resolved whole by
@@ -170,7 +170,7 @@ def test_auto_is_never_read_or_written():
     """An ofdm source's read-back and record hold the resolved value.
 
     Scoped to ofdm: these three are an ofdm source's fields, and another
-    type reads back what was given (``auto`` unless set; ruled with #3273's
+    type reads back what was given (``auto`` unless set; decided with #3273's
     review), pinned on its own below. Rejects a getter or a writer that
     passes ``auto`` through for an ofdm source, or a tone that claims an
     ofdm source's 16-QAM.
@@ -303,7 +303,7 @@ def _v085() -> dict:
     return data["records"]
 
 
-#: The records a v0.85.0 user wrote, and how each reads now, as ruled:
+#: The records a v0.85.0 user wrote, and how each reads now, as decided:
 #: (constellation, code_rate, mac) after a re-record, or the refusal.
 RULED = {
     "rate6_default": ("qam16", "3/4", "fcs"),
@@ -321,7 +321,7 @@ RULED = {
 
 
 @pytest.mark.parametrize("name", sorted(RULED))
-def test_a_v085_record_reads_as_ruled(name):
+def test_a_v085_record_reads_as_decided(name):
     """A v0.85.0 record reads back as the declared break says.
 
     Rejects a silent reread: under per-field resolution the 24 Mb/s record

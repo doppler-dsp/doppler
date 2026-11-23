@@ -323,7 +323,7 @@ uint32_t dp_wlan_window_resolve (uint32_t window, uint32_t oversample);
  * @brief The constellation and code rate a caller means: the one place a
  *        rate given as a pair, as Mb/s, or not at all, becomes a pair.
  *
- * A rate is a pair (docs/design/wlan.md, Ruled 8), so it is given whole:
+ * A rate is a pair (docs/design/wlan.md, section 10), so it is given whole:
  *
  * | constellation, code_rate | mbps | resolves to                          |
  * | ------------------------ | ---- | ------------------------------------ |

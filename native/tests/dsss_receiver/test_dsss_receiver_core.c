@@ -329,20 +329,34 @@ _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
   dp_costas_init (&car, 0.01, 0.707, 0.0, tsamps, bn_fll);
 
   float _Complex *wiped = malloc (tsamps * sizeof *wiped);
+  /* A period's samples close at most two epochs (two when the boundary
+     sits on the call's edge), 4 partials each: the capacity holds that
+     and one more, so a call that filled it would have dropped dumps
+     (dp_dll_steps() drops past max_out silently, #3282). Before #3281's
+     audit this read one partial of the four a period. */
+  float _Complex parts[2 * 4 + 1];
+  size_t most = 0;
   for (size_t p = 0; p < n_periods; p++)
     {
       const float _Complex *chunk = x + p * tsamps;
       for (size_t i = 0; i < tsamps; i++)
         wiped[i] = costas_wipeoff (&car, chunk[i]);
-      float _Complex prompt;
-      /* exactly one period's worth of raw samples in; ordinarily exactly
-       * one prompt out, but Dll's own tracked code_rate need not be
-       * precisely 1.0 -- don't hard-assert the count, mirroring the
-       * production loop's own planned discipline (task #95's own doc). */
-      size_t n_out = dp_dll_steps (dll, wiped, tsamps, &prompt, 1);
-      if (n_out == 1)
-        costas_update (&car, prompt);
+      const size_t n_out = dp_dll_steps (dll, wiped, tsamps, parts,
+                                         sizeof parts / sizeof *parts);
+      most               = n_out > most ? n_out : most;
+      if (n_out == 0)
+        continue;
+      /* One prompt a period, as the receiver forms it
+         (dsss_rx_carrier_update_from_partials(): each partial aligned by
+         its own real part's sign, so a data transition inside the period
+         does not cancel the sum). */
+      float _Complex prompt = 0.0f;
+      for (size_t k = 0; k < n_out; k++)
+        prompt += parts[k] * (crealf (parts[k]) >= 0.0f ? 1.0f : -1.0f);
+      costas_update (&car, prompt);
     }
+  DP_CHECK_MSG (most < sizeof parts / sizeof *parts,
+                "no period's call filled the partials' capacity");
 
   double tracked_hz  = dp_costas_get_norm_freq (&car) * fs;
   double true_at_end = rate_hz_per_s * (double)n_periods * (double)tsamps / fs;
@@ -763,6 +777,59 @@ _test_handoff_resumes_at_the_hit (void)
   return 0;
 }
 
+/* A call of a few samples that completes a carried period keeps the
+ * period's partials. The tracking chain wipes and despreads a whole code
+ * period at a time, carrying the remainder, so a 1-sample call that
+ * completes the carry runs a period through the Dll, which emits its
+ * `segments` partials (4 here). Its scratch held x_len before #3281's
+ * audit, 1 here, and dp_dll_steps() drops what does not fit silently
+ * (#3282): 3 partials a period lost. The case: the hand-off geometry above
+ * fed as calls of te - 1 and 1 samples, which must equal one call over the
+ * capture bit for bit. Sabotage: the Dll's scratch back to x_len -> the
+ * chunked run loses partials and differs, red. */
+static int
+_test_small_call_keeps_a_carried_period (void)
+{
+  const size_t    sf = 7, spc = 4, te = sf * spc, n_sym = 300;
+  const double    fs = 1.0e6 * (double)spc, tsym = fs / 35714.29;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, 90.0, n_sym, te * 5 + 3, 7,
+                   &x, &n, &data);
+  dp_dsss_receiver_state_t *one = dp_dsss_receiver_create (
+      CODE7, sf, 1.0e6, 35714.29, fs, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *chunked = dp_dsss_receiver_create (
+      CODE7, sf, 1.0e6, 35714.29, fs, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  DP_REQUIRE (one != NULL && chunked != NULL);
+  float _Complex *a;
+  const size_t    n_a = _stream (one, x, n, n, &a);
+  float _Complex *b   = malloc (n * sizeof *b);
+  DP_REQUIRE (b != NULL);
+  size_t n_b = 0;
+  for (size_t pos = 0, k = 0; pos < n; k++)
+    {
+      size_t take = (k & 1u) ? 1 : te - 1;
+      take        = pos + take <= n ? take : n - pos;
+      n_b += dp_dsss_receiver_steps (chunked, x + pos, take, b + n_b, n - n_b);
+      pos += take;
+    }
+  DP_REQUIRE (dp_dsss_receiver_get_tracking (one) == 1 && n_a > 20);
+  printf ("  calls of %zu and 1 samples: %zu symbols against one call's "
+          "%zu\n",
+          te - 1, n_b, n_a);
+  DP_CHECK_MSG (n_a == n_b && memcmp (a, b, n_a * sizeof *a) == 0,
+                "a 1-sample call that completes a carried period keeps its "
+                "partials");
+  free (a);
+  free (b);
+  dp_dsss_receiver_destroy (one);
+  dp_dsss_receiver_destroy (chunked);
+  free (x);
+  free (data);
+  return 0;
+}
+
 /* The hand-off's two counts must be one timebase (#2042's final round).
  * The tail is where the hit's frame ended in the ENGINE's position; a count
  * of what this receiver fed was a second timebase that configure_search_raw
@@ -861,6 +928,7 @@ main (void)
   (void)_test_arg_validation ();
   (void)_test_acquire_and_decode ();
   (void)_test_handoff_resumes_at_the_hit ();
+  (void)_test_small_call_keeps_a_carried_period ();
   (void)_test_handoff_survives_reconfigure_and_restore ();
   (void)_test_carrier_dll_composition_ramp ();
   (void)_test_sustained_doppler_rate ();

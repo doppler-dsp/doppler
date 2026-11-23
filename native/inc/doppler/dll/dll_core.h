@@ -533,8 +533,7 @@ void dp_dll_lock_epoch(dp_dll_state_t *s);
  * (clang's -O3 on a command it can fold) computes `f - (floor(f) + word)`,
  * the exact remainder, a hair under it. What is shown: by reasoning, for a
  * command below about 2^20 cycles per sample in magnitude (where
- * `floor(f) + word` is exact), and by a sweep of 20 million random commands
- * and carried remainders under gcc and clang at -O3 -ffast-math. What is
+ * `floor(f) + word` is exact), and by the pin in test_dll_core.c. What is
  * not: the bound beyond 2^20, which no loop reaches -- a command is a
  * fraction of a cycle per sample.
  *

@@ -732,6 +732,13 @@ that writer omitted both at their defaults and so did not record the
 difference: every 6 Mb/s record reads as 36 Mb/s, one-field records at 9,
 12 and 24 Mb/s are refused, and every `mac` none record gains the FCS.
 
+**A live object's half pair reads as written.** Until a setter keeps the
+pair whole (just-makeit#2747), a `Synth` given one half reads that half as
+written and the other as the default's: `constellation = "bpsk"` reads
+(bpsk, 3/4), never `auto`. Such a source is refused when it builds, and so
+is a pair it reads that Table 17-6 lacks, as (qam16, 5/6), with "no SIGNAL
+RATE bits": one behavior for both.
+
 **At 10 and 5 MHz** the zero-config source is the same pair, so it carries 18
 or 9 Mb/s there; it is not `wlan`, so it is not refused.
 

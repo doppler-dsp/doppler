@@ -1229,16 +1229,19 @@ test_the_defaults_read_back_resolved_and_resolve_once (void)
   DP_CHECK (r1.constellation == WLAN_CONSTELLATION_AUTO);
   DP_CHECK (dp_wfm_source_ofdm_defaults (&r1, f1, &r2, &f2) == NULL);
   /* a pair that does not resolve, forced through the struct (a live
-     object's half pair, a bad index, a rate beside a pair): the getters
-     read the default pair's component, so auto is never read */
+     object's half pair, a bad index, a rate beside a pair): each half reads
+     as stored when it is a value, and the default's where it is auto or no
+     value, so a read agrees with a write and auto is never read. The given
+     halves are not the default's, so masking cannot pass for a read-back. */
   static const struct
   {
-    int c, r, wlan;
+    int c, r, wlan, want_c, want_r;
   } stuck[] = {
-    { 2, WLAN_CODE_AUTO, 0 },                       /* half a pair */
-    { WLAN_CONSTELLATION_AUTO, 1, 0 },              /* the other half */
-    { 2, WLAN_CODE_3_4, 36 },                       /* wlan beside a pair */
-    { WLAN_CONSTELLATION_AUTO, WLAN_CODE_AUTO, 7 }, /* no such rate */
+    { 0, WLAN_CODE_AUTO, 0, 0, WLAN_CODE_3_4 }, /* bpsk given: (bpsk, 3/4) */
+    { WLAN_CONSTELLATION_AUTO, WLAN_CODE_5_6, 0, 2, WLAN_CODE_5_6 },
+    { 1, WLAN_CODE_1_2, 36, 1, WLAN_CODE_1_2 }, /* wlan beside a pair */
+    { WLAN_CONSTELLATION_AUTO, WLAN_CODE_AUTO, 7, 2, WLAN_CODE_3_4 },
+    { 9, 6, 0, 2, WLAN_CODE_3_4 }, /* no values: the default's */
   };
   for (size_t i = 0; i < sizeof stuck / sizeof *stuck; i++)
     {
@@ -1246,9 +1249,24 @@ test_the_defaults_read_back_resolved_and_resolve_once (void)
       x.wlan          = stuck[i].wlan;
       x.constellation = stuck[i].c;
       x.code_rate     = stuck[i].r;
-      DP_CHECK (dp_wfm_source_constellation (&x, 1.0) == 2);
-      DP_CHECK (dp_wfm_source_code_rate (&x, 1.0) == WLAN_CODE_3_4);
+      const int gc    = dp_wfm_source_constellation (&x, 1.0);
+      const int gr    = dp_wfm_source_code_rate (&x, 1.0);
+      if (gc != stuck[i].want_c || gr != stuck[i].want_r)
+        DP_TEST_ERR ("stuck %zu: read (%d, %d)", i, gc, gr);
+      DP_CHECK (gc == stuck[i].want_c && gr == stuck[i].want_r);
     }
+  /* (qam16, 5/6) reads as written, and is refused at build as a whole
+     pair Table 17-6 lacks is */
+  {
+    wfm_source_t x  = s;
+    x.wlan          = 0;
+    x.constellation = 2;
+    x.code_rate     = WLAN_CODE_5_6;
+    DP_CHECK (dp_wfm_source_constellation (&x, 1.0) == 2);
+    DP_CHECK (dp_wfm_source_code_rate (&x, 1.0) == WLAN_CODE_5_6);
+    const char *why = dp_wfm_source_to_synth_error (&x, 20e6);
+    DP_CHECK (why && strstr (why, "no SIGNAL RATE bits"));
+  }
   {
     wfm_source_t x = s;
     x.mac          = 7; /* no mode: read as the default's, never auto */

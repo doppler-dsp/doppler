@@ -23,6 +23,7 @@
 #include "wfm_draw.h" /* the shared ranged-draw hash (one definition) */
 
 #include <math.h>
+#include <stdio.h> /* snprintf: a refusal that names numbers */
 #include <stdlib.h>
 #include <string.h>
 
@@ -796,6 +797,7 @@ resolved_scene (const wfm_segment_t *segs, size_t n_segs, const char **why)
          changes its rate: each ofdm source at a default fs names its
          bandwidth, and two that differ leave the segment no one rate. */
       int         named = 0;
+      size_t      first = 0;
       const char *bad   = NULL;
       for (size_t k = 0; k < n && !bad; k++)
         {
@@ -805,8 +807,23 @@ resolved_scene (const wfm_segment_t *segs, size_t n_segs, const char **why)
           if (bad || fs == segs[i].fs)
             continue;
           if (named && fs != rs[i].fs)
-            bad = "the ofdm sources of a segment at the default fs differ in "
-                  "bandwidth, so it has no one rate: give the segment's fs";
+            {
+              /* The sources and their bandwidths, in a thread-local buffer
+                 as wfm_json.c's refusals with numbers are: no static
+                 sentence can hold them, and nothing is allocated on the
+                 error path. */
+              static _Thread_local char msg[256];
+              (void)snprintf (msg, sizeof msg,
+                              "segment %zu: its ofdm sources %zu (%g Hz) and "
+                              "%zu (%g Hz) differ in bandwidth, so at the "
+                              "default fs it has no one rate: give the "
+                              "segment's fs",
+                              i, first, rs[i].fs, k, fs);
+              bad = msg;
+              break;
+            }
+          if (!named)
+            first = k;
           rs[i].fs = fs;
           named    = 1;
         }

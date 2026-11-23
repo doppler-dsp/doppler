@@ -229,7 +229,8 @@ def test_a_segments_rate_does_not_depend_on_source_order():
         seg = Segment.sum(*(Synth(type=t) for t in order))
         rec = json.loads(Composer([seg]).to_json())["segments"][0]
         assert rec["fs"] == 20e6, order
-    with pytest.raises(ValueError, match="differ in bandwidth"):
+    # the refusal names the two sources and their bandwidths
+    with pytest.raises(ValueError) as e:
         Composer(
             [
                 Segment.sum(
@@ -237,6 +238,22 @@ def test_a_segments_rate_does_not_depend_on_source_order():
                 )
             ]
         )
+    assert (
+        "ofdm sources 0 (2e+07 Hz) and 1 (1e+07 Hz) differ in bandwidth"
+        in (str(e.value))
+    )
+
+
+def test_a_live_half_pair_reads_as_written():
+    """A half pair on a live object reads each given half as written, and
+    the default's for the other, never auto. Rejects a getter that masks a
+    write with the default pair: bpsk given must not read as qam16."""
+    s = Synth(type="ofdm")
+    s.constellation = "bpsk"
+    assert (s.constellation, s.code_rate) == ("bpsk", "3/4")
+    t = Synth(type="ofdm")
+    t.code_rate = "5/6"
+    assert (t.constellation, t.code_rate) == ("qam16", "5/6")
 
 
 def _synth_fs_default() -> float:

@@ -1311,16 +1311,28 @@ dp_wfm_source_ofdm_defaults (const wfm_source_t *src, double fs,
 
 /* The pair an ofdm source reads back as: the resolved one, or, for a pair
    that does not resolve (a live object's half pair, a C struct's bad index),
-   the default pair, so `auto` is never read whatever the struct holds. The
-   source is refused naming why when it builds. */
+   each half as stored when it is a value, and the default pair's half where
+   it is auto or no value. So a read agrees with every write, `auto` is never
+   read, and a half pair reads as the setter's rule will leave it (the other
+   half at the value read). The source is refused naming why when it builds;
+   a pair Table 17-6 lacks, as (qam16, 5/6), reads as written and is refused
+   with "no SIGNAL RATE bits", as a whole pair it lacks is. */
 static void
 wfofdm_read_pair (const wfm_source_t *src, int *c, int *r)
 {
-  if (!wfofdm_resolve_pair (src, c, r))
-    return;
-  *c = WLAN_CONSTELLATION_AUTO;
-  *r = WLAN_CODE_AUTO;
-  (void)dp_wlan_rate_resolve (dp_wlan_tables_standard (), c, r, 0u);
+  /* the resolver returns a given pair unchecked (params_why ranges it), so
+     the range is held here on every path, the resolved one too */
+  if (wfofdm_resolve_pair (src, c, r))
+    {
+      *c = src->constellation;
+      *r = src->code_rate;
+    }
+  int dc = WLAN_CONSTELLATION_AUTO, dr = WLAN_CODE_AUTO;
+  (void)dp_wlan_rate_resolve (dp_wlan_tables_standard (), &dc, &dr, 0u);
+  if (!dp_wlan_n_bpsc (*c))
+    *c = dc;
+  if (*r < 0 || *r >= WLAN_CODE_AUTO)
+    *r = dr;
 }
 
 /* Another type has no constellation, code rate or MAC: it reads back what

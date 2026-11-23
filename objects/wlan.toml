@@ -20,7 +20,7 @@ create_error = "ValueError"
 create_fn = "dp_wlan_create_why"
 # the sentence names the argument that failed (dp_wlan_params_why)
 create_why = true
-create_error_message = "constellation is not one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, r34, r56, window is not 0 to 80 * oversample, or oversample is not 1 to 128"
+create_error_message = "the rate does not resolve (half a pair, a rate beside a pair, or a rate Table 17-6 does not list), constellation is not one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, r34, r56, window is not 0 to 80 * oversample, or oversample is not 1 to 128"
 depends_on = [
     { name = "ofdm", link = true },
     { name = "conv", link = true },
@@ -30,17 +30,26 @@ depends_on = [
 ]
 fragment = "generated"
 
+# `auto` is the index after the last value (WLAN_CONSTELLATION_AUTO,
+# WLAN_CODE_AUTO): an index is a position in this list, not a modulation
+# order. dp_wlan_rate_resolve turns an auto pair into a rate's pair.
 [[wlan.init_params]]
 name = "constellation"
-type = "string_enum:bpsk,qpsk,qam16,qam64"
-default = "qam16"
-doc = "The constellation: BPSK, QPSK, 16-QAM or 64-QAM, one to six bits per subcarrier."
+type = "string_enum:bpsk,qpsk,qam16,qam64,auto"
+default = "auto"
+doc = "The constellation: BPSK, QPSK, 16-QAM or 64-QAM, one to six bits per subcarrier. `auto` (the default) takes it from `mbps`, or the 36 Mb/s pair (16-QAM, 3/4) when no rate is given; it is given with `code_rate`, or neither is."
 
 [[wlan.init_params]]
 name = "code_rate"
-type = "string_enum:r12,r23,r34,r56"
-default = "r12"
-doc = "The BCC rate: `r12` is 1/2, `r23` is 2/3, `r34` is 3/4 and `r56` is 5/6."
+type = "string_enum:r12,r23,r34,r56,auto"
+default = "auto"
+doc = "The BCC rate: `r12` is 1/2, `r23` is 2/3, `r34` is 3/4 and `r56` is 5/6. `auto` (the default) as for `constellation`."
+
+[[wlan.init_params]]
+name = "mbps"
+type = "uint32_t"
+default = "0"
+doc = "The data rate at 20 MHz in Mb/s, as Table 17-6 prints it: 6, 9, 12, 18, 24, 36, 48 or 54, a second spelling of `constellation` and `code_rate`, which are then left at `auto`. 0 (the default) gives none, and with no pair either the rate is 36 Mb/s. The object holds no clocking: the same PPDU played at 10 or 5 MHz carries the rate halved or quartered."
 
 [[wlan.init_params]]
 name = "window"

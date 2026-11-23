@@ -12,14 +12,22 @@ class Wlan:
 
     Parameters
     ----------
-    constellation : Literal["bpsk", "qpsk", "qam16", "qam64"], default "qam16"
+    constellation : Literal["bpsk", "qpsk", "qam16", "qam64", "auto"], default "auto"
         The constellation: BPSK, QPSK, 16-QAM or 64-QAM, one to six bits per
-        subcarrier.
-        One of ``"bpsk"``, ``"qpsk"``, ``"qam16"``, ``"qam64"``.
-    code_rate : Literal["r12", "r23", "r34", "r56"], default "r12"
+        subcarrier. `auto` (the default) takes it from `mbps`, or the 36 Mb/s
+        pair (16-QAM, 3/4) when no rate is given; it is given with `code_rate`,
+        or neither is.
+        One of ``"bpsk"``, ``"qpsk"``, ``"qam16"``, ``"qam64"``, ``"auto"``.
+    code_rate : Literal["r12", "r23", "r34", "r56", "auto"], default "auto"
         The BCC rate: `r12` is 1/2, `r23` is 2/3, `r34` is 3/4 and `r56` is
-        5/6.
-        One of ``"r12"``, ``"r23"``, ``"r34"``, ``"r56"``.
+        5/6. `auto` (the default) as for `constellation`.
+        One of ``"r12"``, ``"r23"``, ``"r34"``, ``"r56"``, ``"auto"``.
+    mbps : int, default 0
+        The data rate at 20 MHz in Mb/s, as Table 17-6 prints it: 6, 9, 12, 18,
+        24, 36, 48 or 54, a second spelling of `constellation` and `code_rate`,
+        which are then left at `auto`. 0 (the default) gives none, and with no
+        pair either the rate is 36 Mb/s. The object holds no clocking: the same
+        PPDU played at 10 or 5 MHz carries the rate halved or quartered.
     window : int, default WLAN_WINDOW_STANDARD
         The default is the standard's 100 ns transition, `2 * oversample`
         samples; 0 is no window. Otherwise the window length in samples at the
@@ -35,9 +43,11 @@ class Wlan:
     ------
     ValueError
         If construction fails. The exception message is the reason the
-        constructor gives, or ``constellation is not one of bpsk, qpsk, qam16,
-        qam64, code_rate is not one of r12, r23, r34, r56, window is not 0 to
-        80 * oversample, or oversample is not 1 to 128`` when it gives none.
+        constructor gives, or ``the rate does not resolve (half a pair, a rate
+        beside a pair, or a rate Table 17-6 does not list), constellation is
+        not one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23,
+        r34, r56, window is not 0 to 80 * oversample, or oversample is not 1 to
+        128`` when it gives none.
 
     Examples
     --------
@@ -48,14 +58,15 @@ class Wlan:
     >>> Wlan(constellation="qam256")
     Traceback (most recent call last):
         ...
-    ValueError: constellation must be one of "bpsk", "qpsk", "qam16", "qam64", got 'qam256'
+    ValueError: constellation must be one of "bpsk", "qpsk", "qam16", "qam64", "auto", got 'qam256'
 
     """
 
     def __init__(
         self,
-        constellation: Literal["bpsk", "qpsk", "qam16", "qam64"] = "qam16",
-        code_rate: Literal["r12", "r23", "r34", "r56"] = "r12",
+        constellation: Literal["bpsk", "qpsk", "qam16", "qam64", "auto"] = "auto",
+        code_rate: Literal["r12", "r23", "r34", "r56", "auto"] = "auto",
+        mbps: int = 0,
         window: int = ...,
         oversample: int = 1,
     ) -> None: ...

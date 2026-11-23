@@ -776,9 +776,71 @@ resolved_num_samples (const wfm_segment_t *g)
   return burst ? burst : WFM_NUM_SAMPLES_PLAIN;
 }
 
+/* A copy of a scene with every ofdm source's zero-config defaults filled in
+   and each segment at the rate its first source renders at
+   (dp_wfm_source_ofdm_defaults, the one place they are decided). The
+   segment array and each source array are fresh; what they point at is the
+   caller's, so free them with resolved_scene_free and nothing else. NULL,
+   with *why, when a source's rate does not resolve. Resolving a resolved
+   scene changes nothing. */
+static wfm_segment_t *
+resolved_scene (const wfm_segment_t *segs, size_t n_segs, const char **why)
+{
+  wfm_segment_t *rs = dp_xcalloc (n_segs ? n_segs : 1, sizeof *rs);
+  for (size_t i = 0; i < n_segs; i++)
+    {
+      rs[i]          = segs[i];
+      const size_t n = segs[i].n_sources;
+      rs[i].sources  = dp_xcalloc (n ? n : 1, sizeof (wfm_source_t));
+      for (size_t k = 0; k < n; k++)
+        {
+          double      fs  = segs[i].fs;
+          const char *bad = dp_wfm_source_ofdm_defaults (
+              &segs[i].sources[k], segs[i].fs, &rs[i].sources[k], &fs);
+          if (bad)
+            {
+              for (size_t j = 0; j <= i; j++)
+                free (rs[j].sources);
+              free (rs);
+              *why = bad;
+              return NULL;
+            }
+          if (k == 0)
+            rs[i].fs = fs;
+        }
+    }
+  return rs;
+}
+
+static void
+resolved_scene_free (wfm_segment_t *rs, size_t n_segs)
+{
+  for (size_t i = 0; i < n_segs; i++)
+    free (rs[i].sources);
+  free (rs);
+}
+
+static const char *scene_error_resolved (const wfm_segment_t *segs,
+                                         size_t n_segs, int repeat,
+                                         int continuous);
+
 const char *
 dp_wfm_scene_error (const wfm_segment_t *segs, size_t n_segs, int repeat,
                     int continuous)
+{
+  const char    *why = NULL;
+  wfm_segment_t *rs  = resolved_scene (segs, n_segs, &why);
+  if (!rs)
+    return why;
+  why = scene_error_resolved (rs, n_segs, repeat, continuous);
+  resolved_scene_free (rs, n_segs);
+  return why;
+}
+
+/* dp_wfm_scene_error's rules, on a scene whose defaults are filled in. */
+static const char *
+scene_error_resolved (const wfm_segment_t *segs, size_t n_segs, int repeat,
+                      int continuous)
 {
   size_t n_stream = 0;
   for (size_t i = 0; i < n_segs; i++)
@@ -858,6 +920,10 @@ dp_wfm_compose_set_data_pacing (dp_wfm_compose_state_t *state,
       dp_wfm_synth_set_data_pacing (state->rend[k]->syn, pacing);
 }
 
+static dp_wfm_compose_state_t *
+compose_create_resolved (const wfm_segment_t *segs, size_t n_segs, int repeat,
+                         int continuous, const char **why);
+
 dp_wfm_compose_state_t *
 dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
                        int continuous)
@@ -871,6 +937,28 @@ dp_wfm_compose_create_why (const wfm_segment_t *segs, size_t n_segs,
 {
   if (!segs || n_segs == 0)
     return NULL;
+  /* Everything below works on the scene as it renders: each ofdm source's
+     zero-config defaults filled in and its segment at the rate it renders
+     at, so the composer holds, renders and writes no "auto". The copy's
+     arrays are this function's; what they point at stays the caller's. */
+  const char    *unresolved = NULL;
+  wfm_segment_t *given      = resolved_scene (segs, n_segs, &unresolved);
+  if (!given)
+    {
+      if (why)
+        *why = unresolved;
+      return NULL;
+    }
+  dp_wfm_compose_state_t *made
+      = compose_create_resolved (given, n_segs, repeat, continuous, why);
+  resolved_scene_free (given, n_segs);
+  return made;
+}
+
+static dp_wfm_compose_state_t *
+compose_create_resolved (const wfm_segment_t *segs, size_t n_segs, int repeat,
+                         int continuous, const char **why)
+{
   /* Refuse a frame no source in this scene can carry, BEFORE anything is
      built. Deferring it to build time would reach dp_wfm_compose_build_synth,
      whose NULL the streaming path turns into a silent gap — and a silent gap

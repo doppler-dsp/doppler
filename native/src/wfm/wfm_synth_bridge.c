@@ -11,6 +11,7 @@
  * inside `dp_wfm_synth_set_rrc`, so standalone generation stays byte-identical
  * to the composed path.
  */
+#include <limits.h> /* UINT_MAX: a negative wlan is no rate */
 #include <stdlib.h>
 #include <string.h>
 
@@ -375,7 +376,8 @@ dp_wfm_source_to_synth_error (const wfm_source_t *src, double fs)
 {
   /* A standalone source is a scene of one segment at the bridge's fs, so
      the rules that need a rate (dp_wfm_scene_error's) are asked too, by the
-     one validator rather than a second. */
+     one validator rather than a second. The scene validator fills in an
+     ofdm source's defaults itself. */
   wfm_segment_t g
       = { .sources = (wfm_source_t *)src, .n_sources = 1, .fs = fs };
   return dp_wfm_scene_error (&g, 1, 0, 0);
@@ -1083,8 +1085,14 @@ dp_wfm_source_dsss_nchips (const wfm_source_t *src)
 }
 
 dp_wfm_synth_state_t *
-dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
+dp_wfm_source_to_synth (const wfm_source_t *given, double fs)
 {
+  /* An ofdm source's zero-config defaults, and the rate it renders at, on
+     a copy: everything below builds what the source means. */
+  wfm_source_t resolved;
+  if (dp_wfm_source_ofdm_defaults (given, fs, &resolved, &fs))
+    return NULL;
+  const wfm_source_t *src = &resolved;
   /* A "symbols" waveform needs a constellation stream. */
   if (src->type == WFM_SYNTH_SYMBOLS && (!src->symbols || !src->n_symbols))
     return NULL;
@@ -1193,8 +1201,12 @@ dp_wfm_synth_attach_data (dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *d,
 _Static_assert (WLAN_CODE_1_2 == 0 && WLAN_CODE_2_3 == 1 && WLAN_CODE_3_4 == 2
                     && WLAN_CODE_5_6 == 3,
                 "OFDM_CODE_RATE_NAMES is indexed by dp_wlan_code_t");
-_Static_assert (WLAN_MAC_NONE == 0 && WLAN_MAC_FCS == 1 && WLAN_MAC_DATA == 2,
+_Static_assert (WLAN_MAC_NONE == 0 && WLAN_MAC_FCS == 1 && WLAN_MAC_DATA == 2
+                    && WLAN_MAC_AUTO == 3,
                 "OFDM_MAC_NAMES is indexed by dp_wlan_mac_t");
+_Static_assert (WLAN_CODE_AUTO == 4 && WLAN_CONSTELLATION_AUTO == 4,
+                "auto is the last name in OFDM_CODE_RATE_NAMES and "
+                "OFDM_CONSTELLATION_NAMES");
 
 /* A data frame's longest header: 24 octets, or 30 with the fourth address. */
 #define WFOFDM_HDR_MAX 30u
@@ -1227,58 +1239,131 @@ wfofdm_rate (int c, int r)
   return (dp_wlan_rate_t){ dp_wlan_n_bpsc (c), (dp_wlan_code_t)r };
 }
 
-/* The (constellation, code rate) a source names: wlan N expands through the
-   standard's Table 17-6; otherwise the two fields are the pair, and an index
-   outside the four a face offers (a C or Python source can give one) is
-   refused in the field's own words. */
+/* The (constellation, code rate) a source renders: the resolver's pair
+   (wlan N through Table 17-6, or the default's), then an index outside the
+   four a face offers (a C or Python source can give one) refused in the
+   field's own words. */
+static const char *wfofdm_resolve_pair (const wfm_source_t *src, int *c,
+                                        int *r);
+
 static const char *
 wfofdm_pair (const wfm_source_t *src, int *c, int *r)
 {
+  const char *why = wfofdm_resolve_pair (src, c, r);
+  if (why)
+    return why;
+  if (!dp_wlan_n_bpsc (*c))
+    return "constellation is one of bpsk, qpsk, qam16 or qam64";
+  if (*r < 0 || *r > 3)
+    return "code_rate is one of 1/2, 2/3, 3/4 or 5/6";
+  return NULL;
+}
+
+/* The pair a source's rate fields name, by the one resolver both faces
+   call (dp_wlan_rate_resolve): wlan N is the mbps, the two fields the pair.
+   Leaves *c, *r as stored on a refusal. */
+static const char *
+wfofdm_resolve_pair (const wfm_source_t *src, int *c, int *r)
+{
   *c = src->constellation;
   *r = src->code_rate;
+  /* a negative wlan is no row of the table either, so the resolver
+     refuses it in its own words */
+  return dp_wlan_rate_resolve (dp_wlan_tables_standard (), c, r,
+                               src->wlan < 0 ? UINT_MAX : (unsigned)src->wlan);
+}
+
+const char *
+dp_wfm_source_ofdm_defaults (const wfm_source_t *src, double fs,
+                             wfm_source_t *out, double *fs_out)
+{
+  *out = *src;
+  if (fs_out)
+    *fs_out = fs;
+  if (src->type != WFM_SYNTH_FRAMES)
+    return NULL;
+  int         c, r;
+  const char *why = wfofdm_resolve_pair (src, &c, &r);
+  if (why)
+    return why;
+  /* A wlan source keeps its pair unset: wlan is its one spelling. */
   if (!src->wlan)
     {
-      if (!dp_wlan_n_bpsc (*c))
-        return "constellation is one of bpsk, qpsk, qam16 or qam64";
-      if (*r < 0 || *r > 3)
-        return "code_rate is one of 1/2, 2/3, 3/4 or 5/6";
-      return NULL;
+      out->constellation = c;
+      out->code_rate     = r;
     }
-  dp_wlan_rate_t pair;
-  if (src->wlan < 0
-      || !dp_wlan_rate_from_mbps (dp_wlan_tables_standard (),
-                                  (unsigned)src->wlan, &pair))
-    return "wlan is the 20 MHz data rate in Mb/s and takes one of 6, 9, 12, "
-           "18, 24, 36, 48 or 54";
-  for (int k = 0; k < 4; k++)
-    if (dp_wlan_n_bpsc (k) == pair.n_bpsc)
-      *c = k;
-  *r = (int)pair.code;
+  out->mac = (int)dp_wlan_mac_resolve (src->mac);
+  if (!has_data (src))
+    out->data
+        = (wfm_seq_t){ .kind = WFM_SEQ_PN, .len = 768u, .reg_bits = 15u };
+  /* An fs at a face's default is read as unset: the segment's 1.0 and the
+     Synth's 1e6. Neither is a whole multiple of any bandwidth ofdm takes
+     (20e6, 10e6, 5e6: 1.0 / 5e6 = 2e-7 and 1e6 / 5e6 = 0.2, both below
+     M = 1), so ofdm refused both, and no source that rendered before reads
+     differently. The safety rests on that, so test_wfm_ofdm_bridge.c's
+     test_no_bandwidth_makes_a_default_fs_legal asks the validator, for
+     every bandwidth that would make either default a legal fs, that it is
+     refused: a new bandwidth that made one legal turns it red. */
+  if (fs_out && (fs == WFM_SEGMENT_FS_DEFAULT || fs == WFM_SYNTH_FS_DEFAULT))
+    *fs_out = dp_wfm_source_bandwidth (src);
   return NULL;
+}
+
+int
+dp_wfm_source_constellation (const wfm_source_t *src, double fs)
+{
+  (void)fs;
+  int c, r;
+  return wfofdm_resolve_pair (src, &c, &r) ? src->constellation : c;
+}
+
+int
+dp_wfm_source_code_rate (const wfm_source_t *src, double fs)
+{
+  (void)fs;
+  int c, r;
+  return wfofdm_resolve_pair (src, &c, &r) ? src->code_rate : r;
+}
+
+int
+dp_wfm_source_mac (const wfm_source_t *src, double fs)
+{
+  (void)fs;
+  return (int)dp_wlan_mac_resolve (src->mac);
 }
 
 /* The rules of an ofdm source that need no sample rate. */
 static const char *
-ofdm_source_error (const wfm_source_t *src)
+ofdm_source_error (const wfm_source_t *given)
 {
-  const int is_ofdm = src->type == WFM_SYNTH_FRAMES;
+  const int is_ofdm = given->type == WFM_SYNTH_FRAMES;
   if (!is_ofdm)
     {
+      const wfm_source_t *src = given;
       if (src->wlan)
         return "wlan is the 802.11 data rate of an ofdm source: give type "
                "ofdm, or drop wlan";
-      if (src->constellation || src->code_rate || src->scrambler_init
-          || (src->window && src->window != WFM_WINDOW_UNSET) || src->mac
-          || src->gap || src->mac_header.len
+      /* Not given is auto (a face's default) or 0 (a C source that skipped
+         the defaults), so only another value is refused. */
+      if ((src->constellation && src->constellation != WLAN_CONSTELLATION_AUTO)
+          || (src->code_rate && src->code_rate != WLAN_CODE_AUTO)
+          || src->scrambler_init
+          || (src->window && src->window != WFM_WINDOW_UNSET)
+          || (src->mac && src->mac != WLAN_MAC_AUTO) || src->gap
+          || src->mac_header.len
           || (src->bandwidth != 0.0 && src->bandwidth != 20e6))
         return "constellation, code_rate, scrambler_init, window, mac, "
                "mac_header, gap and bandwidth are fields of an ofdm source: "
                "give type ofdm, or drop them";
       return NULL;
     }
-  if (src->wlan && (src->constellation || src->code_rate))
-    return "wlan is a spelling of constellation and code_rate: give wlan, "
-           "or constellation and code_rate, not both";
+  /* The rules below hold the source as it renders: its defaults filled in,
+     and the rate's spellings checked, by dp_wfm_source_ofdm_defaults. */
+  wfm_source_t resolved;
+  const char  *bad = dp_wfm_source_ofdm_defaults (given, 0.0, &resolved, NULL);
+  if (bad)
+    return bad;
+  const wfm_source_t *src = &resolved;
   if (src->bandwidth < 0.0)
     return "bandwidth is 20e6, 10e6 or 5e6 Hz for an 802.11a/g/p/j ofdm "
            "source, not negative";
@@ -1367,7 +1452,7 @@ wfofdm_geom (const wfm_source_t *src, double fs, wfofdm_geom_t *g)
     return "window is 0 to 80 times fs over bandwidth samples: the "
            "shortest OFDM symbol";
   g->n_bits   = common_data_len (src);
-  g->psdu_len = dp_wlan_mpdu_len ((dp_wlan_mac_t)src->mac,
+  g->psdu_len = dp_wlan_mpdu_len (dp_wlan_mac_resolve (src->mac),
                                   src->mac_header.len / 8u, g->n_bits / 8u);
   const dp_wlan_rate_t pair = wfofdm_rate (c, r);
   g->n_sym                  = dp_wlan_rate_n_sym (&pair, g->psdu_len);
@@ -1496,9 +1581,9 @@ dp_wfm_source_attach_ofdm (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
   wfofdm_render_t *r = dp_xcalloc (1, sizeof *r);
   /* The arguments were validated by ofdm_source_error and wfofdm_geom, so
      the constructor cannot refuse them. */
-  r->w   = dp_wlan_create (g.constellation, g.code_rate, (uint32_t)g.window,
-                           g.oversample);
-  r->mac = src->mac;
+  r->w = dp_wlan_create (g.constellation, g.code_rate, 0u, (uint32_t)g.window,
+                         g.oversample);
+  r->mac = (int)dp_wlan_mac_resolve (src->mac); /* a reject key: never auto */
   r->hdr_len = (uint32_t)(src->mac_header.len / 8u);
   if (r->hdr_len)
     {

@@ -310,6 +310,10 @@ def cases() -> list[tuple[str, list[str]]]:
                 "800",
             ],
         ),
+        # zero config: the rate, the MAC, the payload and fs are all the
+        # defaults, so the record shows what each resolved to (36 Mb/s,
+        # fcs, pn:768:15, 20e6), never "auto"
+        ("ofdm_zero_config", ["--type", "ofdm"]),
         # ---- waveform types, and the signal params each one resolves ----
         (
             "tone",

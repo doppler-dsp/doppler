@@ -554,7 +554,7 @@ exclusive = [
 ]
 c_ptr = "data.bits"
 c_len = "data.len"
-doc = "A frame's payload drawn from a data source: a Field on the command line and in a scene, a bit array in Python. The source is split into data_len-bit frames, one chunk per frame, and its last chunk is padded from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst per frame), and continuous dsss (one bit per data symbol, no frame); not with data_from_file."
+doc = "A frame's payload drawn from a data source: a Field on the command line and in a scene, a bit array in Python. The source is split into data_len-bit frames, one chunk per frame, and its last chunk is padded from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst per frame), and continuous dsss (one bit per data symbol, no frame); not with data_from_file. A type=ofdm source given neither takes pn:768:15, 96 octets of the PN15 m-sequence from its default seed, which with the default mac's FCS is a 100-octet PSDU."
 
 [[module.wfm_compose.source.fields]]
 name = "data_len"
@@ -623,7 +623,7 @@ metavar = "N"
 help_section = "OFDM"
 type = "int"
 default = "0"
-doc = "For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. Refused beside constellation or code_rate, with a bandwidth other than 20 MHz, and on any other type."
+doc = "For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. Refused beside a given constellation or code_rate, at any other bandwidth (where a 10 or 5 MHz source is spelled by its constellation and code_rate), and on any other type."
 
 [[module.wfm_compose.source.fields]]
 name = "constellation"
@@ -635,8 +635,9 @@ metavar = "C"
 help_section = "OFDM"
 type = "int"
 enum = "ofdm_constellation"
-default = "bpsk"
-doc = "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, qam64; the pair with code_rate must be a row of the standard's rate table."
+default = "auto"
+get_fn = "dp_wfm_source_constellation"
+doc = "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, qam64; the pair with code_rate must be a row of the standard's rate table, and is given whole or not at all. auto (the default) is the pair wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the resolved value, never auto."
 
 [[module.wfm_compose.source.fields]]
 name = "code_rate"
@@ -648,8 +649,9 @@ metavar = "R"
 help_section = "OFDM"
 type = "int"
 enum = "ofdm_code_rate"
-default = "1/2"
-doc = "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6."
+default = "auto"
+get_fn = "dp_wfm_source_code_rate"
+doc = "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; given with constellation, or neither is. auto (the default) as for constellation."
 
 [[module.wfm_compose.source.fields]]
 name = "scrambler_init"
@@ -686,8 +688,9 @@ metavar = "M"
 help_section = "OFDM"
 type = "int"
 enum = "ofdm_mac"
-default = "none"
-doc = "For type=ofdm: how the caller's octets become the PSDU. none: as given. fcs: an MPDU without its FCS, which the PHY appends. data: a header (mac_header) and a body, with the FCS appended."
+default = "auto"
+get_fn = "dp_wfm_source_mac"
+doc = "For type=ofdm: how the caller's octets become the PSDU. none: as given. fcs: an MPDU without its FCS, which the PHY appends. data: a header (mac_header) and a body, with the FCS appended. auto (the default) is fcs; a Synth reads, and a record holds, fcs."
 
 [[module.wfm_compose.source.fields]]
 name = "gap"
@@ -760,7 +763,7 @@ metavar = "HZ"
 help_section = "SIGNAL"
 type = "double"
 default = "1.0"
-doc = "Sample rate in Hz, one per segment and shared by all its sources. At the default 1.0 every frequency is normalised (cycles per sample); state it whenever a scene is in real Hz."
+doc = "Sample rate in Hz, one per segment and shared by all its sources. At the default 1.0 every frequency is normalised (cycles per sample); state it whenever a scene is in real Hz. A segment whose first source is type=ofdm reads the default 1.0 as unset and takes that source's bandwidth (20e6 unless given), which a record then holds."
 
 [[module.wfm_compose.segment.fields]]
 name = "num_samples"

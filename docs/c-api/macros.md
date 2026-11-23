@@ -546,6 +546,7 @@
 ## w
 
 * **WFM\_NUM\_SAMPLES\_PLAIN** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **WFM\_SEGMENT\_FS\_DEFAULT** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **WFM\_WINDOW\_UNSET** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **WFM\_DATA\_STATE\_MAGIC** ([**wfm\_data.h**](wfm__data_8h.md))
 * **WFM\_DATA\_STATE\_VERSION** ([**wfm\_data.h**](wfm__data_8h.md))
@@ -579,11 +580,15 @@
 * **WFM\_TIMECODE\_UNSET** ([**wfm\_time.h**](wfm__time_8h.md))
 * **WFM\_DSSS\_ENDED** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **WFM\_SYNTH\_FRAME\_MAX** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **WFM\_SYNTH\_FS\_DEFAULT** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **WFM\_SYNTH\_SNR\_CLEAN** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **WFM\_SYNTH\_STATE\_MAGIC** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **WFM\_SYNTH\_STATE\_VERSION** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **WLAN\_CODE\_AUTO** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_CONSTELLATION\_AUTO** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_GI** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_LTF\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_MBPS\_DEFAULT** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_N\_FFT** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_N\_SD** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_N\_SP** ([**wlan\_core.h**](wlan__core_8h.md))

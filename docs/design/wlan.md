@@ -531,11 +531,11 @@ validator every face asks (`dp_wfm_source_to_synth_error`,
 | ---------------- | -------------------------------------------------------------------------------------------------- |
 | `standard`       | `none` or a preset name; a preset fixes every field below that the standard fixes                  |
 | `bandwidth`      | channel bandwidth in Hz; the segment's `fs` is an integer multiple of it, or the source is refused |
-| `constellation`  | `bpsk`, `qpsk`, `qam16`, `qam64`, `qam256`, `qam1024`                                              |
-| `code_rate`      | `1/2`, `2/3`, `3/4`, `5/6`; a pair Table 17-4 does not list is refused                             |
+| `constellation`  | `bpsk`, `qpsk`, `qam16`, `qam64`, or `auto` (the default; "Zero config" below)                     |
+| `code_rate`      | `1/2`, `2/3`, `3/4`, `5/6`, or `auto`; a pair Table 17-4 does not list is refused                  |
 | `scrambler_init` | the 7-bit initial state; section 10                                                                |
 | `layout`         | `standard = none` only: the modulator's layout ([ofdm](ofdm.md), section 4)                        |
-| `mac`            | `none`, `fcs` or `data`: how the caller's octets become the PSDU (section 3)                       |
+| `mac`            | `none`, `fcs`, `data`, or `auto` (`fcs`): how the caller's octets become the PSDU (section 3)      |
 | `mac_header`     | `data` mode: the MAC header octets; a field form is section 10's                                   |
 | `mcs`, `gi`      | HT and later only; they arrive with section 6's rows 4 and 5                                       |
 
@@ -692,6 +692,40 @@ quarter of the rate, and a flag that says 36 must not produce an 18 Mb/s
 signal. A 10 or 5 MHz source is written with `constellation`, `code_rate` and
 `bandwidth`.
 
+#### Zero config
+
+A caller who gives nothing gets 36 Mb/s on every face: `Wlan()`, a bare
+`--type ofdm`, a `Segment` or `Synth` of type `ofdm`, and a scene with no rate
+key. Each default is decided in one place, `dp_wfm_source_ofdm_defaults`, and
+each is the most common choice rather than the first in a list:
+
+| field       | given nothing                                                                         |
+| ----------- | ------------------------------------------------------------------------------------- |
+| the rate    | `auto`: the pair of `WLAN_MBPS_DEFAULT`, 36 Mb/s, read from Table 17-6 (16-QAM, 3/4)  |
+| `mac`       | `auto`: `fcs`, the FCS appended                                                       |
+| the payload | `pn:768:15`, 96 octets of PN15 from the data field's default seed: a 100-octet PSDU   |
+| `fs`        | a face's default (1.0 on a segment, 1e6 on a `Synth`) is read as unset: the bandwidth |
+
+**A rate is given whole.** `constellation` and `code_rate` are both given or
+both left at `auto`; half a pair is refused ("are one rate: give both, or
+neither"), and `wlan` beside a given half is refused as a second spelling.
+`auto` is accepted on input and never written: a record, a SigMF annotation
+and a `Synth`'s properties hold the resolved value, and a `wlan` source keeps
+`wlan` alone. A C source that zero-fills its fields has the pair bpsk 1/2 and
+`mac` none by its own zeros, as a zero-filled `window` is the rectangular one;
+`WFM_SOURCE_DEFAULTS` starts at `auto`.
+
+**At 10 and 5 MHz** the zero-config source is the same pair, so it carries 18
+or 9 Mb/s there; it is not `wlan`, so it is not refused.
+
+**The fs rule is safe because neither default is a rate ofdm can render at.**
+1.0 and 1e6 are no whole multiple of 20, 10 or 5 MHz, so ofdm refused both
+before, and no source that rendered reads differently. One consequence: an
+`fs` given explicitly at a default is read the same way, and the record holds
+the bandwidth. `test_no_bandwidth_makes_a_default_fs_legal` asks the validator
+to refuse every bandwidth `d / M` that would make either default legal, so a
+new bandwidth that did turns it red.
+
 #### The per-rate numbers
 
 `dp_wlan_signal_rate_t` gains a `mbps` member, the rate as Table 17-6 prints
@@ -711,15 +745,19 @@ independent statements that must agree. The eight values are distinct (6, 9,
 
 On the faces:
 
-| capability            | C                        | Python                 | CLI        |
-| --------------------- | ------------------------ | ---------------------- | ---------- |
-| a pair's rate in Mb/s | `dp_wlan_mbps`           | `Wlan.rate_mbps`       |            |
-| a rate's pair         | `dp_wlan_rate_from_mbps` | none; just-makeit#2683 | `--wlan N` |
+| capability            | C                      | Python           | CLI        |
+| --------------------- | ---------------------- | ---------------- | ---------- |
+| a pair's rate in Mb/s | `dp_wlan_mbps`         | `Wlan.rate_mbps` |            |
+| a rate's pair         | `dp_wlan_rate_resolve` | `Wlan(mbps=N)`   | `--wlan N` |
 
 `Wlan.rate_mbps` is the 20 MHz rate and the docstring says so, as
 `Wlan.airtime` already does; the object holds no clocking. It is 0 for a pair
-Table 17-6 has no row for (BPSK 2/3, 64-QAM 1/2, any 5/6). Python has no
-lookup from a rate to a pair: none; just-makeit#2683.
+Table 17-6 has no row for (BPSK 2/3, 64-QAM 1/2, any 5/6). `Wlan(mbps=N)` and
+the source's `wlan` reach the pair through one C function,
+`dp_wlan_rate_resolve`, so they cannot name different pairs, and they refuse
+in the same words. `Wlan` has no bandwidth, so `mbps` is the pair Table 17-6
+prints at 20 MHz, and the same PPDU played at 10 or 5 MHz carries N/2 or N/4;
+the source knows its bandwidth, and refuses `wlan` at any other.
 
 #### Refusals, and the test for each
 
@@ -1368,6 +1406,12 @@ drift.
     length scaled by `M`, `M` from 1 to 128, `M = 1` bit-identical to the PPDU
     without it (section 5, "Oversampling").
 1. **No MIMO.** Out of scope, not deferred (goal 7).
+1. **Zero config is 36 Mb/s on every face** (2026-11-22, #3269): the rate
+    resolved whole from the table, the FCS appended, a 96-octet PN15
+    payload, and `fs` at a face's default read as the bandwidth (section 5,
+    "Zero config"). `Wlan(mbps=N)` is the builder's spelling of the rate.
+    Records written before it that left these at their defaults change
+    meaning, declared as a breaking change, with no versioned reader.
 
 ### Open
 

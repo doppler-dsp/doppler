@@ -136,7 +136,9 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_source\_attach\_ofdm**](#function-dp_wfm_source_attach_ofdm) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint32\_t seed) <br>_Install an_ `ofdm` _source's frame renderer and its data pull on a synth created with type WFM\_SYNTH\_FRAMES: the PPDU of each frame of the data source, built through_`wlan` _from the source's constellation and code rate (or_`wlan` _),_`window` _,_`mac` _,_`gap` _and the oversampling_`fs / bandwidth` _. A no-op for any other type._ |
 |  double | [**dp\_wfm\_source\_bandwidth**](#function-dp_wfm_source_bandwidth) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The channel bandwidth of an ofdm source, Hz: its_ `bandwidth` _, or the preset's 20e6 when that is 0 (a C source that skipped the defaults)._ |
 |  size\_t | [**dp\_wfm\_source\_bits\_refuse\_text**](#function-dp_wfm_source_bits_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for a source's bit field: an object takes bits._  |
+|  int | [**dp\_wfm\_source\_code\_rate**](#function-dp_wfm_source_code_rate) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_The code-rate index an ofdm source renders with, never_ `auto` _: the_`get_fn` _behind a Synth's_`code_rate` _, as_[_**dp\_wfm\_source\_constellation()**_](wfm__compose_8h.md#function-dp_wfm_source_constellation) _is for its constellation._ |
 |  int | [**dp\_wfm\_source\_common\_frame**](#function-dp_wfm_source_common_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* sync, int crc, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_The common frame as a description:_ `[preamble x reps | sync | data | crc]` _, built by the ONE function that builds it._ |
+|  int | [**dp\_wfm\_source\_constellation**](#function-dp_wfm_source_constellation) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_The constellation index an ofdm source renders with, at_ `fs:` _the_`get_fn` _behind a Synth's_`constellation` _, so it reads the resolved value (the pair_`wlan` _names, or the default's), never_`auto` _._ |
 |  size\_t | [**dp\_wfm\_source\_crc\_refuse\_text**](#function-dp_wfm_source_crc_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for the retired_ `crc=` _: a CRC is a stage of the frame description._ |
 |  double | [**dp\_wfm\_source\_create\_snr**](#function-dp_wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._ |
 |  size\_t | [**dp\_wfm\_source\_data\_bits**](#function-dp_wfm_source_data_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint8\_t \* out, size\_t max) <br>_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`data` _._ |
@@ -150,7 +152,9 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  size\_t | [**dp\_wfm\_source\_fill\_bits**](#function-dp_wfm_source_fill_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint8\_t \* out, size\_t max) <br>_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`fill` _._ |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
 |  int | [**dp\_wfm\_source\_has\_frame**](#function-dp_wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
+|  int | [**dp\_wfm\_source\_mac**](#function-dp_wfm_source_mac) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_The MAC mode an ofdm source renders with:_ `auto` _reads_`fcs` _(dp\_wlan\_mac\_resolve()). The_`get_fn` _behind a Synth's_`mac` _._ |
 |  size\_t | [**dp\_wfm\_source\_mac\_header\_bits**](#function-dp_wfm_source_mac_header_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint8\_t \* out, size\_t max) <br>_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`mac_header` _._ |
+|  const char \* | [**dp\_wfm\_source\_ofdm\_defaults**](#function-dp_wfm_source_ofdm_defaults) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, [**wfm\_source\_t**](structwfm__source__t.md) \* out, double \* fs\_out) <br>_An ofdm source with its zero-config defaults filled in, and the rate it renders at: the one place those defaults are decided._  |
 |  unsigned | [**dp\_wfm\_source\_oversample**](#function-dp_wfm_source_oversample) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, const char \*\* why) <br>_The oversampling_ `M = fs / bandwidth` _of an ofdm source, 1 to_`WLAN_OVERSAMPLE_MAX` _, or 0 with the reason it has none._ |
 |  size\_t | [**dp\_wfm\_source\_sync\_refuse\_text**](#function-dp_wfm_source_sync_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for the retired_ `sync=` _: a sync word is a field of the frame description._ |
 |  int | [**dp\_wfm\_source\_synth\_type**](#function-dp_wfm_source_synth_type) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The synth type to create this source with._  |
@@ -200,6 +204,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | define  | [**WFM\_NUM\_SAMPLES\_PLAIN**](wfm__compose_8h.md#define-wfm_num_samples_plain)  `((size\_t)1024)`<br>_A plain segment's on-time when its_ `num_samples` _is 0 and no source sets one: what_`--count` _, a scene and_`Segment` _default to._ |
+| define  | [**WFM\_SEGMENT\_FS\_DEFAULT**](wfm__compose_8h.md#define-wfm_segment_fs_default)  `1.0`<br>_A segment's sample rate when none is given, Hz: 1.0, every frequency normalised. The manifest default of_ `wfm_segment_t.fs` _(_`WFM_SEGMENT_DEFAULTS` _), named so the ofdm rule reads a name: for an ofdm source it reads as unset and becomes the bandwidth (_[_**dp\_wfm\_source\_ofdm\_defaults()**_](wfm__compose_8h.md#function-dp_wfm_source_ofdm_defaults) _). A test holds the two equal._ |
 | define  | [**WFM\_WINDOW\_UNSET**](wfm__compose_8h.md#define-wfm_window_unset)  `SIZE\_MAX`<br>_The_ `window` _of an ofdm source that nobody set: the standard's 100 ns transition,_`2 * fs / bandwidth` _samples._ |
 
 ## Detailed Description
@@ -2599,6 +2604,42 @@ size_t      n = dp_wfm_source_bits_refuse_text ("0101", NULL, 0, &why);
 
 
 
+### function dp\_wfm\_source\_code\_rate 
+
+_The code-rate index an ofdm source renders with, never_ `auto` _: the_`get_fn` _behind a Synth's_`code_rate` _, as_[_**dp\_wfm\_source\_constellation()**_](wfm__compose_8h.md#function-dp_wfm_source_constellation) _is for its constellation._
+```C++
+int dp_wfm_source_code_rate (
+    const wfm_source_t * src,
+    double fs
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` Unused; the signature every `get_fn` has. 
+
+
+
+**Returns:**
+
+The index (0 for 1/2 ... 3 for 5/6), or the stored value when the rate does not resolve. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_source\_common\_frame 
 
 _The common frame as a description:_ `[preamble x reps | sync | data | crc]` _, built by the ONE function that builds it._
@@ -2631,6 +2672,42 @@ Used by the bridge (a scene's or Python's `acq_code` + data, with no sync word a
 **Returns:**
 
 0, or -1 when it does not lay out. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_constellation 
+
+_The constellation index an ofdm source renders with, at_ `fs:` _the_`get_fn` _behind a Synth's_`constellation` _, so it reads the resolved value (the pair_`wlan` _names, or the default's), never_`auto` _._
+```C++
+int dp_wfm_source_constellation (
+    const wfm_source_t * src,
+    double fs
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` Unused: the rate does not change the pair. The signature is the one every `get_fn` has. 
+
+
+
+**Returns:**
+
+The index, or the stored value when the rate does not resolve (a source whose build is then refused naming why). 
 
 
 
@@ -3209,6 +3286,42 @@ Lengths are tested, never pointers: a carried `frame`, an `acq_code` with non-ze
 
 
 
+### function dp\_wfm\_source\_mac 
+
+_The MAC mode an ofdm source renders with:_ `auto` _reads_`fcs` _(dp\_wlan\_mac\_resolve()). The_`get_fn` _behind a Synth's_`mac` _._
+```C++
+int dp_wfm_source_mac (
+    const wfm_source_t * src,
+    double fs
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` Unused; the signature every `get_fn` has. 
+
+
+
+**Returns:**
+
+A dp\_wlan\_mac\_t value other than WLAN\_MAC\_AUTO. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_source\_mac\_header\_bits 
 
 _As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`mac_header` _._
@@ -3241,6 +3354,71 @@ The bits the field holds, or 0.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_ofdm\_defaults 
+
+_An ofdm source with its zero-config defaults filled in, and the rate it renders at: the one place those defaults are decided._ 
+```C++
+const char * dp_wfm_source_ofdm_defaults (
+    const wfm_source_t * src,
+    double fs,
+    wfm_source_t * out,
+    double * fs_out
+) 
+```
+
+
+
+For a source of type ofdm (`WFM_SYNTH_FRAMES`), on a copy:
+
+
+
+* **the rate**: with `wlan` 0, a `constellation` and `code_rate` at `auto` become the 36 Mb/s pair ([**WLAN\_MBPS\_DEFAULT**](wlan__core_8h.md#define-wlan_mbps_default)) by [**dp\_wlan\_rate\_resolve()**](wlan__core_8h.md#function-dp_wlan_rate_resolve), which refuses half a pair and `wlan` beside a given half in its own words. A `wlan` source keeps its pair at `auto`: `wlan` is how it was spelled, and a record writes it alone;
+* **the MAC**: `auto` is `fcs` (dp\_wlan\_mac\_resolve());
+* **the payload**: a source with neither `data` nor `data_from_file` takes `pn:768:15`, 96 octets of the PN15 m-sequence from the data field's default polynomial and seed, which with the FCS is a 100-octet PSDU;
+* **the rate it renders at**: an `fs` at a face's default ([**WFM\_SEGMENT\_FS\_DEFAULT**](wfm__compose_8h.md#define-wfm_segment_fs_default), a segment's; [**WFM\_SYNTH\_FS\_DEFAULT**](wfm__synth__core_8h.md#define-wfm_synth_fs_default), a Synth's) is read as unset and becomes the source's bandwidth (M = 1). Neither is a whole multiple of a bandwidth ofdm takes, so ofdm refused both and no rate a source rendered at is read differently. One consequence: such an fs given explicitly is read the same way, and the read-back and the record show the bandwidth.
+
+
+
+
+Any other source is copied unchanged, as is `fs`. The result is resolved: resolving it again changes nothing, so a composer's own segments, which hold it, compose again. The composer, the standalone synth, the scene validator and the record each work on what this returns, so none holds, writes or reads `auto`.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source as given. 
+* `fs` The segment's sample rate, Hz, as given. 
+* `out` The resolved copy. It shares `src's` pointers, so it is read, never freed. 
+* `fs_out` The rate it renders at. May be NULL. 
+
+
+
+**Returns:**
+
+NULL, or the sentence of the refusal, with `out` a plain copy.
+
+
+
+```C++
+#include <doppler/wfm/wfm_defaults.h>   // WFM_SOURCE_DEFAULTS
+
+wfm_source_t s = WFM_SOURCE_DEFAULTS, r;
+s.type         = WFM_SYNTH_FRAMES;      // ofdm, nothing else given
+double fs;
+dp_wfm_source_ofdm_defaults (&s, 1.0, &r, &fs);
+// r: qam16, 3/4, fcs, pn:768:15; fs: 20e6
+```
+ 
 
 
         
@@ -3821,6 +3999,20 @@ the composer's internal segments, as [**dp\_wfm\_compose\_segments()**](wfm__com
 _A plain segment's on-time when its_ `num_samples` _is 0 and no source sets one: what_`--count` _, a scene and_`Segment` _default to._
 ```C++
 #define WFM_NUM_SAMPLES_PLAIN `((size_t)1024)`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SEGMENT\_FS\_DEFAULT 
+
+_A segment's sample rate when none is given, Hz: 1.0, every frequency normalised. The manifest default of_ `wfm_segment_t.fs` _(_`WFM_SEGMENT_DEFAULTS` _), named so the ofdm rule reads a name: for an ofdm source it reads as unset and becomes the bandwidth (_[_**dp\_wfm\_source\_ofdm\_defaults()**_](wfm__compose_8h.md#function-dp_wfm_source_ofdm_defaults) _). A test holds the two equal._
+```C++
+#define WFM_SEGMENT_FS_DEFAULT `1.0`
 ```
 
 

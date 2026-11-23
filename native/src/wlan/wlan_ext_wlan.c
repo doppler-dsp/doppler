@@ -42,15 +42,16 @@ static int
 WlanObj_init (WlanObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "constellation", "code_rate", "window", "oversample", NULL };
-  const char *constellation_str = "qam16";
-  const char *code_rate_str     = "r12";
+      = { "constellation", "code_rate", "mbps", "window", "oversample", NULL };
+  const char *constellation_str = "auto";
+  const char *code_rate_str     = "auto";
+  long long   mbps_raw          = 0;
   long long   window_raw        = WLAN_WINDOW_STANDARD;
   long long   oversample_raw    = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ssLL", kwlist,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ssLLL", kwlist,
                                     &constellation_str, &code_rate_str,
-                                    &window_raw, &oversample_raw))
+                                    &mbps_raw, &window_raw, &oversample_raw))
     return -1;
   int constellation = 0;
   if (strcmp (constellation_str, "bpsk") == 0)
@@ -61,11 +62,13 @@ WlanObj_init (WlanObject *self, PyObject *args, PyObject *kwds)
     constellation = 2;
   else if (strcmp (constellation_str, "qam64") == 0)
     constellation = 3;
+  else if (strcmp (constellation_str, "auto") == 0)
+    constellation = 4;
   else
     {
       PyErr_Format (PyExc_ValueError,
                     "constellation must be one of \"bpsk\", \"qpsk\", "
-                    "\"qam16\", \"qam64\", got '%s'",
+                    "\"qam16\", \"qam64\", \"auto\", got '%s'",
                     constellation_str);
       return -1;
     }
@@ -78,14 +81,24 @@ WlanObj_init (WlanObject *self, PyObject *args, PyObject *kwds)
     code_rate = 2;
   else if (strcmp (code_rate_str, "r56") == 0)
     code_rate = 3;
+  else if (strcmp (code_rate_str, "auto") == 0)
+    code_rate = 4;
   else
     {
       PyErr_Format (PyExc_ValueError,
                     "code_rate must be one of \"r12\", \"r23\", \"r34\", "
-                    "\"r56\", got '%s'",
+                    "\"r56\", \"auto\", got '%s'",
                     code_rate_str);
       return -1;
     }
+  if (mbps_raw < 0 || mbps_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "mbps: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)mbps_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t mbps = (uint32_t)mbps_raw;
   if (window_raw < 0 || window_raw > (long long)UINT32_MAX)
     {
       PyErr_Format (PyExc_OverflowError,
@@ -105,7 +118,7 @@ WlanObj_init (WlanObject *self, PyObject *args, PyObject *kwds)
     }
   uint32_t    oversample = (uint32_t)oversample_raw;
   const char *_why       = NULL;
-  self->handle = dp_wlan_create_why (constellation, code_rate, window,
+  self->handle = dp_wlan_create_why (constellation, code_rate, mbps, window,
                                      oversample, &_why);
   if (!self->handle)
     {
@@ -113,9 +126,11 @@ WlanObj_init (WlanObject *self, PyObject *args, PyObject *kwds)
         PyErr_SetString (PyExc_ValueError, _why);
       else
         PyErr_SetString (PyExc_ValueError,
-                         "constellation is not one of bpsk, qpsk, qam16, "
-                         "qam64, code_rate is not one of r12, r23, r34, "
-                         "r56, window is not 0 to 80 * oversample, or "
+                         "the rate does not resolve (half a pair, a rate "
+                         "beside a pair, or a rate Table 17-6 does not "
+                         "list), constellation is not one of bpsk, qpsk, "
+                         "qam16, qam64, code_rate is not one of r12, r23, "
+                         "r34, r56, window is not 0 to 80 * oversample, or "
                          "oversample is not 1 to 128");
       return -1;
     }
@@ -2014,17 +2029,33 @@ static PyTypeObject WlanObjType = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "constellation : Literal[\"bpsk\", \"qpsk\", \"qam16\", \"qam64\"], "
-    "default \"qam16\"\n"
+    "constellation : Literal[\"bpsk\", \"qpsk\", \"qam16\", \"qam64\", "
+    "\"auto\"], default \"auto\"\n"
     "    The constellation: BPSK, QPSK, 16-QAM or 64-QAM, one to six bits "
     "per\n"
-    "    subcarrier.\n"
-    "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``.\n"
-    "code_rate : Literal[\"r12\", \"r23\", \"r34\", \"r56\"], default "
-    "\"r12\"\n"
+    "    subcarrier. `auto` (the default) takes it from `mbps`, or the 36 "
+    "Mb/s\n"
+    "    pair (16-QAM, 3/4) when no rate is given; it is given with "
+    "`code_rate`,\n"
+    "    or neither is.\n"
+    "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``, "
+    "``\"auto\"``.\n"
+    "code_rate : Literal[\"r12\", \"r23\", \"r34\", \"r56\", \"auto\"], "
+    "default \"auto\"\n"
     "    The BCC rate: `r12` is 1/2, `r23` is 2/3, `r34` is 3/4 and `r56` is\n"
-    "    5/6.\n"
-    "    One of ``\"r12\"``, ``\"r23\"``, ``\"r34\"``, ``\"r56\"``.\n"
+    "    5/6. `auto` (the default) as for `constellation`.\n"
+    "    One of ``\"r12\"``, ``\"r23\"``, ``\"r34\"``, ``\"r56\"``, "
+    "``\"auto\"``.\n"
+    "mbps : int, default 0\n"
+    "    The data rate at 20 MHz in Mb/s, as Table 17-6 prints it: 6, 9, 12, "
+    "18,\n"
+    "    24, 36, 48 or 54, a second spelling of `constellation` and "
+    "`code_rate`,\n"
+    "    which are then left at `auto`. 0 (the default) gives none, and with "
+    "no\n"
+    "    pair either the rate is 36 Mb/s. The object holds no clocking: the "
+    "same\n"
+    "    PPDU played at 10 or 5 MHz carries the rate halved or quartered.\n"
     "window : int, default WLAN_WINDOW_STANDARD\n"
     "    The default is the standard's 100 ns transition, `2 * oversample`\n"
     "    samples; 0 is no window. Otherwise the window length in samples at "
@@ -2043,12 +2074,15 @@ static PyTypeObject WlanObjType = {
     "------\n"
     "ValueError\n"
     "    If construction fails. The exception message is the reason the\n"
-    "    constructor gives, or ``constellation is not one of bpsk, qpsk, "
-    "qam16,\n"
-    "    qam64, code_rate is not one of r12, r23, r34, r56, window is not 0 "
+    "    constructor gives, or ``the rate does not resolve (half a pair, a "
+    "rate\n"
+    "    beside a pair, or a rate Table 17-6 does not list), constellation "
+    "is\n"
+    "    not one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, "
+    "r23,\n"
+    "    r34, r56, window is not 0 to 80 * oversample, or oversample is not 1 "
     "to\n"
-    "    80 * oversample, or oversample is not 1 to 128`` when it gives "
-    "none.\n"
+    "    128`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -2061,7 +2095,7 @@ static PyTypeObject WlanObjType = {
     "Traceback (most recent call last):\n"
     "    ...\n"
     "ValueError: constellation must be one of \"bpsk\", \"qpsk\", \"qam16\", "
-    "\"qam64\", got 'qam256'\n",
+    "\"qam64\", \"auto\", got 'qam256'\n",
   .tp_methods = WlanObj_methods,
   .tp_getset  = Wlan_getset,
   .tp_new     = WlanObj_new,

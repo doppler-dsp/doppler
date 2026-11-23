@@ -308,7 +308,9 @@ class _SynthEngine:
         ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
     fs : float, default 1000000.0
         Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz
-        against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.
+        against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. For
+        type ofdm an fs at this default is read as unset and becomes the
+        bandwidth.
     freq : float, default 0.0
         Carrier frequency offset in Hz (−fs/2 … fs/2). A complex LO is created
         only when freq != 0. For a chirp this is the start frequency f_start

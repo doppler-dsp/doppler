@@ -1035,9 +1035,21 @@ significant, the order a data file's bytes and a hex Field unpack in, so
 the octets it spells. A source ends when its data does, as every data source
 does.
 
+With nothing else given, `--type ofdm` is a whole PPDU: 36 Mb/s (16-QAM at
+3/4), a payload of 96 octets of PN15 with its FCS appended (a 100-octet
+PSDU), at the 20 MHz bandwidth's own rate. A record of it holds each of
+those values, never `auto`:
+
+```sh
+wfmgen --type ofdm -o ppdu.cf32
+```
+
+At `--bandwidth 10e6` or `5e6` the same pair carries 18 or 9 Mb/s.
+
 The rate is one number, the 20 MHz data rate in Mb/s of Table 17-6: 6, 9, 12,
 18, 24, 36, 48 or 54. It is a second spelling of `--constellation` and
-`--code-rate`, and the two give the same bytes:
+`--code-rate`, which are given together or not at all, and the two give the
+same bytes:
 
 ```sh
 wfmgen --type ofdm --fs 20e6 --wlan 36 --scrambler-init 93 --mac fcs \
@@ -1048,7 +1060,8 @@ wfmgen --type ofdm --fs 20e6 --constellation qam16 --code-rate 3/4 \
 cmp rate.cf32 pair.cf32
 ```
 
-`--mac fcs` treats the octets as an MPDU without its FCS and appends it. With
+`--mac fcs`, the default, treats the octets as an MPDU without its FCS and
+appends it; `--mac none` sends them as the whole PSDU. With
 `--scrambler-init 0` (the default) each PPDU draws its scrambler's initial
 state from `--seed` and its index, so a run is reproducible and a resumed
 run re-renders the same PPDU.

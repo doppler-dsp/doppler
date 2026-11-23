@@ -77,8 +77,17 @@ size_t dp_wfm_source_data_bits(const wfm_source_t *, double, uint8_t *, size_t);
  * count (out NULL, max 0 sizes; get_fn, gh-2718). */
 size_t dp_wfm_source_fill_bits(const wfm_source_t *, double, uint8_t *, size_t);
 
+/* Read source field `constellation` at rate fs (get_fn, gh-2710). */
+int dp_wfm_source_constellation(const wfm_source_t *, double);
+
+/* Read source field `code_rate` at rate fs (get_fn, gh-2710). */
+int dp_wfm_source_code_rate(const wfm_source_t *, double);
+
 /* Read source field `window` at rate fs (get_fn, gh-2710). */
 size_t dp_wfm_source_window(const wfm_source_t *, double);
+
+/* Read source field `mac` at rate fs (get_fn, gh-2710). */
+int dp_wfm_source_mac(const wfm_source_t *, double);
 
 /* Write source field `mac_header` at rate fs: at most max elements,
  * returning the count (out NULL, max 0 sizes; get_fn, gh-2718). */

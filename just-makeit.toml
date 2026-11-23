@@ -228,17 +228,22 @@ values = ["per_instance", "persist"]
 # larger QAMs arrive with the preset that uses them. code_rate and mac mirror
 # dp_wlan_code_t and dp_wlan_mac_t value for value: _Static_asserts in the
 # bridge hold the enumerators, and test_wfm_ofdm_bridge.c holds each name.
+# `auto`, each table's last value, is the default and means "not given"
+# (WLAN_CONSTELLATION_AUTO, WLAN_CODE_AUTO, WLAN_MAC_AUTO): it is accepted on
+# input and never written, since a record and a read-back hold the resolved
+# value. An index is a position in the list, not a modulation order, so a
+# later constellation is appended after `auto`.
 [[enum]]
 name = "ofdm_constellation"
-values = ["bpsk", "qpsk", "qam16", "qam64"]
+values = ["bpsk", "qpsk", "qam16", "qam64", "auto"]
 
 [[enum]]
 name = "ofdm_code_rate"
-values = ["1/2", "2/3", "3/4", "5/6"]
+values = ["1/2", "2/3", "3/4", "5/6", "auto"]
 
 [[enum]]
 name = "ofdm_mac"
-values = ["none", "fcs", "data"]
+values = ["none", "fcs", "data", "auto"]
 
 # The enum below names a table that no binding renders — the C side is its
 # only consumer. It is declared here anyway because doppler#760 made this

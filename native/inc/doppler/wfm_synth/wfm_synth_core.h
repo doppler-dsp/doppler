@@ -75,6 +75,13 @@ enum {
  * always generates AWGN regardless.) */
 #define WFM_SYNTH_SNR_CLEAN 100.0
 
+/** The sample rate a Synth that is given none runs at, Hz: 1 MHz, so `freq`
+ *  is in Hz against 1 MHz. The `fs` init param's default (`default_raw`).
+ *  For an ofdm source it reads as unset and becomes the bandwidth
+ *  (dp_wfm_source_ofdm_defaults()): it is no whole multiple of 20, 10 or
+ *  5 MHz, so ofdm could never render at it. */
+#define WFM_SYNTH_FS_DEFAULT 1e6
+
 /**
  * @brief Bits carried by one symbol of @p type — the `bps` an Eb/No needs.
  *

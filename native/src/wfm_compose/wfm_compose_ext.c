@@ -241,18 +241,15 @@ static const char *const _enum_wfm_pulse[] = {
 };
 
 static const char *const _enum_ofdm_constellation[] = {
-  "bpsk", "qpsk", "qam16", "qam64", NULL,
+  "bpsk", "qpsk", "qam16", "qam64", "auto", NULL,
 };
 
 static const char *const _enum_ofdm_code_rate[] = {
-  "1/2", "2/3", "3/4", "5/6", NULL,
+  "1/2", "2/3", "3/4", "5/6", "auto", NULL,
 };
 
 static const char *const _enum_ofdm_mac[] = {
-  "none",
-  "fcs",
-  "data",
-  NULL,
+  "none", "fcs", "data", "auto", NULL,
 };
 
 static const char *const _enum_gap_noise[] = {
@@ -1067,12 +1064,12 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   PyObject          *frame_symbols_obj     = NULL;
   unsigned long long frame_symbols_raw     = 0;
   int                wlan                  = 0;
-  const char        *constellation         = "bpsk";
-  const char        *code_rate             = "1/2";
+  const char        *constellation         = "auto";
+  const char        *code_rate             = "auto";
   int                scrambler_init        = 0;
   PyObject          *window_obj            = NULL;
   unsigned long long window_raw            = WFM_WINDOW_UNSET;
-  const char        *mac                   = "none";
+  const char        *mac                   = "auto";
   PyObject          *gap_obj               = NULL;
   unsigned long long gap_raw               = 0;
   double             bandwidth             = 20e6;
@@ -1641,10 +1638,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     int _i = _enum_index (_enum_ofdm_constellation, constellation);
     if (_i < 0)
       {
-        PyErr_Format (
-            PyExc_ValueError,
-            "invalid constellation '%s' (choices: bpsk, qpsk, qam16, qam64)",
-            constellation);
+        PyErr_Format (PyExc_ValueError,
+                      "invalid constellation '%s' (choices: bpsk, qpsk, "
+                      "qam16, qam64, auto)",
+                      constellation);
         return -1;
       }
     _jm_copy.constellation = _i;
@@ -1653,9 +1650,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     int _i = _enum_index (_enum_ofdm_code_rate, code_rate);
     if (_i < 0)
       {
-        PyErr_Format (PyExc_ValueError,
-                      "invalid code_rate '%s' (choices: 1/2, 2/3, 3/4, 5/6)",
-                      code_rate);
+        PyErr_Format (
+            PyExc_ValueError,
+            "invalid code_rate '%s' (choices: 1/2, 2/3, 3/4, 5/6, auto)",
+            code_rate);
         return -1;
       }
     _jm_copy.code_rate = _i;
@@ -1687,7 +1685,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     if (_i < 0)
       {
         PyErr_Format (PyExc_ValueError,
-                      "invalid mac '%s' (choices: none, fcs, data)", mac);
+                      "invalid mac '%s' (choices: none, fcs, data, auto)",
+                      mac);
         return -1;
       }
     _jm_copy.mac = _i;
@@ -2992,20 +2991,25 @@ Synth_set_wlan (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
-Synth_get_constellation (SynthObject *self, void *closure)
+Synth_read_constellation (SynthObject *self, double fs)
 {
-  (void)closure;
-  long _v = (long)(self->src.constellation);
-  if (_v < 0 || _v >= 4)
+  long _v = (long)(dp_wfm_source_constellation (&self->src, fs));
+  if (_v < 0 || _v >= 5)
     {
       PyErr_Format (
           PyExc_ValueError,
           "constellation holds out-of-range ofdm_constellation value %ld"
-          " (valid: 0..3)",
+          " (valid: 0..4)",
           _v);
       return NULL;
     }
   return PyUnicode_FromString (_enum_ofdm_constellation[_v]);
+}
+static PyObject *
+Synth_get_constellation (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return Synth_read_constellation (self, self->fs);
 }
 static int
 Synth_set_constellation (SynthObject *self, PyObject *value, void *closure)
@@ -3017,28 +3021,34 @@ Synth_set_constellation (SynthObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_ofdm_constellation, s);
   if (_i < 0)
     {
-      PyErr_Format (
-          PyExc_ValueError,
-          "invalid constellation '%s' (choices: bpsk, qpsk, qam16, qam64)", s);
+      PyErr_Format (PyExc_ValueError,
+                    "invalid constellation '%s' (choices: bpsk, qpsk, qam16, "
+                    "qam64, auto)",
+                    s);
       return -1;
     }
   self->src.constellation = _i;
   return 0;
 }
 static PyObject *
-Synth_get_code_rate (SynthObject *self, void *closure)
+Synth_read_code_rate (SynthObject *self, double fs)
 {
-  (void)closure;
-  long _v = (long)(self->src.code_rate);
-  if (_v < 0 || _v >= 4)
+  long _v = (long)(dp_wfm_source_code_rate (&self->src, fs));
+  if (_v < 0 || _v >= 5)
     {
       PyErr_Format (PyExc_ValueError,
                     "code_rate holds out-of-range ofdm_code_rate value %ld"
-                    " (valid: 0..3)",
+                    " (valid: 0..4)",
                     _v);
       return NULL;
     }
   return PyUnicode_FromString (_enum_ofdm_code_rate[_v]);
+}
+static PyObject *
+Synth_get_code_rate (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return Synth_read_code_rate (self, self->fs);
 }
 static int
 Synth_set_code_rate (SynthObject *self, PyObject *value, void *closure)
@@ -3050,8 +3060,9 @@ Synth_set_code_rate (SynthObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_ofdm_code_rate, s);
   if (_i < 0)
     {
-      PyErr_Format (PyExc_ValueError,
-                    "invalid code_rate '%s' (choices: 1/2, 2/3, 3/4, 5/6)", s);
+      PyErr_Format (
+          PyExc_ValueError,
+          "invalid code_rate '%s' (choices: 1/2, 2/3, 3/4, 5/6, auto)", s);
       return -1;
     }
   self->src.code_rate = _i;
@@ -3113,19 +3124,24 @@ Synth_set_window (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
-Synth_get_mac (SynthObject *self, void *closure)
+Synth_read_mac (SynthObject *self, double fs)
 {
-  (void)closure;
-  long _v = (long)(self->src.mac);
-  if (_v < 0 || _v >= 3)
+  long _v = (long)(dp_wfm_source_mac (&self->src, fs));
+  if (_v < 0 || _v >= 4)
     {
       PyErr_Format (PyExc_ValueError,
                     "mac holds out-of-range ofdm_mac value %ld"
-                    " (valid: 0..2)",
+                    " (valid: 0..3)",
                     _v);
       return NULL;
     }
   return PyUnicode_FromString (_enum_ofdm_mac[_v]);
+}
+static PyObject *
+Synth_get_mac (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return Synth_read_mac (self, self->fs);
 }
 static int
 Synth_set_mac (SynthObject *self, PyObject *value, void *closure)
@@ -3138,7 +3154,7 @@ Synth_set_mac (SynthObject *self, PyObject *value, void *closure)
   if (_i < 0)
     {
       PyErr_Format (PyExc_ValueError,
-                    "invalid mac '%s' (choices: none, fcs, data)", s);
+                    "invalid mac '%s' (choices: none, fcs, data, auto)", s);
       return -1;
     }
   self->src.mac = _i;
@@ -3462,7 +3478,9 @@ static PyGetSetDef Synth_getset[] = {
     "data_len-bit frames, one chunk per frame, and its last chunk is padded "
     "from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst "
     "per frame), and continuous dsss (one bit per data symbol, no frame); not "
-    "with data_from_file.\n",
+    "with data_from_file. A type=ofdm source given neither takes pn:768:15, "
+    "96 octets of the PN15 m-sequence from its default seed, which with the "
+    "default mac's FCS is a 100-octet PSDU.\n",
     NULL },
   { "data_len", (getter)Synth_get_data_len, (setter)Synth_set_data_len,
     "Bits of the data source per frame: the data:LEN field of the common "
@@ -3493,20 +3511,26 @@ static PyGetSetDef Synth_getset[] = {
     "on the stream's own symbol clock, so its edges land at any chip phase.\n",
     NULL },
   { "wlan", (getter)Synth_get_wlan, (setter)Synth_set_wlan,
-    "For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9, "
-    "12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate "
-    "(--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. "
-    "Refused beside constellation or code_rate, with a bandwidth other than "
-    "20 MHz, and on any other type.\n",
+    "For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints it, "
+    "one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation "
+    "and code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = "
+    "not given. Refused beside a given constellation or code_rate, at any "
+    "other bandwidth (where a 10 or 5 MHz source is spelled by its "
+    "constellation and code_rate), and on any other type.\n",
     NULL },
   { "constellation", (getter)Synth_get_constellation,
     (setter)Synth_set_constellation,
     "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, "
     "qam64; the pair with code_rate must be a row of the standard's rate "
-    "table.\n",
+    "table, and is given whole or not at all. auto (the default) is the pair "
+    "wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 "
+    "Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the "
+    "resolved value, never auto.\n",
     NULL },
   { "code_rate", (getter)Synth_get_code_rate, (setter)Synth_set_code_rate,
-    "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.\n",
+    "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; "
+    "given with constellation, or neither is. auto (the default) as for "
+    "constellation.\n",
     NULL },
   { "scrambler_init", (getter)Synth_get_scrambler_init,
     (setter)Synth_set_scrambler_init,
@@ -3527,7 +3551,8 @@ static PyGetSetDef Synth_getset[] = {
   { "mac", (getter)Synth_get_mac, (setter)Synth_set_mac,
     "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
     "fcs: an MPDU without its FCS, which the PHY appends. data: a header "
-    "(mac_header) and a body, with the FCS appended.\n",
+    "(mac_header) and a body, with the FCS appended. auto (the default) is "
+    "fcs; a Synth reads, and a record holds, fcs.\n",
     NULL },
   { "gap", (getter)Synth_get_gap, (setter)Synth_set_gap,
     "For type=ofdm: idle samples after each PPDU, at the output rate, filled "
@@ -3551,7 +3576,9 @@ static PyGetSetDef Synth_getset[] = {
     NULL },
   { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs,
     "Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz "
-    "against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.\n",
+    "against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. For "
+    "type ofdm an fs at this default is read as unset and becomes the "
+    "bandwidth.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -4140,7 +4167,10 @@ static PyTypeObject SynthType = {
       "burst\n"
       "    per frame), and continuous dsss (one bit per data symbol, no "
       "frame);\n"
-      "    not with data_from_file.\n"
+      "    not with data_from_file. A type=ofdm source given neither takes\n"
+      "    pn:768:15, 96 octets of the PN15 m-sequence from its default "
+      "seed,\n"
+      "    which with the default mac's FCS is a 100-octet PSDU.\n"
       "data_len : int, default 0\n"
       "    Bits of the data source per frame: the data:LEN field of the "
       "common\n"
@@ -4179,25 +4209,38 @@ static PyTypeObject SynthType = {
       "    on the stream's own symbol clock, so its edges land at any chip "
       "phase.\n"
       "wlan : int, default 0\n"
-      "    For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of "
-      "6, 9,\n"
-      "    12, 18, 24, 36, 48, 54: a second spelling of constellation and\n"
-      "    code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 "
-      "= not\n"
-      "    given. Refused beside constellation or code_rate, with a "
-      "bandwidth\n"
-      "    other than 20 MHz, and on any other type.\n"
-      "constellation : str, default ``\"bpsk\"``\n"
+      "    For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 "
+      "prints\n"
+      "    it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of\n"
+      "    constellation and code_rate (--wlan 36 is --constellation qam16\n"
+      "    --code-rate 3/4). 0 = not given. Refused beside a given "
+      "constellation\n"
+      "    or code_rate, at any other bandwidth (where a 10 or 5 MHz source "
+      "is\n"
+      "    spelled by its constellation and code_rate), and on any other "
+      "type.\n"
+      "constellation : str, default ``\"auto\"``\n"
       "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
       "qam16,\n"
       "    qam64; the pair with code_rate must be a row of the standard's "
       "rate\n"
-      "    table.\n"
-      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``.\n"
-      "code_rate : str, default ``\"1/2\"``\n"
+      "    table, and is given whole or not at all. auto (the default) is the "
+      "pair\n"
+      "    wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or "
+      "9\n"
+      "    Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record "
+      "holds,\n"
+      "    the resolved value, never auto.\n"
+      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``, "
+      "``\"auto\"``.\n"
+      "code_rate : str, default ``\"auto\"``\n"
       "    For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, "
-      "5/6.\n"
-      "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``.\n"
+      "5/6;\n"
+      "    given with constellation, or neither is. auto (the default) as "
+      "for\n"
+      "    constellation.\n"
+      "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``, "
+      "``\"auto\"``.\n"
       "scrambler_init : int, default 0\n"
       "    For type=ofdm: the 7-bit initial state of the data scrambler, 1 to "
       "127.\n"
@@ -4219,13 +4262,15 @@ static PyTypeObject SynthType = {
       "the\n"
       "    scene is refused for. What is stored, set and written is what was\n"
       "    given.\n"
-      "mac : str, default ``\"none\"``\n"
+      "mac : str, default ``\"auto\"``\n"
       "    For type=ofdm: how the caller's octets become the PSDU. none: as "
       "given.\n"
       "    fcs: an MPDU without its FCS, which the PHY appends. data: a "
       "header\n"
-      "    (mac_header) and a body, with the FCS appended.\n"
-      "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``.\n"
+      "    (mac_header) and a body, with the FCS appended. auto (the default) "
+      "is\n"
+      "    fcs; a Synth reads, and a record holds, fcs.\n"
+      "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``, ``\"auto\"``.\n"
       "gap : int, default 0\n"
       "    For type=ofdm: idle samples after each PPDU, at the output rate, "
       "filled\n"
@@ -4253,8 +4298,10 @@ static PyTypeObject SynthType = {
       "    mac none or fcs, and without it for mac data.\n"
       "fs : float, default 1000000.0\n"
       "    Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz\n"
-      "    against 1 MHz; pass `fs=1.0` to give `freq` in cycles per "
-      "sample.\n"),
+      "    against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. "
+      "For\n"
+      "    type ofdm an fs at this default is read as unset and becomes the\n"
+      "    bandwidth.\n"),
 };
 
 /* Factory shared body: inject {type: <name>} into kwds, call the type. */
@@ -5951,6 +5998,8 @@ Segment_flat_constellation (SegmentObject *self, void *closure)
       return NULL;
     }
   PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_constellation ((SynthObject *)_it, self->fs);
   return PyObject_GetAttrString (_it, "constellation");
 }
 static PyObject *
@@ -5964,6 +6013,8 @@ Segment_flat_code_rate (SegmentObject *self, void *closure)
       return NULL;
     }
   PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_code_rate ((SynthObject *)_it, self->fs);
   return PyObject_GetAttrString (_it, "code_rate");
 }
 static PyObject *
@@ -6005,6 +6056,8 @@ Segment_flat_mac (SegmentObject *self, void *closure)
       return NULL;
     }
   PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_mac ((SynthObject *)_it, self->fs);
   return PyObject_GetAttrString (_it, "mac");
 }
 static PyObject *
@@ -6075,7 +6128,9 @@ static PyGetSetDef Segment_getset[] = {
   { "fs", (getter)Segment_get_fs, (setter)Segment_set_fs,
     "Sample rate in Hz, one per segment and shared by all its sources. At the "
     "default 1.0 every frequency is normalised (cycles per sample); state it "
-    "whenever a scene is in real Hz.\n",
+    "whenever a scene is in real Hz. A segment whose first source is "
+    "type=ofdm reads the default 1.0 as unset and takes that source's "
+    "bandwidth (20e6 unless given), which a record then holds.\n",
     NULL },
   { "num_samples", (getter)Segment_get_num_samples,
     (setter)Segment_set_num_samples,
@@ -6316,7 +6371,9 @@ static PyGetSetDef Segment_getset[] = {
     "data_len-bit frames, one chunk per frame, and its last chunk is padded "
     "from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst "
     "per frame), and continuous dsss (one bit per data symbol, no frame); not "
-    "with data_from_file.\n",
+    "with data_from_file. A type=ofdm source given neither takes pn:768:15, "
+    "96 octets of the PN15 m-sequence from its default seed, which with the "
+    "default mac's FCS is a 100-octet PSDU.\n",
     NULL },
   { "data_len", (getter)Segment_flat_data_len, NULL,
     "Bits of the data source per frame: the data:LEN field of the common "
@@ -6345,19 +6402,25 @@ static PyGetSetDef Segment_getset[] = {
     "on the stream's own symbol clock, so its edges land at any chip phase.\n",
     NULL },
   { "wlan", (getter)Segment_flat_wlan, NULL,
-    "For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9, "
-    "12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate "
-    "(--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. "
-    "Refused beside constellation or code_rate, with a bandwidth other than "
-    "20 MHz, and on any other type.\n",
+    "For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints it, "
+    "one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation "
+    "and code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = "
+    "not given. Refused beside a given constellation or code_rate, at any "
+    "other bandwidth (where a 10 or 5 MHz source is spelled by its "
+    "constellation and code_rate), and on any other type.\n",
     NULL },
   { "constellation", (getter)Segment_flat_constellation, NULL,
     "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, "
     "qam64; the pair with code_rate must be a row of the standard's rate "
-    "table.\n",
+    "table, and is given whole or not at all. auto (the default) is the pair "
+    "wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 "
+    "Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the "
+    "resolved value, never auto.\n",
     NULL },
   { "code_rate", (getter)Segment_flat_code_rate, NULL,
-    "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.\n",
+    "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; "
+    "given with constellation, or neither is. auto (the default) as for "
+    "constellation.\n",
     NULL },
   { "scrambler_init", (getter)Segment_flat_scrambler_init, NULL,
     "For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127. "
@@ -6377,7 +6440,8 @@ static PyGetSetDef Segment_getset[] = {
   { "mac", (getter)Segment_flat_mac, NULL,
     "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
     "fcs: an MPDU without its FCS, which the PHY appends. data: a header "
-    "(mac_header) and a body, with the FCS appended.\n",
+    "(mac_header) and a body, with the FCS appended. auto (the default) is "
+    "fcs; a Synth reads, and a record holds, fcs.\n",
     NULL },
   { "gap", (getter)Segment_flat_gap, NULL,
     "For type=ofdm: idle samples after each PPDU, at the output rate, filled "
@@ -6717,7 +6781,10 @@ static PyTypeObject SegmentType = {
       "burst\n"
       "    per frame), and continuous dsss (one bit per data symbol, no "
       "frame);\n"
-      "    not with data_from_file.\n"
+      "    not with data_from_file. A type=ofdm source given neither takes\n"
+      "    pn:768:15, 96 octets of the PN15 m-sequence from its default "
+      "seed,\n"
+      "    which with the default mac's FCS is a 100-octet PSDU.\n"
       "data_len : int, default 0\n"
       "    Bits of the data source per frame: the data:LEN field of the "
       "common\n"
@@ -6756,25 +6823,38 @@ static PyTypeObject SegmentType = {
       "    on the stream's own symbol clock, so its edges land at any chip "
       "phase.\n"
       "wlan : int, default 0\n"
-      "    For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of "
-      "6, 9,\n"
-      "    12, 18, 24, 36, 48, 54: a second spelling of constellation and\n"
-      "    code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 "
-      "= not\n"
-      "    given. Refused beside constellation or code_rate, with a "
-      "bandwidth\n"
-      "    other than 20 MHz, and on any other type.\n"
-      "constellation : str, default ``\"bpsk\"``\n"
+      "    For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 "
+      "prints\n"
+      "    it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of\n"
+      "    constellation and code_rate (--wlan 36 is --constellation qam16\n"
+      "    --code-rate 3/4). 0 = not given. Refused beside a given "
+      "constellation\n"
+      "    or code_rate, at any other bandwidth (where a 10 or 5 MHz source "
+      "is\n"
+      "    spelled by its constellation and code_rate), and on any other "
+      "type.\n"
+      "constellation : str, default ``\"auto\"``\n"
       "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
       "qam16,\n"
       "    qam64; the pair with code_rate must be a row of the standard's "
       "rate\n"
-      "    table.\n"
-      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``.\n"
-      "code_rate : str, default ``\"1/2\"``\n"
+      "    table, and is given whole or not at all. auto (the default) is the "
+      "pair\n"
+      "    wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or "
+      "9\n"
+      "    Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record "
+      "holds,\n"
+      "    the resolved value, never auto.\n"
+      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``, "
+      "``\"auto\"``.\n"
+      "code_rate : str, default ``\"auto\"``\n"
       "    For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, "
-      "5/6.\n"
-      "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``.\n"
+      "5/6;\n"
+      "    given with constellation, or neither is. auto (the default) as "
+      "for\n"
+      "    constellation.\n"
+      "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``, "
+      "``\"auto\"``.\n"
       "scrambler_init : int, default 0\n"
       "    For type=ofdm: the 7-bit initial state of the data scrambler, 1 to "
       "127.\n"
@@ -6796,13 +6876,15 @@ static PyTypeObject SegmentType = {
       "the\n"
       "    scene is refused for. What is stored, set and written is what was\n"
       "    given.\n"
-      "mac : str, default ``\"none\"``\n"
+      "mac : str, default ``\"auto\"``\n"
       "    For type=ofdm: how the caller's octets become the PSDU. none: as "
       "given.\n"
       "    fcs: an MPDU without its FCS, which the PHY appends. data: a "
       "header\n"
-      "    (mac_header) and a body, with the FCS appended.\n"
-      "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``.\n"
+      "    (mac_header) and a body, with the FCS appended. auto (the default) "
+      "is\n"
+      "    fcs; a Synth reads, and a record holds, fcs.\n"
+      "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``, ``\"auto\"``.\n"
       "gap : int, default 0\n"
       "    For type=ofdm: idle samples after each PPDU, at the output rate, "
       "filled\n"
@@ -6833,7 +6915,11 @@ static PyTypeObject SegmentType = {
       "At\n"
       "    the default 1.0 every frequency is normalised (cycles per "
       "sample);\n"
-      "    state it whenever a scene is in real Hz.\n"
+      "    state it whenever a scene is in real Hz. A segment whose first "
+      "source\n"
+      "    is type=ofdm reads the default 1.0 as unset and takes that "
+      "source's\n"
+      "    bandwidth (20e6 unless given), which a record then holds.\n"
       "num_samples : int | tuple[int, int], default 0\n"
       "    Segment on-time in samples, before the trailing gap: 0 derives it "
       "from\n"

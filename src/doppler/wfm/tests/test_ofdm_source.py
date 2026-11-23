@@ -50,17 +50,30 @@ REFUSALS = {
     "wlan-not-a-rate": (
         {**_OK, "wlan": 7},
         ["--wlan", "7"],
-        "wlan is the 20 MHz data rate",
+        "the data rate is one of 6, 9",
     ),
     "wlan-with-constellation": (
         {**_OK, "constellation": "qam16"},
         ["--constellation", "qam16"],
-        "wlan is a spelling",
+        "is a spelling of constellation and code_rate",
     ),
     "wlan-with-code-rate": (
         {**_OK, "code_rate": "3/4"},
         ["--code-rate", "3/4"],
-        "wlan is a spelling",
+        "is a spelling of constellation and code_rate",
+    ),
+    "constellation-alone": (
+        {
+            **{k: v for k, v in _OK.items() if k != "wlan"},
+            "constellation": "qam16",
+        },
+        ["--constellation", "qam16"],
+        "are one rate: give both, or neither",
+    ),
+    "code-rate-alone": (
+        {**{k: v for k, v in _OK.items() if k != "wlan"}, "code_rate": "1/2"},
+        ["--code-rate", "1/2"],
+        "are one rate: give both, or neither",
     ),
     "wlan-with-another-bandwidth": (
         {**_OK, "bandwidth": 10e6},
@@ -206,9 +219,10 @@ def test_the_engine_face_does_not_offer_the_type():
 
 
 def _ppdu_from_wlan() -> np.ndarray:
-    """What ``wlan`` builds from the same octets, by its own Python face."""
+    """What ``wlan`` builds from the same octets, by its own Python face:
+    the source's default MAC appends the FCS, so its PSDU is ``mpdu``'s."""
     w = Wlan(constellation="qam16", code_rate="r34")
-    return w.ppdu(OCTETS, 93)
+    return w.ppdu(w.mpdu(OCTETS), 93)
 
 
 def test_one_source_on_every_face(tmp_path):
@@ -346,7 +360,7 @@ def _wlan(m: int, **kw) -> Wlan:
 @pytest.mark.parametrize(("fs", "m"), _RATES)
 def test_the_default_window_is_the_standards_100_ns(fs, m):
     """Unset is wlan's own default; ``window=0`` is wlan's rectangular PPDU."""
-    seg = {**_OK, "fs": fs, "scrambler_init": 93}
+    seg = {**_OK, "fs": fs, "scrambler_init": 93, "mac": "none"}
     want = _wlan(m).ppdu(OCTETS, 93)
     rect = _wlan(m, window=0).ppdu(OCTETS, 93)
     assert len(want) == len(rect) + 2 * m  # the window is 2 M samples

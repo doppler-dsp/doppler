@@ -61,6 +61,8 @@ typedef enum
 
 #define WFM_WINDOW_UNSET SIZE_MAX
 
+#define WFM_SEGMENT_FS_DEFAULT 1.0
+
 typedef struct {
     int type;        
     double freq;     
@@ -243,6 +245,15 @@ const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
 const char *dp_wfm_ofdm_fs_error(const wfm_source_t *src, double fs);
 
 size_t dp_wfm_source_window(const wfm_source_t *src, double fs);
+
+const char *dp_wfm_source_ofdm_defaults(const wfm_source_t *src, double fs,
+                                        wfm_source_t *out, double *fs_out);
+
+int dp_wfm_source_constellation(const wfm_source_t *src, double fs);
+
+int dp_wfm_source_code_rate(const wfm_source_t *src, double fs);
+
+int dp_wfm_source_mac(const wfm_source_t *src, double fs);
 
 size_t dp_wfm_source_acq_code_bits(const wfm_source_t *src, double fs,
                                    uint8_t *out, size_t max);

@@ -4485,10 +4485,31 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
           goto fail;
       }
   }
+  int _fs_pos = args && PyTuple_GET_SIZE (args) > 45;
+  if (_fs_pos && kwds && PyDict_GetItemString (kwds, "fs"))
+    {
+      PyErr_SetString (PyExc_TypeError,
+                       "Segment() got fs by position and keyword");
+      Py_DECREF (kw);
+      return -1;
+    }
+  if (!_fs_pos)
+    {
+      PyObject *_fs = PyFloat_FromDouble ((double)self->fs);
+      int       _r  = _fs ? PyDict_SetItemString (kw, "fs", _fs) : -1;
+      Py_XDECREF (_fs);
+      if (_r < 0)
+        {
+          Py_DECREF (kw);
+          return -1;
+        }
+    }
   PyObject *one = PyObject_Call ((PyObject *)&SynthType, args, kw);
   Py_DECREF (kw);
   if (!one)
     return -1;
+  if (_fs_pos)
+    self->fs = (double)((SynthObject *)one)->fs;
   PyObject *list = PyList_New (1);
   if (!list)
     {

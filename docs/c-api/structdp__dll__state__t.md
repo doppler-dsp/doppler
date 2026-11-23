@@ -748,7 +748,7 @@ double dp_dll_state_t::inc_resid;
 
 
 
-the fraction of a phase-word step the last steer's conversion to `phase_inc` dropped, cycles per sample, in [0, 2^-32]: carried into the next steer, so a command under one step still moves the mean increment (the conversion truncates). 
+the fraction of a phase-word step the last steer's conversion to `phase_inc` dropped, cycles per sample, from 0 to 2^-32 inclusive (see [**dll\_set\_inc()**](dll__core_8h.md#function-dll_set_inc)): carried into the next steer, so a command under one step still moves the mean increment (the conversion truncates). 
  
 
 

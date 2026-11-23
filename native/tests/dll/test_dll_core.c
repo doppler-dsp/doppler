@@ -1384,15 +1384,29 @@ a_blob_taken_mid_hold_resumes (void)
   return fails;
 }
 
-/* The inclusive upper edge of the remainder is one the object produces, not
- * only one the range check accepts. A command f in [-2^-53, 0) has floor -1,
- * and f - floor(f) rounds to exactly 1.0, so the dropped remainder is the
- * whole step 2^-32: dll_set_inc() is public and takes any finite command,
- * and through dll_steer() the edge needs the loop's command to cancel the
- * carried remainder to within 2^-53 (a measure-zero case, but one the bound
- * must hold). The blob it makes is accepted and resumes bit for bit; one
- * ulp past it is refused. Sabotaged: the range check's `<=` made `<` -- the
- * blob is refused. */
+/* The remainder's upper edge. A command f in [-2^-53, 0) has floor -1, and
+ * under strict IEEE evaluation f - floor(f) rounds up to exactly 1.0, so the
+ * remainder is the whole step 2^-32 (gcc, and any build that does not
+ * reassociate). A compiler that reassociates under -ffast-math (clang's
+ * -O3, which folds a literal command) computes f - (floor(f) + word)
+ * instead, the exact remainder, step + f: one 1e-20 below the step for
+ * f = -1e-20. Both are in [step - 2^-53, step], and that interval is what
+ * every build must produce; the edge itself, exactly one step, the range
+ * check must still accept, because an IEEE build writes it. So the pin
+ * asserts (1) the produced remainder lies in the interval, (2) its blob is
+ * accepted, restores the same remainder and, after one more conversion on
+ * each object, leaves both with the same word and remainder, and (3) a
+ * forged remainder of exactly one step is accepted and one ulp past it is
+ * refused. Sabotaged: the range check's `<=` made `<` -- (3) goes red on
+ * every compiler, (1) and (2) on a build that rounds to the edge.
+ *
+ * The command is fed twice, as a literal and as a volatile. The project
+ * builds with -ffast-math, under which a literal can be folded and
+ * reassociated (clang's -O3 did, and an `== step` on it failed on macOS and
+ * Windows): a pin that asserts exact equality on a folded literal asserts
+ * the compiler's evaluation order, not the object. The volatile is the
+ * value the loop actually hands the conversion, and both must land in the
+ * interval. */
 static int
 the_remainders_upper_edge_is_produced_and_accepted (void)
 {
@@ -1405,17 +1419,32 @@ the_remainders_upper_edge_is_produced_and_accepted (void)
   dp_dll_state_t *b = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
   DP_REQUIRE (code && a && b);
   a->inc_resid = 0.0;
-  dll_set_inc (a, -1e-20);
-  DP_CHECK_MSG (a->inc_resid == step,
-                "a command just under zero leaves exactly one step to carry");
+  dll_set_inc (a, -1e-20); /* a literal: the compiler may fold it */
+  DP_CHECK_MSG (
+      a->inc_resid <= step && a->inc_resid >= step - ldexp (1.0, -53),
+      "a command just under zero leaves one step, to 2^-53, to carry");
+  b->inc_resid            = 0.0;
+  volatile double runtime = -1e-20; /* a runtime value: it is not folded */
+  dll_set_inc (b, runtime);
+  DP_CHECK_MSG (b->inc_resid <= step
+                    && b->inc_resid >= step - ldexp (1.0, -53),
+                "and so does the same command as a runtime value");
   void *blob = malloc (dp_dll_state_bytes (a));
   DP_REQUIRE (blob);
   dp_dll_get_state (a, blob);
   DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_OK,
-                "the edge the object produces is accepted");
-  DP_CHECK_MSG (b->inc_resid == step, "and resumes bit for bit");
+                "the remainder the object produces is accepted");
+  DP_CHECK_MSG (b->inc_resid == a->inc_resid, "and restored");
+  dll_set_inc (a, 3e-4);
+  dll_set_inc (b, 3e-4);
+  DP_CHECK_MSG (a->code_nco.phase_inc == b->code_nco.phase_inc
+                    && a->inc_resid == b->inc_resid,
+                "and the next conversion agrees on both objects");
   dp_dll_state_t *in
       = (dp_dll_state_t *)((char *)blob + sizeof (dp_state_hdr_t));
+  in->inc_resid = step; /* what a build that rounds to the edge writes */
+  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_OK,
+                "a remainder of exactly one step is accepted");
   in->inc_resid = nextafter (step, 1.0);
   DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_ERR_INVALID,
                 "one ulp past the edge is refused");

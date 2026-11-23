@@ -1,0 +1,4 @@
+head 145281207 validate(async_dsss_pool_ghosts): the data-copy test and the phase spr dirty=0 start 22:23:45
+build rc=0 22:23:47
+ghosts done 22:34:26 exits:      16 1
+done 22:34:26

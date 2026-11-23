@@ -643,22 +643,21 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
      averaged at ASYNC_DSSS_RX_CAR_DEN_ALPHA less the Dll's window noise,
      clamped below at the design point's share (car_gamma). The lock is the
      ratio of sums of I^2 - Q^2 over I^2 + Q^2 on blocks of car_blk
-     updates, at Pfa ASYNC_DSSS_RX_CAR_LOCK_PFA, with the code lock's
-     verify counts. Every option is a valid configuration create()
-     vouched for, so a refusal here is a defect. */
+     updates (never 0: create() refuses a design it cannot size), at Pfa
+     ASYNC_DSSS_RX_CAR_LOCK_PFA, with the code lock's verify counts. Every
+     option is a valid configuration create() vouched for, so a refusal
+     here is a defect. */
   dp_carrier_nda_init (car_out, s->bn_carrier, 0.707,
                        doppler_hz_est / front_end_rate, 8, 1, 2);
   if (dp_carrier_nda_set_update_period (car_out, (double)s->tsamps) != DP_OK
       || dp_carrier_nda_set_denominator (car_out, ASYNC_DSSS_RX_CAR_DEN_ALPHA,
                                          s->car_gamma)
              != DP_OK
-      || (s->car_blk
-          && dp_carrier_nda_set_block_lock (
-                 car_out, s->car_blk, ASYNC_DSSS_RX_CAR_LOCK_PFA,
-                 (uint32_t)dp_det_verify_count (ASYNC_DSSS_RX_CAR_LOCK_PFA,
-                                                1e-6),
-                 (uint32_t)dp_det_verify_count (0.01, 1e-6))
-                 != DP_OK))
+      || dp_carrier_nda_set_block_lock (
+             car_out, s->car_blk, ASYNC_DSSS_RX_CAR_LOCK_PFA,
+             (uint32_t)dp_det_verify_count (ASYNC_DSSS_RX_CAR_LOCK_PFA, 1e-6),
+             (uint32_t)dp_det_verify_count (0.01, 1e-6))
+             != DP_OK)
     abort ();
 
   *dll_out = dll;
@@ -1022,6 +1021,13 @@ adr_refine_decided (const dp_async_dsss_receiver_state_t *s)
   return ca->ready
          && (!s->fine_on || ca->n_blocks >= s->fine.blocks
              || s->fine_n + (size_t)s->fine.k >= s->fine_cap);
+}
+
+int
+dp__async_dsss_receiver_refine_decided (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return adr_refine_decided (state);
 }
 
 /* The first sample a live chain can start on at or past @p at: the smallest
@@ -3160,8 +3166,8 @@ adr_carrier_is_built (const dp_async_dsss_receiver_state_t *s,
          && c->den == CARRIER_NDA_DEN_UNIT
          && c->den_alpha == ASYNC_DSSS_RX_CAR_DEN_ALPHA
          && c->den_gamma == s->car_gamma && c->blk_len == s->car_blk
-         && (s->car_blk == 0 || c->blk_pfa == ASYNC_DSSS_RX_CAR_LOCK_PFA)
-         && c->bn == s->bn_carrier && c->zeta == 0.707;
+         && c->blk_pfa == ASYNC_DSSS_RX_CAR_LOCK_PFA && c->bn == s->bn_carrier
+         && c->zeta == 0.707;
 }
 
 /* Skip one child sub-blob on a peek reader, checking its envelope (magic,

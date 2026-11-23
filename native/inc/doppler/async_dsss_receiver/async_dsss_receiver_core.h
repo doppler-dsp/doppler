@@ -1028,7 +1028,8 @@ typedef enum
    * (0, 0, 0)
    *
    * With `refine` false a seed goes straight to tracking; that needs a
-   * search at least 25 code periods deep, here a 0.1 s code-only window:
+   * search at least 1 / bn code periods deep (bn the carrier loop's;
+   * ASYNC_DSSS_RX_NO_REFINE_MIN_BINS), here a 0.1 s code-only window:
    *
    * >>> fast = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
    * ...                          sample_rate=6.138e6, doppler_uncertainty=500.0,
@@ -1781,7 +1782,7 @@ typedef enum
       const dp_async_dsss_receiver_state_t *state);
 
   /**
-   * @brief The searcher's slow-time depth D: epochs per coherent block.
+   * @brief The searcher's slow-time depth D: epochs per coherent dwell.
    *
    * Derived at create from `code_only_s` and `doppler_rate`
    * (dp_async_dsss_receiver_create()); 1 without a code-only window. Every
@@ -1811,6 +1812,9 @@ typedef enum
    *
    * @endcode
    */
+  size_t dp_async_dsss_receiver_get_coherent_bins (
+      const dp_async_dsss_receiver_state_t *state);
+
   /**
    * @brief The carrier lock's non-coherent count this receiver was built
    *        with, dp_async_dsss_receiver_carrier_lock_n_noncoh() at its
@@ -1826,9 +1830,6 @@ typedef enum
    * @return The count, updates (never 0: create() refuses that).
    */
   size_t dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
-      const dp_async_dsss_receiver_state_t *state);
-
-  size_t dp_async_dsss_receiver_get_coherent_bins (
       const dp_async_dsss_receiver_state_t *state);
 
   /**

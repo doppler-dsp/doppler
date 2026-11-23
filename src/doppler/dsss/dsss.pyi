@@ -2463,21 +2463,22 @@ class AsyncDsssReceiver:
     ------
     ValueError
         If construction fails. The exception message is ``AsyncDsssReceiver:
-        invalid parameter (need a code of at least 2 chips, a finite chip_rate
-        > 0, a finite symbol_rate > 0 and <= chip_rate, sample_rate >=
-        chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or
-        finite and above sample_rate / 2, lost_confirm_s >= 0 (and at least one
-        input sample with reacquire), refine_samples_per_symbol >= 1,
-        refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20 Dll
-        partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576;
-        and for the searcher a finite cn0_dbhz whose update SNR over a code
-        period is finite and positive with a carrier bandwidth the loop filter
-        accepts, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0;
-        refine false needs a search at least 25 code periods deep; a symbol of
-        at least a code period; a cn0_dbhz at which the carrier lock can be
-        sized: a count of at most 10^7 updates detecting at Pd 0.99 against Pfa
-        1e-3, below about 5 to 10 dB-Hz at 415.1-B-1 there is none, so raise
-        cn0_dbhz)``.
+        refused: either the carrier lock cannot be sized at this cn0_dbhz (no
+        count up to 10^7 updates detects at Pd 0.99 against Pfa 1e-3; below
+        about 5 to 10 dB-Hz at 415.1-B-1): raise cn0_dbhz; or a parameter is
+        invalid (need a code of at least 2 chips, a finite chip_rate > 0, a
+        finite symbol_rate > 0 and <= chip_rate, sample_rate >= chip_rate, m in
+        {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above
+        sample_rate / 2, lost_confirm_s >= 0 (and at least one input sample
+        with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1,
+        refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments *
+        chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a
+        finite cn0_dbhz whose update SNR over a code period is finite and
+        positive with a carrier bandwidth the loop filter accepts, 0 < pfa < 1,
+        0 < pd < 1, a finite doppler_uncertainty >= 0; refine false needs a
+        search at least 1 / bn code periods deep, bn the carrier loop's (about
+        101 / 135 at the 415.1-B-1 floor); a symbol of at least a code
+        period)``.
 
     Examples
     --------
@@ -2491,7 +2492,8 @@ class AsyncDsssReceiver:
     (0, 0, 0)
 
     With `refine` false a seed goes straight to tracking; that needs a
-    search at least 25 code periods deep, here a 0.1 s code-only window:
+    search at least 1 / bn code periods deep (bn the carrier loop's;
+    ASYNC_DSSS_RX_NO_REFINE_MIN_BINS), here a 0.1 s code-only window:
 
     >>> fast = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
     ...                          sample_rate=6.138e6, doppler_uncertainty=500.0,
@@ -3383,7 +3385,7 @@ class AsyncDsssReceiver:
 
     @property
     def coherent_bins(self) -> int:
-        """Coherent bins."""
+        """The searcher's slow-time depth D: epochs per coherent dwell."""
 
     @property
     def carrier_lock_n_noncoh(self) -> int:
@@ -3666,18 +3668,19 @@ class AsyncDsssPool:
     ------
     ValueError
         If construction fails. The exception message is ``AsyncDsssPool:
-        invalid parameter (need 1 <= n_receivers <= 16, threads >= 0, and every
-        parameter AsyncDsssReceiver takes: a code of at least 2 chips, a finite
-        chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, sample_rate
-        >= chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0
-        or finite and above sample_rate / 2, lost_confirm_s >= 0 (and at least
-        one input sample with reacquire), refine_samples_per_symbol >= 1,
-        refine_n_fft >= 1, refine_zero_pad >= 1; and for the searcher a finite
-        cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0;
-        refine false needs a search at least 25 code periods deep; a symbol of
-        at least a code period; a cn0_dbhz at which the receivers' carrier lock
-        can be sized: a count of at most 10^7 updates detecting at Pd 0.99
-        against Pfa 1e-3, so raise cn0_dbhz)``.
+        refused: either the receivers' carrier lock cannot be sized at this
+        cn0_dbhz (no count up to 10^7 updates detects at Pd 0.99 against Pfa
+        1e-3): raise cn0_dbhz; or a parameter is invalid (need 1 <= n_receivers
+        <= 16, threads >= 0, and every parameter AsyncDsssReceiver takes: a
+        code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate
+        > 0 and <= chip_rate, sample_rate >= chip_rate, m in {2,4,8}, segments
+        >= 1, sps >= 2, carrier_freq_hz 0 or finite and above sample_rate / 2,
+        lost_confirm_s >= 0 (and at least one input sample with reacquire),
+        refine_samples_per_symbol >= 1, refine_n_fft >= 1, refine_zero_pad >=
+        1; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a
+        finite doppler_uncertainty >= 0; refine false needs a search at least 1
+        / bn code periods deep, bn the carrier loop's (about 101 / 135 at the
+        415.1-B-1 floor); a symbol of at least a code period)``.
 
     Examples
     --------

@@ -415,13 +415,16 @@ _test_give_up_cap (void)
   DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 0);
   DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   /* Give-up: CarrierAcquisition is not ready at its one-block cap, so it
-   * hands over nothing of its own. The fine hand-over still decides on the
-   * same block (at 70 dB-Hz its designed dwell fits under the cap), and its
-   * estimate, against a truth of 0 Hz (the capture injects no Doppler and
-   * the seed is the coarse search's 0), is what the chain is built from:
-   * predicted ho_src _FINE, and |fine_hz - 0| inside three of the design's
-   * own sd_hz at this C/N0. Before the fine hand-over (1ba73e06d) this row
-   * read the seed's bit-exact 0.0. */
+   * hands over nothing of its own; required, so the row is the give-up
+   * path and not an estimator that fired. The fine hand-over still decides
+   * on the same block (at 70 dB-Hz its designed dwell fits under the cap).
+   * fine_hz is measured from the seed's Doppler, which is the coarse
+   * search's 0 (required), and the capture injects none, so the truth is
+   * 0 Hz: predicted ho_src _FINE, and |fine_hz| inside three of the
+   * design's own sd_hz at this C/N0. */
+  DP_REQUIRE_MSG (!rx->ca->ready && rx->ca->n_blocks >= 1,
+                  "CarrierAcquisition gave up at its one-block cap");
+  DP_REQUIRE_MSG (rx->seed_doppler_hz_est == 0.0, "the seed is at 0 Hz");
   printf ("  give-up: ho_src %d, fine %g Hz (truth 0, design sd %g Hz)\n",
           dp_async_dsss_receiver_get_handover_source (rx), rx->fine_hz,
           rx->fine.sd_hz);
@@ -957,9 +960,9 @@ _test_spec_combined_scenario_at_spec_floor (void)
  * AWGN-only, this receiver decodes at the use case's floor, 4 dB
  * (DP_S415_FLOOR_DB), and above. The BER is scored from the symbol the first
  * output carries (the record's own timing), so the receiver's latency, which
- * grows toward the floor, never moves the payload out of the lag search: an
- * earlier "~12 dB floor", and later chance at 4 and 5 dB, were that
- * artifact, which the EVM/M2M4 corroboration exposed both times.
+ * grows toward the floor, never moves the payload out of the lag search
+ * (scoring from a fixed symbol reads a false floor; the EVM/M2M4
+ * corroboration is what tells the two apart).
  */
 static int
 _test_awgn_esn0_floor (void)
@@ -971,12 +974,11 @@ _test_awgn_esn0_floor (void)
   /* 2 s: the observed-lock window needs the pull-in inside the record. A
      hand-over at the search's edge (the 8 dB draw's, -100 Hz, 1.3 B_L of
      the carrier loop at the rule's bn) pulls in in about 1 s, well inside
-     the 20 s allocation; the 0.56 s this record used to be ended mid
+     the 20 s allocation; a record much shorter than that ends mid
      pull-in. */
   const size_t n_sym = 5400;
-  /* The draw's first bits and its noise are the 1,500-symbol record's, so
-     the scene's opening is the one the floor was first read on; the bits
-     past them come from a stream of their own. */
+  /* The draw's first n_head bits and its noise come from one stream and
+     the bits past them from a stream of their own. */
   const size_t n_head = 1508;
 
   uint8_t *code = malloc (sf);
@@ -1110,9 +1112,8 @@ _test_awgn_esn0_floor (void)
      8.5 dB, which holds while M2M4's own spread at the window this row read
      leaves that half-gap three sd wide. The spread is measured here, on
      clean BPSK in AWGN at the same length, at 10 dB and at 7. The receiver's
-     own loss (EVM -9.5 dB at 10 dB) sits inside the half-gap; a bound of
-     10.0 counted none of it, and passed only while the captures carried
-     3 dB less noise than their label (#689). */
+     own loss (EVM -9.5 dB at 10 dB) sits inside the half-gap; a bound at
+     the label (10.0) would count none of it (#689). */
   {
     const size_t win = win_at[4];
     DP_REQUIRE (win >= 100);
@@ -1484,15 +1485,13 @@ _test_telemetry_follows_the_loops (void)
   return 0;
 }
 
-/* The searching flavor carries a fourth instrumented child, its search
- * engine, which no rebuild touches: attached with the loops, kept by a
- * refused re-attach, and detached with them -- or a searching receiver
- * would keep a context the caller may destroy. */
 /* A probe observes; it decides nothing (async-dsss-receiver-measurements.md
  * §4.11 (as planned) B). One stream into two receivers, one with every set
- * attached (the epoch sets, the code loop's steer set, the timing loop's
- * filter terms, the symbol metric's EMAs), the other detached: the symbols
- * they emit and the state they end in are the same bytes. Sabotage: an emit
+ * attached, the other detached, each run from searching (no seed), so the
+ * search's sets emit (required: rx.acq.stat), then the refine's (rx.ref.*),
+ * then the tracking loops' (the code loop's steer set, the timing loop's
+ * filter terms, the symbol metric's EMAs): the symbols they emit and the
+ * state they end in are the same bytes. Sabotage: an emit
  * site that writes the loop it reads (the steer set's emit storing its kp * e
  * into last_error, say) -> the symbols or the blob differ. */
 static int
@@ -1515,14 +1514,16 @@ _test_telemetry_moves_no_output (void)
   dp_tlm_t *t = dp_tlm_create (1 << 18);
   DP_REQUIRE (a != NULL && b != NULL && t != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (a, t, "rx", 1) == DP_OK);
-  DP_REQUIRE (dp_async_dsss_receiver_seed (a, 0.0, 0.0, cn0) == DP_OK);
-  DP_REQUIRE (dp_async_dsss_receiver_seed (b, 0.0, 0.0, cn0) == DP_OK);
-  /* The seed rebuilt the chain; the attach follows it, so the steer set
-     is on the live Dll. */
-  DP_REQUIRE (a->dll->tlm.steer_ctx == t && b->dll->tlm.steer_ctx == NULL);
   float _Complex *sa, *sb;
-  const size_t    na = _stream (a, x + pre_silence, n - pre_silence, te, &sa);
-  const size_t    nb = _stream (b, x + pre_silence, n - pre_silence, te, &sb);
+  const size_t    na = _stream (a, x, n, te, &sa);
+  const size_t    nb = _stream (b, x, n, te, &sb);
+  /* Both searched, refined and tracked, and the attach followed every
+     chain rebuild: each stage's sets emitted. */
+  DP_REQUIRE (dp_async_dsss_receiver_get_tracking (a) == 1
+              && dp_async_dsss_receiver_get_tracking (b) == 1);
+  DP_CHECK (a->dll->tlm.steer_ctx == t && b->dll->tlm.steer_ctx == NULL);
+  DP_CHECK (_tlm_emitted (t, "rx.acq.stat") > 0);
+  DP_CHECK (_tlm_emitted (t, "rx.ref.stat") > 0);
   DP_CHECK (_tlm_emitted (t, "rx.code.steer.e") > 0);
   DP_CHECK_MSG (na == nb && na > 20 && memcmp (sa, sb, na * sizeof *sa) == 0,
                 "the symbols are the same bytes, probes or none");
@@ -1545,6 +1546,10 @@ _test_telemetry_moves_no_output (void)
   return 0;
 }
 
+/* The searching flavor carries a fourth instrumented child, its search
+ * engine, which no rebuild touches: attached with the loops, kept by a
+ * refused re-attach, and detached with them -- or a searching receiver
+ * would keep a context the caller may destroy. */
 static int
 _test_telemetry_reaches_the_search (void)
 {
@@ -2218,11 +2223,14 @@ _test_near_far_levels (void)
  * GHz at the floor, read back through the getter and the status record.
  * Falling C/N0 grows it until no count up to CARRIER_NDA_BLOCK_MAX_LEN
  * reaches Pd ASYNC_DSSS_RX_CAR_LOCK_PD: the edge is found through the
- * public count itself (2.2 GHz, half-dB steps down from 15 dB-Hz), and
- * create() refuses a design there, at once (before the search is sized).
+ * public count itself on the 7-chip fixture (23.5 dB-Hz there), create()
+ * refuses a design at it, at once (before the search is sized), and one
+ * half-dB step above it constructs at the model's count (9.7e6).
  * The failing case is the fallback this replaced: a receiver built there
  * with the count 0 and carrier_nda's unsized EMA lock, which this reads
  * as non-NULL. */
+static dp_async_dsss_receiver_state_t *_car_twin (double cn0);
+
 static int
 _test_unsized_carrier_lock_is_refused (void)
 {
@@ -2244,31 +2252,38 @@ _test_unsized_carrier_lock_is_refused (void)
                 == want[f]);
       dp_async_dsss_receiver_destroy (rx);
     }
-  const double chip = dp_s415_chip_rate (DP_S415_FC_LO);
-  double       edge = NAN;
-  for (double c = 15.0; c > -20.0; c -= 0.5)
-    if (dp_async_dsss_receiver_carrier_lock_n_noncoh (c, chip, DP_S415_SF)
-        == 0u)
+  /* The edge, found through the public count on the 7-chip fixture
+     (_car_twin's geometry: 1 Mcps, T = 7 us), where the search is cheap
+     to size either side of it; at 415.1-B-1 it sits near 5 to 10 dB-Hz,
+     where sizing the search alone takes minutes. */
+  double edge = NAN;
+  for (double c = 40.0; c > 0.0; c -= 0.5)
+    if (dp_async_dsss_receiver_carrier_lock_n_noncoh (c, 1.0e6, 7) == 0u)
       {
         edge = c;
         break;
       }
-  printf ("  carrier lock: no count reaches Pd %.2f at 2.2 GHz from %.1f "
-          "dB-Hz down (%u updates at %.1f dB-Hz)\n",
-          ASYNC_DSSS_RX_CAR_LOCK_PD, edge,
-          dp_async_dsss_receiver_carrier_lock_n_noncoh (edge + 0.5, chip,
-                                                        DP_S415_SF),
-          edge + 0.5);
-  DP_REQUIRE_MSG (!isnan (edge), "the model has an edge above -20 dB-Hz");
-  dp_async_dsss_receiver_state_t *lo = dp_async_dsss_receiver_create (
-      code, DP_S415_SF, chip, DP_S415_SYM, DP_S415_FS, 2, edge, 1e-3, 0.9,
-      DP_S415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
-      DP_S415_FC_LO, 0.0, false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
-      dp_s415_r_env (), true);
+  DP_REQUIRE_MSG (!isnan (edge), "the model has an edge above 0 dB-Hz");
+  const uint32_t above
+      = dp_async_dsss_receiver_carrier_lock_n_noncoh (edge + 0.5, 1.0e6, 7);
+  printf ("  carrier lock, 7 chips at 1 Mcps: no count reaches Pd %.2f at "
+          "%.1f dB-Hz and below; %u updates at %.1f dB-Hz\n",
+          ASYNC_DSSS_RX_CAR_LOCK_PD, edge, above, edge + 0.5);
+  dp_async_dsss_receiver_state_t *lo = _car_twin (edge);
   DP_CHECK_MSG (lo == NULL, "a design whose carrier lock cannot be sized "
                             "is refused");
   if (lo)
     dp_async_dsss_receiver_destroy (lo);
+  /* One step above it constructs, at the count the model gives (a create()
+     that refused more than the rule asks would be red here). */
+  dp_async_dsss_receiver_state_t *hi = _car_twin (edge + 0.5);
+  DP_CHECK_MSG (hi != NULL, "one step above the edge constructs");
+  if (hi)
+    {
+      DP_CHECK (dp_async_dsss_receiver_get_carrier_lock_n_noncoh (hi)
+                == above);
+      dp_async_dsss_receiver_destroy (hi);
+    }
   return 0;
 }
 
@@ -3776,9 +3791,10 @@ _test_seeded_blob_round_trip (void)
   /* The shared harness: every byte written, b re-serializes as a, the
      envelope reject (dp_state_test.h). */
   DP_STATE_ROUNDTRIP_TEST (dp_async_dsss_receiver, ra, rb);
-  /* Its three Costas children grew by their third-order filter, its own
-     version did not move, and a blob one child's growth smaller is refused
-     by its size (docs/design/costas.md 3.3). */
+  /* A blob shorter by one Costas child's third-order growth (the receiver
+     has one Costas child now, car_frozen, the refine's wipe) is refused by
+     its size: the envelope's size check, at a shortfall a stale writer
+     would leave (docs/design/costas.md 3.3). */
   DP_STATE_SHRUNK_TEST (
       dp_async_dsss_receiver, rb,
       (sizeof (dp_state_filter_state_t) + 2 * sizeof (int32_t)));
@@ -3970,11 +3986,10 @@ _test_status_record (void)
   free (x2);
   free (data2);
 
-  /* Lost: the record says so, the estimate is frozen where it was, and the
-   * release clock reports how long it ran. */
+  /* Lost: the record says so, the estimate is frozen (more input moves
+   * nothing it reports), and the release clock reports how long it ran. */
   float _Complex *off = _noise_tail ((size_t)(0.25 * fs), fs, cn0, 99);
   uint64_t        run = 0, fed = 0;
-  double          doppler_before = st.doppler_hz;
   DP_CHECK (_feed_until_lost (rx, off, (size_t)(0.25 * fs), 1024, &run, &fed));
   st = dp_async_dsss_receiver_status (rx);
   DP_CHECK (st.state == ASYNC_DSSS_RX_LOST);
@@ -3987,7 +4002,6 @@ _test_status_record (void)
   DP_CHECK (st2.doppler_hz == st.doppler_hz);
   DP_CHECK (st2.both_down_samples == st.both_down_samples + 1024);
   DP_CHECK (st2.state_samples == st.state_samples + 1024);
-  (void)doppler_before;
 
   free (off);
   free (x);
@@ -4811,8 +4825,9 @@ _test_tlm_searching_and_refused (void)
 
 /* set_telemetry()'s probe list is the header's claim about what a caller
  * will find, so every name it registers sits under a prefix the header
- * documents -- ".car", ".code", ".demod", ".acq" -- or is one of the
- * receiver's own five; and ".rc" registers nothing, as the header says,
+ * documents -- ".car", ".code", ".demod", ".acq", ".ref", ".ref_fine" --
+ * or is one of the receiver's own fifteen (`own` below); and ".rc"
+ * registers nothing, as the header says,
  * because the rate converter is built without an AGC. Sabotage: rename a probe
  * -> red; register an undocumented one -> red; register one under ".rc" ->
  * red. */
@@ -4867,11 +4882,11 @@ _test_tlm_names_documented (void)
  *   sample: the leaf getters asked, before the call, for the phase that
  *   many samples past the ones the chain still carries;
  * - ".ho_src" is the hand-over's choice: NONE while refining, then the
- *   estimate the refine decided with (data, or the seed's when it gave up);
+ *   estimate the refine decided with, the fine one at this 70 dB-Hz;
  * - ".ref.*" report while refining, and only then;
  * - ".cn0" is the seed's estimate.
  * And ho_src rides the blob: a restored receiver reports the hand-over it
- * made, and a forged value past _DATA is refused. */
+ * made, and a forged value past _FINE is refused. */
 static int
 _test_tlm_in_situ_probes (void)
 {
@@ -4957,18 +4972,11 @@ _test_tlm_in_situ_probes (void)
     }
   DP_CHECK (tracked > 20 && refining > 0);
   DP_CHECK (carried > tracked / 2); /* the look-past is exercised */
-  /* The choice the refine made, as the hand-over reads it: the fine
-     estimate when its check passed (its snr_db against the largest of
-     fine_n noise bins at pfa, plus Euler's 2.51 dB), else the data
-     template's when it fired, else the seed's. */
-  const int fine_ok
-      = rx->fine_on && !isnan (rx->fine_snr_db)
-        && rx->fine_snr_db >= 10.0 * log10 (log ((double)rx->fine_n / rx->pfa))
-                                  + 10.0 * 0.57721566490153286 / log (10.0);
-  const int want = fine_ok         ? ASYNC_DSSS_RX_HO_FINE
-                   : rx->ca->ready ? ASYNC_DSSS_RX_HO_DATA
-                                   : ASYNC_DSSS_RX_HO_SEED;
-  DP_CHECK (ho_seen == want);
+  /* At 70 dB-Hz the fine estimate passes its check by far, so the
+     hand-over is the fine one: asserted outright, not read back from the
+     receiver's own end state (which would follow a broken fine estimate
+     to DATA and stay green). */
+  DP_CHECK (ho_seen == ASYNC_DSSS_RX_HO_FINE);
   DP_CHECK (_tlm_emitted (t, "rx.ref.stat") > 0);
   DP_CHECK (_tlm_emitted (t, "rx.ref.stat") == _tlm_emitted (t, "rx.ref.thr"));
 
@@ -4982,7 +4990,8 @@ _test_tlm_in_situ_probes (void)
     DP_REQUIRE (blob != NULL);
     dp_async_dsss_receiver_get_state (rx, blob);
     DP_CHECK (dp_async_dsss_receiver_set_state (dst, blob) == DP_OK);
-    DP_CHECK (dp_async_dsss_receiver_get_handover_source (dst) == want);
+    DP_CHECK (dp_async_dsss_receiver_get_handover_source (dst)
+              == ASYNC_DSSS_RX_HO_FINE);
     const size_t at = sizeof (dp_state_hdr_t)
                       + offsetof (async_dsss_receiver_extra_t, ho_src);
     DP_REQUIRE (at + sizeof (uint64_t) <= cb);
@@ -5754,7 +5763,8 @@ _test_pooled_and_search_only (void)
  * the capture of _test_pooled_and_search_only(), calls of 3,001 samples,
  * where the code phase at sample s is (s - 777) / 2 chips.
  *
- * - Picks taken only every TAKE_EVERY calls name the sample after the last
+ * - Picks taken only every take_every calls (two dwells or more, at least
+ *   TAKE_EVERY) name the sample after the last
  *   one fed: the first is that sample's chip clock within half a chip,
  *   though its dwell ended calls before.
  * - Every dwell in between picked the one emitter; the waiting list holds
@@ -5788,6 +5798,21 @@ _test_picks_and_exclusions_carry (void)
   static float _Complex out[8192];
   const size_t P     = 3001;
   size_t       takes = 0, most = 0, excluded_picks = 0, calls = 0;
+  /* The premise the sabotages need: at least two dwells decide inside one
+     take window, a dwell being coherent_bins x n_noncoh code periods of
+     2,046 samples. The window is sized from the dwell (at least TAKE_EVERY
+     calls), and the excluding twin is built the same, so its search
+     decides the same dwells. */
+  const dp_correlator_search_t *sr = srch->acq->search;
+  const double                  dwell_samples
+      = (double)(sr->coherent_bins * sr->n_noncoh) * 1023.0 * SLOW_SPC;
+  size_t take_every = (size_t)ceil (2.0 * dwell_samples / (double)P);
+  if (take_every < TAKE_EVERY)
+    take_every = TAKE_EVERY;
+  DP_REQUIRE_MSG ((double)(take_every * P) >= 2.0 * dwell_samples,
+                  "two dwells decide inside one take window");
+  DP_REQUIRE (excl->acq->search->coherent_bins == sr->coherent_bins
+              && excl->acq->search->n_noncoh == sr->n_noncoh);
   for (size_t off = 0; off + P <= n; off += P, calls++)
     {
       (void)dp_async_dsss_receiver_steps (srch, x + off, P, out, 8192);
@@ -5797,7 +5822,7 @@ _test_picks_and_exclusions_carry (void)
       double ph[8], dop[8], cn0[8];
       excluded_picks
           += dp_async_dsss_receiver_take_picks (excl, ph, dop, cn0, 8);
-      if ((calls + 1) % TAKE_EVERY)
+      if ((calls + 1) % take_every)
         continue;
       const size_t k
           = dp_async_dsss_receiver_take_picks (srch, ph, dop, cn0, 8);
@@ -5809,7 +5834,10 @@ _test_picks_and_exclusions_carry (void)
               <= 0.5);
         }
     }
-  DP_REQUIRE (takes >= 2); /* dwells were waiting at more than one take */
+  /* The positive control: the twin's search found the emitter at more
+     than one take, so the excluding receiver's dwells decided too and its
+     empty list is the exclusion's doing. */
+  DP_REQUIRE (takes >= 2);
   DP_CHECK (most == 1);
   DP_CHECK (excluded_picks == 0);
   dp_async_dsss_receiver_destroy (srch);
@@ -6399,14 +6427,13 @@ _test_chunking_changes_nothing (void)
   return 0;
 }
 
-/* Stopping points for _split_resumes(): where a checkpoint is taken. */
+/* Stopping points for _split_resumes(): where a checkpoint is taken. The
+   refine's decision is the core's own predicate (the private header), not
+   a copy: an older copy here had drifted (it lacked the fine dwell). */
 static int
 _refine_decided (const dp_async_dsss_receiver_state_t *rx)
 {
-  const dp_carrier_acq_state_t *ca = rx->ca;
-  return ca->ready
-         || ca->n_blocks
-                >= (ca->sequential ? ca->max_n_blocks : ca->dwell_target);
+  return dp__async_dsss_receiver_refine_decided (rx);
 }
 
 /* Refining, the refine decided, the live chain's start still to come. */
@@ -6817,17 +6844,6 @@ _test_no_refine_hands_over_at_the_seed (void)
   return 0;
 }
 
-/* refine false needs a deep search: refused below
- * ASYNC_DSSS_RX_NO_REFINE_MIN_BINS at the receiver's carrier bandwidth, 25
- * at the widest (ASYNC_DSSS_RX_BN_CARRIER, which a design C/N0 of 70 dB-Hz
- * takes here), built at it, and refine true built at every depth. CODE7 at
- * 1 Mchip/s, so a code period is 7 us: a
- * code-only window of 49.5 periods gives code_only_epochs 48 and D 24, one
- * of 50.5 gives 49 and D 25, and none gives D = 1, the one-epoch search.
- *
- * Sabotages: no refusal -> the D = 24 and D = 1 rows red; the rule moved a
- * bin (> in place of >=, or 1 / bn rounded down) -> the D = 25 row or the
- * D = 24 row red. */
 /* The carrier loop's bandwidth from the loop-SNR rule
  * (async-dsss-receiver.md §1.3, and "Its bandwidth" under §4.10's
  * carrier loop): at the
@@ -6877,13 +6893,12 @@ _test_carrier_bn_follows_the_loop_snr_rule (void)
   DP_CHECK_MSG (dp_carrier_nda_get_bn (&rx->car) == want,
                 "the tracking carrier loop is built at that bandwidth");
   /* The loop's form and lock, as create() derives them: the unit
-     denominator at the design update SNR, and the block lock the exact
-     tail sizes at the unit form's jitter, bn (1 + 1/(2 gamma)) / gamma. */
+     denominator at the design update SNR, and the block lock at the
+     public count (dp_async_dsss_receiver_carrier_lock_n_noncoh()). */
   {
     const double g = pow (10.0, 38.77 / 10.0) * 7.0 / 1.0e6;
-    const int    b = dp_det_ratio_block_len (
-        g, want * (1.0 + 1.0 / (2.0 * g)) / g, ASYNC_DSSS_RX_CAR_LOCK_PFA,
-        ASYNC_DSSS_RX_CAR_LOCK_PD, (int)CARRIER_NDA_BLOCK_MAX_LEN);
+    const int    b
+        = (int)dp_async_dsss_receiver_carrier_lock_n_noncoh (38.77, 1.0e6, 7);
     printf ("  carrier lock: gamma %.4f, block %u (derived %d), threshold "
             "%.3f\n",
             rx->car_gamma, rx->car_blk, b,
@@ -6901,6 +6916,17 @@ _test_carrier_bn_follows_the_loop_snr_rule (void)
   return 0;
 }
 
+/* refine false needs a deep search: refused below
+ * ASYNC_DSSS_RX_NO_REFINE_MIN_BINS at the receiver's carrier bandwidth, 25
+ * at the widest (ASYNC_DSSS_RX_BN_CARRIER, which a design C/N0 of 70 dB-Hz
+ * takes here), built at it, and refine true built at every depth. CODE7 at
+ * 1 Mchip/s, so a code period is 7 us: a
+ * code-only window of 49.5 periods gives code_only_epochs 48 and D 24, one
+ * of 50.5 gives 49 and D 25, and none gives D = 1, the one-epoch search.
+ *
+ * Sabotages: no refusal -> the D = 24 and D = 1 rows red; the rule moved a
+ * bin (> in place of >=, or 1 / bn rounded down) -> the D = 25 row or the
+ * D = 24 row red. */
 static int
 _test_no_refine_needs_a_deep_search (void)
 {

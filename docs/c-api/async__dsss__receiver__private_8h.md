@@ -56,6 +56,7 @@ _A receiver's roles inside an AsyncDsssPool: pooled (idle until seeded) and sear
 
 | Type | Name |
 | ---: | :--- |
+|  int | [**dp\_\_async\_dsss\_receiver\_refine\_decided**](#function-dp__async_dsss_receiver_refine_decided) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Whether the refine has decided: its carrier estimator is ready (and, with the fine hand-over on, the fine dwell is in), or it has given up at its block cap. The one predicate the receiver's own steps() and its period loop ask, exported for a test that stops a stream at that point (a checkpoint taken there) rather than keep a copy that drifts. No caller is promised it._  |
 |  int | [**dp\_async\_dsss\_receiver\_set\_pooled**](#function-dp_async_dsss_receiver_set_pooled) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, bool on) <br>_Make a receiver a pooled one: while it holds nothing it is idle (ASYNC\_DSSS\_RX\_IDLE), consuming samples without searching, until a controller seeds it (docs/design/async-dsss-receiver.md §6)._  |
 |  int | [**dp\_async\_dsss\_receiver\_set\_search\_only**](#function-dp_async_dsss_receiver_set_search_only) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t n\_picks) <br>_Make a receiver a controller's search: each dwell's pick runs for ranks 0 …_ `n_picks` _- 1 and the survivors are kept for take\_picks(), and the receiver never seeds itself._ |
 |  size\_t | [**dp\_async\_dsss\_receiver\_take\_picks**](#function-dp_async_dsss_receiver_take_picks) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, double \* chip\_phase, double \* doppler\_hz, double \* cn0\_dbhz, size\_t max) <br>_Take a search-only receiver's waiting picks, in the order their dwells found them (each dwell's strongest first), and clear them._  |
@@ -101,6 +102,40 @@ The pool's plumbing (docs/design/async-dsss-receiver.md §5, §6), kept out of [
     
 ## Public Functions Documentation
 
+
+
+
+### function dp\_\_async\_dsss\_receiver\_refine\_decided 
+
+_Whether the refine has decided: its carrier estimator is ready (and, with the fine hand-over on, the fine dwell is in), or it has given up at its block cap. The one predicate the receiver's own steps() and its period loop ask, exported for a test that stops a stream at that point (a checkpoint taken there) rather than keep a copy that drifts. No caller is promised it._ 
+```C++
+int dp__async_dsss_receiver_refine_decided (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL, refining or not. 
+
+
+
+**Returns:**
+
+1 when decided, else 0. 
+
+
+
+
+
+        
+
+<hr>
 
 
 

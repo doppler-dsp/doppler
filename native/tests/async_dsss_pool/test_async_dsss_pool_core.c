@@ -1947,6 +1947,43 @@ _test_refine_passes_through (void)
   return 0;
 }
 
+/* The k = 2 scene under the shipped pool: the release rules as shipped
+   (lost_confirm_s at objects/async_dsss_pool.toml's default, 2.0 s; the
+   duplicate and ghost rules always on). The fine hand-over takes the seed
+   two lattice steps off A to A's own carrier (1.5 Hz off at 1ba73e06d), so
+   the ghost rule, which leaves a k = 0 ghost alone (§8, doppler#2551),
+   cannot take it; the shipped pool must still end with exactly one
+   receiver on A. Predicted: the ghost sits on a -24 dB sidelobe (63 of
+   1023), 36 dB-Hz against a code lock designed at the floor's C/N0, so
+   both its flags are down and the loss release frees it within
+   lost_confirm_s of the seed, plus a ring's group. Sabotage: build the
+   pool with the loss release off (0.0) -> receiver 1 is held to the end,
+   red. */
+static int
+_test_shipped_pool_leaves_one_on_a (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double lost_s = 2.0; /* the declared default */
+  _g415_t      z;
+  DP_REQUIRE (_g415_scene (code, 2, 60.0, 2, lost_s, lost_s + 2.0, &z) == 0);
+  dp_async_dsss_pool_state_t *p = z.p;
+  printf ("k = 2 scene, shipped pool: carrier %.1f Hz off A's, %ld tracking "
+          "steps (%ld code up, %ld symbol up, %ld both down), released "
+          "ghost %llu duplicate %llu lost %llu\n",
+          z.df_end, z.n, z.code_up, z.sym_up, z.both_down,
+          (unsigned long long)p->released_ghost,
+          (unsigned long long)p->released_duplicate,
+          (unsigned long long)p->released_lost);
+  DP_CHECK_MSG (z.tracked, "the seed reached tracking");
+  DP_CHECK (dp_async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_TRACKING);
+  DP_CHECK_MSG (dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_IDLE,
+                "the shipped pool leaves exactly one receiver on A");
+  DP_CHECK (p->released_ghost + p->released_duplicate + p->released_lost == 1);
+  dp_async_dsss_pool_destroy (p);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1954,6 +1991,7 @@ main (void)
   DP_CHECK (_test_refine_passes_through () == 0);
   DP_CHECK (_test_ghost_test_edges () == 0);
   DP_CHECK (_test_ghost_is_released () == 0);
+  DP_CHECK (_test_shipped_pool_leaves_one_on_a () == 0);
   DP_CHECK (_test_ghost_needs_both_tests () == 0);
   DP_CHECK (_test_search_runs_once () == 0);
   DP_CHECK (_test_duplicates_keep_the_first () == 0);

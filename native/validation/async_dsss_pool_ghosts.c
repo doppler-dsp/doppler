@@ -50,7 +50,9 @@
  *
  * Usage:  validate_async_dsss_pool_ghosts [--check] [--emit] [--draws N]
  *             [--shard i/n] [--forced-s S]  (FORCED's run past the seed,
- *             default GH_FORCED_S)
+ *             default GH_FORCED_S) [--second-s S]  (SECOND's, past the
+ *             rings' window; default: a window after both are full, at
+ *             most GH_SECOND_S)
  */
 #include "async_dsss_receiver_common.h"
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
@@ -130,7 +132,33 @@ typedef struct
   double dphi_start, dphi_end, dphi_spread, acf_start_db;
   int    no_parent; /* SECOND: receiver 0 never tracked A with code lock
                        inside 3 s; the draw is counted, not scored */
+  /* The phase difference's spread within each GH_WIN_S window (unwrapped
+     about the window's first sample), the median over the windows, so a
+     reading does not grow with the tenure. */
+  double dphi_win_med;
+  /* The data-copy test (visionary-architect): the second receiver's soft
+     symbols against the first's over every push both track, best over a
+     +-GH_RHO_LAG symbol lag. rho_coh is |sum s1 conj s0| over sqrt(sum
+     |s1|^2 sum |s0|^2), one coherent sum; rho_nc the mean over blocks of
+     GH_RHO_BLK symbols of each block's normalized |sum| (a relative carrier
+     phase that wanders cancels the coherent sum, not this one). Null,
+     independent data: rho_coh about 1/sqrt(n), rho_nc about
+     sqrt(pi)/(2 sqrt(GH_RHO_BLK)) = 0.089. n_rho: the symbols it read. */
+  double rho_coh, rho_nc;
+  size_t n_rho;
+  /* SECOND: the code's autocorrelation at B's first phase difference
+     (the lag class: 63, -65 or -1 of 1023), and B's own error rate
+     against its payload over the symbols it emitted while both tracked
+     (best of a +-250 lag, the sign folded; NaN when not scored). */
+  long   lag_r;
+  double b_ber;
 } gh_t;
+
+/* The phase spread's window, s. */
+#define GH_WIN_S 2.0
+/* The data-copy test's lag search, symbols, and its block. */
+#define GH_RHO_LAG 32
+#define GH_RHO_BLK 100u
 
 /* The sampling interval of the ratio columns, s. */
 #define GH_RATIO_DT 0.1
@@ -155,10 +183,21 @@ typedef struct
   size_t nr;
   double next_t, d0, dlast, dmin, dmax;
   int    have;
+  /* The window spreads. */
+  double wd0, wmin, wmax, wt0, wsp[64];
+  size_t nw;
+  int    whave;
+  /* Both receivers' symbols over the pushes both track. */
+  float _Complex *s[2];
+  size_t          ns[2], cap;
+  uint64_t        first_n; /* the receive sample of the first push */
 } gh_acc_t;
 
 /* --forced-s: FORCED's run past the seed, s. */
 static double gh_forced_s = GH_FORCED_S;
+/* --second-s: SECOND's run past the seed, s; 0 keeps its default, until
+   both rings have been full a window, at most GH_SECOND_S. */
+static double gh_second_s = 0.0;
 
 /* FORCED's every run, for the histogram (--emit's "# runs" section): one
    record per run that ended, or was still open at the run's end. */
@@ -221,6 +260,19 @@ gh_sample (const uint8_t *code, const dp_async_dsss_pool_state_t *p,
   a->dmin  = fmin (a->dmin, u);
   a->dmax  = fmax (a->dmax, u);
   a->dlast = dphi;
+  if (!a->whave || t - a->wt0 >= GH_WIN_S)
+    {
+      if (a->whave && a->nw < sizeof a->wsp / sizeof a->wsp[0])
+        a->wsp[a->nw++] = a->wmax - a->wmin;
+      a->whave = 1;
+      a->wt0   = t;
+      a->wd0   = dphi;
+      a->wmin = a->wmax = 0.0;
+    }
+  double w = dphi - a->wd0;
+  w -= 1023.0 * floor (w / 1023.0 + 0.5);
+  a->wmin = fmin (a->wmin, w);
+  a->wmax = fmax (a->wmax, w);
   if (!isnan (ratio) && a->nr < sizeof a->r / sizeof a->r[0])
     a->r[a->nr++] = ratio;
   if (gh_n_ratios == gh_cap_ratios)
@@ -247,6 +299,122 @@ gh_cmp (const void *x, const void *y)
   return (a > b) - (a < b);
 }
 
+/* Both receivers' symbols of the last push, when both track. */
+static void
+gh_collect (const dp_async_dsss_pool_state_t   *p,
+            const async_dsss_receiver_status_t *s0,
+            const async_dsss_receiver_status_t *s1, uint64_t n_out,
+            gh_acc_t *a)
+{
+  if (s0->state != ASYNC_DSSS_RX_TRACKING
+      || s1->state != ASYNC_DSSS_RX_TRACKING)
+    return;
+  const size_t m = dp_async_dsss_pool_symbols_max_out (p);
+  if (!a->cap)
+    a->first_n = n_out;
+  for (int r = 0; r < 2; r++)
+    {
+      if (a->ns[r] + m > a->cap)
+        {
+          const size_t c = 2 * (a->ns[r] + m) + 4096;
+          a->s[0]        = dp_xrealloc (a->s[0], c * sizeof *a->s[0]);
+          a->s[1]        = dp_xrealloc (a->s[1], c * sizeof *a->s[1]);
+          a->cap         = c;
+        }
+      a->ns[r]
+          += dp_async_dsss_pool_symbols (p, (size_t)r, a->s[r] + a->ns[r], m);
+    }
+}
+
+/* The data-copy test over the collected symbols: rho_coh and rho_nc at
+   their best lag of +-GH_RHO_LAG (s1[i] against s0[i + lag]). */
+static void
+gh_rho (const gh_acc_t *a, gh_t *o)
+{
+  o->rho_coh = o->rho_nc = NAN;
+  o->n_rho               = 0;
+  const size_t n0 = a->ns[0], n1 = a->ns[1];
+  if (n0 < 4 * GH_RHO_BLK || n1 < 4 * GH_RHO_BLK)
+    return;
+  double best_c = 0.0, best_n = 0.0;
+  size_t best_len = 0;
+  for (long lag = -GH_RHO_LAG; lag <= GH_RHO_LAG; lag++)
+    {
+      const long lo = lag < 0 ? -lag : 0;
+      const long hi = (long)n1 < (long)n0 - lag ? (long)n1 : (long)n0 - lag;
+      if (hi - lo < (long)(4 * GH_RHO_BLK))
+        continue;
+      double _Complex acc = 0.0;
+      double e0 = 0.0, e1 = 0.0, nc = 0.0;
+      size_t nb = 0;
+      for (long b = lo; b + (long)GH_RHO_BLK <= hi; b += (long)GH_RHO_BLK)
+        {
+          double _Complex ab = 0.0;
+          double b0 = 0.0, b1 = 0.0;
+          for (long i = b; i < b + (long)GH_RHO_BLK; i++)
+            {
+              const double _Complex x = a->s[1][i];
+              const double _Complex y = a->s[0][i + lag];
+              ab += x * conj (y);
+              b1 += creal (x * conj (x));
+              b0 += creal (y * conj (y));
+            }
+          acc += ab;
+          e0 += b0;
+          e1 += b1;
+          if (b0 > 0.0 && b1 > 0.0)
+            {
+              nc += cabs (ab) / sqrt (b0 * b1);
+              nb++;
+            }
+        }
+      const double rc
+          = e0 > 0.0 && e1 > 0.0 ? cabs (acc) / sqrt (e0 * e1) : 0.0;
+      const double rn = nb ? nc / (double)nb : 0.0;
+      if (rc > best_c)
+        best_c = rc;
+      if (rn > best_n)
+        {
+          best_n   = rn;
+          best_len = nb * GH_RHO_BLK;
+        }
+    }
+  o->rho_coh = best_c;
+  o->rho_nc  = best_n;
+  o->n_rho   = best_len;
+}
+
+/* B's error rate against its payload: the symbols receiver 1 emitted while
+   both tracked, from the truth's symbol at the first such push, the best of
+   a +-250 lag with the sign folded. */
+static double
+gh_b_ber (const dp_air_t *air, const gh_acc_t *a)
+{
+  if (a->ns[1] < 1000)
+    return NAN;
+  const long s0 = dp_air_truth (air, 1, a->first_n).symbol;
+  if (s0 < 0)
+    return NAN;
+  double best = 0.5;
+  for (int lag = -250; lag <= 250; lag++)
+    {
+      size_t errs = 0, cnt = 0;
+      for (size_t i = 0; i < a->ns[1]; i++)
+        {
+          const int b = dp_air_symbol_bit (air, 1, s0 + (long)i + lag);
+          if (b < 0)
+            continue;
+          errs += (crealf (a->s[1][i]) > 0.0f) != (b == 0);
+          cnt++;
+        }
+      if (cnt < a->ns[1] / 2)
+        continue;
+      const double r = (double)errs / (double)cnt;
+      best           = fmin (best, fmin (r, 1.0 - r));
+    }
+  return best;
+}
+
 /* The run's ratio columns from its samples. */
 static void
 gh_close (const uint8_t *code, gh_acc_t *a, gh_t *o)
@@ -266,7 +434,24 @@ gh_close (const uint8_t *code, gh_acc_t *a, gh_t *o)
       o->dphi_end     = a->dlast;
       o->dphi_spread  = a->dmax - a->dmin;
       o->acf_start_db = gh_acf_db (code, a->d0);
+      o->lag_r        = gh_autocorr (code, (size_t)llround (a->d0) % 1023u);
     }
+  o->dphi_win_med = NAN;
+  if (a->nw)
+    {
+      double w[64];
+      memcpy (w, a->wsp, a->nw * sizeof w[0]);
+      qsort (w, a->nw, sizeof w[0], gh_cmp);
+      o->dphi_win_med = w[(a->nw - 1) / 2];
+    }
+  gh_rho (a, o);
+}
+
+static void
+gh_acc_free (gh_acc_t *a)
+{
+  free (a->s[0]);
+  free (a->s[1]);
 }
 
 /* FORCED: receiver 1 on A's sidelobe at k lattice steps. */
@@ -313,6 +498,7 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
           continue;
         }
       gh_sample (code, p, &s0, &s1, fc, 0, (double)k, seed, t - t_seed, &acc);
+      gh_collect (p, &s0, &s1, air.n_out, &acc);
       if (s1.state == ASYNC_DSSS_RX_TRACKING)
         {
           n++;
@@ -355,6 +541,8 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
   o->code_frac = n ? (double)code_up / (double)n : NAN;
   o->sym_frac  = n ? (double)sym_up / (double)n : NAN;
   gh_close (code, &acc, o);
+  o->b_ber = NAN;
+  gh_acc_free (&acc);
   free (x);
   dp_air_free (&air);
   dp_async_dsss_pool_destroy (p);
@@ -376,6 +564,19 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
     gh_emitter (code, fc, f0, GH_A2_DBHZ, 0.0, 100u + seed),
     gh_emitter (code, fc, f0 + df, b_dbhz, lagc, 200u + seed),
   };
+  /* Each carries its own payload, from its own stream, so their data are
+     independent (the data-copy test's null), and B's error rate is read
+     against its own. */
+  const size_t n_bits = (size_t)(DP_S415_SYM * 40.0);
+  uint8_t     *pay[2] = { dp_xmalloc (n_bits), dp_xmalloc (n_bits) };
+  for (int e = 0; e < 2; e++)
+    {
+      uint32_t ps = 0x9a1u + 7919u * (uint32_t)e + 104729u * seed;
+      for (size_t i = 0; i < n_bits; i++)
+        pay[e][i] = (uint8_t)(dp_xs32 (&ps) & 1u);
+      em[e].bits   = pay[e];
+      em[e].n_bits = n_bits;
+    }
   dp_air_t       air;
   float complex *x = dp_xmalloc (p->group * sizeof *x);
   DP_REQUIRE (dp_air_init (&air, em, 2, DP_S415_FS, GH_A2_DBHZ, 7919u + seed,
@@ -419,6 +620,7 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
           continue;
         }
       gh_sample (code, p, &s0, &s1, fc, 1, b_dbhz, seed, t - t_seed, &acc);
+      gh_collect (p, &s0, &s1, air.n_out, &acc);
       if (s1.state == ASYNC_DSSS_RX_TRACKING)
         {
           n++;
@@ -428,8 +630,9 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
               && p->hist_len[1] == p->ghost_window)
             t_full = t;
         }
-      if (s1.state == ASYNC_DSSS_RX_IDLE || (t_full >= 0.0 && t - t_full > 1.0)
-          || t - t_seed > GH_SECOND_S)
+      if (s1.state == ASYNC_DSSS_RX_IDLE
+          || (gh_second_s <= 0.0 && t_full >= 0.0 && t - t_full > 1.0)
+          || t - t_seed > (gh_second_s > 0.0 ? gh_second_s : GH_SECOND_S))
         break;
     }
   o->outcome   = o->no_parent        ? -1
@@ -438,6 +641,10 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
                                      : 0;
   o->code_frac = n ? (double)code_up / (double)n : NAN;
   gh_close (code, &acc, o);
+  o->b_ber = gh_b_ber (&air, &acc);
+  gh_acc_free (&acc);
+  free (pay[0]);
+  free (pay[1]);
   free (x);
   dp_air_free (&air);
   dp_async_dsss_pool_destroy (p);
@@ -550,6 +757,8 @@ main (int argc, char **argv)
         draws = (unsigned)strtoul (argv[++i], NULL, 10);
       else if (strcmp (argv[i], "--forced-s") == 0 && i + 1 < argc)
         gh_forced_s = strtod (argv[++i], NULL);
+      else if (strcmp (argv[i], "--second-s") == 0 && i + 1 < argc)
+        gh_second_s = strtod (argv[++i], NULL);
       else if (strcmp (argv[i], "--shard") == 0 && i + 1 < argc)
         DP_REQUIRE (sscanf (argv[++i], "%u/%u", &shard, &shards) == 2
                     && shards > 0 && shard < shards);
@@ -566,7 +775,7 @@ main (int argc, char **argv)
             "code_down0_s,both_down0_s,code_down1_s,both_down1_s,"
             "t_code_first_s,t_code_last_s,df_end_hz,"
             "ratio_med_db,ratio_p10_db,ratio_p90_db,dphi_start,dphi_end,"
-            "dphi_spread,acf_start_db\n");
+            "dphi_spread,acf_start_db,dphi_win_med,rho_coh,rho_nc,n_rho\n");
   else
     printf ("ghosts: 415.1-B-1, 11 MSa/s, a pool designed at 38.8 dB-Hz; "
             "FORCED on a %.0f dB-Hz parent's %u-chip sidelobe, %.0f s\n",
@@ -595,13 +804,15 @@ main (int argc, char **argv)
                                             "k = 0 ghost");
             if (emit)
               printf ("%.1f,%d,%u,%d,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.3f,%.3f,"
-                      "%.3f,%.1f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f\n",
+                      "%.3f,%.1f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%.3f,"
+                      "%.4f,%.4f,%zu\n",
                       fcs[f] / 1e9, k, s, o.outcome, o.code_frac, o.sym_frac,
                       o.any_k, o.code_down_s[0], o.both_down_s[0],
                       o.code_down_s[1], o.both_down_s[1], o.t_code_first_s,
                       o.t_code_last_s, o.df_end_hz, o.ratio_med_db,
                       o.ratio_p10_db, o.ratio_p90_db, o.dphi_start, o.dphi_end,
-                      o.dphi_spread, o.acf_start_db);
+                      o.dphi_spread, o.acf_start_db, o.dphi_win_med, o.rho_coh,
+                      o.rho_nc, o.n_rho);
           }
         if (!emit && n)
           {
@@ -624,7 +835,8 @@ main (int argc, char **argv)
   if (emit)
     printf ("# second\nfc_ghz,b_dbhz,seed,outcome,code_frac,any_k,"
             "ratio_med_db,ratio_p10_db,ratio_p90_db,dphi_start,dphi_end,"
-            "dphi_spread,acf_start_db\n");
+            "dphi_spread,acf_start_db,dphi_win_med,rho_coh,rho_nc,n_rho,"
+            "lag_r,b_ber\n");
   else
     printf ("  SECOND: a distinct emitter on a %.0f dB-Hz one's carrier\n",
             GH_A2_DBHZ);
@@ -642,10 +854,12 @@ main (int argc, char **argv)
             DP_REQUIRE (gh_second (code, fcs[f], b_lvls[l], s, &o) == 0);
             if (emit)
               printf ("%.1f,%.1f,%u,%d,%.3f,%d,%.2f,%.2f,%.2f,%.3f,%.3f,"
-                      "%.3f,%.2f\n",
+                      "%.3f,%.2f,%.3f,%.4f,%.4f,%zu,%ld,%.5f\n",
                       fcs[f] / 1e9, b_lvls[l], s, o.outcome, o.code_frac,
                       o.any_k, o.ratio_med_db, o.ratio_p10_db, o.ratio_p90_db,
-                      o.dphi_start, o.dphi_end, o.dphi_spread, o.acf_start_db);
+                      o.dphi_start, o.dphi_end, o.dphi_spread, o.acf_start_db,
+                      o.dphi_win_med, o.rho_coh, o.rho_nc, o.n_rho, o.lag_r,
+                      o.b_ber);
             /* Counted, not scored: the parent never tracked A. */
             DP_CHECK_MSG (!o.no_parent, "receiver 0 tracks A with code lock");
             if (o.no_parent)

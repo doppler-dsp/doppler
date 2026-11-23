@@ -2404,39 +2404,46 @@ main (int argc, char **argv)
               "the live carrier holds it %d\n",
               fabs (rd.end_stale_hz) > 1.2 * lim, !rd.false_lock);
 
-      /* #3134, pinned where it moved first: at 2.8 GHz, 10 dB, static, a
-         code lock sized at the cell's own C/N0 (3 looks) changed over the
-         data after it sustained, seed 5 earliest (0.84 s in), so a
-         PI_CL_CHECK_S draw covers it. The receiver sizes the lock at its
-         design C/N0, the floor's (20 looks here), and the pin holds. Its
-         failing case is the same draw on a lock sized short, 2 looks,
-         which must change: the count, nothing else in the draw, decides
-         it. (At 3 looks this draw now holds as well; 2 changes it 6
-         times.) */
+      /* #3134, pinned at its cause, the sizing: at 2.8 GHz, 10 dB,
+         static, a code lock sized at the cell's own C/N0 (3 at that cell)
+         changed over the data after it sustained (16 of 60 draws at the
+         time). The receiver sizes it at its design C/N0, the floor's, at
+         every cell: the 10 dB draw's receiver must carry the floor's count
+         and not the cell's, which a receiver built at the cell's C/N0
+         reads (the failing case). The draw's behaviour is printed and
+         asserted as a regression row: seed 5, earliest to change then,
+         holds now. No seed is known on which the cell's 3 changes at this
+         head (seed 5 at 3 holds; at 2 it changes), so no behaviour row
+         stands in for the sizing one. */
       {
-        draw_t cd, cc;
+        draw_t cd;
         pi_code_nl = 0;
         DP_REQUIRE (run_draw (code, DP_S415_FC_HI, 10.0, 0.0, PI_CL_SEED,
                               PI_CL_CHECK_S, spc, NULL, NULL, &cd)
                     == 0);
-        pi_code_nl = 2;
-        DP_REQUIRE (run_draw (code, DP_S415_FC_HI, 10.0, 0.0, PI_CL_SEED,
-                              PI_CL_CHECK_S, spc, NULL, NULL, &cc)
-                    == 0);
-        pi_code_nl = 0;
-        printf (
-            "  code lock, 2.8 GHz 10 dB static seed %u: the receiver's own "
-            "(n = %zu) changes %lld times over the data; at n = %zu, "
-            "%lld (#3134)\n",
-            PI_CL_SEED, cd.code_nl, (long long)cd.code_tog, cc.code_nl,
-            (long long)cc.code_tog);
+        dp_async_dsss_receiver_state_t *fl
+            = dp_s415_rx (code, DP_S415_FC_HI, true);
+        dp_async_dsss_receiver_state_t *cell = dp_async_dsss_receiver_create (
+            code, DP_S415_SF, dp_s415_chip_rate (DP_S415_FC_HI), DP_S415_SYM,
+            DP_S415_FS, 2, dp_s415_cn0 (10.0), 1e-3, 0.9, DP_S415_SPAN_HZ, 4,
+            8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, DP_S415_FC_HI, 0.0,
+            false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
+            dp_s415_r_env (), true);
+        DP_REQUIRE (fl && cell);
+        const size_t n_floor = fl->dll->n_looks, n_cell = cell->dll->n_looks;
+        printf ("  code lock, 2.8 GHz 10 dB static seed %u: sized at %zu "
+                "(the floor's %zu, the cell's own %zu); changes %lld times "
+                "over the data (#3134)\n",
+                PI_CL_SEED, cd.code_nl, n_floor, n_cell,
+                (long long)cd.code_tog);
+        DP_CHECK_MSG (cd.code_nl == n_floor && n_floor != n_cell,
+                      "#3134: the 10 dB cell's code lock is sized at the "
+                      "design C/N0, not the cell's own");
         DP_CHECK_MSG (!isnan (cd.t_code_s) && cd.code_tog == 0,
                       "#3134: the code lock does not change over the data "
                       "once sustained");
-        DP_CHECK_MSG (cc.code_nl == 2 && !isnan (cc.t_code_s)
-                          && cc.code_tog > 0,
-                      "control: on a lock sized at 2 looks the same draw's "
-                      "code lock changes over the data");
+        dp_async_dsss_receiver_destroy (fl);
+        dp_async_dsss_receiver_destroy (cell);
       }
     }
   if (emit)

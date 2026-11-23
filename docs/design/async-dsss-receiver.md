@@ -1679,36 +1679,19 @@ M = 2 (`carrier_nda_core.h`), built for each tracking chain by
     bound at the 415.1-B-1 floor. The receiver sizes `bn` from the design
     C/N0 it is given, so another design point gets other figures.
 
-- **The acquisition bound: where the loop locks in its normal time.**
-    `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` is half the loop bandwidth, `0.5 bn`
-    an update or `bn / (2T)` in hertz: 15.59 Hz at 2.2 GHz and 14.89 Hz at
-    2.8 GHz at the rule's `bn` (the `base_pullin_hz` column of
-    [d-6fc84cc80/pullin_rows.csv](async-dsss-receiver-measurements/d-6fc84cc80/pullin_rows.csv)).
-    It is empirical, not derived from the loop equations: it is the offset
-    inside which the loop locks in its normal lock time, about `5/bn`
-    updates (`5 / B_L`, 0.16 and 0.17 s at the floor). Past it the lock time
-    is the pull-in's and grows with the offset. Two readings hold it, each
-    with its own criterion:
+- **The acquisition bound.** The term is the vocabulary's ([#3274](https://github.com/doppler-dsp/doppler/pull/3274)): the
+    offset inside which the loop locks in its normal lock time.
+    `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` is it, `bn / (2T)` in hertz: 15.59 Hz
+    at 2.2 GHz and 14.89 Hz at 2.8 GHz at the rule's `bn` (the
+    `base_pullin_hz` column of
+    [d-6fc84cc80/pullin_rows.csv](async-dsss-receiver-measurements/d-6fc84cc80/pullin_rows.csv)),
+    with the normal lock time about `5 / B_L`, 0.16 and 0.17 s at the floor.
+    Two readings hold it:
 
-    - **`carrier_nda` as a general object, against the ideal loop.**
-        `CarrierNda`'s validation report
-        (`src/doppler/track/tests/validation/carrier_nda/results.md`, §2.5,
-        held by `make validate-check`) measures the settling time
-        against the offset in units of `u = df · M / bn`, the tracked
-        frequency within 5% of the offset. Inside `u = 1`, which is
-        `0.5 bn` at M = 2 and so this bound, the loop settles within five
-        loop time constants, `5/bn` updates, at every M and `bn` measured
-        (the largest `u` that does is 1.03 to 1.08). Inside `u = 1/4` it
-        settles in a constant 1.6 time constants whatever the offset, as a
-        linear second-order loop does; past `u = 1` the time grows as the
-        pull-in law, 4.4 to 4.8 constants at `u = 1` and 15 to 19 at
-        `u = 2`. The same report's §2.10 runs the closed-loop reference
-        (`src/doppler/tests/loop_reference.py`: a real `LoopFilter` and NCO
-        around the ideal detector, subtraction, which no loop on this
-        filter betters): at `bn = 0.01` it absorbs a frequency ramp in 408
-        updates (`4.1/bn`) and a 0.25-cycle step in 273 (`2.7/bn`), each to
-        1% of its peak error. That report runs the object at one update a
-        sample on its default denominator.
+    - **`carrier_nda` as a general object.** Its validation report
+        (`src/doppler/track/tests/validation/carrier_nda/results.md`, §2.5
+        and §2.10, held by `make validate-check`) runs the object at one
+        update a sample on its default denominator, against the ideal loop.
 
     - **The receiver's configuration.** The committed sweep runs the loop
         as the receiver builds it, unit denominator, one update a code
@@ -1731,8 +1714,8 @@ M = 2 (`carrier_nda_core.h`), built for each tracking chain by
         "Slips"); slips before the declared lock are printed and never
         gated ("Slips").
 
-- **The no-slip edge: where no lock point is crossed twice on the way.**
-    On the mean loop a step up to 0.382 `B_L` at 2.2 GHz and 0.383 `B_L`
+- **The no-slip edge.** The term is the vocabulary's ([#3274](https://github.com/doppler-dsp/doppler/pull/3274)). On the mean
+    loop a step up to 0.382 `B_L` at 2.2 GHz and 0.383 `B_L`
     at 2.8 GHz (11.9 and 11.4 Hz, about 11 to 12 Hz) crosses fewer than two
     lock points from every start phase, and up to 0.459 and 0.460 `B_L`
     crosses none from a start at 0 (the same `# design_sweep` rows,

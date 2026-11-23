@@ -83,6 +83,7 @@ extern "C"
 
   void dp_mpsk_receiver_reset (dp_mpsk_receiver_state_t *state);
 
+#ifndef __cplusplus
   JM_FORCEINLINE JM_HOT int
   mpsk_receiver_step_ted (dp_mpsk_receiver_state_t *s, float _Complex x,
                           float _Complex *y_out, int ted)
@@ -104,6 +105,7 @@ extern "C"
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
     return mpsk_rx_fold (&s->l, ys, n, y_out, ted);
   }
+#endif /* !__cplusplus */
 
   size_t dp_mpsk_receiver_steps_max_out (dp_mpsk_receiver_state_t *state);
   size_t dp_mpsk_receiver_steps (dp_mpsk_receiver_state_t *state,

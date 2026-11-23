@@ -70,6 +70,7 @@ typedef struct {
 void dp_costas_init(dp_costas_state_t *s, double bn, double zeta,
                  double init_norm_freq, size_t tsamps, double bn_fll);
 
+#ifndef __cplusplus
 JM_FORCEINLINE JM_HOT float _Complex
 costas_wipeoff(dp_costas_state_t *s, float _Complex x)
 {
@@ -133,6 +134,7 @@ costas_update(dp_costas_state_t *s, float _Complex P)
      * `locked`. Inline POD step — no call, one branch per symbol. */
     (void)dp_lockdet_step(&s->lock, s->lock_metric);
 }
+#endif /* !__cplusplus */
 
 dp_costas_state_t *dp_costas_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll);
 

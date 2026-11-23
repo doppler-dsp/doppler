@@ -586,7 +586,12 @@ extern "C"
    * @param ted    RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL — pass a literal
    *               for a specialised (branch-free) instantiation.
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
+   *
+   * @note C only, with mpsk_receiver_step_real_ted(): both fold through
+   *   mpsk_rx_fold(), which is C-only (mpsk_rx_loops.h). A C++ caller uses
+   *   dp_mpsk_receiver_steps().
    */
+#ifndef __cplusplus
   JM_FORCEINLINE JM_HOT int
   mpsk_receiver_step_ted (dp_mpsk_receiver_state_t *s, float _Complex x,
                           float _Complex *y_out, int ted)
@@ -624,6 +629,7 @@ extern "C"
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
     return mpsk_rx_fold (&s->l, ys, n, y_out, ted);
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Output-capacity hint for the generated binding's steps().

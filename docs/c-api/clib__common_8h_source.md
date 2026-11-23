@@ -265,7 +265,14 @@ dp_fmod_pos (double x, double m)
   return y >= m ? 0.0 : y;
 }
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 double dp_lgamma (double x);
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DOPPLER_CLIB_COMMON_H */
 ```

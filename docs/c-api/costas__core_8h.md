@@ -225,7 +225,14 @@ JM_FORCEINLINE  JM_HOT float _Complex costas_wipeoff (
 
 **Returns:**
 
-The de-rotated sample to feed the integrator. 
+The de-rotated sample to feed the integrator.
+
+
+
+
+**Note:**
+
+C only, with [**costas\_update()**](costas__core_8h.md#function-costas_update): the bodies call [**lo\_step()**](lo__core_8h.md#function-lo_step) and the C99 complex library (crealf, cabsf), which C++ does not have ([**dp\_complex.h**](dp__complex_8h.md), "From C++"). A C++ caller uses [**dp\_costas\_steps()**](costas__core_8h.md#function-dp_costas_steps). 
 
 
 

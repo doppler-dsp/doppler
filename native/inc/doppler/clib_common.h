@@ -825,6 +825,13 @@ dp_fmod_pos (double x, double m)
  * @param x  Any real value.
  * @return `log|Gamma(x)|`, as `lgamma()` returns it.
  */
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 double dp_lgamma (double x);
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DOPPLER_CLIB_COMMON_H */

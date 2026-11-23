@@ -119,7 +119,43 @@ typedef struct
      lost_confirm_s. */
   double code_down_s[2], both_down_s[2];
   double t_code_first_s, t_code_last_s, df_end_hz;
+  /* Both arms, every GH_RATIO_DT while both receivers track: the second
+     receiver's Dll prompt amplitude over the first's, dB (its median and
+     10th / 90th percentiles over the run), and their code-phase
+     difference, chips in [0, 1023): at the first sample, the last, and its
+     spread (largest less smallest, unwrapped about the first), with
+     20 log10 |R(dphi)| / 1023 of the code's own autocorrelation at the
+     first sample's nearest whole chip. NaN with no sample. */
+  double ratio_med_db, ratio_p10_db, ratio_p90_db;
+  double dphi_start, dphi_end, dphi_spread, acf_start_db;
+  int    no_parent; /* SECOND: receiver 0 never tracked A with code lock
+                       inside 3 s; the draw is counted, not scored */
 } gh_t;
+
+/* The sampling interval of the ratio columns, s. */
+#define GH_RATIO_DT 0.1
+
+/* Every sample, for the distribution (--emit's "# ratio" section): the
+   arm (0 FORCED, 1 SECOND), k or B's level, the draw, the time past the
+   seed, the prompt ratio, the autocorrelation at the sample's phase
+   difference, and the difference. */
+typedef struct
+{
+  float    fc_ghz, kl, t, ratio_db, acf_db, dphi;
+  int      arm;
+  unsigned seed;
+} gh_ratio_t;
+static gh_ratio_t *gh_ratios;
+static size_t      gh_n_ratios, gh_cap_ratios;
+
+/* One run's samples, while it lasts. */
+typedef struct
+{
+  double r[1024];
+  size_t nr;
+  double next_t, d0, dlast, dmin, dmax;
+  int    have;
+} gh_acc_t;
 
 /* --forced-s: FORCED's run past the seed, s. */
 static double gh_forced_s = GH_FORCED_S;
@@ -150,6 +186,89 @@ gh_run_add (double fc, int k, unsigned seed, int r, int both, double len_s)
       = (gh_run_t){ (float)(fc / 1e9), k, r, both, seed, len_s };
 }
 
+static double
+gh_acf_db (const uint8_t *code, double dphi)
+{
+  const size_t lag = (size_t)llround (dphi) % 1023u;
+  return 20.0 * log10 (fabs ((double)gh_autocorr (code, lag)) / 1023.0);
+}
+
+/* A sample of the ratio columns, when both receivers track and one is
+   due. */
+static void
+gh_sample (const uint8_t *code, const dp_async_dsss_pool_state_t *p,
+           const async_dsss_receiver_status_t *s0,
+           const async_dsss_receiver_status_t *s1, double fc, int arm,
+           double kl, unsigned seed, double t, gh_acc_t *a)
+{
+  if (s0->state != ASYNC_DSSS_RX_TRACKING
+      || s1->state != ASYNC_DSSS_RX_TRACKING || t < a->next_t)
+    return;
+  a->next_t        = t + GH_RATIO_DT;
+  const double pa0 = p->rx[0]->dll->look_prompt_amp;
+  const double pa1 = p->rx[1]->dll->look_prompt_amp;
+  const double dphi
+      = fmod (s1->chip_phase - s0->chip_phase + 2.0 * 1023.0, 1023.0);
+  const double ratio = pa0 > 0.0 && pa1 > 0.0 ? 20.0 * log10 (pa1 / pa0) : NAN;
+  if (!a->have)
+    {
+      a->have = 1;
+      a->d0   = dphi;
+      a->dmin = a->dmax = 0.0;
+    }
+  double u = dphi - a->d0; /* unwrapped about the first */
+  u -= 1023.0 * floor (u / 1023.0 + 0.5);
+  a->dmin  = fmin (a->dmin, u);
+  a->dmax  = fmax (a->dmax, u);
+  a->dlast = dphi;
+  if (!isnan (ratio) && a->nr < sizeof a->r / sizeof a->r[0])
+    a->r[a->nr++] = ratio;
+  if (gh_n_ratios == gh_cap_ratios)
+    {
+      gh_cap_ratios = gh_cap_ratios ? 2 * gh_cap_ratios : 4096;
+      gh_ratios = dp_xrealloc (gh_ratios, gh_cap_ratios * sizeof *gh_ratios);
+    }
+  gh_ratios[gh_n_ratios++] = (gh_ratio_t){
+    (float)(fc / 1e9),
+    (float)kl,
+    (float)t,
+    (float)ratio,
+    (float)gh_acf_db (code, dphi),
+    (float)dphi,
+    arm,
+    seed,
+  };
+}
+
+static int
+gh_cmp (const void *x, const void *y)
+{
+  const double a = *(const double *)x, b = *(const double *)y;
+  return (a > b) - (a < b);
+}
+
+/* The run's ratio columns from its samples. */
+static void
+gh_close (const uint8_t *code, gh_acc_t *a, gh_t *o)
+{
+  o->ratio_med_db = o->ratio_p10_db = o->ratio_p90_db = NAN;
+  o->dphi_start = o->dphi_end = o->dphi_spread = o->acf_start_db = NAN;
+  if (a->nr)
+    {
+      qsort (a->r, a->nr, sizeof a->r[0], gh_cmp);
+      o->ratio_p10_db = a->r[(size_t)(0.1 * (double)(a->nr - 1))];
+      o->ratio_med_db = a->r[(a->nr - 1) / 2];
+      o->ratio_p90_db = a->r[(size_t)(0.9 * (double)(a->nr - 1))];
+    }
+  if (a->have)
+    {
+      o->dphi_start   = a->d0;
+      o->dphi_end     = a->dlast;
+      o->dphi_spread  = a->dmax - a->dmin;
+      o->acf_start_db = gh_acf_db (code, a->d0);
+    }
+}
+
 /* FORCED: receiver 1 on A's sidelobe at k lattice steps. */
 static int
 gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
@@ -172,6 +291,7 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
   double       run_c[2] = { 0, 0 }, run_b[2] = { 0, 0 };
   memset (o, 0, sizeof *o);
   o->t_code_first_s = o->t_code_last_s = o->df_end_hz = NAN;
+  gh_acc_t acc                                        = { 0 };
   for (;;)
     {
       DP_REQUIRE (gh_push (p, &air, x) == 0);
@@ -192,6 +312,7 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
           DP_REQUIRE_MSG (t < 3.0, "receiver 0 tracks A with code lock");
           continue;
         }
+      gh_sample (code, p, &s0, &s1, fc, 0, (double)k, seed, t - t_seed, &acc);
       if (s1.state == ASYNC_DSSS_RX_TRACKING)
         {
           n++;
@@ -233,6 +354,7 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
   o->outcome   = p->released_ghost ? 1 : p->released_lost ? 2 : 0;
   o->code_frac = n ? (double)code_up / (double)n : NAN;
   o->sym_frac  = n ? (double)sym_up / (double)n : NAN;
+  gh_close (code, &acc, o);
   free (x);
   dp_air_free (&air);
   dp_async_dsss_pool_destroy (p);
@@ -261,6 +383,7 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
   double t_seed = -1.0, t = 0.0, t_full = -1.0;
   long   n = 0, code_up = 0;
   memset (o, 0, sizeof *o);
+  gh_acc_t acc = { 0 };
   for (;;)
     {
       DP_REQUIRE (gh_push (p, &air, x) == 0);
@@ -286,9 +409,16 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
                   == DP_OK);
               t_seed = t;
             }
-          DP_REQUIRE_MSG (t < 3.0, "receiver 0 tracks A with code lock");
+          /* A draw whose parent never tracks with code lock is counted,
+             not scored, so one does not end the sweep's population. */
+          if (t >= 3.0)
+            {
+              o->no_parent = 1;
+              break;
+            }
           continue;
         }
+      gh_sample (code, p, &s0, &s1, fc, 1, b_dbhz, seed, t - t_seed, &acc);
       if (s1.state == ASYNC_DSSS_RX_TRACKING)
         {
           n++;
@@ -302,8 +432,12 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
           || t - t_seed > GH_SECOND_S)
         break;
     }
-  o->outcome   = p->released_ghost ? 1 : p->released_lost ? 2 : 0;
+  o->outcome   = o->no_parent        ? -1
+                 : p->released_ghost ? 1
+                 : p->released_lost  ? 2
+                                     : 0;
   o->code_frac = n ? (double)code_up / (double)n : NAN;
+  gh_close (code, &acc, o);
   free (x);
   dp_air_free (&air);
   dp_async_dsss_pool_destroy (p);
@@ -430,7 +564,9 @@ main (int argc, char **argv)
   if (emit)
     printf ("# forced\nfc_ghz,k,seed,outcome,code_frac,sym_frac,any_k,"
             "code_down0_s,both_down0_s,code_down1_s,both_down1_s,"
-            "t_code_first_s,t_code_last_s,df_end_hz\n");
+            "t_code_first_s,t_code_last_s,df_end_hz,"
+            "ratio_med_db,ratio_p10_db,ratio_p90_db,dphi_start,dphi_end,"
+            "dphi_spread,acf_start_db\n");
   else
     printf ("ghosts: 415.1-B-1, 11 MSa/s, a pool designed at 38.8 dB-Hz; "
             "FORCED on a %.0f dB-Hz parent's %u-chip sidelobe, %.0f s\n",
@@ -459,11 +595,13 @@ main (int argc, char **argv)
                                             "k = 0 ghost");
             if (emit)
               printf ("%.1f,%d,%u,%d,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.3f,%.3f,"
-                      "%.3f,%.1f\n",
+                      "%.3f,%.1f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f\n",
                       fcs[f] / 1e9, k, s, o.outcome, o.code_frac, o.sym_frac,
                       o.any_k, o.code_down_s[0], o.both_down_s[0],
                       o.code_down_s[1], o.both_down_s[1], o.t_code_first_s,
-                      o.t_code_last_s, o.df_end_hz);
+                      o.t_code_last_s, o.df_end_hz, o.ratio_med_db,
+                      o.ratio_p10_db, o.ratio_p90_db, o.dphi_start, o.dphi_end,
+                      o.dphi_spread, o.acf_start_db);
           }
         if (!emit && n)
           {
@@ -484,7 +622,9 @@ main (int argc, char **argv)
   free (gh_runs);
 
   if (emit)
-    printf ("# second\nfc_ghz,b_dbhz,seed,outcome,code_frac,any_k\n");
+    printf ("# second\nfc_ghz,b_dbhz,seed,outcome,code_frac,any_k,"
+            "ratio_med_db,ratio_p10_db,ratio_p90_db,dphi_start,dphi_end,"
+            "dphi_spread,acf_start_db\n");
   else
     printf ("  SECOND: a distinct emitter on a %.0f dB-Hz one's carrier\n",
             GH_A2_DBHZ);
@@ -493,22 +633,32 @@ main (int argc, char **argv)
       {
         if (check && l != 0 && l != 4)
           continue;
-        size_t n = 0, rel = 0, would = 0;
+        size_t n = 0, rel = 0, would = 0, orphan = 0;
         for (uint32_t s = 1; s <= draws; s++)
           {
             if ((s - 1) % shards != shard)
               continue;
             gh_t o;
             DP_REQUIRE (gh_second (code, fcs[f], b_lvls[l], s, &o) == 0);
+            if (emit)
+              printf ("%.1f,%.1f,%u,%d,%.3f,%d,%.2f,%.2f,%.2f,%.3f,%.3f,"
+                      "%.3f,%.2f\n",
+                      fcs[f] / 1e9, b_lvls[l], s, o.outcome, o.code_frac,
+                      o.any_k, o.ratio_med_db, o.ratio_p10_db, o.ratio_p90_db,
+                      o.dphi_start, o.dphi_end, o.dphi_spread, o.acf_start_db);
+            /* Counted, not scored: the parent never tracked A. */
+            DP_CHECK_MSG (!o.no_parent, "receiver 0 tracks A with code lock");
+            if (o.no_parent)
+              {
+                orphan++;
+                continue;
+              }
             n++;
             rel += o.outcome == 1;
             would += (size_t)o.any_k;
             DP_CHECK_MSG (o.outcome != 1, "the ghost rule never releases a "
                                           "distinct emitter on its "
                                           "parent's carrier");
-            if (emit)
-              printf ("%.1f,%.1f,%u,%d,%.3f,%d\n", fcs[f] / 1e9, b_lvls[l], s,
-                      o.outcome, o.code_frac, o.any_k);
           }
         if (!emit && n)
           {
@@ -517,7 +667,22 @@ main (int argc, char **argv)
             gh_rate ("released by the rule", rel, n);
             gh_rate ("released if k = 0 were admitted", would, n);
           }
+        if (!emit && orphan)
+          printf ("    %.1f GHz, B at %.1f dB-Hz: %zu draws whose parent "
+                  "never tracked A with code lock (counted, not scored)\n",
+                  fcs[f] / 1e9, b_lvls[l], orphan);
       }
+  if (emit)
+    {
+      printf ("# ratio\nfc_ghz,arm,k_or_b_dbhz,seed,t_s,ratio_db,acf_db,"
+              "dphi\n");
+      for (size_t i = 0; i < gh_n_ratios; i++)
+        printf ("%.1f,%d,%.1f,%u,%.2f,%.2f,%.2f,%.3f\n", gh_ratios[i].fc_ghz,
+                gh_ratios[i].arm, gh_ratios[i].kl, gh_ratios[i].seed,
+                gh_ratios[i].t, gh_ratios[i].ratio_db, gh_ratios[i].acf_db,
+                gh_ratios[i].dphi);
+    }
+  free (gh_ratios);
   if (emit)
     printf ("# alone\nfc_ghz,seed,receiver,worst_chips,ended_at\n");
   else

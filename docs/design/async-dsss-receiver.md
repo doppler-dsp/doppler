@@ -143,7 +143,7 @@ wider than 0.04 (`ASYNC_DSSS_RX_BN_CARRIER`). Its acquisition bound,
 `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` at that bandwidth, is 15.59 Hz at
 2.2 GHz and 14.89 Hz at 2.8 GHz (the pull-in rows' `base_pullin_hz`):
 the empirical offset inside which the loop locks in its normal `5/bn`
-updates (§4.10, "Its bandwidth"). The two carriers differ only through the
+updates ("Its bandwidth"). The two carriers differ only through the
 squaring loss at each update SNR, so at the 415.1-B-1 floor the rule gives
 about 30 Hz of loop bandwidth and a 15 Hz acquisition bound at both. The
 step the loop pulls in from without slipping is §4.10's no-slip edge,
@@ -875,11 +875,11 @@ it is within a row, 21.8 / 22.2 Hz, plus the age, and within half a row,
 the far row. At `f4d885343` its `--check` put one of six there, from the
 start whose truth sits 0.9 Hz from the two rows' midpoint (+10.21 and
 −12.01 Hz, one row apart). The refine then hands the carrier loop its fine
-estimate (§4.11, "The hand-over: the M-th power of the refine's partial
+estimate ("The hand-over: the M-th power of the refine's partial
 dumps").
 
 **With the refine off, the far row is outside the carrier loop's edge.**
-The no-slip edge is 11.9 and 11.4 Hz (§4.10, "Its bandwidth"), so a hand-over on the far
+The no-slip edge is 11.9 and 11.4 Hz ("Its bandwidth"), so a hand-over on the far
 row starts the loop past it, and that draw's lock time is the loop's
 pull-in law's, not the budget's. That is the fallback's pull-in time. Its
 value is not derived on this page: it waits on the pull-in law's paper.
@@ -1051,7 +1051,7 @@ after.** Its error is the M = 2 error `Im(w²)` on one code period's
 coherent window sum `w`, over the unit denominator: the square removes the
 data's sign with no decision. Its bandwidth is §1.3's rule, a loop SNR of
 20 dB at the floor counting the squaring loss, which at the 415.1-B-1 floor
-is about 30 Hz of loop bandwidth at both carriers (§4.10, "Its
+is about 30 Hz of loop bandwidth at both carriers ("Its
 bandwidth").
 
 **Its one job also forbids coupling `segments` to a demodulator's `sps`.** The
@@ -1522,10 +1522,12 @@ receiver cannot reach.
     a cell's own C/N0 (a non-coherent count of 3 at 2.8 GHz, 10 dB) it changed after it
     sustained on 16 of 60 static draws, the other flags never. The receiver
     sizes it at its design C/N0, the floor's (a count of 20 there).
-    `validate_async_dsss_receiver_pullin --check`'s "#3134: the code lock
-    does not change over the data once sustained" pins it on seed 5, and
-    the same draw on a lock sized at a count of 2 is its failing case: it
-    changes 6 times.
+    `validate_async_dsss_receiver_pullin --check` pins the sizing: the
+    10 dB draw's receiver carries the floor's count, and a receiver built at
+    the cell's C/N0, which reads 3, is its failing case ("#3134: the 10 dB
+    cell's code lock is sized at the design C/N0, not the cell's own").
+    Seed 5, the draw that changed earliest at the cell's own sizing, is a
+    regression row: it changes 0 times over the data.
 - **The certification report asserts 4 limits while it moves to the
     415.1 point**, pinned exactly in `test_validation_limits.py`
     (`ENVELOPE_EXACT`), and each harness's move sets its new count. Before
@@ -1554,7 +1556,7 @@ The refine is one `CarrierAcquisition` estimator on the despread stream of a see
 The bandwidth's rule is §1.3's: a loop SNR of 20 dB at the floor, counting
 the M = 2 detector's squaring loss, `bn = ρ · S_L / 200`. `create()` sizes
 the carrier loop by it at the design C/N0, no wider than
-`ASYNC_DSSS_RX_BN_CARRIER` (0.04). §4.10, "Its bandwidth", states the
+`ASYNC_DSSS_RX_BN_CARRIER` (0.04). "Its bandwidth" states the
 figures it gives, the acquisition bound and the no-slip edge.
 
 - **Update:** once a code period, `T = code_len / chip_rate`: 318.2 and
@@ -1772,9 +1774,15 @@ carrier implies; only an unseeded step's acquisition is bounded.
     `dp_det_ratio_block_len()` gives the least number of updates whose
     decision detects at `ASYNC_DSSS_RX_CAR_LOCK_PD` (0.99) against that
     threshold, at the design update SNR `car_gamma` and the loop's jitter
-    there, `bn (1 + 1/(2γ)) / γ` (`adr_size_carrier_lock()`). At the floor
-    that is 33 updates at 2.2 GHz and 43 at 2.8 GHz: the `car` row's `looks`
-    column of `validate_async_dsss_receiver_pullin --emit`'s rule rows. The
+    there, `bn (1 + 1/(2γ)) / γ`, through one public function,
+    `dp_async_dsss_receiver_carrier_lock_n_noncoh()`, which `create()` calls.
+    At the floor that is 33 updates at 2.2 GHz and 43 at 2.8 GHz: the
+    function, the built receiver's
+    `dp_async_dsss_receiver_get_carrier_lock_n_noncoh()` and its status
+    record's `carrier_lock_n_noncoh` all read it
+    (`_test_unsized_carrier_lock_is_refused`), and so does the `car` row's
+    `looks` column of `validate_async_dsss_receiver_pullin --emit`'s rule
+    rows. The
     detection module computes the same at the rule's jitter, 1/200 rad², and
     the floor's update SNR:
 
@@ -1786,10 +1794,18 @@ carrier implies; only an unseeded step's acquisition is bounded.
     ```
 
     Where no length up to `CARRIER_NDA_BLOCK_MAX_LEN` reaches the detection
-    probability (`car_blk` 0), the receiver sets no ratio-of-sums lock, and the
-    carrier flag is `carrier_nda`'s EMA with its fixed thresholds: a lock
-    whose rates are not sized. `create()` builds such a receiver without
-    a refusal or a warning.
+    probability at the design C/N0, the receiver is not built: `create()`
+    refuses the design before the search is sized, and the Python face
+    raises `ValueError` (`_test_unsized_carrier_lock_is_refused`, and
+    `test_an_unsizable_carrier_lock_is_refused` for the receiver and the
+    pool). At the 415.1-B-1 point that is below about 5 to 10 dB-Hz.
+
+- **The declare time it implies.** A decision sums the count's updates,
+    one a code period, and the flag declares after
+    `dp_det_verify_count(10⁻³, 10⁻⁶)` = 2 decisions in a row: at the floor
+    at least 2 × 33 × 318.2 µs = 21.0 ms at 2.2 GHz and 2 × 43 × 250.0 µs =
+    21.5 ms at 2.8 GHz, which the application holds against its 20 s
+    lock allocation (§4.12).
 
 - **Its counts.** LockDet declares on `dp_det_verify_count(10⁻³, 10⁻⁶)` =
     2 decisions above the threshold and drops on
@@ -1801,7 +1817,7 @@ carrier implies; only an unseeded step's acquisition is bounded.
     receiver chooses the rates, and its header carries them
     (`ASYNC_DSSS_RX_CAR_LOCK_PFA`, `ASYNC_DSSS_RX_CAR_LOCK_PD`).
     `_test_carrier_bn_follows_the_loop_snr_rule` holds that the loop the
-    receiver builds has the length `adr_size_carrier_lock()` sizes.
+    receiver builds has the length the public count gives.
 
 #### The code loop and its lock
 
@@ -1968,7 +1984,7 @@ or to idle when pooled.
 
 **Against the loop's requirement.** The hand-over must land inside the
 carrier loop's no-slip edge, 11.9 Hz at 2.2 GHz and 11.4 Hz at 2.8 GHz at
-the floor (§4.10, "Its bandwidth"). In the 720 draws of the `d-6fc84cc80` run
+the floor ("Its bandwidth"). In the 720 draws of the `d-6fc84cc80` run
 every hand-over is the fine estimate (`ho_src` 3), and the worst error is
 1.68 Hz
 ([d-6fc84cc80/read_d.py](async-dsss-receiver-measurements/d-6fc84cc80/read_d.py),
@@ -2182,7 +2198,7 @@ at 4 and 5 dB locks inside it (the owner's ruling;
     carrier loop's no-slip edge**, where the loop's path is predictable:
     `hb_edge_hz()` (`native/validation/carrier_edge.h`), the unit-form
     detector's mean-loop edge at the draw's Es/N0 and the loop's own `bn`
-    (§4.10, "Its bandwidth"). A window that opens before the hand-over plus
+    ("Its bandwidth"). A window that opens before the hand-over plus
     the budget is a flag that declared before its loops settled, printed as
     `early_lock`; the window stays the observed one. Outside the edge the
     budget is not computed.

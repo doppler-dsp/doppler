@@ -6747,6 +6747,50 @@ _test_ring_blob_rejects (void)
   return 0;
 }
 
+/* steps() never writes past max_out, however few that is. Every stage
+ * that writes `out` (MpskReceiver's steps, behind the Dll and the
+ * converter) stops at the capacity it is handed, and the tracking chain
+ * hands each code period the capacity left, max_out less what it has
+ * written, so `emitted <= max_out` holds after every period and that
+ * difference never wraps. The case: the #2974 geometry's signal (CODE7, 2
+ * samples a chip, 35,714 sym/s, 90 dB-Hz), seeded, fed whole in one call
+ * that produces hundreds of symbols, into a buffer of exactly 3 (heap, so
+ * the ASan suite sees a write past it). Sabotage: the tracking chain hands
+ * every period max_out instead of what is left -> the call returns more
+ * than 3 and writes past the buffer, red. */
+static int
+_test_steps_never_writes_past_max_out (void)
+{
+  size_t          n;
+  double         *data;
+  float _Complex *x = _chunking_capture (2.0, 1, 35714.29, 400, &n, &data);
+  DP_REQUIRE (x != NULL);
+  chunking_geom_t                 g  = { 2.0e6, 35714.29, 0.5, 1 };
+  dp_async_dsss_receiver_state_t *rx = _chunking_create (&g);
+  DP_REQUIRE (rx != NULL);
+  /* The premise: the same input at an ample capacity yields more than 3. */
+  dp_async_dsss_receiver_state_t *ref = _chunking_create (&g);
+  DP_REQUIRE (ref != NULL);
+  float _Complex *big = malloc (n * sizeof *big);
+  DP_REQUIRE (big != NULL);
+  const size_t all = dp_async_dsss_receiver_steps (ref, x, n, big, n);
+  DP_REQUIRE_MSG (all > 3, "the block yields more symbols than the cap");
+  float _Complex *out = malloc (3 * sizeof *out);
+  DP_REQUIRE (out != NULL);
+  const size_t k = dp_async_dsss_receiver_steps (rx, x, n, out, 3);
+  printf ("  max_out 3: %zu written of the %zu the block yields\n", k, all);
+  DP_CHECK_MSG (k <= 3, "steps() returns no more than max_out");
+  DP_CHECK_MSG (memcmp (out, big, k * sizeof *out) == 0,
+                "what fits is the ample run's first symbols");
+  free (out);
+  free (big);
+  free (x);
+  free (data);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (ref);
+  return 0;
+}
+
 /* The fallback, for a refine that decides further past its estimate than
  * the ring holds. No signal geometry measured does (the ring's smallest
  * margin is 44 samples); a refine Dll drifting on noise can, in 30 of 1320
@@ -7217,6 +7261,7 @@ main (void)
   DP_CHECK (_test_handover_round_trips () == 0);
   DP_CHECK (_test_ring_blob_rejects () == 0);
   DP_CHECK (_test_fallback_is_chunk_invariant () == 0);
+  DP_CHECK (_test_steps_never_writes_past_max_out () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

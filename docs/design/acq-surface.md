@@ -567,18 +567,18 @@ Any rule that admits a weaker second emitter has to know $\chi$, and over
 data a floor at the ambiguity's level alone does not hold the sidelobes
 off: the last row is far above it.
 
-**Decided (2026-10-21).** The owner ruled that the ranked search's floor is
-derived from the code's Doppler-offset sidelobe level, as `psl` is from its
-zero-offset one; the level is defined on the grid the engine was built with
-and computed on its first read, `dp_correlator_dsl_db()`. A peak is a second emitter only
-if its statistic stands higher than the stronger emitters' sidelobes can
-reach, their statistic times that level, and it still clears the detector's
-gate. The mechanism and its numbers are #2525's, in its design text.
+**Decided (2026-10-21).** The ranked search's floor is derived from the code's
+Doppler-offset sidelobe level, as `psl` is from its zero-offset one; the level
+is defined on the grid the engine was built with and computed on its first
+read, `dp_correlator_dsl_db()`. A peak is a second emitter only if its
+statistic stands higher than the stronger emitters' sidelobes can reach, their
+statistic times that level, and it still clears the detector's gate. The
+mechanism and its numbers are #2525's, in its design text.
 
 **Decided (2026-11-01): per cell.** With the operating range set at the
 floor to 20 dB above it, a level that holds everywhere took no weaker
 emitter at the floor beside any stronger one its sidelobes could reach.
-The owner ruled that the bound is per cell: each stronger emitter's
+The bound is per cell: each stronger emitter's
 statistic on its own lag (`test_stat_peak`, §3.1) times its ambiguity to
 the candidate's cell, `dp_correlator_sidelobe_ratio()`, which computes that cell
 the way the surface is made and over what the hits leave unknown (the lag

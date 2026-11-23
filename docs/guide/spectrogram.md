@@ -200,7 +200,7 @@ A blob from a different configuration is refused on restore, and the object
 is unchanged: a different mode, `hop`, `nfft` or window, or a different Kaiser
 `beta`. A Hann or rectangular object does not refuse a different `beta`,
 because `beta` shapes only the Kaiser window. Refusing a checkpoint from another mode
-is the owner's ruling on #2102. See [Checkpoint & Resume](state-serialization.md).
+was decided on #2102. See [Checkpoint & Resume](state-serialization.md).
 
 ## What it is not
 

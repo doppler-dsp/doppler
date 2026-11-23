@@ -1522,14 +1522,15 @@ receiver cannot reach.
     establishes ([#3080](https://github.com/doppler-dsp/doppler/issues/3080),
     [#3079](https://github.com/doppler-dsp/doppler/issues/3079)). Until then
     every "ready" from the branch names them and shows nothing else is red.
-- **The code lock changes over the data at 10 dB**
-    ([#3134](https://github.com/doppler-dsp/doppler/issues/3134)): at 2.8
-    GHz, static, it changes after it is sustained on 11 of 60 draws with the window it has
-    and 16 of 60 with the code-period window, the other flags never; its
-    look count is 3 there, and the same draw at 4 holds.
+- **The code lock holds over the data at 10 dB**
+    ([#3134](https://github.com/doppler-dsp/doppler/issues/3134)). Sized at
+    a cell's own C/N0 (3 looks at 2.8 GHz, 10 dB) it changed after it
+    sustained on 16 of 60 static draws, the other flags never. The receiver
+    sizes it at its design C/N0, the floor's (20 looks there).
     `validate_async_dsss_receiver_pullin --check`'s "#3134: the code lock
-    does not change over the data once sustained" pins it on seed 5, both
-    windows, and is in the branch's known red set until the fix.
+    does not change over the data once sustained" pins it on seed 5, and
+    the same draw on a lock sized at 2 looks is its failing case: it
+    changes 6 times.
 - **The certification report asserts 4 limits while it moves to the
     415.1 point**, pinned exactly in `test_validation_limits.py`
     (`ENVELOPE_EXACT`), and each harness's move sets its new count. Before

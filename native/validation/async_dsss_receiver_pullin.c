@@ -2394,21 +2394,22 @@ main (int argc, char **argv)
               "the live carrier holds it %d\n",
               fabs (rd.end_stale_hz) > 1.2 * lim, !rd.false_lock);
 
-      /* #3134, pinned where it moves first: the 60-draw slice at 2.8 GHz,
-         10 dB, static has the code lock change over the data, after it is
-         sustained, on 16 of 60 draws -- the code lock alone, the other flags
-         never. Seed 5 changes earliest, 0.84 s in, so a PI_CL_CHECK_S draw
-         shows it. It is RED until #3134's fix: it is in
-         the known red set by name. Its control runs the same seed with the
-         look count forced to 4 (the receiver sizes 3 here) and holds: the
-         count, not anything else in the draw, is the cause. */
+      /* #3134, pinned where it moved first: at 2.8 GHz, 10 dB, static, a
+         code lock sized at the cell's own C/N0 (3 looks) changed over the
+         data after it sustained, seed 5 earliest (0.84 s in), so a
+         PI_CL_CHECK_S draw covers it. The receiver sizes the lock at its
+         design C/N0, the floor's (20 looks here), and the pin holds. Its
+         failing case is the same draw on a lock sized short, 2 looks,
+         which must change: the count, nothing else in the draw, decides
+         it. (At 3 looks this draw now holds as well; 2 changes it 6
+         times.) */
       {
         draw_t cd, cc;
         pi_code_nl = 0;
         DP_REQUIRE (run_draw (code, DP_S415_FC_HI, 10.0, 0.0, PI_CL_SEED,
                               PI_CL_CHECK_S, spc, NULL, NULL, &cd)
                     == 0);
-        pi_code_nl = 4;
+        pi_code_nl = 2;
         DP_REQUIRE (run_draw (code, DP_S415_FC_HI, 10.0, 0.0, PI_CL_SEED,
                               PI_CL_CHECK_S, spc, NULL, NULL, &cc)
                     == 0);
@@ -2422,10 +2423,10 @@ main (int argc, char **argv)
         DP_CHECK_MSG (!isnan (cd.t_code_s) && cd.code_tog == 0,
                       "#3134: the code lock does not change over the data "
                       "once sustained");
-        DP_CHECK_MSG (cc.code_nl == 4 && !isnan (cc.t_code_s)
-                          && cc.code_tog == 0,
-                      "control: at 4 looks the same draw's code lock "
-                      "holds");
+        DP_CHECK_MSG (cc.code_nl == 2 && !isnan (cc.t_code_s)
+                          && cc.code_tog > 0,
+                      "control: on a lock sized at 2 looks the same draw's "
+                      "code lock changes over the data");
       }
     }
   if (emit)

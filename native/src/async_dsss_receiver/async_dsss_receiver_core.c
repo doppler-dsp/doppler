@@ -3358,9 +3358,5 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   memcpy (s->pick_at, extra.pick_at, sizeof s->pick_at);
   s->excl_at = extra.excl_at;
   s->ho_src  = (int)extra.ho_src;
-  /* set_threads()'s value (#2022): the same request the writer's last
-     call made, which on a machine with as many cores runs as many. */
-  if (extra.threads != (int64_t)s->acq->search->threads)
-    (void)dp_correlator_set_threads (s->acq, (int)extra.threads);
   return DP_OK;
 }

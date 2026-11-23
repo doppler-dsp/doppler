@@ -1150,7 +1150,7 @@ static PyMethodDef DllObj_methods[] = {
     ">>> sorted(tlm.probe_names)\n"
     "['code.e', 'code.lock', 'code.locked', 'code.nco', 'code.offset_pwr', "
     "'code.prompt_amp', 'code.rate']\n"
-    ">>> x = np.ones(31 * 2 * 50, dtype=np.complex64)\n"
+    ">>> x = np.ones(31 * 2 * 50 + 31, dtype=np.complex64)  # 50.5 periods\n"
     ">>> _ = d.steps(x)\n"
     ">>> recs = tlm.read()   # seven records per code epoch\n"
     ">>> len(recs) > 0 and len(recs) % 7 == 0\n"

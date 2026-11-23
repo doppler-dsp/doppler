@@ -1982,7 +1982,7 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all seven probes (t
 >>> d.set_telemetry(tlm, "code")
 >>> sorted(tlm.probe_names)
 ['code.e', 'code.lock', 'code.locked', 'code.nco', 'code.offset_pwr', 'code.prompt_amp', 'code.rate']
->>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
+>>> x = np.ones(31 * 2 * 50 + 31, dtype=np.complex64)  # 50.5 periods
 >>> _ = d.steps(x)
 >>> recs = tlm.read()   # seven records per code epoch
 >>> len(recs) > 0 and len(recs) % 7 == 0

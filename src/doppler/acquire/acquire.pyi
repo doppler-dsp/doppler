@@ -187,7 +187,7 @@ class CarrierAcquisition:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix; NULL means "ca".
-        decim : int
+        decim : int, default 1
             Emit every decim-th tested block; >= 1.
 
         Raises

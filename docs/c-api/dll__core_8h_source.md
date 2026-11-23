@@ -382,7 +382,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 18u /* v18: the last look's |P| and |O|^2, look_prompt_amp/look_offset_pwr (#3134); v17: rtab, a heap pointer, zero in the blob; v16: win_p, scratch, zero in the blob; v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 20u /* v20: the last look's |P| and |O|^2, look_prompt_amp/look_offset_pwr (#3134); v19: rtab, a heap pointer, zero in the blob; v18: win_p, scratch, zero in the blob; v17: the conversion's carried remainder, inc_resid, so a command under one phase-word step still moves the increment (#3249); v16: the one-segment gain table is unit gain, so an older blob would resume the loop sf times too wide (#3234); v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

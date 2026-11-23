@@ -424,16 +424,16 @@ class Despreader:
         """Attach (or detach) a telemetry context across the despreader. Pure
         forwarder — the despreader registers no probes of its own: the carrier
         loop registers "<prefix>.car.lock" / ".e" / ".freq" / ".locked" /
-        ".nco" and the code loop registers "<prefix>.code.e" / ".rate" /
-        ".lock" / ".locked" / ".nco" / ".prompt_amp" / ".offset_pwr" (the
-        ".locked" pair are the loops' verify-counted lockdet decisions, 0/1;
-        ".freq" / ".rate" the filters' integrators and ".nco" their complete
-        commands, see dp_costas_set_telemetry() and dp_dll_set_telemetry()) —
-        twelve probes, all thinned by decim and emitted once per code period
-        (the despreader flushes both loops at its per-period update). Passing
-        NULL detaches both loops. Setup path, never hot; the context is
-        borrowed and must outlive the attachment (SPSC rules in
-        dp_tlm/dp_tlm_core.h).
+        ".nco" / ".freq_rate" / ".order" and the code loop registers
+        "<prefix>.code.e" / ".rate" / ".lock" / ".locked" / ".nco" /
+        ".prompt_amp" / ".offset_pwr" (the ".locked" pair are the loops'
+        verify-counted lockdet decisions, 0/1; ".freq" / ".rate" the filters'
+        integrators and ".nco" their complete commands, see
+        dp_costas_set_telemetry() and dp_dll_set_telemetry()) — fourteen
+        probes, all thinned by decim and emitted once per code period (the
+        despreader flushes both loops at its per-period update). Passing NULL
+        detaches both loops. Setup path, never hot; the context is borrowed and
+        must outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -460,15 +460,15 @@ class Despreader:
         >>> ch = Despreader(code=code, sps=4)
         >>> ch.set_telemetry(tlm, "ch0")
         >>> names = sorted(tlm.probe_names)
-        >>> names[:5]
-        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked', 'ch0.car.nco']
-        >>> names[5:]
+        >>> names[:7]
+        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.freq_rate', 'ch0.car.lock', 'ch0.car.locked', 'ch0.car.nco', 'ch0.car.order']
+        >>> names[7:]
         ['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.nco', 'ch0.code.offset_pwr', 'ch0.code.prompt_amp', 'ch0.code.rate']
         >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
         >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
         >>> _ = ch.steps(x)
-        >>> recs = tlm.read()   # twelve records per code period
-        >>> len(recs) > 0 and len(recs) % 12 == 0
+        >>> recs = tlm.read()   # fourteen records per code period
+        >>> len(recs) > 0 and len(recs) % 14 == 0
         True
 
         """

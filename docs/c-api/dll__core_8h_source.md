@@ -296,12 +296,14 @@ dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
     dll_set_inc(s, s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
 }
 
+#ifndef __cplusplus
 JM_FORCEINLINE JM_HOT void
 dll_update(dp_dll_state_t *s)
 {
     float me = cabsf(s->acc_e), ml = cabsf(s->acc_l), mp = cabsf(s->acc_p);
     dll_steer(s, (double)me * me, (double)ml * ml, (double)mp * mp);
 }
+#endif /* !__cplusplus */
 
 dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, double sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 

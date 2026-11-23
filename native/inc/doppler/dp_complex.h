@@ -87,9 +87,12 @@
  * below compiles, runs and compares with its C twin.
  *
  * `make cxx-headers-check` holds this: every installed header must parse
- * as C++, bar the shrinking list in `scripts/.cxx-headers-exempt` and the
- * private and Python-only headers in `scripts/.cxx-headers-not-cxx`, which
- * no consumer includes.
+ * as C++, bar the private and Python-only headers in
+ * `scripts/.cxx-headers-not-cxx`, which no consumer includes (the shrinking
+ * list `scripts/.cxx-headers-exempt` is empty). It also reads each header's
+ * linkage: a function a header declares outside `extern "C"` that is
+ * neither `static` nor `inline` fails it, because C++ would link a mangled
+ * name the library does not define.
  */
 #ifndef DP_COMPLEX_H
 #define DP_COMPLEX_H

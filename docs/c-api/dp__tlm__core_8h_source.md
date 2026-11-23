@@ -16,6 +16,11 @@
 #include "doppler/clib_common.h" /* DP_OK, DP_ERR_INVALID */
 #include "doppler/jm_perf.h"      /* JM_FORCEINLINE */
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 /* 16-byte ring slots: sizeof(uint64_t)*2 per "complex sample" — exactly one
  * telemetry record each, buying the VM-mirrored contiguity, acquire/release
  * correctness and the dropped counter for free. */
@@ -157,6 +162,10 @@ dp_tlm_emit (dp_tlm_t *t, int32_t id, double v)
 #define DP_TLM(ctx, id, v) dp_tlm_emit ((ctx), (id), (v))
 #else
 #define DP_TLM(ctx, id, v) ((void) 0)
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* DP_TELEMETRY_H */

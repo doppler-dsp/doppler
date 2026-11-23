@@ -504,7 +504,14 @@ Takes the powers of `acc_e`/`acc_l`/`acc_p` and hands them to [**dll\_steer()**]
 **Parameters:**
 
 
-* `s` DLL state. Must be non-NULL. 
+* `s` DLL state. Must be non-NULL.
+
+
+
+**Note:**
+
+C only: the body uses the C99 complex library (cabsf), which C++ does not have ([**dp\_complex.h**](dp__complex_8h.md), "From C++"). A C++ caller steers with [**dll\_steer()**](dll__core_8h.md#function-dll_steer) on powers it computes, or runs the block API. 
+
 
 
 

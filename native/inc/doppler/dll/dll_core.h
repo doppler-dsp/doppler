@@ -707,13 +707,19 @@ dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
  * Inline.
  *
  * @param s  DLL state.  Must be non-NULL.
+ *
+ * @note C only: the body uses the C99 complex library (cabsf), which C++
+ *   does not have (dp_complex.h, "From C++"). A C++ caller steers with
+ *   dll_steer() on powers it computes, or runs the block API.
  */
+#ifndef __cplusplus
 JM_FORCEINLINE JM_HOT void
 dll_update(dp_dll_state_t *s)
 {
     float me = cabsf(s->acc_e), ml = cabsf(s->acc_l), mp = cabsf(s->acc_p);
     dll_steer(s, (double)me * me, (double)ml * ml, (double)mp * mp);
 }
+#endif /* !__cplusplus */
 
 /**
  * @brief Create a code/timing delay-locked loop over a spreading code.

@@ -135,7 +135,7 @@ What C++ does not get is the C99 complex LIBRARY: `crealf`, `cimagf`, `conjf`, `
 That snippet is `tests/install/cxx-consumer/main.cpp`, which the gate below compiles, runs and compares with its C twin.
 
 
-`make cxx-headers-check` holds this: every installed header must parse as C++, bar the shrinking list in `scripts/.cxx-headers-exempt` and the private and Python-only headers in `scripts/.cxx-headers-not-cxx`, which no consumer includes. 
+`make cxx-headers-check` holds this: every installed header must parse as C++, bar the private and Python-only headers in `scripts/.cxx-headers-not-cxx`, which no consumer includes (the shrinking list `scripts/.cxx-headers-exempt` is empty). It also reads each header's linkage: a function a header declares outside `extern "C"` that is neither `static` nor `inline` fails it, because C++ would link a mangled name the library does not define. 
 
 
 

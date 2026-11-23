@@ -614,12 +614,6 @@ pi_live_align (const dp_air_t *air, size_t first_in, double secs,
     }
 }
 
-/* Whether a draw's link works: every one of the five flags sustained
-   (§4.11 C17) and never changed over the data, up at the end, not a false
-   lock, the data held (no slip, an end the meter could sync), and the
-   error-rate window's two verdicts: all five sustained inside the lock
-   allocation (lock20) and the meter aligned at that start (aligned; its
-   failure is unaligned_lock). check_cell() pins the last two. */
 /* One definition of a crossing of the fold, used by the stress, the
    transitions, their baseline and D10's split: the folded error (cycles,
    period half a cycle) jumps by more than a quarter cycle (90 degrees)
@@ -703,6 +697,12 @@ pi_forced_slip (const float *e_car, const float *e_cod, size_t n_blk,
   free (f);
 }
 
+/* Whether a draw's link works: every one of the five flags sustained
+   (§4.11 C17) and never changed over the data, up at the end, not a false
+   lock, the data held (no slip, an end the meter could sync), and the
+   error-rate window's two verdicts: all five sustained inside the lock
+   allocation (lock20) and the meter aligned at that start (aligned; its
+   failure is unaligned_lock). check_cell() pins the last two. */
 static int
 pi_works (const draw_t *d)
 {

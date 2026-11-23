@@ -114,6 +114,13 @@ def run_chain(code, rx, tlm=None, block=2 * TE):
         if tlm is not None:
             tlm.set_now(i)
         part = d.steps(rx[i : i + block]).astype(np.complex64)
+        if part.size == 0:
+            # The stream's last block is shorter than an epoch, so it may
+            # hold no partial: the Dll dumps its partials at the epoch's
+            # end, and a block that starts exactly on the boundary has the
+            # boundary either side of its first sample by an NCO step, set
+            # by the build's arithmetic.
+            continue
         wiped = cos.steps(part).astype(np.complex64)
         mf = np.convolve(wiped, np.ones(K), mode="same").astype(np.complex64)
         ss.steps(mf)

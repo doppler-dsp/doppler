@@ -43,13 +43,8 @@
  * --check: 2.8 GHz, 300 noise dwells and the static 7 dB hand-over grid
  * at one noise seed.
  *
- * `--fallback-sweep` runs only the hand-over ring's fallback sweep
- * (fallback_sweep() below): how many noise geometries make the refine
- * decide further past its estimate than the ring holds. It measures and
- * prints; it gates nothing.
- *
  * Usage:  validate_async_dsss_receiver_refine [--check] [--emit]
- *             [--dwells N] [--fallback-sweep]
+ *             [--dwells N]
  */
 #include "async_dsss_receiver_common.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
@@ -270,111 +265,17 @@ handover_rows (const uint8_t *code, double fc, double esn0, double rate,
   return 0;
 }
 
-/* The hand-over ring's fallback (async_dsss_receiver_core.c, "The
-   fallback"; test_async_dsss_receiver_core.c's
-   _test_fallback_is_chunk_invariant): a refine that decides further past
-   its estimate than refine_hist_cap starts the live chain at the first
-   whole period at or past D - cap. Reached when D > cap and the chain
-   started exactly there. The sweep: CODE7 at 1 Mcps, seeded at phase 0 /
-   0 Hz, fed complex unit noise (dp_cgauss, seeds 0x2974 + i) in one call,
-   8 sample rates x 5 symbol rates x 3 refine_max_error_db x 11 seeds,
-   1,320 geometries. With the refine Dll's output sized for two epochs
-   (#3281) it reads 0 of 1,089 scored (231 never track); with that output
-   back at one epoch's dumps, 423 of 1,089, the test's geometry among
-   them. Prints the counts and each geometry that reached it. */
-static const uint8_t RF_CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
-
-static uint64_t
-fb_start_at (double period, uint64_t at)
-{
-  uint64_t k = (uint64_t)floor ((double)at / period);
-  while (k > 0 && (uint64_t)ceil ((double)(k - 1) * period - 1e-9) >= at)
-    k--;
-  while ((uint64_t)ceil ((double)k * period - 1e-9) < at)
-    k++;
-  return (uint64_t)ceil ((double)k * period - 1e-9);
-}
-
-static int
-fallback_sweep (void)
-{
-  static const double fsc[8] = { 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.25 };
-  static const double sym[5] = { 3000.0, 5000.0, 10000.0, 20000.0, 35714.29 };
-  static const double err[3] = { 0.5, 1.0, 2.0 };
-  const size_t        n      = 60000;
-  float _Complex     *x      = dp_xmalloc (n * sizeof *x);
-  float _Complex     *out    = dp_xmalloc (n * sizeof *out);
-  size_t              total = 0, refused = 0, not_tracking = 0, reached = 0;
-  for (int a = 0; a < 8; a++)
-    for (int b = 0; b < 5; b++)
-      for (int c = 0; c < 3; c++)
-        for (uint32_t sd = 0; sd < 11; sd++)
-          {
-            total++;
-            uint32_t rng = 0x2974u + sd;
-            for (size_t i = 0; i < n; i++)
-              x[i] = dp_cgauss (&rng);
-            dp_async_dsss_receiver_state_t *rx
-                = dp_async_dsss_receiver_create (
-                    RF_CODE7, 7, 1.0e6, sym[b], fsc[a] * 1.0e6, 2, 58.0, 1e-2,
-                    0.9, 500.0, 4, 8, 0, err[c], 4, 14.0, 32, 8, false, 100000,
-                    0.0, 0.0, false, 0.0, 0.0, true);
-            if (!rx)
-              {
-                refused++;
-                continue;
-              }
-            (void)dp_async_dsss_receiver_seed (rx, 0.0, 0.0, 58.0);
-            (void)dp_async_dsss_receiver_steps (rx, x, n, out, n);
-            if (dp_async_dsss_receiver_get_tracking (rx) != 1)
-              {
-                not_tracking++;
-                dp_async_dsss_receiver_destroy (rx);
-                continue;
-              }
-            const uint64_t d     = rx->refine_periods * rx->tsamps;
-            const uint64_t cap   = rx->refine_hist_cap;
-            const uint64_t start = rx->samples_in - rx->state_samples;
-            if (d > cap && start == fb_start_at (7.0 * fsc[a], d - cap))
-              {
-                reached++;
-                printf ("  reached: %.2f samples a chip, %.2f sym/s, "
-                        "refine_max_error_db %.1f, seed 0x%x: D %llu cap "
-                        "%llu start %llu\n",
-                        fsc[a], sym[b], err[c], 0x2974u + sd,
-                        (unsigned long long)d, (unsigned long long)cap,
-                        (unsigned long long)start);
-              }
-            dp_async_dsss_receiver_destroy (rx);
-          }
-  printf ("fallback sweep: %zu geometries, refused %zu, not tracking %zu, "
-          "scored %zu, reached the fallback %zu\n",
-          total, refused, not_tracking, total - refused - not_tracking,
-          reached);
-  DP_CHECK_MSG (total - refused - not_tracking > 0,
-                "the sweep scored geometries");
-  free (x);
-  free (out);
-  return 0;
-}
-
 int
 main (int argc, char **argv)
 {
-  int      check = 0, emit = 0, fb = 0;
+  int      check = 0, emit = 0;
   unsigned dwells = RF_DWELLS;
   for (int i = 1; i < argc; i++)
     {
       check |= strcmp (argv[i], "--check") == 0;
       emit |= strcmp (argv[i], "--emit") == 0;
-      fb |= strcmp (argv[i], "--fallback-sweep") == 0;
       if (strcmp (argv[i], "--dwells") == 0 && i + 1 < argc)
         dwells = (unsigned)strtoul (argv[++i], NULL, 10);
-    }
-  if (fb)
-    {
-      DP_REQUIRE (fallback_sweep () == 0);
-      DP_TEST_END ("validate_async_dsss_receiver_refine --fallback-sweep");
     }
   if (check)
     dwells = RF_CHECK_DWELLS;

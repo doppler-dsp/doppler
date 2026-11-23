@@ -1037,23 +1037,6 @@ dp__async_dsss_receiver_refine_decided (
   return adr_refine_decided (state);
 }
 
-/* The first sample a live chain can start on at or past @p at: the smallest
- * ceil(k * period), k whole periods from the hand-off, that is >= at. With a
- * fractional period (17.5) the starts are 0, 18, 35, 53 ...; the phase
- * carries each one's fraction (adr_handover_phase()). The same rounding as
- * the hand-over's estimate, `ceil(k * period - 1e-9)`. The first guess is
- * within one of k, so each loop runs at most once or twice. */
-static uint64_t
-adr_period_start_at (double period, uint64_t at)
-{
-  uint64_t k = (uint64_t)floor ((double)at / period);
-  while (k > 0 && (uint64_t)ceil ((double)(k - 1) * period - 1e-9) >= at)
-    k--;
-  while ((uint64_t)ceil ((double)k * period - 1e-9) < at)
-    k++;
-  return (uint64_t)ceil ((double)k * period - 1e-9);
-}
-
 /* Keep a refine call's input in the hand-over's ring: its last
  * refine_hist_cap samples at most, so one bounded copy a call. */
 static void
@@ -2491,14 +2474,17 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
        * chunking. A start the input has not reached yet is waited for, the
        * refine decided and the receiver still refining.
        *
-       * The fallback, for a refine whose lag the cap does not cover (a
-       * refine Dll drifting on noise; no signal geometry measured): a
-       * start before D - cap, the oldest sample held at every chunking,
-       * moves on to the first ceil(k * period) at or past it, k whole
-       * periods, the fraction carried in the phase. Where the cap covers the
-       * lag that point is at or before the estimate, so the estimate stands. A
-       * call that took nothing (the refine decided before it) holds a start at
-       * or past its first sample, so it needs nothing older. */
+       * A start older than the ring holds (D past the estimate by more than
+       * the cap) is a hand-over the receiver cannot make from the start it
+       * estimated: it is refused like a hit outside the domain, counted in
+       * refused_hits, and the search restarts on the oldest sample held. No
+       * geometry measured reaches it once the refine keeps every dump
+       * (#3281; docs/design/async-dsss-receiver-measurements/
+       * fallback-454049484/, 0 of 1,089 noise geometries), so this is the
+       * defined outcome of a condition not expected, not a path a
+       * configuration relies on. A call that took nothing (the refine
+       * decided before it) holds a start at or past its first sample, so it
+       * needs nothing older. */
       const uint64_t fed_total = state->refine_samples_fed;
       uint64_t       held      = before;
       if (taken)
@@ -2509,9 +2495,9 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
              takes no other count), so a start at or past this is held. */
           held = d > cap ? d - cap : 0;
         }
-      const uint64_t held_start = adr_period_start_at (period, held);
-      if (samples_consumed_refine < held_start)
-        samples_consumed_refine = held_start;
+      const int late = samples_consumed_refine < held;
+      if (late)
+        samples_consumed_refine = held; /* the search's tail: what is held */
       if (samples_consumed_refine > fed_total)
         {
           adr_refine_hist_push (state, x, x_len);
@@ -2566,10 +2552,12 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
           handover_chip_phase    = adr_handover_phase (
               state, refined_doppler_hz_est, samples_consumed_refine);
         }
-      if (!dp_async_dsss_receiver_seed_ok (state, handover_chip_phase,
-                                           refined_doppler_hz_est))
+      if (late
+          || !dp_async_dsss_receiver_seed_ok (state, handover_chip_phase,
+                                              refined_doppler_hz_est))
         {
-          /* Refused, as a hit outside the domain is. Not reset(): that
+          /* Refused, as a hit outside the domain is (or a start older than
+             the ring holds, above). Not reset(): that
              would zero the refusal count this increments. The tail is the
              search's; entering searching restarts state_samples, so the
              recursion counts it once. */

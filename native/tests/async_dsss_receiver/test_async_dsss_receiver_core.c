@@ -6747,103 +6747,78 @@ _test_ring_blob_rejects (void)
   return 0;
 }
 
-/* steps() never writes past max_out, however few that is. Every stage
- * that writes `out` (MpskReceiver's steps, behind the Dll and the
- * converter) stops at the capacity it is handed, and the tracking chain
- * hands each code period the capacity left, max_out less what it has
- * written, so `emitted <= max_out` holds after every period and that
- * difference never wraps. The case: the #2974 geometry's signal (CODE7, 2
- * samples a chip, 35,714 sym/s, 90 dB-Hz), seeded, fed whole in one call
- * that produces hundreds of symbols, into a buffer of exactly 3 (heap, so
- * the ASan suite sees a write past it). Sabotage: the tracking chain hands
- * every period max_out instead of what is left -> the call returns more
- * than 3 and writes past the buffer, red. */
+/* A start older than the hand-over ring holds is refused, counted, and the
+ * search resumes on what is held. The refine decides up to its chain's lag
+ * past its estimate, and the ring (refine_hist_cap) is sized for that lag;
+ * no geometry measured decides further past it once the refine keeps every
+ * dump (#3281; async-dsss-receiver-measurements/fallback-454049484/, 0 of
+ * 1,089 noise geometries). The condition is constructed: the ring narrowed
+ * to one sample (the field is the size every push and read uses; the
+ * buffer behind it is larger, so nothing is read outside it) under a
+ * seeded receiver fed noise in 13-sample calls, so the estimate's start is
+ * behind the deciding call by more than the ring holds. The outcome is the
+ * receiver's refusal of a hand-over it cannot make: refused_hits counts it
+ * once, the receiver is searching again on the same call, and the call
+ * stays within max_out. A caller tells it apart from a refused hit outside
+ * the domain only as far as the API does, which is not at all: both are
+ * refused_hits. The premise: the same input with the ring at its size
+ * hands over (tracking, refused_hits 0). Sabotage: drop the refusal and
+ * read the ring anyway -> refused_hits stays 0, red (and a read outside the
+ * ring's held samples under the ASan suite). */
 static int
-_test_steps_never_writes_past_max_out (void)
+_test_late_start_is_refused (void)
 {
-  size_t          n;
-  double         *data;
-  float _Complex *x = _chunking_capture (2.0, 1, 35714.29, 400, &n, &data);
-  DP_REQUIRE (x != NULL);
-  chunking_geom_t                 g  = { 2.0e6, 35714.29, 0.5, 1 };
-  dp_async_dsss_receiver_state_t *rx = _chunking_create (&g);
-  DP_REQUIRE (rx != NULL);
-  /* The premise: the same input at an ample capacity yields more than 3. */
-  dp_async_dsss_receiver_state_t *ref = _chunking_create (&g);
-  DP_REQUIRE (ref != NULL);
-  float _Complex *big = malloc (n * sizeof *big);
-  DP_REQUIRE (big != NULL);
-  const size_t all = dp_async_dsss_receiver_steps (ref, x, n, big, n);
-  DP_REQUIRE_MSG (all > 3, "the block yields more symbols than the cap");
-  float _Complex *out = malloc (3 * sizeof *out);
-  DP_REQUIRE (out != NULL);
-  const size_t k = dp_async_dsss_receiver_steps (rx, x, n, out, 3);
-  printf ("  max_out 3: %zu written of the %zu the block yields\n", k, all);
-  DP_CHECK_MSG (k <= 3, "steps() returns no more than max_out");
-  DP_CHECK_MSG (memcmp (out, big, k * sizeof *out) == 0,
-                "what fits is the ample run's first symbols");
-  free (out);
-  free (big);
-  free (x);
-  free (data);
-  dp_async_dsss_receiver_destroy (rx);
-  dp_async_dsss_receiver_destroy (ref);
-  return 0;
-}
-
-/* The fallback, for a refine that decides further past its estimate than
- * the ring holds. No signal geometry measured does (the ring's smallest
- * margin is 44 samples); a refine Dll drifting on noise can, in 30 of 1320
- * noise geometries measured. One is this: seeded, fed noise, at 4 samples a
- * chip, 10000 sym/s, refine_max_error_db 2, the refine decides further past
- * its estimate than its 170-sample ring holds (532 samples in the sweep).
- * The live chain then starts at the first whole period (28 samples here)
- * at or past D - cap (22540, D 22708), the
- * oldest sample held at every chunking, and the output is invariant across
- * chunkings. The premise is a DP_REQUIRE on the one-shot: its live chain
- * started exactly there (samples_in - state_samples, tracking since the
- * hand-over), D read from the refine's own period count. Sabotage: fall
- * back to the oldest sample this call's ring holds (before -
- * refine_hist_len) instead of D - cap -> the chunkings differ. */
-static int
-_test_fallback_is_chunk_invariant (void)
-{
-  const size_t    n   = 60000;
+  const size_t    n = 60000, chunk = 13;
   float _Complex *x   = malloc (n * sizeof *x);
+  float _Complex *out = malloc (chunk * sizeof *out);
   uint32_t        rng = 0x2974u;
-  DP_REQUIRE (x != NULL);
+  DP_REQUIRE (x != NULL && out != NULL);
   for (size_t i = 0; i < n; i++)
     x[i] = dp_cgauss (&rng);
   chunking_geom_t g = { 4.0e6, 10000.0, 2.0, 1 };
-
-  float _Complex                 *a;
-  dp_async_dsss_receiver_state_t *one = _chunking_create (&g);
-  DP_REQUIRE (one != NULL);
-  const size_t n_a = _stream (one, x, n, n, &a);
-  DP_REQUIRE (dp_async_dsss_receiver_get_tracking (one) == 1 && n_a > 0);
-  const uint64_t d     = one->refine_periods * one->tsamps;
-  const uint64_t cap   = one->refine_hist_cap;
-  const uint64_t start = one->samples_in - one->state_samples;
-  DP_REQUIRE (one->tsamps == 28 && d > cap);
-  DP_REQUIRE (start == (d - cap + 27) / 28 * 28);
-  free (a);
-  dp_async_dsss_receiver_destroy (one);
-
-  static const size_t sizes[] = { 2, 3, 5, 13, 15, 29, 230, 1000, 0 };
-  const dp_ci_spec_t  spec    = {
-    .name        = "AsyncDsssReceiver fallback",
-    .create      = _chunking_create,
-    .destroy     = _chunking_destroy,
-    .process     = _chunking_process,
-    .arg         = &g,
-    .in_size     = sizeof (float _Complex),
-    .out_size    = sizeof (float _Complex),
-    .out_cap     = n,
-    .frame_n     = 28,
-    .extra_sizes = sizes,
-  };
-  DP_CHECK (dp_chunk_invariance (&spec, x, n) == 0);
+  for (int narrow = 0; narrow < 2; narrow++)
+    {
+      dp_async_dsss_receiver_state_t *rx = _chunking_create (&g);
+      DP_REQUIRE (rx != NULL && rx->refine_hist_cap > 1);
+      if (narrow)
+        rx->refine_hist_cap = 1;
+      uint64_t refused0 = rx->refused_hits, refused_at = 0;
+      int      state_after = -1;
+      size_t   most        = 0;
+      for (size_t pos = 0; pos < n; pos += chunk)
+        {
+          const size_t len = pos + chunk <= n ? chunk : n - pos;
+          const int    was = rx->state;
+          const size_t k
+              = dp_async_dsss_receiver_steps (rx, x + pos, len, out, chunk);
+          most = k > most ? k : most;
+          if (was == ASYNC_DSSS_RX_REFINING && rx->state != was
+              && state_after < 0)
+            {
+              state_after = rx->state;
+              refused_at  = rx->refused_hits - refused0;
+            }
+        }
+      printf ("  late start, ring %s: left refining to state %d, refused "
+              "%llu\n",
+              narrow ? "narrowed to 1" : "at its size", state_after,
+              (unsigned long long)refused_at);
+      DP_CHECK_MSG (most <= chunk, "no call writes past max_out");
+      if (!narrow)
+        DP_REQUIRE_MSG (state_after == ASYNC_DSSS_RX_TRACKING
+                            && refused_at == 0,
+                        "the premise: at its size the ring hands over");
+      else
+        {
+          DP_CHECK_MSG (refused_at == 1, "the late start is refused, "
+                                         "counted once in refused_hits");
+          DP_CHECK_MSG (state_after == ASYNC_DSSS_RX_SEARCHING,
+                        "the receiver is searching again");
+        }
+      dp_async_dsss_receiver_destroy (rx);
+    }
   free (x);
+  free (out);
   return 0;
 }
 
@@ -7260,8 +7235,7 @@ main (void)
   DP_CHECK (_test_no_refine_needs_a_deep_search () == 0);
   DP_CHECK (_test_handover_round_trips () == 0);
   DP_CHECK (_test_ring_blob_rejects () == 0);
-  DP_CHECK (_test_fallback_is_chunk_invariant () == 0);
-  DP_CHECK (_test_steps_never_writes_past_max_out () == 0);
+  DP_CHECK (_test_late_start_is_refused () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

@@ -1113,18 +1113,19 @@ of `period / refine_segments` samples), plus one partial of `Dll` framing,
 one code period of the estimate's round-up and one `tsamps` block. It is
 checked against measurements:
 
-| sweep (CODE7 unless noted)                                | geometries | largest `D − S`                 | smallest margin (cap − (`D − S`)) |
-| --------------------------------------------------------- | ---------- | ------------------------------- | --------------------------------- |
-| signal, 90 dB-Hz, 2–7.25 samples a chip, 3000–35714 sym/s | 108        | 299 samples (5.9 periods)       | 44 samples (3.1 periods)          |
-| noise, refine Dll free-running, CODE7 and Gold-1023       | 1320       | 16368 samples (Gold, 4 periods) | 30 over the cap: the fallback     |
+| sweep (CODE7 unless noted)                                | geometries | largest `D − S`           | smallest margin (cap − (`D − S`)) |
+| --------------------------------------------------------- | ---------- | ------------------------- | --------------------------------- |
+| signal, 90 dB-Hz, 2–7.25 samples a chip, 3000–35714 sym/s | 108        | 299 samples (5.9 periods) | 44 samples (3.1 periods)          |
 
 The cap ranges over 44–1225 samples on the signal sweep, and is 4847
 (2.4 periods, 38 KiB) for Gold-1023 at 2 samples a chip and 1136 chips a
-symbol. A refine that decides further past than the cap -- a refine `Dll`
-drifting on noise, in 30 of the 1320 noise geometries -- starts the live
-chain at the first `ceil(k · period)` at or past `D − cap`, the oldest
-sample held at every chunking, so the start is still the same at any
-chunking.
+symbol. On noise (CODE7, seeded, 2–7.25 samples a chip, 3000–35714 sym/s,
+three `refine_max_error_db` and 11 seeds: 1,320 geometries, 1,089 of them
+tracking) no refine decides past the cap
+([the record](async-dsss-receiver-measurements/fallback-454049484/read_fallback.py)).
+A start older than the ring holds is refused like a hit outside the domain:
+counted in `refused_hits`, the search restarted on the oldest sample held
+(`_test_late_start_is_refused` constructs it).
 
 Two lock detectors run while tracking: the `Dll`'s CFAR-based **code lock**
 (§3.5) and a hysteretic **symbol lock** on the emitted symbols — the BPSK

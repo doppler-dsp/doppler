@@ -40,9 +40,9 @@
  *     (`refine_hist_cap`, from dp_RateConverter_get_count_lag()), and the
  *     start is read from it when it is behind the call. A start the input
  *     has not reached yet is waited for, the receiver still refining. A
- *     refine that decides further past than the ring holds (a refine Dll
- *     drifting on noise; no signal geometry measured) starts at the first
- *     such point the ring still holds, still the same at any chunking. The
+ *     start older than the ring holds is refused like a hit outside the
+ *     domain: counted in `refused_hits`, the search restarted on the
+ *     oldest sample held (no geometry measured reaches it, #3281). The
  *     ring is held for the receiver's lifetime -- up to ~38 KiB (Gold-1023
  *     at 2 samples a chip) -- and carried in every blob, a pool member's
  *     included.

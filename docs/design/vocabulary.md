@@ -9,77 +9,33 @@ use. A term enters this page when it is agreed, so a word absent from it is
 not yet defined here. A term names its own axis or role; a bare general word
 (`block`, `look`, `tile`, `bin`, `row`, `cell`, `surface`, `span`) is not a
 term. A name in backticks is the C field; `py:` gives the Python name where it
-differs. Numbers in brackets are the correlator's UNO Q case ([correlator
-§9](correlator.md#9-cost-and-parallelism)). An entry that is a draft names the
-issue it waits on.
+differs. An entry that is a draft names the issue it waits on. Each section
+is an area of the library; Common holds the terms more than one area uses,
+and an area has a section once it has an agreed entry.
 
-## 1. The signal and the search's grid
+## Common
 
-### The signal
+A number in brackets in this section is the correlator's UNO Q case
+(Correlator, below).
 
-- **burst**: a waveform type: short and time-limited, as opposed to
-    continuous. Not the thing a detector finds. It is also the name of the
-    correlator's door that searches one (`dp_correlator_create_burst`,
-    `framing="burst"`), which keeps it.
-
-- **preamble**: the part of a burst or continuous
-    waveform ahead of the data; it may hold several elements. Not a
-    correlator term.
-
-- **acquisition sequence**: the element of a preamble the detector
-    searches for: R consecutive repetitions of the template \[64
-    repetitions; 32,768 samples; 50 ms\]. **Repetition count**, R (`reps`;
-    C documents it as the coherence ceiling, and `pd_burst` assumes the
-    sequence is exactly R epochs).
-
-- **template**: one period of the known waveform, as handed to the
-    constructor (`tmpl` on the burst door; chips `code` on the continuous
-    door; `py: ref`). Not always a code.
-
-- **template length**, N: its length in samples at the search rate
-    (`code_bins`) [512].
-
+- **sample**: one complex sample at the search rate
+    `fs` (`py: sample_rate`), after any down-conversion [655.36 kSa/s].
+    Never the capture rate [5 MSa/s].
 - **epoch**: one template period: N samples at the search rate, nominally.
     The engine processes the stream in N-sample epochs; the received
     signal's epochs are offset from them by the delay and dilated by
     Doppler. One full template, received at an unknown time offset and
     possibly dilated, is one epoch of the signal. For a spreading code the
     epoch may be called the **code period**.
-
-- **epoch rate**: `fs`/N [1,280 Hz]. Also the Doppler range the slow-time
-    transform covers on its own.
-
 - **Doppler**: the signal's carrier frequency offset,
     Hz; it varies over the acquisition sequence. **Reported Doppler**: the
     value a hit carries, the offset at the middle of the coherent dwell it
     was decided on.
-
 - **Doppler rate**: the Doppler's derivative, Hz/s
     (`doppler_rate`).
-
-- **Doppler uncertainty**, ±U: the half-range of the
-    Doppler the caller asks the search to cover (`doppler_uncertainty`)
-    [±50 kHz].
-
 - **delay** (τ): the offset between the signal's
     epoch boundaries and the engine's; continuous, 0 to N samples.
     **Sub-sample delay**: its fractional part only.
-
-- **dilation**: the received epoch's departure from N
-    samples [about 23 ppm at ±50 kHz on S-band].
-
-- **Doppler ambiguity**: an estimate displaced from the true Doppler by a
-    whole number of ambiguity intervals. An M-th power estimate over a
-    coherent sum of length T measures the Doppler only modulo 1/(M T), as a
-    pulse train measures it modulo its repetition frequency. **Ambiguity
-    interval**: 1/(M T) \[at the 415.1-B-1 point, M = 2 and T one code
-    period: 1,571 Hz at 2.2 GHz and 2,000 Hz at 2.8 GHz\].
-
-### The engine's grid
-
-- **sample**: one complex sample at the search rate
-    `fs` (`py: sample_rate`), after any down-conversion [655.36 kSa/s].
-    Never the capture rate [5 MSa/s].
 - **dwell**: an integration interval. It can span many hypotheses, and it
     always takes a qualifier:
     - **coherent dwell**: D epochs summed coherently, D·N samples. D
@@ -91,6 +47,45 @@ issue it waits on.
         decision is made per total dwell. It equals the coherent dwell when
         K = 1. **Total integration time**: its duration in seconds \[64 × 1:
         50 ms; 32 × 2: 25 ms coherent, 50 ms total\].
+- **decision**: one threshold test of one total dwell's statistic.
+- **update**: one step of a tracking loop's filter.
+- **memory**: an averaged statistic's effective length, (2 − α)/α
+    updates for an EMA of weight α.
+
+## Correlator
+
+Numbers in brackets are the correlator's UNO Q case ([correlator
+§9](correlator.md#9-cost-and-parallelism)).
+
+### The signal
+
+- **burst**: a waveform type: short and time-limited, as opposed to
+    continuous. Not the thing a detector finds. It is also the name of the
+    correlator's door that searches one (`dp_correlator_create_burst`,
+    `framing="burst"`), which keeps it.
+- **preamble**: the part of a burst or continuous
+    waveform ahead of the data; it may hold several elements. Not a
+    correlator term.
+- **acquisition sequence**: the element of a preamble the detector
+    searches for: R consecutive repetitions of the template \[64
+    repetitions; 32,768 samples; 50 ms\]. **Repetition count**, R (`reps`;
+    C documents it as the coherence ceiling, and `pd_burst` assumes the
+    sequence is exactly R epochs).
+- **template**: one period of the known waveform, as handed to the
+    constructor (`tmpl` on the burst door; chips `code` on the continuous
+    door; `py: ref`). Not always a code.
+- **template length**, N: its length in samples at the search rate
+    (`code_bins`) [512].
+- **epoch rate**: `fs`/N [1,280 Hz]. Also the Doppler range the slow-time
+    transform covers on its own.
+- **Doppler uncertainty**, ±U: the half-range of the
+    Doppler the caller asks the search to cover (`doppler_uncertainty`)
+    [±50 kHz].
+- **dilation**: the received epoch's departure from N
+    samples [about 23 ppm at ±50 kHz on S-band].
+
+### The engine's grid
+
 - **Doppler bin**: the spacing of the Doppler grid, `fs`/(N·D)
     (`doppler_res_hz`), whether the grid comes from rolling, from the
     slow-time transform, or both [20 Hz at D = 64]. **Doppler bin count**:
@@ -140,14 +135,7 @@ issue it waits on.
 - **budget**: real time times the cores available, minus what the front
     end takes.
 
-## 2. Decision and detection
-
-- **decision**: one threshold test of one total dwell's statistic.
-- **verify count**: how many consecutive decisions declare a lock (up) or
-    drop it (down): LockDet's `n_up` and `n_down`, sized by
-    `dp_det_verify_count()`.
-
-### Statistics
+### Search statistics
 
 - **hit**: one listed peak of a total dwell whose maximum cleared the
     threshold (`dp_correlator_hit_t`); a total dwell can list several.
@@ -158,10 +146,6 @@ issue it waits on.
 - **`pfa_cell`**: `pfa` split (Šidák) over the cells the total dwell's
     maximum ranges over: in-band Doppler grid points × `lag_bins` × rate
     hypotheses.
-- **false-alarm rate**: hits per unit time on noise: `pfa` / total
-    integration time, times the number of total-dwell offsets. Always
-    carries a time unit \[1.4e-5 a 50 ms total dwell is about one an hour
-    at one offset\]. No field computes it.
 - **acquisition Pd**: the probability an acquisition sequence is detected,
     at a stated alignment prior. "Pd" unqualified means this.
 - **`pd_predicted`**: the model's Pd of one total dwell lying wholly
@@ -175,14 +159,21 @@ issue it waits on.
 - **emulated**: a harness arranging the engine to imitate something it does
     not do [re-pushing the stream at P offsets].
 
-## 3. Tracking loops and lock detection
+## Detection and lock
 
-- **update**: one step of a tracking loop's filter. **Update interval**:
-    the time between updates \[the async receiver's carrier loop: one code
-    period\]. For an averaged statistic, the total dwell is the update
-    interval; the average's length is its memory.
-- **memory**: an averaged statistic's effective length, (2 − α)/α
-    updates for an EMA of weight α.
+- **verify count**: how many consecutive decisions declare a lock (up) or
+    drop it (down): LockDet's `n_up` and `n_down`, sized by
+    `dp_det_verify_count()`.
+- **false-alarm rate**: hits per unit time on noise: `pfa` / total
+    integration time, times the number of total-dwell offsets. Always
+    carries a time unit \[1.4e-5 a 50 ms total dwell is about one an hour
+    at one offset\]. No field computes it.
+
+## Tracking loops
+
+- **update interval**: the time between updates \[the async receiver's carrier
+    loop: one code period\]. For an averaged statistic, the total dwell is the
+    update interval; the average's length is its memory.
 - **acquisition bound**: the frequency offset inside which a second-order
     loop locks in its normal lock time, about 5/bn updates: 0.5 bn per
     update, `bn / (2T)` Hz at an update interval T. Past it the lock time
@@ -195,15 +186,21 @@ issue it waits on.
     `read_sweep.py`, section "Lock time by hand-over error", prints the
     median, p90 and worst lock time at each step in `B_L`, with 0.50 `B_L`
     the bound.
+- **no-slip edge**: the largest frequency step from which no start phase
+    crosses two lock points on the mean loop. It is the detector's own,
+    printed by `validate_costas_pullin --design` (`edge_worst`).
 - **false lock**: a tracking loop sitting on a Doppler ambiguity. It is one
     definition for both uses: the receiver's carrier loop on an estimate
     whole ambiguity intervals off, and `carrier_nda`'s own stable locks at
     k/M cycles a sample, its ambiguity at an update of one sample.
-- **no-slip edge**: the largest frequency step from which no start phase
-    crosses two lock points on the mean loop. It is the detector's own,
-    printed by `validate_costas_pullin --design` (`edge_worst`).
+- **Doppler ambiguity**: an estimate displaced from the true Doppler by a
+    whole number of ambiguity intervals. An M-th power estimate over a
+    coherent sum of length T measures the Doppler only modulo 1/(M T), as a
+    pulse train measures it modulo its repetition frequency. **Ambiguity
+    interval**: 1/(M T) \[at the 415.1-B-1 point, M = 2 and T one code
+    period: 1,571 Hz at 2.2 GHz and 2,000 Hz at 2.8 GHz\].
 
-## 4. Retired words
+## Retired words
 
 A word below is not used in prose for the meaning given. The tables are
 the one declaration a check reads: one row per retired word or phrase;
@@ -251,7 +248,7 @@ not use these.
 | `proposed` (for what is built)                            | what is                                           | review only |
 | `used to`, `no longer`, `previously` (narrating a change) | the present tense; the history goes to the record | review only |
 
-## 5. Names
+## Names
 
 A count is `n_` and what it counts; a length carries its unit as a suffix.
 `n_noncoh` is the non-coherent count's name and keeps it. The table is the

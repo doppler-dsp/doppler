@@ -217,57 +217,92 @@ adr_fine_chirp_loss_db (size_t n, double r)
   return -10.0 * log10 ((re * re + im * im) / (sw * sw));
 }
 
-/* The least dwell meeting p_ho at one squared sum's SNR gs; 0 if none up
-   to max_blocks. With the rate axis off (max_rate 0) a tone chirping at r
-   loses the window's chirp loss at each candidate length; with it on the
-   estimator searches max_rate and its rows join the union and the check.
-   Fills out's dwell fields. */
+/* Does a dwell of d blocks meet p_ho at one squared sum's SNR gs? With the
+   rate axis off (max_rate 0) a tone chirping at r loses the window's chirp
+   loss at that length; with it on the estimator searches max_rate and its
+   rows join the union and the check. Fills out's dwell fields when it
+   does. */
+static int
+adr_fine_meets (size_t d, int k, double T, double gs, double r,
+                double max_rate, double block_s, double pfa, double p_ho,
+                int m, async_dsss_receiver_fine_t *out)
+{
+  const size_t n_s = (size_t)llround ((double)k * (double)d * block_s / T);
+  if (n_s < 4)
+    return 0;
+  size_t n_rate = 1;
+  if (max_rate > 0.0)
+    {
+      /* The estimator's own grid at this length. */
+      dp_ppe_state_t *p = dp_ppe_create (n_s, max_rate);
+      if (!p)
+        return 0;
+      n_rate = p->n_rate;
+      dp_ppe_destroy (p);
+    }
+  double pw, eta;
+  adr_fine_window (n_s, &pw, &eta);
+  const double loss_db
+      = max_rate == 0.0 && r > 0.0 ? adr_fine_chirp_loss_db (n_s, r) : 0.0;
+  const double rho   = (double)n_s * gs * pow (10.0, -loss_db / 10.0);
+  const double cells = (double)n_s * (double)n_rate;
+  const double t     = log (cells / pfa);
+  const double p_w   = 0.5 * (cells - 1.0) * exp (-pw * rho / 2.0);
+  const double miss
+      = 1.0 - dp_marcum_q (1, sqrt (2.0 * pw * rho), sqrt (2.0 * t));
+  if (p_w + miss > 1.0 - p_ho)
+    return 0;
+  const double dur = (double)n_s * T / (double)k;
+  out->blocks      = d;
+  out->n_s         = n_s;
+  out->n_rate      = n_rate;
+  out->rho         = rho;
+  out->p_w         = p_w;
+  out->p_miss      = miss;
+  out->thr_db      = adr_fine_thr_db ((size_t)cells, pfa);
+  out->sd_hz = sqrt (6.0 * eta) / (2.0 * M_PI * dur * sqrt (rho)) / (double)m;
+  return 1;
+}
+
+/* The least dwell that meets p_ho, up to max_blocks; 0 if none. Without a
+   chirp loss the rates fall as the dwell grows, so the search doubles to a
+   dwell that meets and bisects for the least. With one (the axis off at a
+   nonzero rate) the loss can outgrow the gain, so it scans, and only up
+   to max_blocks. */
 static size_t
 adr_fine_dwell (int k, double T, double gs, double r, double max_rate,
                 double block_s, double pfa, double p_ho, size_t max_blocks,
                 int m, async_dsss_receiver_fine_t *out)
 {
-  for (size_t d = 1; d <= max_blocks; d++)
+  if (max_rate == 0.0 && r > 0.0)
     {
-      const size_t n_s = (size_t)llround ((double)k * (double)d * block_s / T);
-      if (n_s < 4)
-        continue;
-      size_t n_rate = 1;
-      if (max_rate > 0.0)
-        {
-          /* The estimator's own grid at this length. */
-          dp_ppe_state_t *p = dp_ppe_create (n_s, max_rate);
-          if (!p)
-            return 0;
-          n_rate = p->n_rate;
-          dp_ppe_destroy (p);
-        }
-      double pw, eta;
-      adr_fine_window (n_s, &pw, &eta);
-      const double loss_db
-          = max_rate == 0.0 && r > 0.0 ? adr_fine_chirp_loss_db (n_s, r) : 0.0;
-      const double rho   = (double)n_s * gs * pow (10.0, -loss_db / 10.0);
-      const double cells = (double)n_s * (double)n_rate;
-      const double t     = log (cells / pfa);
-      const double p_w   = 0.5 * (cells - 1.0) * exp (-pw * rho / 2.0);
-      const double miss
-          = 1.0 - dp_marcum_q (1, sqrt (2.0 * pw * rho), sqrt (2.0 * t));
-      if (p_w + miss <= 1.0 - p_ho)
-        {
-          const double dur = (double)n_s * T / (double)k;
-          out->blocks      = d;
-          out->n_s         = n_s;
-          out->n_rate      = n_rate;
-          out->rho         = rho;
-          out->p_w         = p_w;
-          out->p_miss      = miss;
-          out->thr_db      = adr_fine_thr_db ((size_t)cells, pfa);
-          out->sd_hz
-              = sqrt (6.0 * eta) / (2.0 * M_PI * dur * sqrt (rho)) / (double)m;
+      for (size_t d = 1; d <= max_blocks; d++)
+        if (adr_fine_meets (d, k, T, gs, r, max_rate, block_s, pfa, p_ho, m,
+                            out))
           return d;
-        }
+      return 0;
     }
-  return 0;
+  size_t hi = 1;
+  while (
+      !adr_fine_meets (hi, k, T, gs, r, max_rate, block_s, pfa, p_ho, m, out))
+    {
+      if (hi >= max_blocks)
+        return 0;
+      hi = hi > max_blocks / 2 ? max_blocks : 2 * hi;
+    }
+  size_t lo = hi / 2; /* fails, or 0 */
+  while (hi - lo > 1)
+    {
+      const size_t               mid = lo + (hi - lo) / 2;
+      async_dsss_receiver_fine_t tmp = *out;
+      if (adr_fine_meets (mid, k, T, gs, r, max_rate, block_s, pfa, p_ho, m,
+                          &tmp))
+        hi = mid;
+      else
+        lo = mid;
+    }
+  (void)adr_fine_meets (hi, k, T, gs, r, max_rate, block_s, pfa, p_ho, m, out);
+  return hi;
 }
 
 int
@@ -319,10 +354,11 @@ dp_async_dsss_receiver_fine_design (
   out->max_rate      = 0.0;
   if (r == 0.0)
     return DP_OK;
-  const size_t da = adr_fine_dwell (k, T, gs, r, 0.0, block_s, pfa, p_ho,
-                                    max_blocks, m, &a);
+  /* B first: past its dwell A cannot win, so A scans only that far. */
   const size_t db = adr_fine_dwell (k, T, gs, r, r, block_s, pfa, p_ho,
                                     max_blocks, m, &bb);
+  const size_t da = adr_fine_dwell (k, T, gs, r, 0.0, block_s, pfa, p_ho,
+                                    db ? db : max_blocks, m, &a);
   if (!da && !db)
     return DP_ERR_INVALID;
   const double chirp = out->chirp_loss_db;

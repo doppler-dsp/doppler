@@ -3137,6 +3137,17 @@ adr_carrier_is_built (const dp_async_dsss_receiver_state_t *s,
          && c->bn == s->bn_carrier && c->zeta == 0.707;
 }
 
+/* Skip one child sub-blob on a peek reader, checking its envelope (magic,
+   version, endian, size) as the child's own set_state would open: a
+   clobbered header is refused here, before any child commits. */
+static int
+adr_peek_child (dp_reader_t *pk, size_t bytes, uint32_t magic,
+                uint16_t version)
+{
+  const void *c = dp_r_reserve (pk, bytes);
+  return c && dp_state_validate (c, bytes, magic, version) == DP_OK;
+}
+
 int
 dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
                                   const void                     *blob)
@@ -3213,21 +3224,41 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
      create()'s, restored by it): a blob from a receiver built at another
      C/N0 has the same size and would restore a different loop, and one
      with an update a sample would run the control tsamps times too large.
-     They are checked BEFORE any child commits, through a reader that skips
-     the five children ahead of them, so a refusal leaves the receiver as
-     it was (decode, check whole, then commit). */
+     They are checked BEFORE any child commits, on a peek reader that also
+     checks every other child's envelope on its way past, so a carrier the
+     receiver did not build, or any child sub-blob with a clobbered header,
+     is refused with the receiver as it was. A child whose envelope passes
+     and whose own payload check refuses still commits the children ahead
+     of it: the composite case, doppler#2104. */
   dp_carrier_nda_state_t car = s->car, held = s->car_held;
   {
     dp_reader_t pk = _r;
-    if (!dp_r_reserve (&pk, dp_correlator_state_bytes (s->acq))
-        || !dp_r_reserve (&pk, dp_costas_state_bytes (&s->car_frozen))
-        || !dp_r_reserve (&pk, dp_dll_state_bytes (s->refine_dll))
-        || !dp_r_reserve (&pk, dp_RateConverter_state_bytes (s->refine_rc))
-        || !dp_r_reserve (&pk, dp_carrier_acq_state_bytes (s->ca)))
+    if (!adr_peek_child (&pk, dp_correlator_state_bytes (s->acq),
+                         CORRELATOR_STATE_MAGIC, CORRELATOR_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_costas_state_bytes (&s->car_frozen),
+                            COSTAS_STATE_MAGIC, COSTAS_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_dll_state_bytes (s->refine_dll),
+                            DLL_STATE_MAGIC, DLL_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_RateConverter_state_bytes (s->refine_rc),
+                            RC_STATE_MAGIC, RC_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_carrier_acq_state_bytes (s->ca),
+                            CARRIER_ACQ_STATE_MAGIC,
+                            CARRIER_ACQ_STATE_VERSION))
       return DP_ERR_INVALID;
     DP_R_CHILD (&pk, dp_carrier_nda, &car);
     DP_R_CHILD (&pk, dp_carrier_nda, &held);
     if (!adr_carrier_is_built (s, &car) || !adr_carrier_is_built (s, &held))
+      return DP_ERR_INVALID;
+    if (!adr_peek_child (&pk, dp_dll_state_bytes (s->dll), DLL_STATE_MAGIC,
+                         DLL_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_RateConverter_state_bytes (s->rc),
+                            RC_STATE_MAGIC, RC_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_mpsk_receiver_state_bytes (s->rx),
+                            MPSK_RECEIVER_STATE_MAGIC,
+                            MPSK_RECEIVER_STATE_VERSION)
+        || (s->srch_rs
+            && !adr_peek_child (&pk, dp_resamp_state_bytes (s->srch_rs),
+                                RESAMP_STATE_MAGIC, RESAMP_STATE_VERSION)))
       return DP_ERR_INVALID;
   }
   DP_R_CHILD (&_r, dp_correlator, s->acq);

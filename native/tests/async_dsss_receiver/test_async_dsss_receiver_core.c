@@ -2328,6 +2328,94 @@ _test_sequential_refine_waits_out_the_fine_dwell (void)
   return 0;
 }
 
+/* The sequential path's hand-over on a ramp, against the truth at the
+ * live chain's first sample (doppler review Q3). An estimator that fires
+ * early leaves its block count short of the fine dwell, so the start
+ * estimated from that count lies far behind the refine's newest sample,
+ * and the start is moved up to the oldest sample the refine's ring holds
+ * (adr_period_start_at of D - refine_hist_cap), a few hundred samples
+ * before the newest. The code phase is the seed's carried over exactly
+ * that many samples, and the fine estimate is the tone at the buffer's
+ * end, those samples later. At the 415.1-B-1 point, 2.8 GHz, a 50 dB-Hz
+ * emitter on +R_env seeded at its truth, a receiver built at 41 dB-Hz
+ * (the long fine dwell) and sequential: the estimator fires inside the
+ * fine dwell (required); the hand-over is the fine estimate (ho_src 3),
+ * within 2 Hz of the truth at the start sample, and the live code phase at
+ * the first tracking call within a quarter chip of the truth, as a code
+ * NCO reads it (half a sample early). Sabotage: drop the start's clamp to
+ * the ring -> the tail is read from samples not held, red. */
+static int
+_test_sequential_handover_on_a_ramp (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double     fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
+  const double     rate = dp_s415_r_env (), cn0 = 50.0;
+  dp_air_emitter_t e = dp_s415_emitter (code, fc, -400.0, rate, cn0, 0.0, 41u);
+  const size_t     push = 4096;
+  dp_air_t         air;
+  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 4242u, push));
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      code, DP_S415_SF, chip, DP_S415_SYM, DP_S415_FS, 2, 41.0, 1e-3, 0.9,
+      DP_S415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, true, 100000, fc, 0.0,
+      false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM, rate, true);
+  DP_REQUIRE (rx != NULL && rx->fine_on);
+  float _Complex *x   = malloc (push * sizeof *x);
+  float _Complex *out = malloc (push * sizeof *out);
+  DP_REQUIRE (x && out);
+  /* One push in (the scene's first chip is past sample 0), then the seed
+     at the truth. */
+  DP_REQUIRE (dp_air_next (&air, x, push));
+  (void)dp_async_dsss_receiver_steps (rx, x, push, out, push);
+  const dp_air_truth_t t0 = dp_air_truth (&air, 0, air.n_out);
+  DP_REQUIRE (!isnan (t0.code_chips));
+  DP_REQUIRE (
+      dp_async_dsss_receiver_seed (
+          rx,
+          fmod (t0.code_chips - 0.5 * chip / DP_S415_FS + (double)DP_S415_SF,
+                (double)DP_S415_SF),
+          t0.car_hz, 41.0)
+      == DP_OK);
+  size_t fired  = 0;
+  double ho_err = NAN, chip_err = NAN;
+  for (int k = 0; k < 2000 && rx->state != ASYNC_DSSS_RX_TRACKING; k++)
+    {
+      DP_REQUIRE (dp_air_next (&air, x, push));
+      (void)dp_async_dsss_receiver_steps (rx, x, push, out, push);
+      if (!fired && rx->state == ASYNC_DSSS_RX_REFINING && rx->ca->ready)
+        fired = rx->ca->n_blocks;
+    }
+  DP_REQUIRE_MSG (rx->state == ASYNC_DSSS_RX_TRACKING, "it tracks");
+  const uint64_t start = rx->samples_in - rx->state_samples;
+  ho_err               = dp_async_dsss_receiver_get_doppler_hz (rx)
+                         - dp_air_truth (&air, 0, start).car_hz;
+  {
+    const double tr = dp_air_truth (&air, 0, rx->samples_in).code_chips
+                      - 0.5 * chip / DP_S415_FS;
+    double       d  = fmod (dp_async_dsss_receiver_status (rx).chip_phase - tr
+                                + 1.5 * DP_S415_SF,
+                            (double)DP_S415_SF);
+    chip_err        = (d < 0.0 ? d + DP_S415_SF : d) - 0.5 * DP_S415_SF;
+  }
+  printf ("  sequential hand-over on +R_env: fired at block %zu of %zu; "
+          "ho_src %d, %+.2f Hz and %+.3f chip off the truth at the start "
+          "(%llu samples behind the newest)\n",
+          fired, rx->fine.blocks,
+          dp_async_dsss_receiver_get_handover_source (rx), ho_err, chip_err,
+          (unsigned long long)rx->state_samples);
+  DP_REQUIRE_MSG (fired > 0 && fired < rx->fine.blocks,
+                  "the estimator fired inside the fine dwell");
+  DP_CHECK (dp_async_dsss_receiver_get_handover_source (rx)
+            == ASYNC_DSSS_RX_HO_FINE);
+  DP_CHECK (fabs (ho_err) < 2.0);
+  DP_CHECK (fabs (chip_err) < 0.25);
+  free (x);
+  free (out);
+  dp_air_free (&air);
+  dp_async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
 /* The carrier children's configuration is a reject key. A receiver's blob
  * restores into its twin (the control); one field of the source's carrier
  * changed through carrier_nda's own setters (so the child itself is a valid
@@ -2351,55 +2439,86 @@ _car_twin (double cn0)
       4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
 }
 
-/* A refused blob changes nothing: decode, check whole, then commit. The
- * source has run (its search, refine chain and estimator have moved from a
- * fresh receiver's) and its carrier is one create() did not build (bn
- * halved, through carrier_nda's own setter), so set_state() refuses it on
- * the carrier check. The refused receiver must still be its fresh twin,
- * byte for byte: its blob equals an untouched twin's. Red before the fix
- * (doppler review C2): the search, the frozen carrier, the refine Dll, its
- * resampler and CarrierAcquisition were restored from the blob before the
- * carrier check refused it. */
+/* A carrier-configuration refusal, and any child sub-blob's envelope
+ * refusal, change nothing: set_state checks both on a peek pass before the
+ * first child commits. The source is refining (its search, refine chain and
+ * estimator have moved from a fresh receiver's; required, so the leading
+ * children's bytes differ from the twin's and a commit would show). Two
+ * forgeries of its blob, each refused, must each leave the refused
+ * receiver byte for byte its fresh twin: its carrier's bn halved through
+ * carrier_nda's own setter, and the live Dll's sub-blob header clobbered
+ * (its magic). Red before the peek (doppler review C2, Q1): the search,
+ * the frozen carrier, the refine Dll, its resampler and CarrierAcquisition
+ * were restored before either refusal, and the carrier pair too before
+ * the Dll's. A child whose envelope passes and whose own payload check
+ * refuses still commits those ahead of it: doppler#2104. */
 static int
 _test_a_refused_blob_changes_nothing (void)
 {
-  dp_async_dsss_receiver_state_t *a = _car_twin (38.77);
-  dp_async_dsss_receiver_state_t *b = _car_twin (38.77);
-  dp_async_dsss_receiver_state_t *c = _car_twin (38.77);
-  DP_REQUIRE (a && b && c);
-  {
-    /* Move the source off a fresh receiver: a stream of the code's chips
-       until it refines, so the search and the refine chain have both
-       run. */
-    const size_t    n = (size_t)(0.05 * 3.0e6);
-    float _Complex *x = calloc (n, sizeof *x);
-    float _Complex out[64];
-    DP_REQUIRE (x != NULL);
-    for (size_t i = 0; i < n; i++)
-      x[i] = (float _Complex) (CODE7[(i / 3) % 7] ? -1.0f : 1.0f);
-    (void)dp_async_dsss_receiver_steps (a, x, n, out, 64);
-    free (x);
-  }
-  DP_REQUIRE (dp_carrier_nda_set_bn (&a->car, 0.5 * a->bn_carrier) == DP_OK);
-  const size_t sz = dp_async_dsss_receiver_state_bytes (a);
-  DP_REQUIRE (sz == dp_async_dsss_receiver_state_bytes (b));
-  unsigned char *blob = malloc (sz), *bb = malloc (sz), *cb = malloc (sz);
-  DP_REQUIRE (blob && bb && cb);
-  dp_async_dsss_receiver_get_state (a, blob);
-  dp_async_dsss_receiver_get_state (b, bb);
-  DP_REQUIRE_MSG (memcmp (blob, bb, sz) != 0,
-                  "the source's blob differs from a fresh twin's");
-  DP_CHECK (dp_async_dsss_receiver_set_state (b, blob) == DP_ERR_INVALID);
-  dp_async_dsss_receiver_get_state (b, bb);
-  dp_async_dsss_receiver_get_state (c, cb);
-  DP_CHECK_MSG (memcmp (bb, cb, sz) == 0,
-                "a refused blob leaves the receiver as it was");
-  free (blob);
-  free (bb);
-  free (cb);
-  dp_async_dsss_receiver_destroy (a);
-  dp_async_dsss_receiver_destroy (b);
-  dp_async_dsss_receiver_destroy (c);
+  for (int kind = 0; kind < 2; kind++)
+    {
+      dp_async_dsss_receiver_state_t *a = _car_twin (38.77);
+      dp_async_dsss_receiver_state_t *b = _car_twin (38.77);
+      dp_async_dsss_receiver_state_t *c = _car_twin (38.77);
+      DP_REQUIRE (a && b && c);
+      {
+        const size_t    n = (size_t)(0.05 * 3.0e6);
+        float _Complex *x = calloc (n, sizeof *x);
+        float _Complex out[64];
+        DP_REQUIRE (x != NULL);
+        for (size_t i = 0; i < n; i++)
+          x[i] = (float _Complex) (CODE7[(i / 3) % 7] ? -1.0f : 1.0f);
+        for (size_t pos = 0; pos < n && a->state != ASYNC_DSSS_RX_REFINING;
+             pos += 64)
+          (void)dp_async_dsss_receiver_steps (
+              a, x + pos, n - pos < 64 ? n - pos : 64, out, 64);
+        free (x);
+      }
+      DP_REQUIRE_MSG (a->state == ASYNC_DSSS_RX_REFINING,
+                      "the source is refining");
+      const size_t sz = dp_async_dsss_receiver_state_bytes (a);
+      DP_REQUIRE (sz == dp_async_dsss_receiver_state_bytes (b));
+      unsigned char *blob = malloc (sz), *bb = malloc (sz), *cb = malloc (sz);
+      DP_REQUIRE (blob && bb && cb);
+      if (kind == 0)
+        DP_REQUIRE (dp_carrier_nda_set_bn (&a->car, 0.5 * a->bn_carrier)
+                    == DP_OK);
+      dp_async_dsss_receiver_get_state (a, blob);
+      if (kind == 1)
+        {
+          /* The live Dll's sub-blob: the one after the two carriers. Its
+             offset is the sum of what precedes it, read off the writer's
+             own children. */
+          size_t off = sz - dp_dll_state_bytes (a->dll)
+                       - dp_RateConverter_state_bytes (a->rc)
+                       - dp_mpsk_receiver_state_bytes (a->rx)
+                       - (a->srch_rs ? dp_resamp_state_bytes (a->srch_rs) : 0)
+                       - a->srch_hist_cap * sizeof (float _Complex)
+                       - a->tsamps * sizeof (float _Complex)
+                       - a->refine_hist_cap * sizeof (float _Complex)
+                       - a->fine_cap * sizeof (float _Complex);
+          const dp_state_hdr_t *h = (const dp_state_hdr_t *)(blob + off);
+          DP_REQUIRE_MSG (h->magic == DLL_STATE_MAGIC,
+                          "the offset names the live Dll's header");
+          blob[off] ^= 0xFF;
+        }
+      dp_async_dsss_receiver_get_state (b, bb);
+      DP_REQUIRE_MSG (memcmp (blob, bb, sz) != 0,
+                      "the source's blob differs from a fresh twin's");
+      DP_CHECK (dp_async_dsss_receiver_set_state (b, blob) == DP_ERR_INVALID);
+      dp_async_dsss_receiver_get_state (b, bb);
+      dp_async_dsss_receiver_get_state (c, cb);
+      DP_CHECK_MSG (memcmp (bb, cb, sz) == 0,
+                    kind ? "a clobbered child header leaves the receiver as "
+                           "it was"
+                         : "a carrier refusal leaves the receiver as it was");
+      free (blob);
+      free (bb);
+      free (cb);
+      dp_async_dsss_receiver_destroy (a);
+      dp_async_dsss_receiver_destroy (b);
+      dp_async_dsss_receiver_destroy (c);
+    }
   return 0;
 }
 
@@ -6878,6 +6997,7 @@ main (void)
   DP_CHECK (_test_near_far_levels () == 0);
   DP_CHECK (_test_fine_hands_over () == 0);
   DP_CHECK (_test_sequential_refine_waits_out_the_fine_dwell () == 0);
+  DP_CHECK (_test_sequential_handover_on_a_ramp () == 0);
   (void)_test_reacquire_clock_restarts_on_lock ();
   (void)_test_configure_chain_raw_keeps_the_carrier ();
   (void)_test_configure_chain_raw_keeps_the_phase ();

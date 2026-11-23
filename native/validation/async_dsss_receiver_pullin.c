@@ -1896,7 +1896,7 @@ pi_design (const double fcs[2], const double esn0s[4])
      raw peak, chips. */
   printf ("# search\nfc_ghz,esn0_db,coherent_bins,n_noncoh,block_ms,"
           "dwell_ms,raw_ppm_max,code_doppler_chips_s,drift_block_chips,"
-          "drift_dwell_chips\n");
+          "drift_dwell_chips,pd_predicted\n");
   for (int f = 0; f < 2; f++)
     for (int k = 0; k < 2; k++)
       {
@@ -1907,7 +1907,9 @@ pi_design (const double fcs[2], const double esn0s[4])
           code[i] = (uint8_t)(i & 1u);
         dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fcs[f], true);
         size_t                          nc = 0;
-        if (!rx || dp_correlator_get_n_noncoh (rx->acq, &nc) != DP_OK)
+        double                          pd = NAN; /* at the design C/N0 */
+        if (!rx || dp_correlator_get_n_noncoh (rx->acq, &nc) != DP_OK
+            || dp_correlator_get_pd_predicted (rx->acq, &pd) != DP_OK)
           {
             DP_CHECK_MSG (0, "the search's dwell is readable");
             dp_async_dsss_receiver_destroy (rx);
@@ -1917,10 +1919,10 @@ pi_design (const double fcs[2], const double esn0s[4])
         const double per   = (double)SF / chip;
         const double ppm   = pe[0].raw_ppm_max[f];
         const double cdopp = chip * ppm * 1e-6;
-        printf ("%.1f,%.0f,%zu,%zu,%.2f,%.2f,%.3f,%.2f,%.3f,%.3f\n",
+        printf ("%.1f,%.0f,%zu,%zu,%.2f,%.2f,%.3f,%.2f,%.3f,%.3f,%.6f\n",
                 fcs[f] / 1e9, esn0, db, nc, 1e3 * (double)db * per,
                 1e3 * (double)(db * nc) * per, ppm, cdopp,
-                cdopp * (double)db * per, cdopp * (double)(db * nc) * per);
+                cdopp * (double)db * per, cdopp * (double)(db * nc) * per, pd);
         dp_async_dsss_receiver_destroy (rx);
       }
   static const double delays[3] = { 0.0, 1.0, 1.75 };

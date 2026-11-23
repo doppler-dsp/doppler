@@ -16,8 +16,14 @@ before the first run: 0 ghost and 0 duplicate releases, and unmatched
 tracking only as pull-in transients, no stretch over 0.1 s, on both the
 head and the baseline before the fine hand-over (b1b1090d5).
 
-Usage:  python -I read_scene.py   (prints; the record keeps each tree's
-output as <tree>.txt)
+The record (STATUS): run at 21bc138fb (the head) and at b1b1090d5 (the
+receiver before the fine hand-over), each tree's pyext built and this file
+run against it; each tree's output is <tree>.txt. Both read 0 ghost and 0
+duplicate releases, 6 lost, and unmatched tracking only on receiver 4, one
+stretch of 75 epochs (0.025 s) at the head and 52 (0.017 s) at the
+baseline: a pull-in transient, as predicted.
+
+Usage:  python -I read_scene.py
 """
 
 import numpy as np

@@ -1,0 +1,8 @@
+releases: ghost 0, duplicate 0, lost 6
+receiver-epochs tracking with no emitter matched: 75 of 81412 tracking (epoch 0.333 ms)
+  receiver 0: 0 epochs, longest stretch 0 epochs (0.000 s)
+  receiver 1: 0 epochs, longest stretch 0 epochs (0.000 s)
+  receiver 2: 0 epochs, longest stretch 0 epochs (0.000 s)
+  receiver 3: 0 epochs, longest stretch 0 epochs (0.000 s)
+  receiver 4: 75 epochs, longest stretch 75 epochs (0.025 s)
+  receiver 5: 0 epochs, longest stretch 0 epochs (0.000 s)

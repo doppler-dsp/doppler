@@ -214,30 +214,30 @@ senses is `review only`, which review holds and a check skips. Code spans,
 fenced blocks, generated regions and the measurement records are not
 prose.
 
-| retired                                                                      | use instead                                                                    | allowed     |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------- |
-| `block lock`                                                                 | ratio-of-sums lock                                                             | —           |
-| `detection dwell`                                                            | total dwell                                                                    | —           |
-| `dwell straddle`                                                             | alignment loss                                                                 | —           |
-| `look count`, `n looks`                                                      | non-coherent count                                                             | —           |
-| `tile`, `Doppler window`, `native span`                                      | Doppler roll; its width is the epoch rate                                      | —           |
-| `lattice`, `lattice step`, `lattice image`, `carrier image`, `image spacing` | Doppler ambiguity, ambiguity interval                                          | —           |
-| `reliable pull-in`, `lock-in`                                                | acquisition bound, or no-slip edge                                             | —           |
-| `block`, `depth` (for the search's coherent sum)                             | coherent dwell, and D its length in epochs                                     | review only |
-| `block` (for a lock's decision interval)                                     | non-coherent count                                                             | review only |
-| `look` (one element of a non-coherent sum)                                   | coherent dwell; the Dll's `look-back` keeps its name                           | review only |
-| `looks` (the count)                                                          | non-coherent count                                                             | review only |
-| `term` (one element of a non-coherent sum)                                   | coherent dwell                                                                 | review only |
-| `dwell` (bare, for a decision interval)                                      | total dwell                                                                    | review only |
-| `dwell` (for an average's length)                                            | memory                                                                         | review only |
-| `span` (for a Doppler roll's width)                                          | the epoch rate                                                                 | review only |
-| `bin`, `row` (for a Doppler bin)                                             | Doppler bin; Doppler interpolation                                             | review only |
-| `cell`, `surface` (of the search)                                            | delay-Doppler cell, delay-Doppler surface                                      | review only |
-| `preamble`, `burst` (for the thing detected)                                 | acquisition sequence                                                           | review only |
-| `repetition` (for the interval)                                              | epoch                                                                          | review only |
-| `sliding`, `phase` (for total-dwell offsets)                                 | total-dwell offset; phase is carrier phase                                     | review only |
-| `code phase` (for lag, of a non-code template)                               | lag                                                                            | review only |
-| `image` (for a Doppler ambiguity)                                            | Doppler ambiguity; image means a spectral, I/Q-mismatch or interpolation image | review only |
+| retired                                                                                  | use instead                                                                    | allowed     |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------- |
+| `block lock`                                                                             | ratio-of-sums lock                                                             | —           |
+| `detection dwell`                                                                        | total dwell                                                                    | —           |
+| `dwell straddle`                                                                         | alignment loss                                                                 | —           |
+| `look count`, `n looks`                                                                  | non-coherent count                                                             | —           |
+| `tile`, `tiles`, `Doppler window`, `native span`                                         | Doppler roll; its width is the epoch rate                                      | —           |
+| `lattice`, `lattices`, `lattice step`, `lattice image`, `carrier image`, `image spacing` | Doppler ambiguity, ambiguity interval                                          | —           |
+| `reliable pull-in`, `lock-in`                                                            | acquisition bound, or no-slip edge                                             | —           |
+| `block`, `depth` (for the search's coherent sum)                                         | coherent dwell, and D its length in epochs                                     | review only |
+| `block` (for a lock's decision interval)                                                 | non-coherent count                                                             | review only |
+| `look` (one element of a non-coherent sum)                                               | coherent dwell; the Dll's `look-back` keeps its name                           | review only |
+| `looks` (the count)                                                                      | non-coherent count                                                             | review only |
+| `term` (one element of a non-coherent sum)                                               | coherent dwell                                                                 | review only |
+| `dwell` (bare, for a decision interval)                                                  | total dwell                                                                    | review only |
+| `dwell` (for an average's length)                                                        | memory                                                                         | review only |
+| `span` (for a Doppler roll's width)                                                      | the epoch rate                                                                 | review only |
+| `bin`, `row` (for a Doppler bin)                                                         | Doppler bin; Doppler interpolation                                             | review only |
+| `cell`, `surface` (of the search)                                                        | delay-Doppler cell, delay-Doppler surface                                      | review only |
+| `preamble`, `burst` (for the thing detected)                                             | acquisition sequence                                                           | review only |
+| `repetition` (for the interval)                                                          | epoch                                                                          | review only |
+| `sliding`, `phase` (for total-dwell offsets)                                             | total-dwell offset; phase is carrier phase                                     | review only |
+| `code phase` (for lag, of a non-code template)                                           | lag                                                                            | review only |
+| `image` (for a Doppler ambiguity)                                                        | Doppler ambiguity; image means a spectral, I/Q-mismatch or interpolation image | review only |
 
 On design pages only, narration: a page states what is, so its prose does
 not use these.

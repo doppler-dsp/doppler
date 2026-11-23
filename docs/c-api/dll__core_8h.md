@@ -651,7 +651,7 @@ An early/prompt/late DLL that tracks the code phase of a repeating spreading seq
 * `code_len` Code length (chips per period). 
 * `sps` Samples per chip (default 2), finite and &gt;= 1: the partials close on the code NCO's phase, so a code period need not be a whole number of samples (11 MSa/s over 5 Mcps is 2.2). 
 * `init_chip` Seed code phase, chips (default 0.0). 
-* `bn` Loop noise bandwidth (default 0.01), of the closed loop given a unit-slope detector (see LoopFilter). At `segments` 1 the delivered bandwidth is not `bn`: about 50 times it at 127 chips and unstable at 1023 (doppler#3234); the discriminator's own slope is 1.31 per chip at spacing 0.5 (2 or more samples per chip) and 0 at a spacing of one chip or more. 
+* `bn` Loop noise bandwidth (default 0.01), of the closed loop given a unit-slope detector (see LoopFilter). At `segments` 1 and spacing 0.5 the delivered bandwidth is `bn` times (4 zeta^2 Kd + 1) / (4 zeta^2 + 1), whatever the code length, where Kd is the discriminator's slope per chip: 1.31 at 4 samples per chip (1.02 at 2). The slope is 0 at a spacing of one chip or more. 
 * `zeta` Damping factor (default 0.707). 
 * `spacing` Early/late tap offset, chips (default 0.5). 
 * `segments` Partial correlations per code epoch (default 1). 1 = a coherent full-epoch integrate-and-dump (one prompt/period). &gt;1 splits each epoch into that many sub-epoch partials: it emits that many partial prompts/period and steers on the transition-free one-period window its look-back finds among them (robust to an asynchronous data-symbol clock). segments/epoch ~ samples/symbol at a downstream SymbolSync when the symbol rate is near the code rate, so choose &gt;= 2 for symbol-timing recovery. 

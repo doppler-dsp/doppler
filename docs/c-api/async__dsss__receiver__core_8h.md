@@ -89,7 +89,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**dp\_async\_dsss\_receiver\_carrier\_bn**](#function-dp_async_dsss_receiver_carrier_bn) (double cn0\_dbhz, double chip\_rate, size\_t code\_len) <br>_The pre-despread carrier loop's bandwidth at a design C/N0: the owner's loop-SNR rule (async-dsss-receiver.md §1.3), no wider than ASYNC\_DSSS\_RX\_BN\_CARRIER._  |
+|  double | [**dp\_async\_dsss\_receiver\_carrier\_bn**](#function-dp_async_dsss_receiver_carrier_bn) (double cn0\_dbhz, double chip\_rate, size\_t code\_len) <br>_The pre-despread carrier loop's bandwidth at a design C/N0: the loop-SNR rule (async-dsss-receiver.md §1.3), no wider than ASYNC\_DSSS\_RX\_BN\_CARRIER._  |
 |  int | [**dp\_async\_dsss\_receiver\_configure\_chain\_raw**](#function-dp_async_dsss_receiver_configure_chain_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t segments, size\_t sps, int n) <br>_Pin the live-tracking despread/resample/demod grid directly. The escape hatch for the composition-specific knob:_ `segments` _(the live Dll's tracking parameter) and_`sps` _/_`n` _(MpskReceiver's samples and terminal outputs per symbol) are independently overridable, still bridged by a freshly-sized_`RateConverter` _and never coupled to each other. While searching/refining it re-pins the grid used to build the next tracking chain; once tracking it rebuilds_`dll` _/_`rc` _/_`rx` _in place, allocating every replacement before adopting it, and re-seeds the rebuilt chain from the whole carrier_ _loop 1 plus loop 2's integrator, the sum status() reports_ _so a retune keeps the signal it was tracking._ |
 |  void | [**dp\_async\_dsss\_receiver\_configure\_lock\_raw**](#function-dp_async_dsss_receiver_configure_lock_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, size\_t n\_looks, double alpha, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the live-tracking Dll's code-lock detector directly. Forwards to_ `dp_dll_configure_lock_raw()` _on the live tracking Dll (the one behind_`get_code_locked()` _), NOT the refine-stage collection Dll. It retunes the Dll the receiver holds now; every chain build (a seed, the hand-over, reset() or configure\_chain\_raw()) replaces that Dll with a freshly sized one, so call it once tracking. The detector is the hysteretic lockdet over the DLL's per-N-look CFAR statistic — the levels and verify counts trade declare latency against false-alarm rate._ |
 |  int | [**dp\_async\_dsss\_receiver\_configure\_search\_raw**](#function-dp_async_dsss_receiver_configure_search_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded search's grid directly. Forwards to_ `dp_correlator_configure_search_raw()` __ _the escape hatch under this object's_`symbol_rate` _-driven auto-sizing, for a power user who wants a specific_`(doppler_bins, n_noncoh)` _. The pin replaces the whole auto-sized grid, the window-tiled search included. Only meaningful while searching; the search does not run again until the next_`reset()` _._ |
@@ -298,7 +298,7 @@ The state machine's values (`state` below, also the first byte of a serialized b
 
 ### function dp\_async\_dsss\_receiver\_carrier\_bn 
 
-_The pre-despread carrier loop's bandwidth at a design C/N0: the owner's loop-SNR rule (async-dsss-receiver.md §1.3), no wider than ASYNC\_DSSS\_RX\_BN\_CARRIER._ 
+_The pre-despread carrier loop's bandwidth at a design C/N0: the loop-SNR rule (async-dsss-receiver.md §1.3), no wider than ASYNC\_DSSS\_RX\_BN\_CARRIER._ 
 ```C++
 double dp_async_dsss_receiver_carrier_bn (
     double cn0_dbhz,
@@ -2584,7 +2584,7 @@ The widest bandwidth the pre-despread carrier loop takes, per update (a code per
 
 
 
-The pre-despread carrier loop's least loop SNR at the design C/N0, dB: the owner's rule (async-dsss-receiver.md §1.3), `rho S_L / (2 bn)` with `rho = C/N0 T` the update's SNR and `S_L = 1 / (1 + 1/(2 rho))` the M = 2 detector's squaring loss (the owner's ruling, 2026-11-22), so `bn <= rho S_L / 200`. 
+The pre-despread carrier loop's least loop SNR at the design C/N0, dB (async-dsss-receiver.md §1.3): `rho S_L / (2 bn)` with `rho = C/N0 T` the update's SNR and `S_L = 1 / (1 + 1/(2 rho))` the M = 2 detector's squaring loss, which the 20 dB counts, so `bn <= rho S_L / 200`. 
 
 
         
@@ -2605,7 +2605,7 @@ The pre-despread carrier loop's least loop SNR at the design C/N0, dB: the owner
 
 
 
-Half the pre-despread carrier loop's noise bandwidth, Hz, at `bn:` `B_L / 2 = bn / (2 T)`, T a code period. 97.8 Hz at 5 Mcps over Gold-1023 and bn 0.04. It is the owner's half-bandwidth rule for a frequency step; the sweep on carrier\_nda (sweep-1b7312b09) measured its no-slip reach at the 4 dB floor at 0.25 `B_L` (unit form), half of this, so a step at this bound may slip during pull-in, where slips are allowed (the owner's ruling, 2026-11-22). 
+The pre-despread carrier loop's acquisition bound, Hz, at `bn:` half its noise bandwidth, `B_L / 2 = bn / (2 T)` (0.5 bn an update), T a code period; 97.8 Hz at 5 Mcps over Gold-1023 and bn 0.04. Empirical: a frequency step inside it pulls a second-order loop in within its normal lock time, about 5 / bn updates; past it the lock time is the pull-in's and grows (the lock-time rows of sweep-1b7312b09, on carrier\_nda). It is not the no-slip reach, which the same sweep measures lower, 0.25 `B_L` at the 4 dB floor (unit form): a step at this bound may slip while it pulls in, and slips during pull-in are allowed. 
 
 
         
@@ -2826,7 +2826,7 @@ Damping factor of both Dlls (the tracker and the refine collector).
 
 
 
-The fine hand-over's probability, the dwell's target: the owner's ruling, 2026-11-22 ("0.99 is fine"; docs/design/async-dsss-receiver.md, "The dwell, derived"). 
+The fine hand-over's probability, the dwell's target: a design choice, 0.99 (docs/design/async-dsss-receiver.md, "The dwell, derived"). 
 
 
         

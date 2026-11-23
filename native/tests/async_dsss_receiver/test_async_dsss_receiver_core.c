@@ -5004,24 +5004,27 @@ _test_depth_finds_what_one_epoch_misses (void)
 
 /* Two emitters on one Gold code at the design point, their code phases
  * ~400 chips apart: A at 50 dB-Hz carries the noise, and B, rendered all
- * but clean and scaled by 1/sqrt(2), sits 3 dB below it (the capture's
- * cn0_dbhz sets the NOISE; the signal is unit amplitude). The stream every
- * rank test feeds. `which`
- * 1 = A alone, 2 = B alone, 3 = both. Caller frees. */
+ * but clean and scaled by 10^(-below_db / 20), sits below_db under it (the
+ * capture's cn0_dbhz sets the NOISE; the signal is unit amplitude), over
+ * n_sym symbols. The stream the rank tests feed. `which` 1 = A alone, 2 =
+ * B alone, 3 = both. Caller frees. */
+#define TWO_A_DBHZ 50.0
 static float _Complex *
-_two_emitters (const uint8_t *code, int which, size_t *n_out)
+_two_emitters (const uint8_t *code, int which, double below_db, size_t n_sym,
+               size_t *n_out)
 {
   const double    fs = SLOW_CR * SLOW_SPC, tsym = fs / SLOW_RS;
   float _Complex *a, *b;
   size_t          na, nb;
   double         *da, *db;
-  dp_dsss_capture (code, 1023, SLOW_SPC, fs, tsym, 200.0, 50.0, 60, 1000, 11,
-                   &a, &na, &da);
-  dp_dsss_capture (code, 1023, SLOW_SPC, fs, tsym, -300.0, 120.0, 60, 200, 12,
-                   &b, &nb, &db);
-  const size_t n = na < nb ? na : nb;
+  dp_dsss_capture (code, 1023, SLOW_SPC, fs, tsym, 200.0, TWO_A_DBHZ, n_sym,
+                   1000, 11, &a, &na, &da);
+  dp_dsss_capture (code, 1023, SLOW_SPC, fs, tsym, -300.0, 120.0, n_sym, 200,
+                   12, &b, &nb, &db);
+  const size_t n  = na < nb ? na : nb;
+  const float  gb = (float)pow (10.0, -below_db / 20.0);
   for (size_t i = 0; i < n; i++)
-    a[i] = (which & 1 ? a[i] : 0) + (which & 2 ? (float)M_SQRT1_2 * b[i] : 0);
+    a[i] = (which & 1 ? a[i] : 0) + (which & 2 ? gb * b[i] : 0);
   free (b);
   free (da);
   free (db);
@@ -5053,30 +5056,88 @@ _chip_dist (double a, double b, double l)
   return d > l / 2 ? l - d : d;
 }
 
+/* The rank tests' search: designed at B's level less the worst case A's
+ * code can take off B's peak, for a per-dwell Pd of `pd`. The worst case
+ * is Gold-1023's largest sidelobe, t(10) = 2^6 + 1 = 65 of 1023, from an A
+ * `below_db` stronger, adding against B's amplitude: a margin of
+ * -20 log10 (1 - 10^(below_db / 20) 65 / 1023) dB. Returns the receiver and
+ * the Pd its search predicts at that design point (the correlator's
+ * dp_det_pd_noncoherent() model, averaged over the straddle priors:
+ * dp_correlator_get_pd_predicted()); a lower bound for B, which is the
+ * margin stronger. */
+#define TWO_PD 0.999999
+static dp_async_dsss_receiver_state_t *
+_rank_rx (const uint8_t *code, double below_db, double pd, double *margin_db,
+          double *pd_pred)
+{
+  *margin_db
+      = -20.0 * log10 (1.0 - pow (10.0, below_db / 20.0) * 65.0 / 1023.0);
+  const double                    design = TWO_A_DBHZ - below_db - *margin_db;
+  dp_async_dsss_receiver_state_t *r      = dp_async_dsss_receiver_create (
+      code, 1023, SLOW_CR, SLOW_RS, SLOW_CR * (double)SLOW_SPC, 2, design,
+      1e-3, pd, 500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
+      false, 0.0, 0.0, true);
+  /* NaN when it was not built or does not serve it: the caller's
+     requirement on the Pd then refuses it. */
+  *pd_pred = NAN;
+  if (r && dp_correlator_get_pd_predicted (r->acq, pd_pred) != DP_OK)
+    *pd_pred = NAN;
+  return r;
+}
+
 /* The controller's levers (design async-dsss-receiver.md §7.2): two
  * searchers on one stream at ranks 0 and 1 take the two signals, the
  * stronger at rank 0, in the SAME dwell; an excluded code phase is never
  * taken, so rank 0 with A excluded takes B; and a dwell with no peak at the
  * rank seeds nothing. Each signal's own phase comes from a rank-0
- * receiver fed it alone. Sabotage: ignore the rank -> both take A; ignore
- * the exclusions -> the excluded receiver takes A; drop the duplicate rule
- * -> rank 1 takes A's neighbouring cell. */
+ * receiver fed it alone.
+ *
+ * "The same dwell" is a certainty only where B's Pd a dwell is: B sits 10
+ * dB under A (the ranking is never in doubt) and the search is designed
+ * at B's level less the worst sidelobe margin for Pd 1 - 1e-6
+ * (_rank_rx()). The failing case is the scene this test first ran: B 3 dB
+ * under A, designed at 47 dB-Hz for Pd 0.9 -- B is detected in a given
+ * dwell at about 0.9, so "the same dwell" failed about one run in ten
+ * (at0 == at1); its derivation is refused below. Sabotage: ignore the
+ * rank -> both take A; ignore the exclusions -> the excluded receiver
+ * takes A; drop the duplicate rule -> rank 1 takes A's neighbouring
+ * cell. */
 static int
 _test_ranks_and_exclusions_split_two_signals (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
+  const double    below = 10.0;
   size_t          n, na, nb;
-  float _Complex *both = _two_emitters (code, 3, &n);
-  float _Complex *xa   = _two_emitters (code, 1, &na);
-  float _Complex *xb   = _two_emitters (code, 2, &nb);
+  float _Complex *both = _two_emitters (code, 3, below, 200, &n);
+  float _Complex *xa   = _two_emitters (code, 1, below, 200, &na);
+  float _Complex *xb   = _two_emitters (code, 2, below, 200, &nb);
 
-  dp_async_dsss_receiver_state_t *ra = _slow_rx (code, 47.0, 500.0, 0, 0);
-  dp_async_dsss_receiver_state_t *rb = _slow_rx (code, 47.0, 500.0, 0, 0);
-  dp_async_dsss_receiver_state_t *r0 = _slow_rx (code, 47.0, 500.0, 0, 0);
-  dp_async_dsss_receiver_state_t *r1 = _slow_rx (code, 47.0, 500.0, 0, 0);
-  dp_async_dsss_receiver_state_t *rx = _slow_rx (code, 47.0, 500.0, 0, 0);
-  DP_REQUIRE (ra && rb && r0 && r1 && rx);
+  double                          margin, pd, margin3, pd3;
+  dp_async_dsss_receiver_state_t *ra
+      = _rank_rx (code, below, TWO_PD, &margin, &pd);
+  dp_async_dsss_receiver_state_t *rb
+      = _rank_rx (code, below, TWO_PD, &margin, &pd);
+  dp_async_dsss_receiver_state_t *r0
+      = _rank_rx (code, below, TWO_PD, &margin, &pd);
+  dp_async_dsss_receiver_state_t *r1
+      = _rank_rx (code, below, TWO_PD, &margin, &pd);
+  dp_async_dsss_receiver_state_t *rx
+      = _rank_rx (code, below, TWO_PD, &margin, &pd);
+  /* The failing case: the old scene's design, 3 dB, Pd 0.9. */
+  dp_async_dsss_receiver_state_t *r3
+      = _rank_rx (code, 3.0, 0.9, &margin3, &pd3);
+  printf ("  rank split: B %.0f dB under a %.0f dB-Hz A, worst sidelobe "
+          "margin %.2f dB, search designed at %.2f dB-Hz: predicted Pd a "
+          "dwell %.7f (needs >= %.6f); the 3 dB scene at Pd 0.9: margin "
+          "%.2f dB, predicted %.4f\n",
+          below, TWO_A_DBHZ, margin, TWO_A_DBHZ - below - margin, pd, TWO_PD,
+          margin3, pd3);
+  DP_REQUIRE (ra && rb && r0 && r1 && rx && r3);
+  DP_REQUIRE_MSG (pd >= TWO_PD, "B is found in a given dwell");
+  DP_CHECK_MSG (pd3 < TWO_PD, "control: the 3 dB scene's design does not "
+                              "make 'the same dwell' a certainty");
+  dp_async_dsss_receiver_destroy (r3);
   /* From two epochs in, where both emitters are on: every dwell then sees
      both whole, so their strengths alone order them. */
   const size_t on = 2 * 2046;

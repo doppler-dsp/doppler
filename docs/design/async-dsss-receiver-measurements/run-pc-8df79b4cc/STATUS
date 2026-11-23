@@ -1,0 +1,4 @@
+head 8df79b4cc validate(async_dsss_pool_ghosts): the prompt ratio and the code-phase  dirty=0 start 22:05:03
+build rc=0 22:05:05
+ghosts done 22:08:40 exits:      16 1
+done 22:08:40

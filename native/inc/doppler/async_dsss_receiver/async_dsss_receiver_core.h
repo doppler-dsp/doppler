@@ -201,8 +201,11 @@ extern "C"
  *  false takes at carrier bandwidth @p bn: half the search's Doppler row,
  *  `chip_rate / (2 * code_len * coherent_bins)`, is then inside
  *  ASYNC_DSSS_RX_CARRIER_PULLIN_HZ, which is `coherent_bins >= 1 / bn` at
- *  any chip rate (async-dsss-receiver.md §4.4). */
-#define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn) ((size_t)(1.0 / (bn) + 0.5))
+ *  any chip rate (async-dsss-receiver.md §4.4): the ceiling of `1 / bn`,
+ *  a reciprocal within 1e-9 of a whole number taken as that number (so
+ *  bn 0.04 asks 25, and 1/25.4 asks 26). */
+#define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn)                                  \
+  ((size_t)ceil (1.0 / (bn) - 1e-9))
 
   /**
    * @brief The pre-despread carrier loop's bandwidth at a design C/N0: the
@@ -399,9 +402,10 @@ extern "C"
 
 /** @brief Where the last hand-over's Doppler came from (".ho_src" and
  *  dp_async_dsss_receiver_get_handover_source()): none since the last
- *  seed (searching or refining), the seed's own (the refine gave up, or
- *  its estimate failed the hand-over's checks), or the data-template
- *  estimator's (§4.7). */
+ *  seed (searching or refining), the seed's own (with refine false, where
+ *  the seed is the hand-over; or the refine gave up, or its estimates
+ *  failed the hand-over's checks), CarrierAcquisition's (§4.7), or the
+ *  fine estimate's. */
 #define ASYNC_DSSS_RX_HO_NONE 0
 /** @brief The hand-over took the seed's own Doppler. */
 #define ASYNC_DSSS_RX_HO_SEED 1
@@ -1066,7 +1070,8 @@ typedef enum
    * - "<prefix>.handover_hz" -- the Doppler the chain was built from, Hz
    *   (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the seed's
    *   while refining, the refined value from the hand-over on, and 0 again after a refused hand-over or a
-   *   reset(), which return the receiver to searching. A record is a
+   *   reset(), which return the receiver to searching (idle in a pool). A
+   *   record is a
    *   float, so it resolves about 0.5 Hz near 5 MHz. Not the live carrier:
    *   status().doppler_hz reads that, and ".car.freq" and ".car.nco" are
    *   the carrier loop's own view of it, in cycles a sample at the input
@@ -1401,7 +1406,8 @@ typedef enum
    * hit it fails, and the hand-over holds the REFINED Doppler to it too: a
    * seed in range whose residual carries it to or past fs/2 is refused at
    * the hand-over, counted in refused_hits, and the receiver searches
-   * again rather than track a Doppler it cannot report. It reads only the
+   * again (idle, in a pool, for the pool's search to re-seed) rather than
+   * track a Doppler it cannot report. It reads only the
    * receiver's fixed config (code length, chip rate, spc), so any receiver
    * built from the same config gives the same answer.
    *
@@ -2061,8 +2067,9 @@ typedef enum
       const dp_async_dsss_receiver_state_t *state);
 
   /** @brief Which estimate the live chain's Doppler came from:
-   *         ASYNC_DSSS_RX_HO_NONE until a hand-over, then _SEED or _DATA
-   *         (the refine's choice, §4.7), NONE again at the next seed.
+   *         ASYNC_DSSS_RX_HO_NONE until a hand-over, then _SEED, _DATA or
+   *         _FINE (the refine's choice), or _SEED at the seed itself with
+   *         refine false; NONE again at the next seed that refines.
    * @param state  Must be non-NULL.
    * @return One of the ASYNC_DSSS_RX_HO_* values. */
   int dp_async_dsss_receiver_get_handover_source (

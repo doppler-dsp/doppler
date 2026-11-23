@@ -1830,11 +1830,12 @@ dp_async_dsss_receiver_create (
        anywhere inside +-symbol_rate, its first nulls) plus the search's
        row, capped by the span's worst pair (the seed and the truth each
        inside +-doppler_uncertainty), which bounds any peak. Not the span
-       alone: a wide span asked for a K no divisor of refine_segments
-       covers, and the fine hand-over went off where the coarse seed is
-       worst (docs/design/async-dsss-receiver.md, "The seed's error
-       bound"). A seed further off than this aliases by K / (M T); the
-       tone check passes it, and the carrier loop never locks. */
+       alone: a span bound asks a wide span for a K no divisor of
+       refine_segments covers, and turns the fine hand-over off where the
+       coarse seed is worst (docs/design/async-dsss-receiver.md, "The
+       seed's error bound"). A seed further off than this aliases by
+       K / (M T); the tone check passes it, and the carrier loop never
+       locks (doppler#3262). */
     double row = 0.0;
     (void)dp_correlator_get_doppler_res_hz (obj->acq, &row);
     const double e_seed = fmin (2.0 * doppler_uncertainty, symbol_rate + row);
@@ -2073,6 +2074,7 @@ dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
       adr_rebuild_track_chain (state, chip_phase, doppler_hz_est,
                                state->segments, state->sps, state->n);
       adr_enter (state, ASYNC_DSSS_RX_TRACKING);
+      state->ho_src = ASYNC_DSSS_RX_HO_SEED; /* the seed is the hand-over */
     }
   else
     {
@@ -2145,21 +2147,19 @@ adr_pick_phase_at (const dp_async_dsss_receiver_state_t *s, size_t k,
 /* A search-only receiver's dwell (set_search_only()): the pick for ranks 0
  * … pick_want - 1, each survivor kept with its phase at the sample after
  * this call. The hits' phases are carried there from the dwell's end, t,
- * by adr_pick()'s own shift; the exclusions, read at this call's first
- * sample in0 (the controller sets them between calls), are carried there
- * too, nominally -- a holder's own Doppler dilation over one call is a
- * hundredth of a chip at 20 ppm, far inside the one-chip key. */
+ * by adr_pick()'s own shift; the exclusions, from the sample they were
+ * set at (excl_at), are carried there too, nominally -- a holder's own
+ * Doppler dilation over one call is a hundredth of a chip at 20 ppm, far
+ * inside the one-chip key. */
 static void
 adr_collect_picks (dp_async_dsss_receiver_state_t *s,
-                   const dp_correlator_hit_t *hits, size_t n_hits, double t,
-                   uint64_t in0)
+                   const dp_correlator_hit_t *hits, size_t n_hits, double t)
 {
   const double L   = (double)s->code_len;
   const double end = (double)s->samples_in; /* the sample after the call */
   /* The exclusions name the sample they were set at (excl_at), which a
      controller setting them before every call makes this call's first;
      one set calls earlier is carried over those calls too. */
-  (void)in0;
   const double ex_sh = (end - (double)s->excl_at) / s->spc;
   double       saved[ASYNC_DSSS_RX_MAX_EXCLUSIONS];
   memcpy (saved, s->excl, sizeof saved);
@@ -2301,7 +2301,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
           if (state->pick_want)
             {
               /* The controller's search: report, never seed (§5). */
-              adr_collect_picks (state, hits, n_hits, t, in0);
+              adr_collect_picks (state, hits, n_hits, t);
               state->srch_n += taken;
               yp += taken;
               continue;

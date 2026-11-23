@@ -88,7 +88,7 @@
  *      (dp_async_dsss_receiver_set_exclusions()), so it never names a
  *      signal already held, and its pick count is the receivers still
  *      idle. Both take effect at its next dwell.
- * 3. **Reports.** status() is a receiver's status now, symbols() the
+ * 4. **Reports.** status() is a receiver's status now, symbols() the
  *    symbols it emitted during the last push(); both are as of the last
  *    whole period fed, since the controller runs right after it, so a
  *    released receiver never reads lost.
@@ -184,10 +184,13 @@ extern "C"
    *  and every receiver M periods at a time, on a grid of M periods counted
    *  from create or reset, each receiver call still one period, and the
    *  controller runs once at the end of each M (async-dsss-receiver.md §5).
-   *  A join costs about as much as a receiver's period (measured on WSL2),
-   *  so fewer joins is the pool's main cost lever; 16 is the size of the
-   *  three measured (4, 8, 16) that met the pool's 45.4 ns gate at both
-   *  ends of the band at the 415.1-B-1 point. */
+   *  Joining once a period cost about 18 of the pool's 60 ns a sample at the
+   *  415.1-B-1 point (nine receivers tracking, the search running), so
+   *  fewer joins is the pool's main cost lever. At 16: `make bench-ab
+   *  A=967275d78` (its commit, 3b41f5dd1), the push row at 415.1 with
+   *  K = 9 and 16 threads: 54 to 43.5 ns a sample at 2.2 GHz and 66 to 43.2 at 2.8 GHz, on
+   *  one host (the dev box), with a CONFIRM run and no row slower in both.
+   *  The size is that measurement's, not derived (doppler#2778). */
 #ifndef ASYNC_DSSS_POOL_PERIODS_PER_JOIN
 #define ASYNC_DSSS_POOL_PERIODS_PER_JOIN 16u
 #endif
@@ -283,7 +286,7 @@ extern "C"
    * @param pfa          Search false-alarm probability.
    * @param pd           Search detection probability.
    * @param doppler_uncertainty  Doppler search half-range, Hz.
-   * @param segments     Dll segments per symbol.
+   * @param segments     Dll segments per code period.
    * @param sps          Demodulator samples per symbol.
    * @param differential Differential detection (nonzero) or coherent.
    * @param refine_max_error_db  Refine stage's allowed loss, dB.
@@ -398,7 +401,7 @@ extern "C"
 
   /** @brief Restore the state, whole or not at all. `DP_ERR_INVALID` on
    *  a blob of another object or version, another receiver count, a carry
-   *  of a period or more, a ghost history control() cannot leave (a length
+   *  of a group (ASYNC_DSSS_POOL_PERIODS_PER_JOIN periods) or more, a ghost history control() cannot leave (a length
    *  past the window, a flag other than 0 or 1, a nonzero entry outside a
    *  ring's span, or a history on a receiver not tracking), or a receiver
    *  blob its receiver refuses; a
@@ -531,7 +534,7 @@ extern "C"
   /**
    * @brief Set the workers push() steps the receivers on.
    *
-   * The receivers' results do not change with it (header step 1); only
+   * The receivers' results do not change with it (header step 2); only
    * the time a push takes does. A mutator's value, so it travels in the
    * state blob (#2022).
    *
@@ -603,7 +606,7 @@ extern "C"
   /**
    * @brief Whether receiver @p j tracks a Doppler-offset sidelobe of
    *        receiver @p i's signal, by the controller's ghost rule (header
-   *        step 2) over the history it holds now.
+   *        step 3) over the history it holds now.
    *
    * Both tests over the last @ref ASYNC_DSSS_POOL_GHOST_WINDOW_S of
    * controller steps: @p j's carrier minus @p i's has a mean within

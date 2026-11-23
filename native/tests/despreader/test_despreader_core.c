@@ -414,7 +414,7 @@ main (void)
       const size_t cut  = offsetof (dp_costas_state_t, sf);
       const size_t gone = sizeof (dp_state_filter_state_t)
                           + 2 * sizeof (int32_t); /* sf, order, pad */
-      DP_CHECK (DESPREADER_STATE_VERSION == 5u && COSTAS_STATE_VERSION == 4u);
+      DP_CHECK (DESPREADER_STATE_VERSION == 6u && COSTAS_STATE_VERSION == 4u);
       const size_t   n   = dp_despreader_state_bytes (a);
       unsigned char *now = malloc (n), *old = malloc (n - gone);
       DP_REQUIRE (now != NULL && old != NULL);

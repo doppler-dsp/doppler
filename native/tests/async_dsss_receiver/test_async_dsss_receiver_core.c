@@ -6682,6 +6682,9 @@ _test_no_refine_hands_over_at_the_seed (void)
   DP_CHECK (dp_async_dsss_receiver_status (rx).state_samples == 0);
   DP_CHECK (fabs (dp_async_dsss_receiver_get_chip_phase (rx) - 3.25) < 1e-9);
   DP_CHECK (dp_async_dsss_receiver_get_doppler_hz (rx) == 120.0);
+  /* The seed is the hand-over, and the source says so. */
+  DP_CHECK (dp_async_dsss_receiver_get_handover_source (rx)
+            == ASYNC_DSSS_RX_HO_SEED);
 
   /* A refining blob: refused here, taken by a refine-true twin. */
   dp_async_dsss_receiver_state_t *yes = dp_async_dsss_receiver_create (
@@ -6839,6 +6842,12 @@ _test_carrier_bn_follows_the_loop_snr_rule (void)
 static int
 _test_no_refine_needs_a_deep_search (void)
 {
+  /* The rule is coherent_bins >= 1 / bn, a ceiling: a non-integer
+     reciprocal rounds up, a whole one stands (review C6: rounding to
+     nearest admitted 25 at 1 / bn = 25.4). */
+  DP_CHECK (ASYNC_DSSS_RX_NO_REFINE_MIN_BINS (1.0 / 25.4) == 26);
+  DP_CHECK (ASYNC_DSSS_RX_NO_REFINE_MIN_BINS (0.04) == 25);
+
   static const struct
   {
     double code_only_s;

@@ -109,7 +109,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 |  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_async\_dsss\_receiver\_get\_demod\_lock\_rule**](#function-dp_async_dsss_receiver_get_demod_lock_rule) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The demodulator's carrier lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._ |
 |  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_async\_dsss\_receiver\_get\_demod\_sync\_lock\_rule**](#function-dp_async_dsss_receiver_get_demod_sync_lock_rule) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The demodulator's timing lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._ |
 |  double | [**dp\_async\_dsss\_receiver\_get\_doppler\_hz**](#function-dp_async_dsss_receiver_get_doppler_hz) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The HAND-OVER's Doppler, Hz: what the live chain was built from, frozen for the track's whole tenure_  _the seed's while refining, the refine's estimate from the hand-over on. It does not follow the carrier: under a 400 Hz/s ramp it is 400 Hz stale a second later. Where the emitter is now is status().doppler\_hz, a field of the same name with the other meaning._ |
-|  int | [**dp\_async\_dsss\_receiver\_get\_handover\_source**](#function-dp_async_dsss_receiver_get_handover_source) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Which estimate the live chain's Doppler came from: ASYNC\_DSSS\_RX\_HO\_NONE until a hand-over, then \_SEED or \_DATA (the refine's choice, §4.7), NONE again at the next seed._  |
+|  int | [**dp\_async\_dsss\_receiver\_get\_handover\_source**](#function-dp_async_dsss_receiver_get_handover_source) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Which estimate the live chain's Doppler came from: ASYNC\_DSSS\_RX\_HO\_NONE until a hand-over, then \_SEED, \_DATA or \_FINE (the refine's choice), or \_SEED at the seed itself with refine false; NONE again at the next seed that refines._  |
 |  double | [**dp\_async\_dsss\_receiver\_get\_lock**](#function-dp_async_dsss_receiver_get_lock) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The carrier lock statistic of the MpskReceiver this receiver tracks with: the EMA of its M-th-power lock signal, near 1 when locked and near 0 on noise._  |
 |  double | [**dp\_async\_dsss\_receiver\_get\_lock\_metric**](#function-dp_async_dsss_receiver_get_lock_metric) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Symbol-lock metric = SNR-weighted EMA of (I^2-Q^2)/(I^2+Q^2) = cos(2\*phi) over the emitted symbols (locked -&gt; ~+1). Drives_ `locked` _._ |
 |  double | [**dp\_async\_dsss\_receiver\_get\_lock\_threshold**](#function-dp_async_dsss_receiver_get_lock_threshold) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The lock-metric threshold_ `locked` _is declared strictly above (0.5, ASYNC\_DSSS\_RX\_LOCK\_UP); exposed alongside lock\_metric for engineering debug._ |
@@ -192,7 +192,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | define  | [**ASYNC\_DSSS\_RX\_FINE\_P\_HO**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_fine_p_ho)  `0.99`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_HO\_DATA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_data)  `2`<br>_The hand-over took the data-template estimator's._  |
 | define  | [**ASYNC\_DSSS\_RX\_HO\_FINE**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_fine)  `3`<br>_The hand-over took the fine estimate: the refine's squared pair sums located by PolynomialPhaseEstimator, divided by M._  |
-| define  | [**ASYNC\_DSSS\_RX\_HO\_NONE**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_none)  `0`<br>_Where the last hand-over's Doppler came from (".ho\_src" and_ [_**dp\_async\_dsss\_receiver\_get\_handover\_source()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_handover_source) _): none since the last seed (searching or refining), the seed's own (the refine gave up, or its estimate failed the hand-over's checks), or the data-template estimator's (§4.7)._ |
+| define  | [**ASYNC\_DSSS\_RX\_HO\_NONE**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_none)  `0`<br>_Where the last hand-over's Doppler came from (".ho\_src" and_ [_**dp\_async\_dsss\_receiver\_get\_handover\_source()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_handover_source) _): none since the last seed (searching or refining), the seed's own (with refine false, where the seed is the hand-over; or the refine gave up, or its estimates failed the hand-over's checks), CarrierAcquisition's (§4.7), or the fine estimate's._ |
 | define  | [**ASYNC\_DSSS\_RX\_HO\_SEED**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_seed)  `1`<br>_The hand-over took the seed's own Doppler._  |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_DOWN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_down)  `0.3`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_DWELL**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_dwell)  `30u`<br> |
@@ -201,7 +201,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_UP**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_up)  `0.5`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_MAX\_EXCLUSIONS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_exclusions)  `64u`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_MAX\_PEAKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_peaks)  `16u`<br> |
-| define  | [**ASYNC\_DSSS\_RX\_NO\_REFINE\_MIN\_BINS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_no_refine_min_bins) (bn) `((size\_t)(1.0 / (bn) + 0.5))`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_NO\_REFINE\_MIN\_BINS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_no_refine_min_bins) (bn) `((size\_t)ceil (1.0 / (bn) - 1e-9))`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_REFINE\_DLL\_SPACING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_refine_dll_spacing)  `0.5`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_REFINE\_MIN\_BLOCKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_refine_min_blocks)  `7u`<br> |
 
@@ -1153,7 +1153,7 @@ Doppler, Hz; 0 after create, reset() or a refused hand-over.
 
 ### function dp\_async\_dsss\_receiver\_get\_handover\_source 
 
-_Which estimate the live chain's Doppler came from: ASYNC\_DSSS\_RX\_HO\_NONE until a hand-over, then \_SEED or \_DATA (the refine's choice, §4.7), NONE again at the next seed._ 
+_Which estimate the live chain's Doppler came from: ASYNC\_DSSS\_RX\_HO\_NONE until a hand-over, then \_SEED, \_DATA or \_FINE (the refine's choice), or \_SEED at the seed itself with refine false; NONE again at the next seed that refines._ 
 ```C++
 int dp_async_dsss_receiver_get_handover_source (
     const dp_async_dsss_receiver_state_t * state
@@ -1933,7 +1933,7 @@ int dp_async_dsss_receiver_seed_ok (
 `chip_phase` must be finite and inside `[0, code_len)`, and `doppler_hz_est` must be strictly inside `(-fs/2, fs/2)`, where `fs` is `chip_rate * spc`. A Doppler at or past half the sample rate is not reportable ([**dp\_correlator\_carrier\_freq\_ok()**](correlator__core_8h.md#function-dp_correlator_carrier_freq_ok) relies on this bound), and a seed there sent the hand-off's phase to NaN (doppler#2103).
 
 
-seed() refuses by this predicate, set\_state() restores the seed fields only inside it, the searching receiver's hit path does not seed from a hit it fails, and the hand-over holds the REFINED Doppler to it too: a seed in range whose residual carries it to or past fs/2 is refused at the hand-over, counted in refused\_hits, and the receiver searches again rather than track a Doppler it cannot report. It reads only the receiver's fixed config (code length, chip rate, spc), so any receiver built from the same config gives the same answer.
+seed() refuses by this predicate, set\_state() restores the seed fields only inside it, the searching receiver's hit path does not seed from a hit it fails, and the hand-over holds the REFINED Doppler to it too: a seed in range whose residual carries it to or past fs/2 is refused at the hand-over, counted in refused\_hits, and the receiver searches again (idle, in a pool, for the pool's search to re-seed) rather than track a Doppler it cannot report. It reads only the receiver's fixed config (code length, chip rate, spc), so any receiver built from the same config gives the same answer.
 
 
 
@@ -2168,7 +2168,7 @@ int dp_async_dsss_receiver_set_telemetry (
 
 The receiver reports under the prefix, once per steps() call that carries samples, after the call, so on the time axis at the stamp the caller set for that block (dp\_tlm\_set\_now()):
 * "&lt;prefix&gt;.state"  where the call left the receiver, the ASYNC\_DSSS\_RX\_\* value: 0 searching, 1 refining, 2 tracking, 3 idle (a pooled receiver holding nothing), 4 lost (status().state);
-* "&lt;prefix&gt;.handover\_hz"  the Doppler the chain was built from, Hz ([**dp\_async\_dsss\_receiver\_get\_doppler\_hz()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_doppler_hz)): 0 before a seed, the seed's while refining, the refined value from the hand-over on, and 0 again after a refused hand-over or a reset(), which return the receiver to searching. A record is a float, so it resolves about 0.5 Hz near 5 MHz. Not the live carrier: status().doppler\_hz reads that, and ".car.freq" and ".car.nco" are the carrier loop's own view of it, in cycles a sample at the input rate, so times chip\_rate \* spc for Hz;
+* "&lt;prefix&gt;.handover\_hz"  the Doppler the chain was built from, Hz ([**dp\_async\_dsss\_receiver\_get\_doppler\_hz()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_doppler_hz)): 0 before a seed, the seed's while refining, the refined value from the hand-over on, and 0 again after a refused hand-over or a reset(), which return the receiver to searching (idle in a pool). A record is a float, so it resolves about 0.5 Hz near 5 MHz. Not the live carrier: status().doppler\_hz reads that, and ".car.freq" and ".car.nco" are the carrier loop's own view of it, in cycles a sample at the input rate, so times chip\_rate \* spc for Hz;
 * "&lt;prefix&gt;.refused"  the hits refused as seeds so far (status().refused\_hits);
 * "&lt;prefix&gt;.ho\_src"  which estimate the live chain was built from, an ASYNC\_DSSS\_RX\_HO\_\* value (0 none since the seed, 1 the seed's, 2 the data template's, 3 the fine estimate's);
 * "&lt;prefix&gt;.ref\_fine.hz", ".snr\_db", ".n"  the fine hand-over's estimate (Hz, against the seed), its peak-to-mean and its sums, once at the refine's decision, whether or not its check passed;
@@ -2865,7 +2865,7 @@ _The hand-over took the fine estimate: the refine's squared pair sums located by
 
 ### define ASYNC\_DSSS\_RX\_HO\_NONE 
 
-_Where the last hand-over's Doppler came from (".ho\_src" and_ [_**dp\_async\_dsss\_receiver\_get\_handover\_source()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_handover_source) _): none since the last seed (searching or refining), the seed's own (the refine gave up, or its estimate failed the hand-over's checks), or the data-template estimator's (§4.7)._
+_Where the last hand-over's Doppler came from (".ho\_src" and_ [_**dp\_async\_dsss\_receiver\_get\_handover\_source()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_handover_source) _): none since the last seed (searching or refining), the seed's own (with refine false, where the seed is the hand-over; or the refine gave up, or its estimates failed the hand-over's checks), CarrierAcquisition's (§4.7), or the fine estimate's._
 ```C++
 #define ASYNC_DSSS_RX_HO_NONE `0`
 ```
@@ -3015,12 +3015,12 @@ Peaks the searcher reports per dwell ([**dp\_correlator\_set\_max\_peaks()**](co
 ```C++
 #define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS (
     bn
-) `((size_t)(1.0 / (bn) + 0.5))`
+) `((size_t)ceil (1.0 / (bn) - 1e-9))`
 ```
 
 
 
-The least search depth, `coherent_bins`, a receiver built with `refine` false takes at carrier bandwidth `bn:` half the search's Doppler row, `chip_rate / (2 * code_len * coherent_bins)`, is then inside ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ, which is `coherent_bins >= 1 / bn` at any chip rate (async-dsss-receiver.md §4.4). 
+The least search depth, `coherent_bins`, a receiver built with `refine` false takes at carrier bandwidth `bn:` half the search's Doppler row, `chip_rate / (2 * code_len * coherent_bins)`, is then inside ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ, which is `coherent_bins >= 1 / bn` at any chip rate (async-dsss-receiver.md §4.4): the ceiling of `1 / bn`, a reciprocal within 1e-9 of a whole number taken as that number (so bn 0.04 asks 25, and 1/25.4 asks 26). 
 
 
         

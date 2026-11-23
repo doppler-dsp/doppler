@@ -1793,17 +1793,24 @@ The receiver hands over this estimate: `dp_async_dsss_receiver_fine_design()` de
 **The seed's error bound.** The bound the design covers is the right emitter's seed error, `min(2 · doppler_uncertainty, Rs + row)`.
 
 - **The span's worst pair** (the seed and the truth each inside `±doppler_uncertainty`) bounds any peak the search returns. It is kept as the cap. It is not a bound on the mechanism: a wide span asks for a `K` no divisor of `refine_segments` covers, and the fine hand-over goes off exactly where the coarse seed is worst.
+- **Carrier images.** A carrier estimate formed from sums one code period
+    long, squared (the M = 2 carrier loop's update, and the fine hand-over's
+    sums at `K = 1`), sees the carrier modulo half the code-period rate:
+    it can sit a whole number of `1/(2T)` away from the true carrier, `T`
+    one code period. Such an estimate is a **carrier image**, and `1/(2T)`
+    is the **image spacing**: 1,571 Hz at 2.2 GHz and 2,000 Hz at 2.8 GHz
+    at the certified point.
 - **The right emitter's seed lands inside the data spectrum's main lobe.** A search coherent dwell partly in data smears the peak (§2.3) to anywhere inside `±Rs`, the first nulls, and the search's row adds its resolution. The `d-6fc84cc80` run's 720 draws (`async-dsss-receiver-measurements/d-6fc84cc80/`, `seed_err_hz`) read:
 
-| carrier | row     | lattice `1/(2T)` | median abs | p90    | p99      | max      | past 3 rows | nearest lattice multiple |
-| ------- | ------- | ---------------- | ---------- | ------ | -------- | -------- | ----------- | ------------------------ |
-| 2.2 GHz | 21.8 Hz | 1,571 Hz         | 9.2 Hz     | 607 Hz | 1,219 Hz | 1,260 Hz | 114 of 360  | 0: 336, ±1: 24           |
-| 2.8 GHz | 22.2 Hz | 2,000 Hz         | 9.0 Hz     | 573 Hz | 1,004 Hz | 1,252 Hz | 74 of 360   | 0: 356, ±1: 4            |
+| carrier | row     | image spacing `1/(2T)` | median abs | p90    | p99      | max      | past 3 rows | nearest whole image spacing |
+| ------- | ------- | ---------------------- | ---------- | ------ | -------- | -------- | ----------- | --------------------------- |
+| 2.2 GHz | 21.8 Hz | 1,571 Hz               | 9.2 Hz     | 607 Hz | 1,219 Hz | 1,260 Hz | 114 of 360  | 0: 336, ±1: 24              |
+| 2.8 GHz | 22.2 Hz | 2,000 Hz               | 9.0 Hz     | 573 Hz | 1,004 Hz | 1,252 Hz | 74 of 360   | 0: 356, ±1: 4               |
 
-- **Not Doppler images.** The errors past three rows form a continuum at 0.4 to 0.8 of a lattice step, not on the lattice: the ±1 counts are their rounding, not Doppler images. The largest is 0.42 of `Rs + row`. `Rs / 2` is not taken: the rows reach 0.84 of it.
+- **Not Doppler images.** The errors past three rows form a continuum at 0.4 to 0.8 of an image spacing, not on a carrier image: the ±1 counts are their rounding, not carrier images. The largest is 0.42 of `Rs + row`. `Rs / 2` is not taken: the rows reach 0.84 of it.
 - **At the certified point the span's arm binds:** `e` is 3,000 Hz, and the other arm, 3,022 Hz, designs the same `K = 5` and 39 / 43 blocks (`_test_fine_seed_bound`).
 - **Where the span would turn it off:** a 5 Mcps, 1,023-chip search one period deep (row 4,888 Hz) told a 20 ppm span at 2.5 GHz (±60 kHz). The span asks for `K > 98` sums a period, no divisor of `refine_segments` (11) covers it, and the receiver falls back. At 40 dB-Hz two of four seeds were handed over 1,124 and 273 Hz off by the fallback and never locked inside 20 s. At `Rs + row` (7,588 Hz) the design is `K = 11`, 44 blocks (`_test_fine_seed_bound`; the row `_test_clock_offset_decodes_inside_the_allocation` is its use).
-- **A seed further off than the bound** (a wrong peak: a lattice image or another emitter's) aliases by `K / (M T)`. The tone check passes an aliased tone, the carrier loop never locks there, and only a loss release (`lost_confirm_s > 0`) frees the receiver. The standalone receiver's default, 0, never releases it, and neither does the fallback, `CarrierAcquisition`'s estimate or the seed, at such a seed. The guard that would refuse it, comparing the fine estimate with CarrierAcquisition's within `K / (2 M T)`, is not built ([#3262](https://github.com/doppler-dsp/doppler/issues/3262)).
+- **A seed further off than the bound** (a wrong peak: a carrier image or another emitter's) aliases by `K / (M T)`. The tone check passes an aliased tone, the carrier loop never locks there, and only a loss release (`lost_confirm_s > 0`) frees the receiver. The standalone receiver's default, 0, never releases it, and neither does the fallback, `CarrierAcquisition`'s estimate or the seed, at such a seed. The guard that would refuse it, comparing the fine estimate with CarrierAcquisition's within `K / (2 M T)`, is not built ([#3262](https://github.com/doppler-dsp/doppler/issues/3262)).
 
 **K, by rule.** `K` is the smallest divisor of `refine_segments` with `K/(2MT)` above the seed's design bound. At M = 2 that needs `K > 4T · 3,000 Hz` = 3.82 at 2.2 GHz and 3.00 at 2.8 GHz, so `K = 5` at both: four does not divide 10. `K = 1` is shown beside it.
 
@@ -1920,7 +1927,7 @@ At 10 dB the same total dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 
 - **Configuration.** The design is derived at create from `cn0_dbhz`, `m`, the code's flips, `refine_segments`, `doppler_uncertainty`, `doppler_rate`, the search's half sample, the refine block, `pfa` and `refine_max_n_blocks`, plus one constant, `ASYNC_DSSS_RX_FINE_P_HO` (0.99, ruled). The caller passes no new argument, and no mutator reaches any of them. It is off where the design refuses (M other than 2).
 - **State.** The `PolynomialPhaseEstimator` child is stateless and outside the blob. The buffer and its count go in, after the hand-over ring: `ASYNC_DSSS_RECEIVER_STATE_VERSION` 23. The buffer's size, `fine_cap`, follows from create's C/N0, so a blob from a receiver built at another C/N0 is refused on size.
 - **`ho_src`** is refused past 3.
-- **Its near-far tolerance is about 23 dB at every lag (at K 5),** below tracking's 60.2 dB on three quarters of the lags: a stronger emitter's partial-period leak can carry the hand-over a whole lattice step onto its own lines. Declared in §8.2, with the measurement and doppler#3263.
+- **Its near-far tolerance is about 23 dB at every lag (at K 5),** below tracking's 60.2 dB on three quarters of the lags: a stronger emitter's partial-period leak can carry the hand-over a whole image spacing onto its own lines. Declared in §8.2, with the measurement and doppler#3263.
 - **Pins, each with its sabotage** (`test_async_dsss_receiver_core.c`):
     - `_test_fine_design`: the six total dwells of the cost table, `K` 5, the rate rows, M 4 and an uncovered `e` refused, and a Monte Carlo through `PolynomialPhaseEstimator` itself (400 draws, 3 failed against a designed 8.1 × 10⁻³). Sabotage: a β of 4.55 gives 32 / 35 and fails the Monte Carlo at that total dwell.
     - `_test_fine_hands_over`: Gold-1023, 50 dB-Hz, the carrier 500 Hz off and seeded 1,200 Hz off, past a whole-period sum's 781 Hz: hands over at 499.41 Hz with `ho_src` 3; noise alone refuses (9.9 dB) and falls back to the seed. Sabotage: `K` forced to 1 lands one image off, at 2,063.41 Hz.
@@ -2316,14 +2323,14 @@ on doppler#2529):
 
 - **its carrier moves in lockstep with a stronger holder's** (stronger as
     each was estimated at its seed, `status().cn0_dbhz_est`), a whole nonzero
-    number of steps of $1/(2T_E)$ away: the sidelobe sits on its parent's
+    number of image spacings, $1/(2T_E)$, away: the sidelobe sits on its parent's
     carrier a tile off, and the carrier loop, updating once a code period
     from a squaring combine, reads that modulo half the epoch rate;
 - **its Dll rarely holds code lock**, since a sidelobe is not the code's
     triangle.
 
-Neither alone will do. A distinct emitter can co-move with another a lattice
-step away, but it usually holds code lock; a true track near the floor loses
+Neither alone will do. A distinct emitter can co-move with another an image
+spacing away, but it usually holds code lock; a true track near the floor loses
 code lock, but its carrier is its own. Measured at the 3.069 Mcps point on
 the reviewer's populations, the pair caught all 416 Doppler-offset ghosts in
 a median 0.20 s and released 23 of 2050 true emitters, all 20 dB below a
@@ -2382,24 +2389,24 @@ A's carrier:
 **Past it, the fine hand-over is where the limit bites.** The estimator
 squares K partial-period sums. A stronger emitter's partial-period leak is
 periodic in the code period, so it puts lines at that emitter's carrier
-plus whole lattice steps, 1 / (2 T_period). More than about 23 dB stronger
+plus whole image spacings, 1 / (2 T_period). More than about 23 dB stronger
 (at K 5), one of those lines beats the weaker emitter's own, and the
 hand-over lands on it. Tracking tolerates 60.2 dB on three quarters of the
 lags; the hand-over tolerates about 23 dB on all of them.
 
 - **Measured:** B seeded at its own truth under a 70 dB-Hz A, seeds 4 and
     5, both carriers. With the fine hand-over, 6 of 17 scored draws are
-    handed over a whole lattice step or more off B (−2 at 42 and 44 dB-Hz,
+    handed over a whole image spacing or more off B (−2 at 42 and 44 dB-Hz,
     +1 at 44 and 46). The ghost rule then releases 3 of them, correctly: by
     then they track A's image, not B. Without the fine hand-over, at
     `b1b1090d5`, none and none: every draw is handed over within 230 Hz and
     held (`run-ho-74185cf38`, `read_ho.py`).
-- **Why no guard closes it.** A refusal keyed on "a whole lattice
-    step off the seed" cannot be used: a correct search seed is itself off
-    by up to 0.8 of a lattice step (the `d-6fc84cc80` run's 720 draws reach 1,260 Hz
-    against a 1,571 Hz step, on the data-smeared peak). Full-period sums
-    cannot resolve k at all, because the lattice is exactly their
-    ambiguity.
+- **Why no guard closes it.** A refusal keyed on "a whole image
+    spacing off the seed" cannot be used: a correct search seed is itself off
+    by up to 0.8 of an image spacing (the `d-6fc84cc80` run's 720 draws reach 1,260 Hz
+    against the 1,571 Hz spacing, on the data-smeared peak). Full-period sums
+    cannot resolve k at all, because the image spacing is exactly
+    their ambiguity.
 
 **The pool: a ghost on its parent's carrier.** A receiver on a strong
 emitter's code sidelobe and a weak emitter within about 24 dB on the same
@@ -2407,7 +2414,7 @@ carrier cannot be separated by power, code phase or data without also
 releasing usable tracks. The fine hand-over moves most ghosts onto their
 parent's carrier (k = 0), where the ghost rule leaves them (§8,
 doppler#2551): every one forced at k = −1, 0, +1 and +2. At k = −2, 5 of
-20 at each carrier end 1, 2 or 4 lattice steps off instead, and the ghost
+20 at each carrier end 1, 2 or 4 image spacings off instead, and the ghost
 rule releases each (`run-cen-0373a01d5`'s `ghosts_forced.csv`,
 `df_end_hz`). At 2.8 GHz the shipped pool holds 4 to 8 of 20 ghosts for
 20 s, per k.

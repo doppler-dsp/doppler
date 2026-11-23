@@ -1880,119 +1880,50 @@ The rows, the selection and the captures' sidecars are committed to the measurem
 
 #### The hand-over: `CarrierAcquisition`'s dwell
 
-On paper; nothing in this section is built or run.
+The refine estimates the carrier the tracking chain starts from. Its
+estimator is `CarrierAcquisition` (`carrier_acq_core.h`), the
+frequency-domain matched filter: a Welch-averaged power spectrum of the
+refine chain's despread stream, correlated against the `sinc²` spectrum of
+random rectangular BPSK, its argmax refined by a three-point parabola.
+`adr_new_carrier_acq()` builds it at every seed from the receiver's
+arguments; at the 415.1-B-1 point (`dp_s415_rx()`) they are:
 
-**The owner's direction.**
+- the stream at `refine_samples_per_symbol` (4) samples a symbol, 12 kSa/s;
+- blocks of `refine_n_fft` (64) samples, 16 symbols, 5.33 ms, a 187.5 Hz
+    resolution, zero-padded × `refine_zero_pad` (8), Hann window;
+- its detection sized at the design C/N0 less `refine_design_margin_db`
+    (14 dB), at the receiver's `pfa` and `pd`;
+- `refine_sequential` false: it decides once, at its dwell target, not on
+    a first crossing; `refine_max_n_blocks` (100,000) caps the dwell.
 
-- "Why raise the noise by squaring? The quasi-maximum likelihood is the frequency domain matched filter, i.e. correlate the spectra - you just need to do it for longer which you now can given the reduced doppler rate."
-- "The data region is unavoidable": the estimator is sized on data symbols and may not assume or wait for the frame's code-only symbols.
-- The hand-over requirement is the pre-despread loop's worst-start no-slip edge, not 18.84 Hz: 14.4 Hz for `carrier_nda` at unit amplitude, and 10.3 to 10.9 Hz with the averaged denominator, at today's rule bn (the section above).
+**The dwell, in refine blocks,** is the largest of three, capped by
+`refine_max_n_blocks`:
 
-**The estimator as it is.** `CarrierAcquisition` (`carrier_acq_core.h`) is that frequency-domain matched filter:
+- the detection sizing's, `det_n_noncoh` at the derated C/N0;
+- the floor `refine_min_blocks` (`ASYNC_DSSS_RX_REFINE_MIN_BLOCKS`, 7;
+    `set_refine_min_blocks()`), which holds the estimate the loop must pull
+    in from where the detection sizing alone would stop short (#1265);
+- the fine hand-over's dwell, when the fine hand-over is designed
+    ("The hand-over: the M-th power of the refine's partial dumps", below).
 
-- a Welch-averaged power spectrum of the refine chain's despread stream, correlated against the `sinc²` spectrum of random rectangular BPSK;
-- the argmax, refined by a three-point parabola on the correlation map.
+A sequential estimator that detects early decides when the fine buffer has
+the fine dwell's sums, not at its own crossing.
 
-The 415.1 receiver builds it (`adr_new_carrier_acq()`, `async_dsss_receiver_core.c:621`; `dp_s415_rx()`'s arguments) with:
+**What it hands over.** At the decision the receiver takes the fine
+estimate when its check passes (`ASYNC_DSSS_RX_HO_FINE`), else
+`CarrierAcquisition`'s when it detected (`ASYNC_DSSS_RX_HO_DATA`), else
+the seed's (`ASYNC_DSSS_RX_HO_SEED`), and reports which
+(`get_handover_source()`, the `.ho_src` probe). A refined Doppler outside
+the seed domain is refused like a hit: the receiver returns to its search,
+or to idle when pooled.
 
-- a stream at 12 kSa/s (4 samples a symbol);
-- blocks of 64 samples: 16 symbols, 5.33 ms, 187.5 Hz resolution;
-- zero-padding × 8: 512 bins of 23.4 Hz;
-- a Hann window;
-- `refine_sequential` false: it tests **once**, at a fixed `dwell_target` sized by `det_n_noncoh` to **detect** at C/N0 − 14 dB, floored at 7 blocks (`ASYNC_DSSS_RX_REFINE_MIN_BLOCKS`). It does not stop on a first crossing.
-
-In run 415 that dwell is 16 blocks, 85.3 ms, in every row (`ho_age_s`). All 240 guideline-arm rows hand over from a detection (`ho_src` 2), none from the search's seed. The dwell is sized to detect, not to an accuracy.
-
-**What the averaged spectrum is, by where the dwell falls in the frame.** The 415.1 frame is 1,000 symbols: 275 code-only, then 725 data (`dp_air_symbol_bit()`, `dp_air_test.h:355`).
-
-| the dwell is  | its despread spectrum                                                         | what the `sinc²` template does with it                                                                            |
-| ------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| all data      | the `sinc²` of random BPSK, 6 kHz between first nulls, centred on the carrier | the matched case: the correlation peaks at the centre                                                             |
-| all code-only | a line at the carrier                                                         | the correlation is the template itself, centred on the line, so it peaks at the line, with a far sharper estimate |
-| straddling    | the two, weighted by their shares                                             | the line dominates in proportion to its share; both are centred on the carrier, so the peak is too                |
-
-**Its error, derived.**
-
-- **The law.** For a shift of a known spectral shape `S(f)` in white noise, the bound is `var ≥ 1/J`, with `J = T ∫ (S'(f)/(S(f) + N0))² df` (Whittle).
-- **The sd falls as `1/√T`.** A fixed-width hump gains information only in proportion to the dwell `T`.
-- **At the point,** with `S` the `sinc²` at Es/N0 over ±2 symbol rates (the stream's ±6 kHz): 91.8 Hz at the floor and 45.9 Hz at 10 dB, for the 85.3 ms dwell.
-- **The estimator's own losses** are small against that. The block resolution, 187.5 Hz, is 32 times finer than the hump. The correlation peak spans about 128 bins, so the parabola's bias over its top three bins is far under a hertz.
-- **The bound is for the all-data case.** A code-only line obeys a tone's bound, which falls as `T^(−3/2)`: 0.2 Hz at 85 ms at the floor.
-
-**Against run 415** (guideline arm; the share of the 85.3 ms dwell that was code-only, read from `frame_off`, `t_track_s` and `ho_age_s` in the committed rows):
-
-| cell   | all data: n, median abs error, worst | straddling: n, median, worst | all code-only: n, median |
-| ------ | ------------------------------------ | ---------------------------- | ------------------------ |
-| 2.2/4  | 8, 70.2 Hz, 402.9 Hz                 | 49, 54.6 Hz, 147.3 Hz        | 3, 28.2 Hz               |
-| 2.8/4  | 4, 162.4 Hz, 351.1 Hz                | 55, 19.4 Hz, 178.2 Hz        | 1, 7.2 Hz                |
-| 2.2/10 | 29, 43.4 Hz, 115.9 Hz                | 30, 17.7 Hz, 71.4 Hz         | 1, 9.4 Hz                |
-| 2.8/10 | 26, 32.5 Hz, 173.9 Hz                | 31, 11.8 Hz, 47.3 Hz         | 3, 2.4 Hz                |
-
-```text
-python3 - <<'EOF'   # prints the table above from the committed rows
-import csv, statistics as st
-R = [r for r in csv.DictReader(open(
-    "docs/design/async-dsss-receiver-measurements/run415/pullin_rows.csv"))
-     if r["arm"] == "G"]
-def frac(r):
-    t1 = float(r["t_track_s"]); t0 = t1 - float(r["ho_age_s"])
-    fo = int(r["frame_off"]); n0, n1 = int(t0 * 3000), int(t1 * 3000)
-    return sum((fo + n) % 1000 < 275 for n in range(n0, n1)) / (n1 - n0)
-for c in [("2.2", "4.0"), ("2.8", "4.0"), ("2.2", "10.0"), ("2.8", "10.0")]:
-    g = {"none": [], "part": [], "all": []}
-    for r in R:
-        if (r["fc_ghz"], r["esn0_db"]) == c:
-            f = frac(r)
-            g["none" if f == 0 else "all" if f == 1 else "part"].append(
-                abs(float(r["ho_err_hz"])))
-    print(c, {k: (len(v), round(st.median(v), 1), max(v)) for k, v in g.items() if v})
-EOF
-```
-
-- **The tails to 403 Hz are all-data dwells at the floor.** Their median, 70 and 162 Hz, sits where a 92 Hz sd puts it (the median of `abs(N(0, 92))` is 62 Hz), with the tail a long-dwell bound does not reach. Every row's source is a detection, so they are not seed fallbacks. A sidelobe or wrong-lobe peak is not ruled out on three draws.
-- **The medians of 19 to 55 Hz at the floor come from dwells that straddle the code-only window:** 49 of 60 and 55 of 60 there, against 30 and 31 at 10 dB. The rows are consistent with the search detecting preferentially on the code-only stretch, where its coherent sums are not split by data, so that the refine that follows overlaps it. That is an inference from the rows, not derived.
-- **At 10 dB the all-data medians (43 and 33 Hz) sit at the bound's 46 Hz sd**, so the estimator is near efficient there.
-
-**hand-over error against `frame_off`:** the dependence is through where the dwell falls, as above. The split is printed by the command.
-
-**The requirement: the hand-over inside the loop's worst-start edge with probability 0.99, all-data, at the floor** (the owner, 2026-11-22: "0.99 is fine"). It comes from 415.1-B-1 §7.4.1's acquisition: 0.9 within the 20 s lock allocation (`PI_ACQ_P`, `PI_ACQ_S`). The hand-over is one link of that chain, and it is held one decade under the allowed miss so the search's own Pd (0.9 a dwell, the receiver's `pd`) stays the binding term. It is `ASYNC_DSSS_RX_FINE_P_HO`.
-
-**The dwell that meets it, all-data, at the bound** (`T = 85.3 ms · (σ₀ z / edge)²`, with σ₀ the bound above and z the two-sided quantile; no Doppler rate):
-
-| edge                      | P    | floor, 2.2 / 2.8 GHz | 10 dB, 2.2 / 2.8 GHz |
-| ------------------------- | ---- | -------------------- | -------------------- |
-| unit (14.4 Hz)            | 0.99 | 23.0 / 22.9 s        | 5.8 / 5.7 s          |
-| unit (14.4 Hz)            | 0.9  | 9.4 / 9.3 s          | 2.3 / 2.3 s          |
-| averaged (10.9 / 10.3 Hz) | 0.99 | 39.9 / 44.8 s        | 10.0 / 11.2 s        |
-| averaged (10.9 / 10.3 Hz) | 0.9  | 16.3 / 18.3 s        | 4.1 / 4.6 s          |
-
-The dwell grows as the edge's inverse square, so the averaged form's narrower edge costs 1.7 to 2.0 times the unit form's dwell. That is part of the choice between them.
-
-**What bounds the dwell from above.**
-
-- **The 20 s allocation.** At the floor, 0.99 does not fit for either form, even at the bound and with no Doppler rate.
-- **The Doppler rate, 11 Hz/s.** The estimate is the dwell's mean, so at the hand-over it is `R T / 2` stale: 5.5 Hz at 1 s, 27.5 Hz at 5 s, 110 Hz at 20 s. Over the dwell the hump also smears by `R T`.
-    - At any dwell long enough to meet the edge, the staleness alone is past it.
-    - The rate must be handled: estimated within the dwell, or supplied.
-- **Within the dwell, by regression on sub-dwell estimates.** For a straight line through evenly spaced estimates, the end-point's sd is twice the mean's. That is four times the dwell for the same edge: 92 s at the floor (unit, 0.99), 23 s at 10 dB. It does not fit at the floor, and fits at 10 dB only for P = 0.9 (9.2 s, unit).
-- **Supplied by the refine Dll's rate aid?** No. The code rate is the carrier rate over `fc / chip_rate` (1,449), so its noise is multiplied by 1,449 on the way back to carrier hertz.
-- **The search's seed** has no rate.
-
-**So, plainly: the dwell that meets the edge does not fit at the floor.** The all-data frequency-domain matched filter's sd falls as `1/√T`. With the 11 Hz/s rate handled in the dwell, no dwell inside 20 s puts the hand-over inside either form's edge at 0.99, or at 0.9, at the floor. At 10 dB, 0.9 fits for the unit form.
-
-**What does fit, and the pull-in that then follows**, from run 415's committed rows (today's `Costas` detector, so the pull-in times are not yet `carrier_nda`'s). With today's 85.3 ms dwell:
-
-| cell   | inside the unit edge | inside the averaged edge | the draws outside the unit edge: pull-in after the hand-over, median / p90 / worst; never |
-| ------ | -------------------- | ------------------------ | ----------------------------------------------------------------------------------------- |
-| 2.2/4  | 11 / 60              | 8 / 60                   | 0.82 / 2.01 / 6.64 s; 3 never                                                             |
-| 2.8/4  | 23 / 60              | 13 / 60                  | 0.74 / 2.78 / 13.66 s; 1 never                                                            |
-| 2.2/10 | 24 / 60              | 17 / 60                  | 0.22 / 0.75 / 1.66 s                                                                      |
-| 2.8/10 | 26 / 60              | 20 / 60                  | 0.08 / 0.33 / 3.73 s                                                                      |
-
-- **A dwell of a few hundred milliseconds** would cut the noise term by `√(T / 85 ms)`, with a staleness under 2 Hz: 300 ms gives 49 Hz sd at the floor and 24 Hz at 10 dB. That still puts most floor hand-overs outside the edge, so the loop pulls in on the path the owner calls non-deterministic.
-- **The code-only line.** Any dwell of a frame or more (0.333 s) holds a whole code-only window, so its spectrum holds the line. With that line in it, the tone's `T^(−3/2)` law would put the hand-over inside the edge. The owner ruled that the estimator may not rely on it. It is stated here as what the frame structure gives, not as the design.
-
-**The fine estimate below is the hand-over, and `CarrierAcquisition`'s estimate is its fallback.** The numbers above stand as `CarrierAcquisition`'s own.
+**Against the loop's requirement.** The hand-over must land inside the
+carrier loop's no-slip edge, 11.9 Hz at 2.2 GHz and 11.4 Hz at 2.8 GHz at
+the floor (§4.10, "Its bandwidth"). In step D's 720 draws at `6fc84cc80`
+every hand-over is the fine estimate (`ho_src` 3), and the worst error is
+1.68 Hz
+([d-6fc84cc80/read_d.py](async-dsss-receiver-measurements/d-6fc84cc80/read_d.py),
+the `fine_err med/max Hz` column).
 
 #### The hand-over: the M-th power of the refine's partial dumps
 

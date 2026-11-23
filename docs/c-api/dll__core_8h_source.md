@@ -319,7 +319,7 @@ void dp_dll_destroy(dp_dll_state_t *state);
 
 void dp_dll_reset(dp_dll_state_t *state);
 
-size_t dp_dll_steps_max_out(dp_dll_state_t *state);
+size_t dp_dll_steps_max_out(dp_dll_state_t *state, size_t x_len);
 
 size_t dp_dll_steps(dp_dll_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 

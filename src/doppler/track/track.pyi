@@ -1853,16 +1853,57 @@ class Dll:
 
         """
 
-    def steps_max_out(self) -> int:
-        """Output capacity hint for dp_dll_steps(): always 0.
+    def steps_max_out(self, x_len: int, /) -> int:
+        """The most partials one dp_dll_steps() call on x_len samples can emit:
+        the capacity to size its out from.
 
-        Emitted prompts never outnumber input samples, so size out to the input
-        length.
+        `segments x min(x_len, floor(2 x_len / P) + 1)`, with `P = sf x sps`
+        the code period in samples (a real number: a period need not be a whole
+        number of samples). A code period closes when the code NCO's phase
+        wraps forward, and a close emits the period's `segments` partials
+        together (one prompt at `segments` 1). The terms:
+
+        - `floor(2 x_len / P) + 1` closes: a call that begins just before a
+          wrap closes a period at its first sample, then one every `P / 2`
+          samples at most. The 2 is headroom for a loop that is tracking, or
+          pulling in near nominal (a locked loop sits within 1e-4 of it); it is
+          not a limit the Dll enforces, which has no rate clamp, and it is not
+          a tracking-free guarantee: a loop that is acquiring or re-acquiring
+          can change its rate wildly and slip cycles, so no rate is assumed to
+          hold there. It needs no carried phase: the +1 is the worst carried
+          phase.
+        - `min(x_len, ...)`: one wrap a sample at most, because the increment
+          is a 32-bit word. A call of 0 samples emits nothing.
+
+        The hard ceiling, which holds at any rate and in any loop state: an
+        epoch closes at most once per input sample, so `segments x x_len`
+        partials are never exceeded. A caller that must not lose a partial
+        under any loop state sizes to that, and pays for it in memory: a call
+        of 1e6 samples at 127 chips, 2 samples per chip and 8 segments is
+        8,000,000 partials (64 MB of complex64) against this bound's 63,000
+        (0.5 MB), 127 times as much.
+
+        Sizing max_out from this keeps a tracking loop's call from ever having
+        to stop. A call that must emit more than its max_out -- a capacity
+        below the bound, or a loop past the headroom -- stops there without
+        writing out of range and drops the rest: with the bound it is the
+        caller's error, and past the headroom it is the price of a rate the
+        bound does not assume.
+
+        Held by test_dll_core.c: a one-sample call that completes a carried
+        period at `segments` 4 emits all four partials, random call lengths at
+        `segments` 1, 4 and 8 and at 2, 2.2 and 3.4219 samples per chip never
+        exceed it, and a code rate of 1.9 times nominal does not either.
+
+        Parameters
+        ----------
+        x_len : int
+            Number of input samples the call will be given.
 
         Returns
         -------
         int
-            0 (no state-derived bound).
+            The bound, in partials; 0 for x_len 0.
         """
 
     def set_telemetry(

@@ -521,3 +521,29 @@ def test_a_nan_bandwidth_raises_and_changes_nothing():
     with pytest.raises(ValueError, match="Dll: bn is outside the loop"):
         d.bn = float("nan")
     assert d.bn == 0.01
+
+
+def test_a_one_sample_call_closing_a_carried_period_keeps_every_partial():
+    """A call of one sample can close a carried period, and a close at
+    ``segments`` 4 emits four partials: the Python face sized its buffer at
+    the call's length, so it kept one and dropped three without a word
+    (doppler#3283). The bound is ``dp_dll_steps_max_out``: ``segments x
+    min(n, floor(2 n / P) + 1)`` with ``P = sf x sps`` the period in samples.
+    """
+    p = SF * SPS
+    rng = np.random.default_rng(4)
+    x = (rng.normal(size=3 * p) + 1j * rng.normal(size=3 * p)).astype(
+        np.complex64
+    )
+    code = _code()
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    ref = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    assert len(d.steps(x[:p])) == 0  # the wrap is seen a sample later
+    last = d.steps(x[p : p + 1])  # the one sample that closes the period
+    assert len(last) == 4
+    np.testing.assert_array_equal(last, ref.steps(x[: p + 1]))  # bit for bit
+    for n in (0, 1, p - 1, p, 10 * p + 3):
+        want = 4 * min(n, int(2 * n // p) + 1)
+        assert d.steps_max_out(n) == want, n
+    with pytest.raises(ValueError, match="need >="):
+        d.steps(x[:1], out=np.zeros(1, dtype=np.complex64))

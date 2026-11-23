@@ -331,7 +331,7 @@ Not ruled by the owner, and not decided here:
 1. **The gap's length.** Twice the search model's need (§1.4) is the rule
     proposed, not ruled.
 1. **Keeping the EB90 start sequence** (§1.4).
-1. **`reacquire` as the default.** It is off as built; at this point a lock
+1. **`reacquire` as the default.** It is off by default; at this point a lock
     on the wrong Doppler never releases without it
     ([#3092](https://github.com/doppler-dsp/doppler/issues/3092)). §4.10
     proposes it (D9); it is also how a carrier break ends (red 1).
@@ -1506,7 +1506,7 @@ receiver cannot reach.
     every "ready" from the branch names them and shows nothing else is red.
 - **The code lock changes over the data at 10 dB**
     ([#3134](https://github.com/doppler-dsp/doppler/issues/3134)): at 2.8
-    GHz, static, it changes after it is sustained on 11 of 60 draws as built
+    GHz, static, it changes after it is sustained on 11 of 60 draws with the window it has
     and 16 of 60 with the code-period window, the other flags never; its
     look count is 3 there, and the same draw at 4 holds.
     `validate_async_dsss_receiver_pullin --check`'s "#3134: the code lock
@@ -2711,7 +2711,7 @@ EOF
 
 **hand-over error against `frame_off`:** the dependence is through where the dwell falls, as above. The split is printed by the command.
 
-**The requirement, proposed: the hand-over inside the loop's worst-start edge with probability 0.99, all-data, at the floor.** It comes from 415.1-B-1 §7.4.1's acquisition: 0.9 within the 20 s lock allocation (`PI_ACQ_P`, `PI_ACQ_S`). The hand-over is one link of that chain, and it is held one decade under the allowed miss so the search's own Pd (0.9 a dwell, the receiver's `pd`) stays the binding term. The owner rules on it.
+**The requirement: the hand-over inside the loop's worst-start edge with probability 0.99, all-data, at the floor** (the owner, 2026-11-22: "0.99 is fine"). It comes from 415.1-B-1 §7.4.1's acquisition: 0.9 within the 20 s lock allocation (`PI_ACQ_P`, `PI_ACQ_S`). The hand-over is one link of that chain, and it is held one decade under the allowed miss so the search's own Pd (0.9 a dwell, the receiver's `pd`) stays the binding term. It is `ASYNC_DSSS_RX_FINE_P_HO`.
 
 **The dwell that meets it, all-data, at the bound** (`T = 85.3 ms · (σ₀ z / edge)²`, with σ₀ the bound above and z the two-sided quantile; no Doppler rate):
 
@@ -2748,11 +2748,11 @@ The dwell grows as the edge's inverse square, so the averaged form's narrower ed
 - **A dwell of a few hundred milliseconds** would cut the noise term by `√(T / 85 ms)`, with a staleness under 2 Hz: 300 ms gives 49 Hz sd at the floor and 24 Hz at 10 dB. That still puts most floor hand-overs outside the edge, so the loop pulls in on the path the owner calls non-deterministic.
 - **The code-only line.** Any dwell of a frame or more (0.333 s) holds a whole code-only window, so its spectrum holds the line. With that line in it, the tone's `T^(−3/2)` law would put the hand-over inside the edge. The owner ruled that the estimator may not rely on it. It is stated here as what the frame structure gives, not as the design.
 
-**The fine estimate below replaces this estimator's figure as the hand-over, and `CarrierAcquisition` becomes its fallback.** The numbers above stand as `CarrierAcquisition`'s own.
+**The fine estimate below is the hand-over, and `CarrierAcquisition`'s estimate is its fallback.** The numbers above stand as `CarrierAcquisition`'s own.
 
 #### The hand-over: the M-th power of the refine's partial dumps
 
-Proposed, on paper; nothing in this section is built or run.
+The receiver hands over this estimate: `dp_async_dsss_receiver_fine_design()` derives it at create, and the refine's decision runs it. The test row below is what measures it.
 
 **The owner, 2026-11-22.**
 
@@ -2815,11 +2815,25 @@ Losses at `ε` 0.13 with the replica's 0.39 dB. The roll-off is `sinc²(e·T/K)`
 
 **Locating the tone: reused, not new.** `PolynomialPhaseEstimator` (`dp_ppe_estimate()`, `ppe_core.h`) is a coherent transform:
 
-- a Kaiser window at 50 dB, 4× zero padding, and the peak refined by `spectral_core`'s `dp_find_peaks_f32()` parabola;
+- a Kaiser window at `dp_kaiser_beta_for_sidelobe(50)`, β = 6.85, 4× zero padding, and the peak refined by `spectral_core`'s `dp_find_peaks_f32()` parabola;
 - a chirp-rate axis when `max_rate > 0`;
 - its header names this use: raise to the M-th power, then divide the result by M.
 
-It runs with `max_rate` 0. At 11 Hz/s the tone at `2Δf` moves 22 Hz/s, which costs 0.07 dB at the dwell below, Kaiser-weighted.
+**The rate axis, decided by the design at `doppler_rate`.** A carrier changing at `R` Hz/s puts a chirp of `M·R·(T/K)²` cycles a sum, squared, on the tone. The hand-over designs to `doppler_rate`, the one rate the receiver is told (the owner, 2026-11-22), with no new argument. The design compares the two ways to meet `P_ho` under it, and the shorter dwell is the design; a tie keeps the axis off:
+
+- the axis off (`max_rate` 0), the window's chirp loss taken at each candidate length;
+- the axis on, with `PolynomialPhaseEstimator`'s own rows at the buffer's length joining the union bound and the check's cells.
+
+The frequency handed over is the tone's at the buffer's end, `f + r(n − 1)`. At the 415.1-B-1 floor, `P_ho` 0.99, `_test_fine_design` prints:
+
+| carrier | rate            | chirp loss at `max_rate` 0 | axis         | dwell                                 |
+| ------- | --------------- | -------------------------- | ------------ | ------------------------------------- |
+| 2.2 GHz | 11 Hz/s (R_env) | 0.06 dB                    | off          | 39 blocks                             |
+| 2.8 GHz | 11 Hz/s         | 0.08 dB                    | off          | 43 blocks (one past the rate-free 42) |
+| 2.2 GHz | 400 Hz/s        | 8.84 dB                    | on, 229 rows | 50 blocks                             |
+| 2.8 GHz | 400 Hz/s        | 9.49 dB                    | on, 267 rows | 54 blocks                             |
+
+The receiver meets R_env (§1.8), so at the spec point the axis is off. The 400 Hz/s rows are the stress the design still answers.
 
 - **New code:** the pair sums, their M-th power (one multiply a sum at M = 2), a buffer of `N_s` sums, and the check.
 - **M is the receiver's `m`** (2, 4 or 8). The loss law above is M = 2's; M = 4 and 8 need their own, which is not derived here. 415.1 is M = 2.
@@ -2830,14 +2844,14 @@ It runs with `max_rate` 0. At 11 Hz/s the tone at `2Δf` moves 22 Hz/s, which co
 
 - **Output SNR:** `ρ = N_s · γ_sq`, with `N_s = K·D/T` sums in the dwell `D`.
 - **sd:** `sd(Δf) = (1/M) · √(6η) / (2π D √ρ)`.
-    - `η` = 1.55 is the Kaiser window's variance over the rectangular bound, from the window: `Σw²m² · (N³/12) / (Σwm²)²`.
+    - `η` = 2.36 is the Kaiser window's variance over the rectangular bound, from the estimator's own window (β 6.85): `Σw²m² · (N³/12) / (Σwm²)²`.
 - **A wrong peak:** `P_w ≈ ((N_s − 1)/2) · exp(−p·ρ/2)`.
-    - `p` = 0.764 is the window's peak-bin share, `(Σw)² / (N Σw²)`.
+    - `p` = 0.643 is the window's peak-bin share, `(Σw)² / (N Σw²)`, at the same β.
     - The union runs over every bin, since `PolynomialPhaseEstimator` searches them all.
     - A squared sum's noise is not Gaussian at `g` below 0 dB. A bin sums `N_s` of them, so it is.
 - **The independence the earlier table assumed now holds.** The dumps are disjoint, so their noise is independent and there is no overlap term.
     - The look-back window sums do overlap, wherever the window borrows the previous period. They fed the `K = 1` table this section replaces, which also counted none of the code, replica, symbol-edge or roll-off losses (21 dB and < 10⁻²⁵ at 85.3 ms).
-- **At today's 85.3 ms, `K = 5`, the floor.** `ρ` is 15.9 / 15.4 dB at the rows' median conditions (`P_w` 2.4 × 10⁻⁴ / 1.7 × 10⁻³). At the design bound it is 12.9 / 12.6 dB, where the union bound reads 0.39 / 0.79. **85.3 ms is too short at the floor.**
+- **At `CarrierAcquisition`'s 85.3 ms, `K = 5`, the floor.** `ρ` is 15.9 / 15.4 dB at the rows' median conditions (`P_w` 2.5 × 10⁻³ / 1.2 × 10⁻²). At the design bound it is 12.9 / 12.6 dB, where the union bound reads past 1 (1.3 / 2.4). **85.3 ms is too short at the floor.**
 
 **The check.**
 
@@ -2849,23 +2863,31 @@ It runs with `max_rate` 0. At 11 Hz/s the tone at `2Δf` moves 22 Hz/s, which co
 - **The spectral estimate leaves the decision.** Its value is kept as a probe beside the fine one, and the test row counts where the two disagree.
 - **A new source:** `ho_src` 3, the fine estimate.
 
-**The dwell, derived.** It is the smallest whole number of refine blocks (5.33 ms each) with `P_w + P_miss ≤ 1 − P_ho`. Here `P_ho` is the 0.99 proposed above (the owner rules on it), and `P_miss` is the check's (non-central χ²). It is evaluated at the design C/N0, `e` 3,000 Hz and `ε` 0.25.
+**The dwell, derived.** It is the smallest whole number of refine blocks (5.33 ms each) with `P_w + P_miss ≤ 1 − P_ho`. Here `P_ho` is the ruled 0.99, and `P_miss` is the check's (non-central χ², Marcum Q). It is evaluated at the design C/N0, `e` 3,000 Hz and `ε` 0.25. The design point's columns are `_test_fine_design`'s printout; the median columns are this section's formulas at the same `N_s`.
 
 | carrier | blocks, `D`  | `N_s` | at the design bound: `ρ`, `P_w`, `P_miss`, sd | at the rows' median (`ε` 0.13, `e` 0): `ρ`, sd |
 | ------- | ------------ | ----- | --------------------------------------------- | ---------------------------------------------- |
-| 2.2 GHz | 32, 170.7 ms | 2,680 | 15.9 dB, 4.6 × 10⁻⁴, 9.3 × 10⁻³, 0.23 Hz      | 18.9 dB, 0.16 Hz                               |
-| 2.8 GHz | 35, 186.7 ms | 3,735 | 16.0 dB, 4.2 × 10⁻⁴, 8.2 × 10⁻³, 0.21 Hz      | 18.8 dB, 0.15 Hz                               |
+| 2.2 GHz | 39, 208.0 ms | 3,268 | 16.8 dB, 3.8 × 10⁻⁴, 7.9 × 10⁻³, 0.21 Hz      | 19.8 dB, 0.15 Hz                               |
+| 2.8 GHz | 42, 224.0 ms | 4,479 | 16.8 dB, 4.4 × 10⁻⁴, 8.2 × 10⁻³, 0.19 Hz      | 19.6 dB, 0.14 Hz                               |
 
-At 10 dB the same dwell gives `ρ` 25 to 28 dB and sd 0.05 to 0.08 Hz.
+At 10 dB the same dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 11 Hz/s the 2.8 GHz dwell is 43 blocks (229.3 ms), the rate rule's one block.
 
-- **The estimate's age.** At 11 Hz/s, `R·D/2` is 0.94 / 1.03 Hz. With the sd, the hand-over sits well inside the narrowest edge (10.3 Hz) whenever the right peak is taken. So the edge's probability is `1 − P_w − P_miss`.
+**What `P_ho` costs**, the same design at the other two values (`_test_fine_design`):
+
+| `P_ho` | 2.2 GHz            | 2.8 GHz     |
+| ------ | ------------------ | ----------- |
+| 0.9    | 29 blocks (155 ms) | 32 (171 ms) |
+| 0.99   | 39 (208 ms)        | 42 (224 ms) |
+| 0.999  | 47 (251 ms)        | 51 (272 ms) |
+
+- **The estimate's age.** At 11 Hz/s, `R·D/2` is 1.14 / 1.26 Hz. With the sd, the hand-over sits well inside the narrowest edge (10.3 Hz) whenever the right peak is taken. So the edge's probability is `1 − P_w − P_miss`.
 - **`CarrierAcquisition`'s test runs over the same dwell.** Its `dwell_target` is raised to the fine one, which only makes its detection more certain.
-- **If `ε`'s bound is the rows' 0.40, not 0.25,** the dwell is 73 / 80 blocks (389 / 427 ms). There the rate costs 0.4 to 0.6 dB at `max_rate` 0, and `PolynomialPhaseEstimator`'s rate axis is due. The test row measures `ε` and decides.
+- **If `ε`'s bound is the rows' 0.40, not 0.25,** the dwell is longer, and the rate rule above may turn the axis on there. Its length at β 6.85 is not printed yet. The test row measures `ε` and decides.
 - **A candidate cause of the 0.40, not established.** The refine `Dll` runs at bn 0.002, and a closed-loop reading of the `Dll` at the receiver's configuration (Gold-1023, 2 samples a chip, segments 4 and 10, the aid on and off; #3234) measures its loop about 19 times wider than that. A loop that wide has about 4.4 times the code jitter sd its bn predicts. That could be the rows' 0.40 chip against the grid's 0.25. The reading was at 3.069 Mcps; the one at 415.1-B-1's rates is owed, and the test row's code error over the dwell decides.
 
 **The test row, fixed before any run.**
 
-- **The draws.** Run 415's guideline draws (seeds, `frame_off` and `f0`; 4 cells × 60), at 0 Hz/s as run 415 ran, and the same draws at 11 Hz/s. Each draw records:
+- **The draws.** Run 415's guideline draws (seeds, `frame_off` and `f0`; 60 a cell) at 4, 5 and 10 dB on both carriers, at 0 Hz/s as run 415 ran and at R_env, 11 Hz/s (`--dynamics pass`). The 5 dB cells are there because the decision rule names 4 and 5 dB inside 20 s. Each draw records:
 
     - the refine `Dll`'s code error over the dwell, against the truth;
     - the fine estimate, its `snr_db`, `ho_src`;
@@ -2873,14 +2895,14 @@ At 10 dB the same dwell gives `ρ` 25 to 28 dB and sd 0.05 to 0.08 Hz.
 
 - **Pass.** In each cell, the hand-over error is inside the averaged form's worst-start edge (10.9 / 10.3 Hz) on at least 0.99 of the draws, which on 60 draws is all of them. It is reported separately for all-data, straddling and code-only dwells.
 
-    - The dwell is now 512 symbols, so an all-data dwell lies wholly in the frame's 725 data symbols.
+    - The dwell is 624 / 672 symbols (688 at 2.8 GHz and 11 Hz/s), so an all-data dwell lies wholly in the frame's 725 data symbols.
 
 - **Predicted, from the derivation.**
 
     - No draw outside the edge.
-    - A median abs error of 0.11 / 0.10 Hz at the floor and 0.04 Hz at 10 dB, at 0 Hz/s. At 11 Hz/s, add the age.
+    - A median abs error of 0.10 / 0.09 Hz at the floor (0.674 sd) and 0.03 to 0.05 Hz at 10 dB, at 0 Hz/s. At 11 Hz/s, add the age. 5 dB lies between; no separate number is derived for it.
     - No refusal: `P_miss` at the rows' conditions is about 10⁻⁸.
-    - `snr_db` near `10·log10(1 + p·ρ) + 2.51`: 20.3 / 20.2 dB at the floor and 28.8 / 29.0 dB at 10 dB, at the rows' median `ε`.
+    - `snr_db` near `10·log10(1 + p·ρ) + 2.51`: 20.4 / 20.2 dB at the floor and 28.9 / 29.0 dB at 10 dB, at the rows' median `ε`.
 
 - **The image cases, named.** These are the 8 draws whose seed error is past `±1/(4T)`:
 
@@ -2898,19 +2920,18 @@ At 10 dB the same dwell gives `ρ` 25 to 28 dB and sd 0.05 to 0.08 Hz.
     - Any refusal at the rows' conditions.
     - A median `snr_db` more than 1 dB under the prediction at the measured `ε`. That means the SNR model is wrong. If the measured `ε` is the cause, the dwell is resized at it.
 
-**What it changes in the receiver.**
+**What the receiver does.**
 
-- **The refine period.** After `dp_dll_steps()`, sum the dumps in pairs, square them, and append to the fine buffer.
-- **At the refine's decision.** Run `dp_ppe_estimate()`, apply the check, and hand over the result divided by M against the frozen carrier's reference (`ASYNC_DSSS_RX_HO_FINE`, 3). Otherwise use today's chain.
-- **Probes:** `rx.ref_fine.hz`, `.snr_db`, `.n`.
-- **The dwell.** `dwell_target` becomes the larger of `CarrierAcquisition`'s detection dwell and the fine dwell. Both are derived at create from `cn0_dbhz`, `m`, `refine_segments`, `doppler_uncertainty` and `pfa`, plus one new constant, `P_ho` (0.99, the owner rules on it). The caller passes no new argument.
-- **State.** The `PolynomialPhaseEstimator` child is stateless and outside the blob. The buffer and its count go in, so `ASYNC_DSSS_RECEIVER_STATE_VERSION` moves from 21 to 22. The pool nests the receiver's blob, and whether its own version 8 moves is checked at the build.
-- **`ho_src`** is refused past 3, not past 2. The pull-in harness's `ho_src` column and `record_415.py` follow.
-- **Pins, each with its sabotage.**
-    - A refine on a synthetic BPSK signal with a seed error past `1/(4T)` hands over inside the edge. Sabotage: `K` forced to 1 lands one image off.
-    - The check's threshold against its formula. Sabotage: drop the 2.51 dB.
-    - A noise-only dwell refuses and falls back to `CarrierAcquisition`.
-    - The blob round-trips at version 22.
+- **The refine period.** After `dp_dll_steps()`, the dumps are summed in groups to `fine.k` sums a period, squared, and appended to the fine buffer. The buffer holds the dwell and a period, and slides if the refine runs longer, so the estimate is always the latest dwell's.
+- **At the refine's decision.** It waits out the fine dwell (`adr_refine_decided`): `dwell_target` is the larger of `CarrierAcquisition`'s detection dwell and the fine one, and a sequential estimator that fires early waits for it too. Then `dp_ppe_estimate()` runs, the check is applied, and the result divided by M is handed over against the frozen carrier's reference (`ASYNC_DSSS_RX_HO_FINE`, 3). Refused, today's chain: `CarrierAcquisition`'s estimate if it fired, otherwise the seed. A give-up at the block cap runs the same check, so the fine estimate can be handed over there too.
+- **Probes:** `rx.ref_fine.hz`, `.snr_db`, `.n`, once at the decision, whether or not the check passed.
+- **Configuration.** The design is derived at create from `cn0_dbhz`, `m`, the code's flips, `refine_segments`, `doppler_uncertainty`, `doppler_rate`, the search's half sample, the refine block, `pfa` and `refine_max_n_blocks`, plus one constant, `ASYNC_DSSS_RX_FINE_P_HO` (0.99, ruled). The caller passes no new argument, and no mutator reaches any of them. It is off where the design refuses (M other than 2).
+- **State.** The `PolynomialPhaseEstimator` child is stateless and outside the blob. The buffer and its count go in, after the hand-over ring: `ASYNC_DSSS_RECEIVER_STATE_VERSION` 23. The buffer's size, `fine_cap`, follows from create's C/N0, so a blob from a receiver built at another C/N0 is refused on size.
+- **`ho_src`** is refused past 3.
+- **Pins, each with its sabotage** (`test_async_dsss_receiver_core.c`):
+    - `_test_fine_design`: the six dwells of the cost table, `K` 5, the rate rows, M 4 and an uncovered `e` refused, and a Monte Carlo through `PolynomialPhaseEstimator` itself (400 draws, 3 failed against a designed 8.1 × 10⁻³). Sabotage: the page's earlier β (4.55) gives 32 / 35 and fails the Monte Carlo at that dwell.
+    - `_test_fine_hands_over`: Gold-1023, 50 dB-Hz, the carrier 500 Hz off and seeded 1,200 Hz off, past a whole-period sum's 781 Hz: hands over at 499.41 Hz with `ho_src` 3; noise alone refuses (9.9 dB) and falls back to the seed. Sabotage: `K` forced to 1 lands one image off, at 2,063.41 Hz.
+    - The hand-over's domain test hands the fine estimate over past fs/2 and is refused.
 - **Unchanged:** `CarrierAcquisition`, `PolynomialPhaseEstimator`, the search.
 
 #### The error-rate window
@@ -3165,7 +3186,7 @@ build the same surface: the same samples, the same code, the same grid,
 dwells on the same block grid (the ranks depended on it). N idle receivers
 searching each for itself cost N searches, and the pinned bench measured
 3.4 to 4.0 searches for four (§9). One search costs one, whatever N is.
-The pool as built before this design also had one search, and failed
+The earlier pool, before this design, also had one search, and failed
 because it **never stopped** (§9); this one stops whenever no receiver can
 take a hit.
 
@@ -3173,7 +3194,7 @@ take a hit.
 
 A pooled `AsyncDsssReceiver` has three states: **idle**, refining and
 tracking (§4). Idle is state value 3 (`ASYNC_DSSS_RX_IDLE`,
-§11.1), the value the pool as built's cell receivers used for the same
+§11.1), the value the earlier pool's cell receivers used for the same
 thing. A seed from the controller (`seed()`, §2.2's three fields) starts the
 refine at the seed's sample; a release (§10, with `reacquire`) returns the
 receiver to idle, and the controller's search picks the next signal for it.
@@ -3470,7 +3491,7 @@ receiver and never multiplied by N. Two changes answer it:
     The lag axis is now read on a padded power-of-two grid (§1.2), and the
     decision pass's peak scan skips blocks that cannot move the pick.
 
-**What the pool as built taught.** Its push was one receiver's plus a
+**What the earlier pool taught.** Its push was one receiver's plus a
 central searcher's that never stopped, because a new emitter may appear at
 any time; at ±50 kHz that searcher alone ran several times slower than real
 time on one thread, and threads brought it down only in wall time (record
@@ -3605,7 +3626,7 @@ resumes the receiver elsewhere, this record describes it here.
 
 ### 11.4 The replica output is not built
 
-It belonged to the pool as built's cancellation branch, never built
+It belonged to the earlier pool's cancellation branch, never built
 (§7.2's near-far limit, doppler#2531).
 
 ### 11.5 Nothing grows with time

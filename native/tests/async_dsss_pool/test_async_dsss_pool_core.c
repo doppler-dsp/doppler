@@ -397,10 +397,14 @@ _zone_run (const uint8_t *code, double ratio, double span, int deep,
   size_t          na, nb;
   double         *da, *db;
   const size_t    w = deep ? 450u : 0u, f = deep ? 500u : 0u;
-  /* The deep runs at the design level (47 dB-Hz): even there a deep block
-     lifts the emitters' own lags (their slow-time sidelobes) over the gate
-     on enough rows to fill today's list, which the run asserts. */
-  const double cn0 = deep ? 47.0 : 50.0;
+  /* The deep runs at 50 dB-Hz, where a deep block lifts the emitters' own
+     lags (their slow-time sidelobes) over the gate on enough rows to fill
+     today's list, which the run asserts as its premise. They were written
+     at a label of 47 dB-Hz when the captures carried 3 dB less noise than
+     their label (#689), an effective 50; at a true 47 the list does not
+     fill on any of the four deep runs, at 50 it fills on all four, and the
+     zone identity holds 8 of 8 at both (swiftgo, 0373a01d5). */
+  const double cn0 = deep ? 50.0 : 50.0;
   dp_dsss_windowed_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 200.0, cn0,
                             deep ? 600 : 300, 1000, 11, w, f, &a, &na, &da);
   dp_dsss_windowed_capture (code, 1023, POOL_SPC, POOL_FS, tsym, -300.0, 120.0,

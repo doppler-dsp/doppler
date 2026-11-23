@@ -1,0 +1,4 @@
+head 0373a01d5 test(async_dsss_receiver): the seed-bound pin at file scope dirty=0 start 22:59:03
+build rc=0 22:59:05
+ghosts done 23:09:10 exits:      16 1
+done 23:09:10

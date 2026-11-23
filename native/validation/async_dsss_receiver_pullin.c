@@ -296,6 +296,17 @@ typedef struct
      0.5 s, with the design's baselines beside them. */
   double car_mean_deg, car_sd_deg, code_mean_chip, code_sd_chip;
   size_t car_slips, ho_slips; /* steps past the fold: steady, transient */
+  /* D10's split, against the declared lock (t_lock_s), on the emitter's
+     code: fold crossings from the hand-over to the declared lock, and
+     after it; net_rev_post, the signed sum of the crossings after it (+1
+     each forward through the fold, -1 back), whose magnitude is the pi
+     reversals the stream ends with, a crossing undone by one the other way
+     counting none; post_s, the seconds of on-code tracking after the
+     declared lock they are counted over (the mean time between crossings
+     is post_s / slips_post). NaN / 0 without a declared lock. */
+  size_t slips_pre, slips_post;
+  long   net_rev_post;
+  double post_s;
   double cross_win_frac;  /* of the settled blocks on the emitter, the share
                              whose second before holds a fold crossing */
   double exc_win_frac[3]; /* and the share whose second before holds a
@@ -1410,6 +1421,35 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           lock_sym = s_end[s5];
       }
   }
+  /* D10's split (draw_t): the same crossings (cross[]) and the same
+     on-code filter as car_slips, cut at the declared lock. */
+  d->slips_pre = d->slips_post = 0;
+  d->net_rev_post              = 0;
+  d->post_s                    = NAN;
+  if (d->lock20 && !isnan (d->t_track_s))
+    {
+      size_t n_post = 0;
+      for (size_t b = 1; b < n_blk; b++)
+        {
+          const double t = (double)b * blk_s;
+          if (t < d->t_track_s || isnan (e_car[b]) || fabs (e_cod[b]) > 0.5f)
+            continue;
+          if (t < d->t_lock_s)
+            {
+              d->slips_pre += cross[b];
+              continue;
+            }
+          n_post++;
+          if (cross[b])
+            {
+              d->slips_post++;
+              /* A jump down past the fold is the phase moving forward
+                 through +90 degrees, and up is back through -90. */
+              d->net_rev_post += e_car[b] < e_car[b - 1] ? 1 : -1;
+            }
+        }
+      d->post_s = (double)n_post * blk_s;
+    }
   /* The analytic budget, as a check where it predicts: a hand-over inside
      the loop's worst-start edge. A window that opens before the hand-over
      plus the budget is a flag that declared before its loops settled; it
@@ -1617,7 +1657,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   "base_half_spacing_chip,bn_car,win_natural_frac,"                           \
   "t_car_s,pulled_in,t_pull_s,t_demod_s,t_sync_s,t_lock_s,lock20,"            \
   "unaligned_lock,edge_hz,budget_s,early_lock,fine_err_hz,fine_snr_db,"       \
-  "fine_n\n"
+  "fine_n,slips_pre,slips_post,net_rev_post,post_s\n"
 
 static void
 emit_row (const draw_t *d, uint32_t seed)
@@ -1631,7 +1671,8 @@ emit_row (const draw_t *d, uint32_t seed)
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
       "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,"
-      "%.4f,%d,%.4f,%.4f,%.4f,%.4f,%d,%d,%.2f,%.4f,%d,%.3f,%.2f,%zu\n",
+      "%.4f,%d,%.4f,%.4f,%.4f,%.4f,%d,%d,%.2f,%.4f,%d,%.3f,%.2f,%zu,%zu,%zu,"
+      "%ld,%.3f\n",
       d->fc / 1e9, d->esn0, d->rate, seed, d->f0, d->frame_off, d->ho_err_hz,
       d->ho_src, d->seed_err_hz, d->seed_code_chip, d->seed_t_s,
       d->ho_code_chip, d->ho_age_s, d->t_track_s, d->t_sym_s, d->t_code_s,
@@ -1651,7 +1692,8 @@ emit_row (const draw_t *d, uint32_t seed)
       d->bn_car, d->win_n ? (double)d->win_natural / (double)d->win_n : NAN,
       d->t_car_s, d->pulled_in, d->t_pull_s, d->t_demod_s, d->t_sync_s,
       d->t_lock_s, d->lock20, d->unaligned_lock, d->edge_hz, d->budget_s,
-      d->early_lock, d->fine_err_hz, d->fine_snr_db, d->fine_n);
+      d->early_lock, d->fine_err_hz, d->fine_snr_db, d->fine_n, d->slips_pre,
+      d->slips_post, d->net_rev_post, d->post_s);
 }
 
 static int

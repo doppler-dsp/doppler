@@ -29,15 +29,17 @@
  * truth's code phase at that sample, as the receiver's code NCO would read
  * it (half a receive sample before the continuous phase, the dwell-start
  * convention of rx.phase.code), and on the truth's Doppler plus an offset
- * from a grid of OFFSETS across one search row. Recorded against the
+ * from a grid of OFFSETS across one search row; the emitters' own offsets
+ * are RF_OFFSETS points evenly inside the use case's +/-1,500 Hz
+ * (DP_S415_SPAN_HZ). Recorded against the
  * channel's own offset at the hand-over sample: the error of what was
  * handed over, and which estimate it took.
  *
  * Asserted, the same in the sweep and --check: every dwell leaves
- * refining (a hand-over or a give-up, never stuck); and on noise the
- * rate is not shown to exceed its design: its interval starts at or under
- * pfa. Printed: the rate, and the hand-over errors as median, 90th
- * percentile and worst.
+ * refining (a hand-over or a give-up, never stuck); and on noise neither
+ * decision's rate (the data template's, the fine check's) is shown to
+ * exceed its design: each interval starts at or under pfa. Printed: the rate,
+ * and the hand-over errors as median, 90th percentile and worst.
  * --check: 2.8 GHz, 300 noise dwells and the static 7 dB hand-over grid
  * at one noise seed.
  *
@@ -140,6 +142,11 @@ noise_rows (const uint8_t *code, double fc, size_t n, int emit)
             fc / 1e9, n, src[ASYNC_DSSS_RX_HO_SEED],
             src[ASYNC_DSSS_RX_HO_DATA], src[ASYNC_DSSS_RX_HO_FINE]);
   rate_row ("data template decides", data, n, pfa, emit);
+  /* The fine check is a second decision on the same dwell, at the same
+     pfa (adr_fine_thr_db(): the largest of the fine sums' noise bins at
+     pfa): how often it passes on noise is held to it too. */
+  rate_row ("fine estimate passes its check", src[ASYNC_DSSS_RX_HO_FINE], n,
+            pfa, emit);
   free (x);
   free (out);
   dp_async_dsss_receiver_destroy (rx);
@@ -187,7 +194,9 @@ one_handover (const uint8_t *code, double fc, double cn0, double rate,
   DP_REQUIRE (rx != NULL);
   const double     off = rx->acq->search->doppler_res_hz * off_frac;
   dp_air_emitter_t e   = dp_s415_emitter (
-      code, fc, -700.0 + 140.0 * (double)o,
+      code, fc,
+      -DP_S415_SPAN_HZ
+          + 2.0 * DP_S415_SPAN_HZ * ((double)o + 0.5) / (double)RF_OFFSETS,
       rate == 0.0 ? 0.0 : (s & 1u ? rate : -rate), cn0, 0.0, 100u + s);
   e.frame_off = (size_t)(37u * (unsigned)o + 101u * s) % DP_S415_FRAME_SYM;
   dp_air_t air;

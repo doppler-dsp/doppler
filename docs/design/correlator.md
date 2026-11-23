@@ -154,9 +154,8 @@ ruled.
 - **underpowered**: the engine's flag: `pd_burst` < `pd` on a burst
     search where `pd_burst` is defined, else `pd_predicted` < `pd`; never
     set without a design C/N0.
-- **as built**: what the committed engine does through its public door.
-    **Emulated**: a harness arranging the engine to imitate something not
-    built [re-pushing the stream at P offsets].
+- **emulated**: a harness arranging the engine to imitate something it does
+    not do [re-pushing the stream at P offsets].
 
 ### Cost *(not yet reviewed)*
 
@@ -660,7 +659,7 @@ times, 50 ms, at a C/N0 of 32 dB-Hz
 down-converted rate: 1,526 ns a sample a core, 6,104 across the four cores,
 before the down-converter. Its target acquisition Pd is 0.999, at about
 one false alarm an hour (that rate is an assumption, not yet the owner's).
-As built the search needs 35 dB-Hz for it, and 34 with four emulated
+The committed search needs 35 dB-Hz for it, and 34 with four emulated
 total-dwell offsets; at 32 dB-Hz overlapped dwells reach 0.957 to 0.971
 ([#3054](https://github.com/doppler-dsp/doppler/issues/3054#issuecomment-6886875009)).
 Unless it names another box, everything below
@@ -834,7 +833,7 @@ its own issue.
     `fft` runs 34 Mbin/s at 4,096 points against 6.7 at 65,536. So §9.2's
     conclusion that bandwidth is not the limit is the x86 box's only. On
     that board the one-roll burst search has compute to spare and is short on
-    acquisition Pd, 3 dB as built and 1 to 2 with overlapped dwells (§9), so
+    acquisition Pd, 3 dB with the committed engine and 1 to 2 with overlapped dwells (§9), so
     narrower arithmetic is not on that application's critical path.
 - **The arm64 two-thread case** gained nothing over one thread at the design
     point before §9.3's split, unexplained, and has not been measured on

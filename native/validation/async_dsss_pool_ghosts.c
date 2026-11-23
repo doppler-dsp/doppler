@@ -5,7 +5,7 @@
  *
  * The pool's ghost rule (docs/design/async-dsss-receiver.md §8) releases a
  * receiver that tracks a stronger holder's Doppler-offset sidelobe: its
- * carrier still on the holder's, a whole NONZERO number k of lattice steps
+ * carrier still on the holder's, a whole NONZERO number k of image spacings
  * off, its code lock low. A ghost on its parent's own carrier (k = 0) is
  * left: a true emitter sharing a stronger one's carrier looks the same.
  * The test of that choice is two populations, and a third says where k = 0
@@ -23,7 +23,7 @@
  * FORCED. A at PARENT_DBHZ; receiver 1 seeded once receiver 0 tracks A
  * with code lock, on A's sidelobe SIDE chips from A's phase (a Gold
  * sidelobe at the in-phase level, 63 of 1023) and on A's carrier plus k
- * lattice steps, k in -2..2, at the C/N0 the search would report for that
+ * image spacings, k in -2..2, at the C/N0 the search would report for that
  * peak. Run FORCED_S after the seed with lost_confirm_s 2.0. Each ends
  * released by the ghost rule, freed by the loss release, or held; with
  * its code- and symbol-lock fractions while tracking.
@@ -38,20 +38,20 @@
  *
  * ALONE. One emitter, a pool of four searching, ALONE_S; every tenure in
  * which a receiver holds a phase more than a chip from the emitter's is a
- * ghost the pool took on its own: its offset in chips and in lattice
- * steps, and how it ended.
+ * ghost the pool took on its own: its offset in chips and in image
+ * spacings, and how it ended.
  *
  * Asserted, the same in the sweep and --check, the ghost rule's own two
  * claims (async-dsss-receiver.md §8), on every draw: it releases a
  * receiver only when that receiver's carrier sits a whole nonzero number
- * of lattice steps off a stronger holder's (FORCED: off A's; SECOND: off
+ * of image spacings off a stronger holder's (FORCED: off A's; SECOND: off
  * B's own, so a distinct B is released only after the hand-over moved its
- * receiver onto a lattice image), and it never takes one on its parent's
+ * receiver onto a carrier image), and it never takes one on its parent's
  * carrier (FORCED, within half a step of A at the end). The shipped pool's
  * fine hand-over carries most forced ghosts to A's own carrier, where the
  * rule leaves them (the declared near-far limit, §8.2, doppler#3263), so
  * the rule's release of a k = 2 ghost is pinned on a pool with the refine
- * off, where the seed stays on its lattice image (--check, one draw).
+ * off, where the seed stays on its carrier image (--check, one draw).
  * Printed, with Wilson 95% intervals: the forced outcomes by k, the
  * counterfactual release rate by B's level, and the pool's own ghosts.
  * --check: 2.8 GHz, FORCED k = 0 and 2 and SECOND at 38.8 and 50 dB-Hz,
@@ -182,7 +182,7 @@ typedef struct
      source and the Doppler it handed over at, less B's and A's truth
      there, Hz, s past the seed; and at its last tracking step (the step
      before a release, or the run's end) its carrier less B's and A's
-     truth in lattice steps and its code phase less theirs in chips,
+     truth in image spacings and its code phase less theirs in chips,
      wrapped to [-code_len/2, code_len/2). NaN: never tracked. */
   int    ho_src;
   double ho_b_hz, ho_a_hz, t_ho_s, end_b_lat, end_a_lat, end_b_chips,
@@ -194,6 +194,21 @@ typedef struct
 static int      gh_ho_only;
 static uint32_t gh_seeds[16];
 static size_t   gh_n_seeds;
+
+/* How near a whole number of image spacings a carrier offset must sit to
+   be on a carrier image, in spacings: a quarter, far past the loops'
+   jitter at the end (a few Hz against 1/(2T), 1,571 / 2,000 Hz) and far
+   inside the half spacing that would make the nearest image ambiguous. */
+#define GH_IMAGE_TOL 0.25
+
+/* An offset of `spacings` image spacings, 1/(2T), is on a carrier image:
+   within GH_IMAGE_TOL of a whole nonzero number of them. */
+static int
+gh_on_image (double spacings)
+{
+  const double k = round (spacings);
+  return isfinite (spacings) && k != 0.0 && fabs (spacings - k) < GH_IMAGE_TOL;
+}
 
 /* a - b on a circle of n, in [-n/2, n/2). */
 static double
@@ -627,7 +642,7 @@ gh_acc_free (gh_acc_t *a)
   free (a->s[1]);
 }
 
-/* FORCED: receiver 1 on A's sidelobe at k lattice steps. */
+/* FORCED: receiver 1 on A's sidelobe at k image spacings. */
 static int
 gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
 {
@@ -761,8 +776,9 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
   o->ho_src  = -1;
   o->ho_b_hz = o->ho_a_hz = o->t_ho_s = NAN;
   o->end_b_lat = o->end_a_lat = o->end_b_chips = o->end_a_chips = NAN;
-  o->t_end_s                                                    = NAN;
-  gh_acc_t acc                                                  = { 0 };
+  o->df_end_hz = o->df_end_lat = NAN;
+  o->t_end_s                   = NAN;
+  gh_acc_t acc                 = { 0 };
   for (;;)
     {
       DP_REQUIRE (gh_push (p, &air, x) == 0);
@@ -809,6 +825,8 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
               o->ho_a_hz = s1.doppler_hz - ta.car_hz;
               o->t_ho_s  = t - t_seed;
             }
+          o->df_end_hz   = s1.doppler_hz - s0.doppler_hz;
+          o->df_end_lat  = o->df_end_hz / p->lattice_hz;
           o->end_b_lat   = (s1.doppler_hz - tb.car_hz) / p->lattice_hz;
           o->end_a_lat   = (s1.doppler_hz - ta.car_hz) / p->lattice_hz;
           o->end_b_chips = gh_wrap (s1.chip_phase, tb.code_chips, 1023.0);
@@ -1035,15 +1053,13 @@ main (int argc, char **argv)
             rel += o.outcome == 1;
             lost += o.outcome == 2;
             held += o.outcome == 0;
-            /* The rule's two claims, on the ghost's carrier at its end
-               (its release step, or the run's end). */
+            /* The rule's claim, on the ghost's carrier at its end (its
+               release step, or the run's end), against its parent's. */
             if (o.outcome == 1)
-              DP_CHECK_MSG (fabs (o.df_end_lat) >= 0.5,
-                            "the ghost rule releases a ghost only off its "
-                            "parent's carrier by a whole lattice step");
-            if (fabs (o.df_end_lat) < 0.5)
-              DP_CHECK_MSG (o.outcome != 1, "the ghost rule never takes a "
-                                            "ghost on its parent's carrier");
+              DP_CHECK_MSG (gh_on_image (o.df_end_lat),
+                            "the ghost rule releases a ghost only on a "
+                            "carrier image of its parent: a whole nonzero "
+                            "number of image spacings off");
             if (emit)
               printf ("%.1f,%d,%u,%d,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.3f,%.3f,"
                       "%.3f,%.1f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%.3f,"
@@ -1068,15 +1084,15 @@ main (int argc, char **argv)
   if (check)
     {
       /* The ghost rule's own pin: with the refine off the seed stays on
-         its lattice image, two steps off A, and the rule releases it. */
+         its carrier image, two steps off A, and the rule releases it. */
       gh_refine = false;
       gh_t o;
       DP_REQUIRE (gh_forced (code, fcs[1], 2, 1, &o) == 0);
       gh_refine = true;
       printf ("  refine off, 2.8 GHz, k = +2: outcome %d, carrier %.2f "
-              "lattice steps off A at the end\n",
+              "image spacings off A at the end\n",
               o.outcome, o.df_end_lat);
-      DP_CHECK_MSG (o.outcome == 1 && fabs (o.df_end_lat - 2.0) < 0.5,
+      DP_CHECK_MSG (o.outcome == 1 && fabs (o.df_end_lat - 2.0) < GH_IMAGE_TOL,
                     "refine off: a k = 2 sidelobe ghost is released by the "
                     "ghost rule");
     }
@@ -1130,11 +1146,11 @@ main (int argc, char **argv)
             n++;
             rel += o.outcome == 1;
             would += (size_t)o.any_k;
-            /* Released only when its receiver no longer sat on B's
-               carrier: the hand-over had moved it onto a lattice image
-               (§8.2), which the rule correctly takes. */
+            /* Released only on a carrier image of its parent, A's
+               receiver, as the rule claims: the hand-over had moved B's
+               receiver there (§8.2), which the rule correctly takes. */
             if (o.outcome == 1)
-              DP_CHECK_MSG (fabs (o.end_b_lat) >= 0.5,
+              DP_CHECK_MSG (gh_on_image (o.df_end_lat),
                             "the ghost rule releases a distinct emitter's "
                             "receiver only off that emitter's carrier");
           }

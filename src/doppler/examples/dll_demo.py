@@ -29,7 +29,14 @@ SF, SPS = 127, 8  # code length (chips), samples per chip
 NPER = 1000  # code periods
 OFFSET = 0.5  # initial replica offset, chips
 DELTA = 2e-4  # code Doppler (chip rate error)
-BN = 0.004  # loop noise bandwidth
+# Loop noise bandwidth, from the requirement. The loop must pull in a ramp of
+# DELTA * SF = 0.025 chip per period inside the discriminator's range (about
+# a chip), and a second-order loop's transient to a rate step is about the
+# rate over its natural frequency wn = 8 zeta bn / (4 zeta^2 + 1): wn at least
+# 0.025 per period, so bn at least 0.0135; 0.02 gives wn 1.5 times the ramp.
+# The upper edge is the figure's own: at 0.05 the loop pulls in so fast that
+# no transient is left to show, which main() asserts.
+BN = 0.02
 
 # The code is a MAXIMAL-LENGTH SEQUENCE from the library, not a coin flip.
 # SF = 127 is 2^7 - 1, so `PN(length=7)` fills the period exactly, and the

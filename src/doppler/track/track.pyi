@@ -1975,11 +1975,11 @@ class Dll:
         `phase_inc`), not as a phase pulse. Also nudges the current `phase_inc`
         so the aid takes effect before the first period update. `code_rate`
         stays the loop's own observable and is unaffected. A HELD loop
-        (dp_dll_set_coast()) takes the new aid at once: nothing steers a
-        coasting loop's `phase_inc`, so it is recomputed here from the held
-        filter and the new aid -- a holder that refreshes the Doppler it holds
-        (a searcher-timed receiver's fold) sees the code rate follow. Before
-        this, a coasting loop kept the aid it was held with.
+        (dp_dll_set_coast()) takes the new aid at its next period boundary,
+        where the held rate is converted with the aid in it: a holder that
+        refreshes the Doppler it holds (a searcher-timed receiver's fold) sees
+        the code rate follow, and refreshing it any number of times within a
+        period changes nothing a conversion carries.
 
         Parameters
         ----------

@@ -70,8 +70,10 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 | ---: | :--- |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**dll\_accumulate**](#function-dll_accumulate) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, float \_Complex d) <br>_Per-sample early/prompt/late correlate + fixed-point code-phase advance._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_chip\_sign**](#function-dll_chip_sign) (uint8\_t c) <br>_0/1 chip -&gt; +1/-1 BPSK sign._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) double | [**dll\_held\_command**](#function-dll_held_command) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_The increment a held loop commands: the held filter's integrator alone, through the steer's gain table, plus the rate aid._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_lock\_accumulate**](#function-dll_lock_accumulate) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, float \_Complex d) <br>_Per-sample offset (noise) tap for the always-on lock detector._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_replica\_word**](#function-dll_replica_word) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, uint32\_t w) <br>_Sub-chip code replica at one tap's phase word._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_set\_inc**](#function-dll_set_inc) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double command) <br>_Convert a commanded increment (cycles per sample) to the NCO's word, carrying what the word cannot hold into the next call._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_steer**](#function-dll_steer) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double ep, double lp, double pp) <br>_The code discriminator, its filter and the NCO steer_  _the ONE steer both correlation paths call (doppler#1280)._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**dll\_tap\_base**](#function-dll_tap_base) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_This sample's prompt tap as a phase word: its dwell CENTER (_ [_**nco\_dwell\_center()**_](nco__core_8h.md#function-nco_dwell_center) _, the zero-order-hold rule), on the replica grid's origin._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_update**](#function-dll_update) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_Per-period code discriminator + loop update + NCO steer on the dumped accumulators (the coherent full-epoch path)._  |
@@ -253,6 +255,43 @@ JM_FORCEINLINE float dll_chip_sign (
 
 
 
+### function dll\_held\_command 
+
+_The increment a held loop commands: the held filter's integrator alone, through the steer's gain table, plus the rate aid._ 
+```C++
+JM_FORCEINLINE  JM_HOT double dll_held_command (
+    const dp_dll_state_t * s
+) 
+```
+
+
+
+A steer's full output also carries the proportional term, a phase correction meant for one interval; held as a rate it walks the phase off at chips per second (measured: +14 chips/s from one such steer), so the hold keeps the integrator, the loop's frequency memory.
+
+
+
+
+**Parameters:**
+
+
+* `s` DLL state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+The held increment, cycles per sample. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dll\_lock\_accumulate 
 
 _Per-sample offset (noise) tap for the always-on lock detector._ 
@@ -317,6 +356,38 @@ The tap's phase is a PHASE WORD: its code phase as a fraction of one period in 3
 
 Linearly-interpolated ±1 replica value for this tap and sample. 
 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dll\_set\_inc 
+
+_Convert a commanded increment (cycles per sample) to the NCO's word, carrying what the word cannot hold into the next call._ 
+```C++
+JM_FORCEINLINE  JM_HOT void dll_set_inc (
+    dp_dll_state_t * s,
+    double command
+) 
+```
+
+
+
+The one conversion of the loop's command: [**dll\_steer()**](dll__core_8h.md#function-dll_steer) uses it for a live steer and for a held one, so a held rate and a steered rate round the same way. Call it once per period boundary, never between two: the remainder is the running difference between the commanded and the applied phase, and a word replaced before a sample is stepped would count its command twice.
+
+
+
+
+**Parameters:**
+
+
+* `s` DLL state. Must be non-NULL. 
+* `command` The commanded increment, cycles per sample. 
 
 
 
@@ -1402,7 +1473,7 @@ void dp_dll_set_coast (
 
 
 
-Coasting, the loop filter takes no update and the NCO is not steered: on entry the filter is restored to the last [**dp\_dll\_hold\_here()**](dll__core_8h.md#function-dp_dll_hold_here) and the rate to that filter's integrator  the loop's frequency memory, without the proportional term of a steer, which is a phase correction for one interval and held as a rate walks the phase off at chips per second  and the code phase then advances at that rate, the carrier aid as the caller leaves it, while the lock detector keeps looking at the prompt so a signal that returns at that phase is seen. The caller marks the hold point while it knows the loop is genuinely on its signal (the receiver: both of its flags up), so a flag that blips on a passing neighbour does not move it. The reason it exists: a loop left running on noise after its emitter leaves free-runs at whatever the filter holds, sweeps its phase through every other emitter's, and can capture one whose code phase crosses its own slowly enough  measured in the pool's ten-minute soak, a departed receiver followed a neighbour's chips at 44.8 chips per second and its code flag returned sixteen times in fourteen seconds (doppler#1271). The caller decides when: async\_dsss\_receiver coasts while both of its lock flags are down after a lock it once had.
+Coasting, the loop filter takes no update and the discriminator is read but not steered on: on entry the filter is restored to the last [**dp\_dll\_hold\_here()**](dll__core_8h.md#function-dp_dll_hold_here) and the rate is that filter's integrator  the loop's frequency memory, without the proportional term of a steer, which is a phase correction for one interval and held as a rate walks the phase off at chips per second  plus the carrier aid as the caller leaves it. The code phase advances at that rate, followed to within one phase-word step (2^-32 cycles per sample) of accumulated phase however long the hold: the increment is converted at every period boundary through the same carried remainder as a live steer, so the rate the loop estimated is the rate the hold runs at, and a rate that is not a whole word is the mean of the two words either side of it. The lock detector keeps looking at the prompt, so a signal that returns at that phase is seen. The caller marks the hold point while it knows the loop is genuinely on its signal (the receiver: both of its flags up), so a flag that blips on a passing neighbour does not move it. The reason it exists: a loop left running on noise after its emitter leaves free-runs at whatever the filter holds, sweeps its phase through every other emitter's, and can capture one whose code phase crosses its own slowly enough  measured in the pool's ten-minute soak, a departed receiver followed a neighbour's chips at 44.8 chips per second and its code flag returned sixteen times in fourteen seconds (doppler#1271). The caller decides when: async\_dsss\_receiver coasts while both of its lock flags are down after a lock it once had.
 
 
 
@@ -1531,7 +1602,7 @@ void dp_dll_set_rate_aid (
 
 
 
-A fixed fractional rate bias summed into the sample-and-hold `phase_inc` on top of the loop's own control every epoch  for physically-coupled Doppler, `carrier_offset_hz / carrier_freq_hz`, so the code NCO rides the code-rate dilation the discriminator alone can't pull in at low SNR. Applied continuously across the epoch (via `phase_inc`), not as a phase pulse. Also nudges the current `phase_inc` so the aid takes effect before the first period update. `code_rate` stays the loop's own observable and is unaffected. A HELD loop ([**dp\_dll\_set\_coast()**](dll__core_8h.md#function-dp_dll_set_coast)) takes the new aid at once: nothing steers a coasting loop's `phase_inc`, so it is recomputed here from the held filter and the new aid  a holder that refreshes the Doppler it holds (a searcher-timed receiver's fold) sees the code rate follow. Before this, a coasting loop kept the aid it was held with.
+A fixed fractional rate bias summed into the sample-and-hold `phase_inc` on top of the loop's own control every epoch  for physically-coupled Doppler, `carrier_offset_hz / carrier_freq_hz`, so the code NCO rides the code-rate dilation the discriminator alone can't pull in at low SNR. Applied continuously across the epoch (via `phase_inc`), not as a phase pulse. Also nudges the current `phase_inc` so the aid takes effect before the first period update. `code_rate` stays the loop's own observable and is unaffected. A HELD loop ([**dp\_dll\_set\_coast()**](dll__core_8h.md#function-dp_dll_set_coast)) takes the new aid at its next period boundary, where the held rate is converted with the aid in it: a holder that refreshes the Doppler it holds (a searcher-timed receiver's fold) sees the code rate follow, and refreshing it any number of times within a period changes nothing a conversion carries.
 
 
 

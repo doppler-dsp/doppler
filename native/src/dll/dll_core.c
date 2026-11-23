@@ -1216,24 +1216,12 @@ dp_dll_hold_here (dp_dll_state_t *state)
   state->held_lf  = state->lf;
 }
 
-/* A held loop's control: the held filter's integrator alone, through the
-   steer's gain table -- a steer's full output also carries the
-   proportional term, a phase correction meant for one interval; held as a
-   rate it walks the phase off at chips per second (measured: +14 chips/s
-   from one such steer). The rate aid summed beside it, as dll_steer does. */
-static uint32_t
-held_phase_inc (const dp_dll_state_t *s)
-{
-  const dp_loop_filter_state_t *lf   = s->held_inc ? &s->held_lf : &s->lf;
-  const double                  ctrl = s->inv_upd * s->ctrl_i * lf->integ;
-  return nco_norm_freq_to_inc (s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
-}
-
 /* The rate a held loop reports: the same integrator through the steer's
-   rate table, without the proportional term held_phase_inc() leaves out,
+   rate table, without the proportional term dll_held_command() leaves out,
    so code_rate (dp_dll_get_code_rate(), the "<prefix>.rate" probe and
    every status record that carries it) is the rate the held NCO runs at,
-   less the aid. */
+   less the aid. The increment itself is dll_held_command(), converted by
+   dll_steer()'s held branch. */
 static double
 held_code_rate (const dp_dll_state_t *s)
 {
@@ -1251,9 +1239,10 @@ dp_dll_set_coast (dp_dll_state_t *state, int coast)
          the integrator's, the loop's frequency memory. A steer's full
          output also carries the proportional term, a phase correction
          meant for one interval; held as a rate it walks the phase off
-         at chips per second (measured: +14 chips/s from one such steer). */
-      state->lf                 = state->held_lf;
-      state->code_nco.phase_inc = held_phase_inc (state);
+         at chips per second (measured: +14 chips/s from one such steer).
+         The held increment is converted at the next steer (a period
+         boundary, where the carried remainder is exact), not here. */
+      state->lf = state->held_lf;
       /* And it reports that rate. Without this code_rate kept the last
          steer's, from the noise-driven updates the restore just undid,
          for as long as the loop coasted. */
@@ -1271,12 +1260,11 @@ dp_dll_set_rate_aid (dp_dll_state_t *state, double rate_aid)
      continuous aiding without clobbering the loop's own steering -- a fresh
      DLL simply drifts for at most one (sub-chip) period before the first
      update applies the aid. code_rate (the loop's own ratio observable) is
-     left untouched. A HELD loop has no next update: nothing steers its
-     phase_inc, so the aid is folded in here, on the held filter -- a
-     holder refreshing the Doppler it holds sees the code rate follow. */
+     left untouched. A HELD loop's steer converts its held rate, aid
+     included, at every period boundary, so a holder refreshing the Doppler
+     it holds sees the code rate follow at the next one -- and refreshing it
+     many times within a period changes nothing a conversion carries. */
   state->rate_aid = rate_aid;
-  if (state->coast)
-    state->code_nco.phase_inc = held_phase_inc (state);
 }
 
 size_t

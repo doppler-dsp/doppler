@@ -515,6 +515,49 @@ void dp_dll_lock_look(dp_dll_state_t *s, double norm);
 void dp_dll_lock_epoch(dp_dll_state_t *s);
 
 /**
+ * @brief Convert a commanded increment (cycles per sample) to the NCO's
+ *        word, carrying what the word cannot hold into the next call.
+ *
+ * The one conversion of the loop's command: dll_steer() uses it for a live
+ * steer and for a held one, so a held rate and a steered rate round the
+ * same way. Call it once per period boundary, never between two: the
+ * remainder is the running difference between the commanded and the applied
+ * phase, and a word replaced before a sample is stepped would count its
+ * command twice.
+ *
+ * @param s        DLL state.  Must be non-NULL.
+ * @param command  The commanded increment, cycles per sample.
+ */
+JM_FORCEINLINE JM_HOT void
+dll_set_inc(dp_dll_state_t *s, double command)
+{
+    const double   f   = command + s->inc_resid;
+    const uint32_t inc = nco_norm_freq_to_inc(f);
+    s->code_nco.phase_inc = inc;
+    s->inc_resid          = (f - floor(f)) - nco_word_to_norm(inc);
+}
+
+/**
+ * @brief The increment a held loop commands: the held filter's integrator
+ *        alone, through the steer's gain table, plus the rate aid.
+ *
+ * A steer's full output also carries the proportional term, a phase
+ * correction meant for one interval; held as a rate it walks the phase off
+ * at chips per second (measured: +14 chips/s from one such steer), so the
+ * hold keeps the integrator, the loop's frequency memory.
+ *
+ * @param s  DLL state.  Must be non-NULL.
+ * @return   The held increment, cycles per sample.
+ */
+JM_FORCEINLINE JM_HOT double
+dll_held_command(const dp_dll_state_t *s)
+{
+    const dp_loop_filter_state_t *lf = s->held_inc ? &s->held_lf : &s->lf;
+    return s->inv_tsamps * (1.0 + s->rate_aid)
+           + s->inv_upd * s->ctrl_i * lf->integ;
+}
+
+/**
  * @brief The code discriminator, its filter and the NCO steer -- the ONE
  *        steer both correlation paths call (doppler#1280).
  *
@@ -578,11 +621,17 @@ dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
     s->err_sum += e;
     s->err_n++;
     if (s->coast)
-        return; /* held: the discriminator read (last_error, the probe, the
-                   sum) but not filtered, phase_inc as it stands
-                   (dp_dll_set_coast) -- a holder coasting on another clock
-                   reads where the signal sits against the held phase, which
-                   is what it corrects on */
+    {
+        /* held: the discriminator read (last_error, the probe, the sum) but
+           not filtered -- a holder coasting on another clock reads where the
+           signal sits against the held phase, which is what it corrects on.
+           The held rate is converted here, once a period, through the same
+           carry as a live steer, so a coasting loop follows its held rate to
+           within one phase-word step of accumulated phase however long the
+           hold. */
+        dll_set_inc(s, dll_held_command(s));
+        return;
+    }
     (void)dp_loop_filter_step(&s->lf, e);
     double integ = s->lf.integ;
     double pe    = s->lf.kp * e;
@@ -594,14 +643,10 @@ dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
        every steer: the loop reads as frozen exactly where its command is
        smallest, at a long code or many samples per chip (the command goes as
        1/(sf sps)^2 at one segment's partials, 1/(sf^2 sps) at one). What
-       the conversion drops is carried into the next steer instead, so the
-       mean increment is the commanded one to within a step over the number
-       of steers. */
-    const double f = s->inv_tsamps * (1.0 + s->rate_aid) + ctrl
-                     + s->inc_resid;
-    const uint32_t inc = nco_norm_freq_to_inc(f);
-    s->code_nco.phase_inc = inc;
-    s->inc_resid          = (f - floor(f)) - nco_word_to_norm(inc);
+       the conversion drops is carried into the next steer instead (see
+       dll_set_inc()), so the mean increment is the commanded one to within
+       a step over the number of steers. */
+    dll_set_inc(s, s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
 }
 
 /**
@@ -963,11 +1008,11 @@ int dp_dll_set_bn(dp_dll_state_t *state, double val);
  * Applied continuously across the epoch (via `phase_inc`), not as a phase
  * pulse. Also nudges the current `phase_inc` so the aid takes effect before
  * the first period update. `code_rate` stays the loop's own observable and
- * is unaffected. A HELD loop (dp_dll_set_coast()) takes the new aid at once:
- * nothing steers a coasting loop's `phase_inc`, so it is recomputed here
- * from the held filter and the new aid -- a holder that refreshes the
- * Doppler it holds (a searcher-timed receiver's fold) sees the code rate
- * follow. Before this, a coasting loop kept the aid it was held with.
+ * is unaffected. A HELD loop (dp_dll_set_coast()) takes the new aid at its
+ * next period boundary, where the held rate is converted with the aid in it:
+ * a holder that refreshes the Doppler it holds (a searcher-timed receiver's
+ * fold) sees the code rate follow, and refreshing it any number of times
+ * within a period changes nothing a conversion carries.
  *
  * @param state     DLL state. Must be non-NULL.
  * @param rate_aid  Fractional code-rate deviation (e.g. 8e-6). 0 disables.
@@ -997,14 +1042,19 @@ void dp_dll_set_rate_aid(dp_dll_state_t *state, double rate_aid);
 /**
  * @brief Hold the loop (1) or run it (0, the default).
  *
- * Coasting, the loop filter takes no update and the NCO is not steered: on
- * entry the filter is restored to the last dp_dll_hold_here() and the rate to
- * that filter's integrator -- the loop's frequency memory, without the
- * proportional term of a steer, which is a phase correction for one
- * interval and held as a rate walks the phase off at chips per second --
- * and the code phase then advances at that rate, the carrier aid as the
- * caller leaves it, while the lock detector keeps looking at the prompt so
- * a signal that returns at that phase is seen. The caller marks the hold
+ * Coasting, the loop filter takes no update and the discriminator is read
+ * but not steered on: on entry the filter is restored to the last
+ * dp_dll_hold_here() and the rate is that filter's integrator -- the loop's
+ * frequency memory, without the proportional term of a steer, which is a
+ * phase correction for one interval and held as a rate walks the phase off
+ * at chips per second -- plus the carrier aid as the caller leaves it. The
+ * code phase advances at that rate, followed to within one phase-word step
+ * (2^-32 cycles per sample) of accumulated phase however long the hold: the
+ * increment is converted at every period boundary through the same carried
+ * remainder as a live steer, so the rate the loop estimated is the rate
+ * the hold runs at, and a rate that is not a whole word is the mean of the
+ * two words either side of it. The lock detector keeps looking at the
+ * prompt, so a signal that returns at that phase is seen. The caller marks the hold
  * point while it knows the loop is genuinely on its signal (the receiver:
  * both of its flags up), so a flag that blips on a passing neighbour does
  * not move it. The reason it exists: a loop

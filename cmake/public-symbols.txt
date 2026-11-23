@@ -18,8 +18,10 @@ costas_update function
 costas_wipeoff function
 dll_accumulate function
 dll_chip_sign function
+dll_held_command function
 dll_lock_accumulate function
 dll_replica_word function
+dll_set_inc function
 dll_steer function
 dll_tap_base function
 dll_update function

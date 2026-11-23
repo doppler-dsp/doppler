@@ -996,7 +996,12 @@ coast_reports_the_held_rate (size_t segments)
   const double live = dp_dll_get_code_rate (d);
   dp_dll_set_coast (d, 1);
 
-  /* One phase-increment step, in chips per chip: the NCO's resolution. */
+  /* The held rate reaches the NCO at the next period boundary, where it is
+     converted through the carried remainder: one epoch on, the NCO runs it.
+     One phase-increment step, in chips per chip, is the NCO's resolution,
+     and a rate that is not a whole word alternates between the two either
+     side of it. */
+  (void)dp_dll_steps (d, rx, sf * sps, sym, segments);
   const double q    = 1.0 / 4294967296.0 / d->inv_tsamps;
   double       cmd  = (double)d->code_nco.phase_inc * q;
   double       rate = dp_dll_get_code_rate (d);
@@ -1009,8 +1014,10 @@ coast_reports_the_held_rate (size_t segments)
     DP_TEST_ERR ("  segments %zu: NCO %.9f, code_rate %.9f + aid %.1e\n",
                  segments, cmd, rate, aid);
 
-  /* A new aid while coasting re-steers the held NCO; the rate stays. */
+  /* A new aid while coasting re-steers the held NCO at the next boundary;
+     the rate stays. */
   dp_dll_set_rate_aid (d, 4.0 * aid);
+  (void)dp_dll_steps (d, rx, sf * sps, sym, segments);
   cmd = (double)d->code_nco.phase_inc * q;
   DP_CHECK (dp_dll_get_code_rate (d) == rate);
   DP_CHECK_MSG (fabs (cmd - (rate + 4.0 * aid)) <= q,
@@ -1019,7 +1026,7 @@ coast_reports_the_held_rate (size_t segments)
   /* And it stays so while coasting: no steer moves either. */
   (void)dp_dll_steps (d, rx, n, sym, nper * segments);
   DP_CHECK (dp_dll_get_code_rate (d) == rate);
-  DP_CHECK ((double)d->code_nco.phase_inc * q == cmd);
+  DP_CHECK (fabs ((double)d->code_nco.phase_inc * q - cmd) <= q);
 
   dp_dll_destroy (d);
   free (sym);
@@ -1281,6 +1288,98 @@ the_mean_increment_follows_a_command_under_one_step (size_t segments,
                  "(off %.4f steps; the tolerance is %.4f)\n",
                  segments, lsb, got, want, got - want, 2.0 / (double)n);
   dp_dll_destroy (d);
+  free (code);
+  return fails;
+}
+
+/* A held loop follows its held rate to one phase-word step of accumulated
+ * phase, however long the hold. The held rate is the integrator's, plus the
+ * carrier aid, here chosen so the commanded increment is half a step past a
+ * whole word (the worst case for a truncation): converted once at the hold's
+ * start the word is half a step short at every sample, which at the
+ * certified point (sf 1023, 2 samples per chip) is 0.5 step x 2046 samples x
+ * 1023 chips = 2.4e-4 chip per period, 1.5 chips over a 2 s hold's 6,285
+ * periods. Converted at every period boundary through the carried remainder
+ * (dll_set_inc) the accumulated difference stays within one step, 4.9e-4 chip,
+ * at any length. `refreshes` calls dp_dll_set_rate_aid() that many times
+ * before each period -- the receivers' carrier aids the code while it coasts
+ * -- and `swing` alternates the aid between two commands 0.3 step either side,
+ * so the held rate itself moves. Sabotaged: the held branch of dll_steer
+ * returns without converting -- the drift reads 1.5 chips at 6,285 periods and
+ * 0.024 at 100. */
+static int
+a_hold_follows_its_rate_to_a_step (size_t periods, int refreshes, int swing)
+{
+  int          fails = 0;
+  const size_t sf    = 1023;
+  const double step  = 1.0 / 4294967296.0; /* one phase-word step, cycles */
+  uint8_t     *code  = malloc (sf);
+  make_code (code, sf, 3u);
+  dp_dll_state_t *d = dp_dll_create (code, sf, 2.0, 0.0, 0.002, 0.707, 0.5, 1);
+  DP_REQUIRE (code && d);
+  dp_dll_hold_here (d);
+  dp_dll_set_coast (d, 1);
+  const double f0      = d->inv_tsamps;
+  const double target  = (floor (f0 / step) + 0.5) * step;
+  double       applied = 0.0, asked = 0.0;
+  for (size_t k = 0; k < periods; k++)
+    {
+      const double f = target + (swing ? (k & 1u ? 0.3 : -0.3) * step : 0.0);
+      for (int r = 0; r < refreshes + 1; r++)
+        dp_dll_set_rate_aid (d, f / f0 - 1.0);
+      dll_steer (d, 1.0, 1.0, 1.0); /* one period boundary, held */
+      applied += (double)d->code_nco.phase_inc;
+      asked += d->inv_tsamps * (1.0 + d->rate_aid) / step;
+    }
+  const double steps = fabs (applied - asked); /* words, accumulated */
+  const double chips = steps * step * (double)(sf * 2u) * (double)sf;
+  DP_CHECK_MSG (steps <= 1.0 + 1e-6,
+                "a held rate is followed to one phase-word step");
+  DP_CHECK_MSG (chips < 1e-3, "and so to under a thousandth of a chip");
+  printf ("  hold %zu periods, %d refreshes, swing %d: %.3f steps = %.2e "
+          "chip\n",
+          periods, refreshes, swing, steps, chips);
+  dp_dll_destroy (d);
+  free (code);
+  return fails;
+}
+
+/* A blob taken mid-hold resumes bit for bit and passes the remainder's
+ * range check: the carry keeps the remainder in [0, one step) in a hold too.
+ */
+static int
+a_blob_taken_mid_hold_resumes (void)
+{
+  int          fails = 0;
+  const size_t sf    = 63;
+  const double step  = 1.0 / 4294967296.0;
+  uint8_t     *code  = malloc (sf);
+  make_code (code, sf, 9u);
+  dp_dll_state_t *a = dp_dll_create (code, sf, 4.0, 0.0, 0.005, 0.707, 0.5, 1);
+  dp_dll_state_t *b = dp_dll_create (code, sf, 4.0, 0.0, 0.005, 0.707, 0.5, 1);
+  DP_REQUIRE (code && a && b);
+  dp_dll_hold_here (a);
+  dp_dll_set_coast (a, 1);
+  dp_dll_set_rate_aid (a, 0.37 * step / a->inv_tsamps);
+  for (int k = 0; k < 50; k++)
+    dll_steer (a, 1.0, 1.0, 1.0);
+  DP_CHECK_MSG (a->inc_resid >= 0.0 && a->inc_resid < step,
+                "mid-hold the remainder is under one step");
+  void *blob = malloc (dp_dll_state_bytes (a));
+  DP_REQUIRE (blob);
+  dp_dll_get_state (a, blob);
+  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_OK,
+                "a blob taken mid-hold is accepted");
+  for (int k = 0; k < 200; k++)
+    {
+      dll_steer (a, 1.0, 1.0, 1.0);
+      dll_steer (b, 1.0, 1.0, 1.0);
+      DP_CHECK (a->code_nco.phase_inc == b->code_nco.phase_inc);
+      DP_CHECK (a->inc_resid == b->inc_resid);
+    }
+  free (blob);
+  dp_dll_destroy (a);
+  dp_dll_destroy (b);
   free (code);
   return fails;
 }
@@ -2599,16 +2698,15 @@ main (void)
   }
 
   /* ---------------------------------------------------------------- *
-   * 10. A held loop takes a new rate aid at once                      *
+   * 10. A held loop takes a new rate aid at its next boundary         *
    * ---------------------------------------------------------------- */
-  /* Nothing steers a coasting loop's phase_inc, and dp_dll_set_rate_aid()
-     used to only store the aid for the next steer to fold in -- so a held
-     loop kept the aid it was held with, whatever it was told since. A
-     holder refreshing the Doppler it holds (the searcher-timed receiver's
-     fold) needs the code rate to follow. Held at aid 0 on a nominal-rate
-     signal, told 2e-4, the phase over the next 200 epochs advances the
-     aid's extra chips (200 * sf * 2e-4 = 2.52 at sf 63) beyond nominal.
-     Sabotaged: skip the recompute -- the extra reads 0. */
+  /* A holder refreshing the Doppler it holds (the searcher-timed receiver's
+     fold) needs the code rate to follow: the held rate, aid included, is
+     converted at every period boundary, so the next one carries it. Held at
+     aid 0 on a nominal-rate signal, told 2e-4, the phase over the next 200
+     epochs advances the aid's extra chips (200 * sf * 2e-4 = 2.52 at sf 63)
+     beyond nominal. Sabotaged: the held branch of dll_steer returns without
+     converting -- the extra reads 0. */
   {
     const size_t sf = 63, sps = 4, nper = 300;
     uint8_t     *code = malloc (sf);
@@ -2714,6 +2812,11 @@ main (void)
   DP_CHECK (the_mean_increment_follows_a_command_under_one_step (4, -0.05)
             == 0);
   DP_CHECK (the_carried_remainder_is_in_the_blob_and_checked () == 0);
+  DP_CHECK (a_hold_follows_its_rate_to_a_step (100, 0, 0) == 0);
+  DP_CHECK (a_hold_follows_its_rate_to_a_step (6285, 0, 0) == 0);
+  DP_CHECK (a_hold_follows_its_rate_to_a_step (6285, 5, 0) == 0);
+  DP_CHECK (a_hold_follows_its_rate_to_a_step (6285, 5, 1) == 0);
+  DP_CHECK (a_blob_taken_mid_hold_resumes () == 0);
 
   DP_TEST_END ("test_dll_core");
 }

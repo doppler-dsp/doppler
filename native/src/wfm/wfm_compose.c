@@ -792,21 +792,31 @@ resolved_scene (const wfm_segment_t *segs, size_t n_segs, const char **why)
       rs[i]          = segs[i];
       const size_t n = segs[i].n_sources;
       rs[i].sources  = dp_xcalloc (n ? n : 1, sizeof (wfm_source_t));
-      for (size_t k = 0; k < n; k++)
+      /* Every source is asked, so the order of a segment's sources never
+         changes its rate: each ofdm source at a default fs names its
+         bandwidth, and two that differ leave the segment no one rate. */
+      int         named = 0;
+      const char *bad   = NULL;
+      for (size_t k = 0; k < n && !bad; k++)
         {
-          double      fs  = segs[i].fs;
-          const char *bad = dp_wfm_source_ofdm_defaults (
-              &segs[i].sources[k], segs[i].fs, &rs[i].sources[k], &fs);
-          if (bad)
-            {
-              for (size_t j = 0; j <= i; j++)
-                free (rs[j].sources);
-              free (rs);
-              *why = bad;
-              return NULL;
-            }
-          if (k == 0)
-            rs[i].fs = fs;
+          double fs = segs[i].fs;
+          bad = dp_wfm_source_ofdm_defaults (&segs[i].sources[k], segs[i].fs,
+                                             &rs[i].sources[k], &fs);
+          if (bad || fs == segs[i].fs)
+            continue;
+          if (named && fs != rs[i].fs)
+            bad = "the ofdm sources of a segment at the default fs differ in "
+                  "bandwidth, so it has no one rate: give the segment's fs";
+          rs[i].fs = fs;
+          named    = 1;
+        }
+      if (bad)
+        {
+          for (size_t j = 0; j <= i; j++)
+            free (rs[j].sources);
+          free (rs);
+          *why = bad;
+          return NULL;
         }
     }
   return rs;

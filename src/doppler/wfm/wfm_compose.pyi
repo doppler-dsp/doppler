@@ -247,12 +247,14 @@ class Synth:
         table, and is given whole or not at all. auto (the default) is the pair
         wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9
         Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds,
-        the resolved value, never auto.
+        the resolved value, never auto. On any other type it reads back what
+        was given, auto unless set.
         One of ``"bpsk"``, ``"qpsk"``, ``"qam16"``, ``"qam64"``, ``"auto"``.
     code_rate : str, default ``"auto"``
         For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6;
         given with constellation, or neither is. auto (the default) as for
-        constellation.
+        constellation. On any other type it reads back what was given, auto
+        unless set.
         One of ``"1/2"``, ``"2/3"``, ``"3/4"``, ``"5/6"``, ``"auto"``.
     scrambler_init : int, default 0
         For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127.
@@ -272,7 +274,8 @@ class Synth:
         For type=ofdm: how the caller's octets become the PSDU. none: as given.
         fcs: an MPDU without its FCS, which the PHY appends. data: a header
         (mac_header) and a body, with the FCS appended. auto (the default) is
-        fcs; a Synth reads, and a record holds, fcs.
+        fcs; a Synth reads, and a record holds, fcs. On any other type it reads
+        back what was given, auto unless set.
         One of ``"none"``, ``"fcs"``, ``"data"``, ``"auto"``.
     gap : int, default 0
         For type=ofdm: idle samples after each PPDU, at the output rate, filled
@@ -733,12 +736,14 @@ class Segment:
         table, and is given whole or not at all. auto (the default) is the pair
         wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9
         Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds,
-        the resolved value, never auto.
+        the resolved value, never auto. On any other type it reads back what
+        was given, auto unless set.
         One of ``"bpsk"``, ``"qpsk"``, ``"qam16"``, ``"qam64"``, ``"auto"``.
     code_rate : str, default ``"auto"``
         For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6;
         given with constellation, or neither is. auto (the default) as for
-        constellation.
+        constellation. On any other type it reads back what was given, auto
+        unless set.
         One of ``"1/2"``, ``"2/3"``, ``"3/4"``, ``"5/6"``, ``"auto"``.
     scrambler_init : int, default 0
         For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127.
@@ -758,7 +763,8 @@ class Segment:
         For type=ofdm: how the caller's octets become the PSDU. none: as given.
         fcs: an MPDU without its FCS, which the PHY appends. data: a header
         (mac_header) and a body, with the FCS appended. auto (the default) is
-        fcs; a Synth reads, and a record holds, fcs.
+        fcs; a Synth reads, and a record holds, fcs. On any other type it reads
+        back what was given, auto unless set.
         One of ``"none"``, ``"fcs"``, ``"data"``, ``"auto"``.
     gap : int, default 0
         For type=ofdm: idle samples after each PPDU, at the output rate, filled
@@ -780,9 +786,10 @@ class Segment:
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
-        state it whenever a scene is in real Hz. A segment whose first source
-        is type=ofdm reads the default 1.0 as unset and takes that source's
-        bandwidth (20e6 unless given), which a record then holds.
+        state it whenever a scene is in real Hz. A segment with a type=ofdm
+        source reads the default 1.0 as unset and takes that source's bandwidth
+        (20e6 unless given), which a record then holds; ofdm sources that
+        differ in bandwidth leave it no one rate and are refused.
     num_samples : int | tuple[int, int], default 0
         Segment on-time in samples, before the trailing gap: 0 derives it from
         the sources, or 1024 when they set none. A finite data source sets its

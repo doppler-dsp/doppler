@@ -1309,27 +1309,52 @@ dp_wfm_source_ofdm_defaults (const wfm_source_t *src, double fs,
   return NULL;
 }
 
+/* The pair an ofdm source reads back as: the resolved one, or, for a pair
+   that does not resolve (a live object's half pair, a C struct's bad index),
+   the default pair, so `auto` is never read whatever the struct holds. The
+   source is refused naming why when it builds. */
+static void
+wfofdm_read_pair (const wfm_source_t *src, int *c, int *r)
+{
+  if (!wfofdm_resolve_pair (src, c, r))
+    return;
+  *c = WLAN_CONSTELLATION_AUTO;
+  *r = WLAN_CODE_AUTO;
+  (void)dp_wlan_rate_resolve (dp_wlan_tables_standard (), c, r, 0u);
+}
+
+/* Another type has no constellation, code rate or MAC: it reads back what
+   was given, auto unless set, rather than claim an ofdm source's. */
 int
 dp_wfm_source_constellation (const wfm_source_t *src, double fs)
 {
   (void)fs;
+  if (src->type != WFM_SYNTH_FRAMES)
+    return src->constellation;
   int c, r;
-  return wfofdm_resolve_pair (src, &c, &r) ? src->constellation : c;
+  wfofdm_read_pair (src, &c, &r);
+  return c;
 }
 
 int
 dp_wfm_source_code_rate (const wfm_source_t *src, double fs)
 {
   (void)fs;
+  if (src->type != WFM_SYNTH_FRAMES)
+    return src->code_rate;
   int c, r;
-  return wfofdm_resolve_pair (src, &c, &r) ? src->code_rate : r;
+  wfofdm_read_pair (src, &c, &r);
+  return r;
 }
 
 int
 dp_wfm_source_mac (const wfm_source_t *src, double fs)
 {
   (void)fs;
-  return (int)dp_wlan_mac_resolve (src->mac);
+  if (src->type != WFM_SYNTH_FRAMES)
+    return src->mac;
+  const int m = src->mac;
+  return m == WLAN_MAC_NONE || m == WLAN_MAC_DATA ? m : (int)WLAN_MAC_FCS;
 }
 
 /* The rules of an ofdm source that need no sample rate. */

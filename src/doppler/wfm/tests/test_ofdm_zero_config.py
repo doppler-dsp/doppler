@@ -167,17 +167,18 @@ def test_a_rate_off_20_mhz_is_refused():
 
 
 def test_auto_is_never_read_or_written():
-    """A read-back and a record hold the resolved value.
+    """An ofdm source's read-back and record hold the resolved value.
 
-    Rejects a getter or a writer that passes ``auto`` through: the strings
-    are checked on every face that reads or writes these three fields.
+    Scoped to ofdm: these three are an ofdm source's fields, and another
+    type reads back what was given (``auto`` unless set; ruled with #3273's
+    review), pinned on its own below. Rejects a getter or a writer that
+    passes ``auto`` through for an ofdm source, or a tone that claims an
+    ofdm source's 16-QAM.
     """
     s = Synth(type="ofdm")
     assert (s.constellation, s.code_rate, s.mac) == ("qam16", "3/4", "fcs")
     w = Synth(type="ofdm", wlan=54)
     assert (w.constellation, w.code_rate) == ("qam64", "3/4")
-    t = Synth(type="tone")  # not ofdm: still never auto
-    assert "auto" not in (t.constellation, t.code_rate, t.mac)
     for seg in (Segment(type="ofdm"), Segment(type="ofdm", wlan=6)):
         c = Composer([seg])
         rec = json.loads(c.to_json())["segments"][0]
@@ -197,6 +198,16 @@ def test_auto_is_never_read_or_written():
     assert "constellation" not in rec["segments"][0]
 
 
+def test_a_tone_reads_back_what_was_given():
+    """Another type has no constellation: it reads ``auto`` unless set, and
+    its record carries none of the three. Rejects a tone claiming 16-QAM
+    (an ofdm source's default) or BPSK (the struct's zero)."""
+    t = Synth(type="tone")
+    assert (t.constellation, t.code_rate, t.mac) == ("auto", "auto", "auto")
+    rec = json.loads(Composer([Segment(type="tone")]).to_json())
+    assert not {"constellation", "code_rate", "mac"} & set(rec["segments"][0])
+
+
 def test_an_explicit_zero_is_written_and_read_back():
     """bpsk, 1/2 and none are index 0 of their choices, and a record keeps
     them. Rejects the writer's omit-at-zero rule reaching these rows: an
@@ -208,6 +219,24 @@ def test_an_explicit_zero_is_written_and_read_back():
     assert {k: rec.get(k) for k in kw} == kw
     again = Composer.from_json(c.to_json())
     np.testing.assert_array_equal(again.compose(), c.compose())
+
+
+def test_a_segments_rate_does_not_depend_on_source_order():
+    """Every ofdm source at a default fs names its bandwidth, whatever its
+    place in the segment. Rejects the first source alone deciding: [tone,
+    ofdm] would keep fs 1.0 and refuse its ofdm source."""
+    for order in (("tone", "ofdm"), ("ofdm", "tone")):
+        seg = Segment.sum(*(Synth(type=t) for t in order))
+        rec = json.loads(Composer([seg]).to_json())["segments"][0]
+        assert rec["fs"] == 20e6, order
+    with pytest.raises(ValueError, match="differ in bandwidth"):
+        Composer(
+            [
+                Segment.sum(
+                    Synth(type="ofdm"), Synth(type="ofdm", bandwidth=10e6)
+                )
+            ]
+        )
 
 
 def _synth_fs_default() -> float:

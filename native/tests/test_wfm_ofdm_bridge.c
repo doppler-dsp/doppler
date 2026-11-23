@@ -1228,6 +1228,40 @@ test_the_defaults_read_back_resolved_and_resolve_once (void)
   DP_REQUIRE (dp_wfm_source_ofdm_defaults (&s, 1.0, &r1, &f1) == NULL);
   DP_CHECK (r1.constellation == WLAN_CONSTELLATION_AUTO);
   DP_CHECK (dp_wfm_source_ofdm_defaults (&r1, f1, &r2, &f2) == NULL);
+  /* a pair that does not resolve, forced through the struct (a live
+     object's half pair, a bad index, a rate beside a pair): the getters
+     read the default pair's component, so auto is never read */
+  static const struct
+  {
+    int c, r, wlan;
+  } stuck[] = {
+    { 2, WLAN_CODE_AUTO, 0 },                       /* half a pair */
+    { WLAN_CONSTELLATION_AUTO, 1, 0 },              /* the other half */
+    { 2, WLAN_CODE_3_4, 36 },                       /* wlan beside a pair */
+    { WLAN_CONSTELLATION_AUTO, WLAN_CODE_AUTO, 7 }, /* no such rate */
+  };
+  for (size_t i = 0; i < sizeof stuck / sizeof *stuck; i++)
+    {
+      wfm_source_t x  = s;
+      x.wlan          = stuck[i].wlan;
+      x.constellation = stuck[i].c;
+      x.code_rate     = stuck[i].r;
+      DP_CHECK (dp_wfm_source_constellation (&x, 1.0) == 2);
+      DP_CHECK (dp_wfm_source_code_rate (&x, 1.0) == WLAN_CODE_3_4);
+    }
+  {
+    wfm_source_t x = s;
+    x.mac          = 7; /* no mode: read as the default's, never auto */
+    DP_CHECK (dp_wfm_source_mac (&x, 1.0) == WLAN_MAC_FCS);
+  }
+  /* another type reads back what it holds: auto unless set */
+  {
+    wfm_source_t t = WFM_SOURCE_DEFAULTS; /* a tone */
+    DP_CHECK (dp_wfm_source_constellation (&t, 1.0)
+              == WLAN_CONSTELLATION_AUTO);
+    DP_CHECK (dp_wfm_source_code_rate (&t, 1.0) == WLAN_CODE_AUTO);
+    DP_CHECK (dp_wfm_source_mac (&t, 1.0) == WLAN_MAC_AUTO);
+  }
   /* another type is copied as it is */
   s.type = WFM_SYNTH_BPSK;
   s.wlan = 0;

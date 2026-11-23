@@ -696,8 +696,11 @@ signal. A 10 or 5 MHz source is written with `constellation`, `code_rate` and
 
 A caller who gives nothing gets 36 Mb/s on every face: `Wlan()`, a bare
 `--type ofdm`, a `Segment` or `Synth` of type `ofdm`, and a scene with no rate
-key. Each default is decided in one place, `dp_wfm_source_ofdm_defaults`, and
-each is the most common choice rather than the first in a list:
+key. Each default is decided in one place, and each is the most common
+choice rather than the first in a list. The rate's is `dp_wlan_rate_resolve`'s
+(`WLAN_MBPS_DEFAULT`), which `Wlan()` reaches directly and the source through
+`dp_wfm_source_ofdm_defaults`; the MAC, the payload and `fs` are
+`dp_wfm_source_ofdm_defaults`' alone:
 
 | field       | given nothing                                                                         |
 | ----------- | ------------------------------------------------------------------------------------- |
@@ -713,7 +716,9 @@ neither"), and `wlan` beside a given half is refused as a second spelling.
 and a `Synth`'s properties hold the resolved value, and a `wlan` source keeps
 `wlan` alone. A C source that zero-fills its fields has the pair bpsk 1/2 and
 `mac` none by its own zeros, as a zero-filled `window` is the rectangular one;
-`WFM_SOURCE_DEFAULTS` starts at `auto`.
+`WFM_SOURCE_DEFAULTS` starts at `auto`. These three are an ofdm source's
+fields: on any other type they read back what was given, `auto` unless set,
+and a record of that type carries none of them.
 
 **A record keeps a zero.** bpsk, 1/2 and none are the first value of their
 choices, and the writer, which leaves a row out at its default and at zero,
@@ -721,8 +726,18 @@ keeps the zero of a row whose default is not its first value, as it does
 for a default that names a constant: omitted, an explicit 6 Mb/s without
 the FCS would reread as the default.
 
+**Records written before this change** that hold bpsk 1/2 or `mac` none
+reread differently whether the writer's caller gave them or not, because
+that writer omitted both at their defaults and so did not record the
+difference: every 6 Mb/s record reads as 36 Mb/s, one-field records at 9,
+12 and 24 Mb/s are refused, and every `mac` none record gains the FCS.
+
 **At 10 and 5 MHz** the zero-config source is the same pair, so it carries 18
 or 9 Mb/s there; it is not `wlan`, so it is not refused.
+
+**Every ofdm source in a segment is asked**, so the order of its sources
+never changes its rate; a segment at a default `fs` whose ofdm sources
+differ in bandwidth has no one rate and is refused.
 
 **The fs rule is safe because neither default is a rate ofdm can render at.**
 1.0 and 1e6 are no whole multiple of 20, 10 or 5 MHz, so ofdm refused both
@@ -1416,8 +1431,9 @@ drift.
     resolved whole from the table, the FCS appended, a 96-octet PN15
     payload, and `fs` at a face's default read as the bandwidth (section 5,
     "Zero config"). `Wlan(mbps=N)` is the builder's spelling of the rate.
-    Records written before it that left these at their defaults change
-    meaning, declared as a breaking change, with no versioned reader.
+    Records written before it that hold bpsk 1/2 or `mac` none change
+    meaning, given or defaulted alike, since that writer did not record the
+    difference; declared as a breaking change, with no versioned reader.
 
 ### Open
 

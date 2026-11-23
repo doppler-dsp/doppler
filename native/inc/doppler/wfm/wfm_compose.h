@@ -469,10 +469,13 @@ typedef struct {
                             the pair wlan names, or with no wlan the 36 Mb/s
                             pair, qam16 and 3/4 (18 or 9 Mb/s at a 10 or 5 MHz
                             bandwidth). A Synth reads, and a record holds, the
-                            resolved value, never auto. */
+                            resolved value, never auto. On any other type it
+                            reads back what was given, auto unless set. */
     int code_rate; /**< For type=ofdm: the convolutional code rate, one of 1/2,
                             2/3, 3/4, 5/6; given with constellation, or neither
-                            is. auto (the default) as for constellation. */
+                            is. auto (the default) as for constellation. On any
+                            other type it reads back what was given, auto
+                            unless set. */
     int scrambler_init; /**< For type=ofdm: the 7-bit initial state of the data
                             scrambler, 1 to 127. 0 draws a fresh state for each
                             PPDU from seed, so a run is reproducible and a
@@ -493,7 +496,9 @@ typedef struct {
                             as given. fcs: an MPDU without its FCS, which the
                             PHY appends. data: a header (mac_header) and a
                             body, with the FCS appended. auto (the default) is
-                            fcs; a Synth reads, and a record holds, fcs. */
+                            fcs; a Synth reads, and a record holds, fcs. On any
+                            other type it reads back what was given, auto
+                            unless set. */
     size_t gap; /**< For type=ofdm: idle samples after each PPDU, at the
                             output rate, filled with noise at the source's
                             noise variance. */
@@ -530,10 +535,11 @@ typedef struct {
     double fs;           /**< Sample rate in Hz, one per segment and shared by
                             all its sources. At the default 1.0 every frequency
                             is normalised (cycles per sample); state it
-                            whenever a scene is in real Hz. A segment whose
-                            first source is type=ofdm reads the default 1.0 as
-                            unset and takes that source's bandwidth (20e6
-                            unless given), which a record then holds. */
+                            whenever a scene is in real Hz. A segment with a
+                            type=ofdm source reads the default 1.0 as unset and
+                            takes that source's bandwidth (20e6 unless given),
+                            which a record then holds; ofdm sources that differ
+                            in bandwidth leave it no one rate and are refused. */
     size_t num_samples;  /**< Segment on-time in samples, before the
                               trailing gap: 0 derives it from the sources,
                               or 1024 when they set none. A finite data

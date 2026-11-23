@@ -260,7 +260,7 @@ int wfm_source_t::code_rate;
 
 
 
-For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; given with constellation, or neither is. auto (the default) as for constellation. 
+For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; given with constellation, or neither is. auto (the default) as for constellation. On any other type it reads back what was given, auto unless set. 
 
 
         
@@ -277,7 +277,7 @@ int wfm_source_t::constellation;
 
 
 
-For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, qam64; the pair with code\_rate must be a row of the standard's rate table, and is given whole or not at all. auto (the default) is the pair wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the resolved value, never auto. 
+For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, qam64; the pair with code\_rate must be a row of the standard's rate table, and is given whole or not at all. auto (the default) is the pair wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the resolved value, never auto. On any other type it reads back what was given, auto unless set. 
 
 
         
@@ -668,7 +668,7 @@ int wfm_source_t::mac;
 
 
 
-For type=ofdm: how the caller's octets become the PSDU. none: as given. fcs: an MPDU without its FCS, which the PHY appends. data: a header (mac\_header) and a body, with the FCS appended. auto (the default) is fcs; a Synth reads, and a record holds, fcs. 
+For type=ofdm: how the caller's octets become the PSDU. none: as given. fcs: an MPDU without its FCS, which the PHY appends. data: a header (mac\_header) and a body, with the FCS appended. auto (the default) is fcs; a Synth reads, and a record holds, fcs. On any other type it reads back what was given, auto unless set. 
 
 
         

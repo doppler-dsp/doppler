@@ -3525,12 +3525,14 @@ static PyGetSetDef Synth_getset[] = {
     "table, and is given whole or not at all. auto (the default) is the pair "
     "wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 "
     "Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the "
-    "resolved value, never auto.\n",
+    "resolved value, never auto. On any other type it reads back what was "
+    "given, auto unless set.\n",
     NULL },
   { "code_rate", (getter)Synth_get_code_rate, (setter)Synth_set_code_rate,
     "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; "
     "given with constellation, or neither is. auto (the default) as for "
-    "constellation.\n",
+    "constellation. On any other type it reads back what was given, auto "
+    "unless set.\n",
     NULL },
   { "scrambler_init", (getter)Synth_get_scrambler_init,
     (setter)Synth_set_scrambler_init,
@@ -3552,7 +3554,8 @@ static PyGetSetDef Synth_getset[] = {
     "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
     "fcs: an MPDU without its FCS, which the PHY appends. data: a header "
     "(mac_header) and a body, with the FCS appended. auto (the default) is "
-    "fcs; a Synth reads, and a record holds, fcs.\n",
+    "fcs; a Synth reads, and a record holds, fcs. On any other type it reads "
+    "back what was given, auto unless set.\n",
     NULL },
   { "gap", (getter)Synth_get_gap, (setter)Synth_set_gap,
     "For type=ofdm: idle samples after each PPDU, at the output rate, filled "
@@ -4230,7 +4233,9 @@ static PyTypeObject SynthType = {
       "9\n"
       "    Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record "
       "holds,\n"
-      "    the resolved value, never auto.\n"
+      "    the resolved value, never auto. On any other type it reads back "
+      "what\n"
+      "    was given, auto unless set.\n"
       "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``, "
       "``\"auto\"``.\n"
       "code_rate : str, default ``\"auto\"``\n"
@@ -4238,7 +4243,9 @@ static PyTypeObject SynthType = {
       "5/6;\n"
       "    given with constellation, or neither is. auto (the default) as "
       "for\n"
-      "    constellation.\n"
+      "    constellation. On any other type it reads back what was given, "
+      "auto\n"
+      "    unless set.\n"
       "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``, "
       "``\"auto\"``.\n"
       "scrambler_init : int, default 0\n"
@@ -4269,7 +4276,9 @@ static PyTypeObject SynthType = {
       "header\n"
       "    (mac_header) and a body, with the FCS appended. auto (the default) "
       "is\n"
-      "    fcs; a Synth reads, and a record holds, fcs.\n"
+      "    fcs; a Synth reads, and a record holds, fcs. On any other type it "
+      "reads\n"
+      "    back what was given, auto unless set.\n"
       "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``, ``\"auto\"``.\n"
       "gap : int, default 0\n"
       "    For type=ofdm: idle samples after each PPDU, at the output rate, "
@@ -6128,9 +6137,10 @@ static PyGetSetDef Segment_getset[] = {
   { "fs", (getter)Segment_get_fs, (setter)Segment_set_fs,
     "Sample rate in Hz, one per segment and shared by all its sources. At the "
     "default 1.0 every frequency is normalised (cycles per sample); state it "
-    "whenever a scene is in real Hz. A segment whose first source is "
-    "type=ofdm reads the default 1.0 as unset and takes that source's "
-    "bandwidth (20e6 unless given), which a record then holds.\n",
+    "whenever a scene is in real Hz. A segment with a type=ofdm source reads "
+    "the default 1.0 as unset and takes that source's bandwidth (20e6 unless "
+    "given), which a record then holds; ofdm sources that differ in bandwidth "
+    "leave it no one rate and are refused.\n",
     NULL },
   { "num_samples", (getter)Segment_get_num_samples,
     (setter)Segment_set_num_samples,
@@ -6415,12 +6425,14 @@ static PyGetSetDef Segment_getset[] = {
     "table, and is given whole or not at all. auto (the default) is the pair "
     "wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 "
     "Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the "
-    "resolved value, never auto.\n",
+    "resolved value, never auto. On any other type it reads back what was "
+    "given, auto unless set.\n",
     NULL },
   { "code_rate", (getter)Segment_flat_code_rate, NULL,
     "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; "
     "given with constellation, or neither is. auto (the default) as for "
-    "constellation.\n",
+    "constellation. On any other type it reads back what was given, auto "
+    "unless set.\n",
     NULL },
   { "scrambler_init", (getter)Segment_flat_scrambler_init, NULL,
     "For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127. "
@@ -6441,7 +6453,8 @@ static PyGetSetDef Segment_getset[] = {
     "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
     "fcs: an MPDU without its FCS, which the PHY appends. data: a header "
     "(mac_header) and a body, with the FCS appended. auto (the default) is "
-    "fcs; a Synth reads, and a record holds, fcs.\n",
+    "fcs; a Synth reads, and a record holds, fcs. On any other type it reads "
+    "back what was given, auto unless set.\n",
     NULL },
   { "gap", (getter)Segment_flat_gap, NULL,
     "For type=ofdm: idle samples after each PPDU, at the output rate, filled "
@@ -6844,7 +6857,9 @@ static PyTypeObject SegmentType = {
       "9\n"
       "    Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record "
       "holds,\n"
-      "    the resolved value, never auto.\n"
+      "    the resolved value, never auto. On any other type it reads back "
+      "what\n"
+      "    was given, auto unless set.\n"
       "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``, "
       "``\"auto\"``.\n"
       "code_rate : str, default ``\"auto\"``\n"
@@ -6852,7 +6867,9 @@ static PyTypeObject SegmentType = {
       "5/6;\n"
       "    given with constellation, or neither is. auto (the default) as "
       "for\n"
-      "    constellation.\n"
+      "    constellation. On any other type it reads back what was given, "
+      "auto\n"
+      "    unless set.\n"
       "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``, "
       "``\"auto\"``.\n"
       "scrambler_init : int, default 0\n"
@@ -6883,7 +6900,9 @@ static PyTypeObject SegmentType = {
       "header\n"
       "    (mac_header) and a body, with the FCS appended. auto (the default) "
       "is\n"
-      "    fcs; a Synth reads, and a record holds, fcs.\n"
+      "    fcs; a Synth reads, and a record holds, fcs. On any other type it "
+      "reads\n"
+      "    back what was given, auto unless set.\n"
       "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``, ``\"auto\"``.\n"
       "gap : int, default 0\n"
       "    For type=ofdm: idle samples after each PPDU, at the output rate, "
@@ -6915,11 +6934,12 @@ static PyTypeObject SegmentType = {
       "At\n"
       "    the default 1.0 every frequency is normalised (cycles per "
       "sample);\n"
-      "    state it whenever a scene is in real Hz. A segment whose first "
-      "source\n"
-      "    is type=ofdm reads the default 1.0 as unset and takes that "
-      "source's\n"
-      "    bandwidth (20e6 unless given), which a record then holds.\n"
+      "    state it whenever a scene is in real Hz. A segment with a "
+      "type=ofdm\n"
+      "    source reads the default 1.0 as unset and takes that source's "
+      "bandwidth\n"
+      "    (20e6 unless given), which a record then holds; ofdm sources that\n"
+      "    differ in bandwidth leave it no one rate and are refused.\n"
       "num_samples : int | tuple[int, int], default 0\n"
       "    Segment on-time in samples, before the trailing gap: 0 derives it "
       "from\n"

@@ -99,6 +99,7 @@ carrier_nda_loop_error (double pe)
 #define CARRIER_NDA_DEN_LIMITER 0
 #define CARRIER_NDA_DEN_AVERAGED 1
 #define CARRIER_NDA_DEN_UNIT 2
+#define CARRIER_NDA_DEN_STEP 13.815510557964274
 #define CARRIER_NDA_BLOCK_MAX_LEN 10000000u
 
   typedef struct
@@ -314,6 +315,11 @@ carrier_nda_loop_error (double pe)
             a2              = s->pow_avg - noise_pw;
             a2              = a2 < lo ? lo : a2 > s->pow_avg ? s->pow_avg : a2;
           }
+        /* Never under the update's own power over CARRIER_NDA_DEN_STEP, so
+           |pe| <= |z|^2 / a2 <= CARRIER_NDA_DEN_STEP whatever the average
+           lags. */
+        if (a2 < p / CARRIER_NDA_DEN_STEP)
+          a2 = p / CARRIER_NDA_DEN_STEP;
         pe = a2 > 0.0 ? 2.0 * i * q / a2 : 0.0;
       }
     if (s->blk_len)

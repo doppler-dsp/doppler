@@ -138,6 +138,7 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 | define  | [**CARRIER\_NDA\_BLOCK\_MAX\_LEN**](carrier__nda__core_8h.md#define-carrier_nda_block_max_len)  `10000000u`<br>_The largest block a block lock takes, updates. Its threshold is_ [_**dp\_det\_threshold\_f()**_](detection__core_8h.md#function-dp_det_threshold_f) _'s F(len, len) quantile, a bisection on a continued fraction capped at 300 terms. Against scipy's_`f.isf` _, the threshold r it gives holds to 1e-9 relative at 1e7 and fails outright between 2e8 and 5e8 (r even turns negative at 2^31). A block of 1e7 code periods is about 50 minutes at the 415.1-B-1 point._ |
 | define  | [**CARRIER\_NDA\_DEN\_AVERAGED**](carrier__nda__core_8h.md#define-carrier_nda_den_averaged)  `1`<br>_An average of_ `|z|^2` _(an EMA, booted as a cumulative mean). Its mean is signal plus noise, so the gain is_`gamma/(gamma + 1)` _at update SNR gamma. M = 2 only._ |
 | define  | [**CARRIER\_NDA\_DEN\_LIMITER**](carrier__nda__core_8h.md#define-carrier_nda_den_limiter)  `0`<br>_The denominator in force (the state's_ `den` _, which_[_**dp\_carrier\_nda\_set\_denominator()**_](carrier__nda__core_8h.md#function-dp_carrier_nda_set_denominator) _derives from its arguments): the update's own_`|z|^2` _, a per-update limiter (the default, and the one_[_**carrier\_nda\_disc()**_](carrier__nda__core_8h.md#function-carrier_nda_disc) _computes). Gain_`E[1/(1 + n/A)]` _, falling with SNR._ |
+| define  | [**CARRIER\_NDA\_DEN\_STEP**](carrier__nda__core_8h.md#define-carrier_nda_den_step)  `13.815510557964274`<br>_The averaged and unit denominators' floor, as a fraction of the update's own_ `|z|^2` _: the denominator is never under_`|z|^2 / this` _, so the error 2IQ over it, at most_`|z|^2` _over it, is never past this in magnitude. Derived from a chosen rate, 1e-6: on noise alone_`|z|^2` _over its mean is exponential,_`P(|z|^2 > x mean) = e^-x` _, so x = -ln(1e-6) engages the floor on one update in 10^6. With a signal the unit form compares_`|z|^2` _with the signal's power_`A^2` _(its denominator's value), the noncentral chi-square tail_`Q_1(sqrt(2 gamma), sqrt(2 x gamma))` _at update SNR gamma: at the 415.1-B-1 floor's window sums, 2.6e-9 at gamma 2.397 (2.2 GHz) and 1.3e-7 at 1.884 (2.8 GHz), under the noise-only rate; the averaged form, against_`A^2 + N` _, 7e-14 and 3e-12. Printed by test\_carrier\_nda\_core.c's 17c through_[_**dp\_marcum\_q()**_](detection__core_8h.md#function-dp_marcum_q) _. Otherwise it engages only on a level step the running average has not yet followed (a burst, a gain step upstream), which the quotient would hand the loop unbounded._ |
 | define  | [**CARRIER\_NDA\_DEN\_UNIT**](carrier__nda__core_8h.md#define-carrier_nda_den_unit)  `2`<br>_That average less the caller's noise power, clamped between avg \* gamma\_d/(gamma\_d + 1) and avg, with gamma\_d the design update SNR: gain 1 where the estimate holds, never above the design point's, never the averaged form's sign. M = 2 only._  |
 | define  | [**CARRIER\_NDA\_DISC\_SLOPE**](carrier__nda__core_8h.md#define-carrier_nda_disc_slope)  `2.0`<br>_The discriminator's slope at lock, error per radian of carrier phase, at every M:_ `sin 2 theta` _at M = 2 and the {1, 1/2, 1/4} scale that makes it 2 at 4 and 8 too._**What has slope 2** _is the raw discriminator output:_[_**carrier\_nda\_disc()**_](carrier__nda__core_8h.md#function-carrier_nda_disc) _,_`last_error` _, the_`.e` _probe and_[_**dp\_carrier\_nda\_get\_last\_error()**_](carrier__nda__core_8h.md#function-dp_carrier_nda_get_last_error) _._**What the filter is handed** _has slope 1: a loop filter's gains assume the rest of its loop has unit gain (_[_**dp\_loop\_filter\_init()**_](loop__filter__core_8h.md#function-dp_loop_filter_init) _), so the error reaches the filter divided by this, through_[_**carrier\_nda\_loop\_error()**_](carrier__nda__core_8h.md#function-carrier_nda_loop_error) _, and_`bn` _and_`zeta` _are then the closed loop's (#3224)._ |
 | define  | [**CARRIER\_NDA\_EPS**](carrier__nda__core_8h.md#define-carrier_nda_eps)  `1e-12`<br>_Numerical guard on the arm sample's power \|z\|^2: at or below it (or NaN) the discriminator outputs 0 for both phase error and lock signal (not tunable)._  |
@@ -696,7 +697,7 @@ Im((z/\|z\|)^M) scaled by 1, 1/2, 1/4 for M = 2, 4, 8, which equalizes the S-cur
 
 **Returns:**
 
-Dimensionless error, bounded in magnitude by 1; 0 before the first sample. 
+Dimensionless error, bounded in magnitude by 1 with the limiter and by CARRIER\_NDA\_DEN\_STEP with the averaged or unit denominator; 0 before the first sample. 
 
 
 
@@ -1699,6 +1700,20 @@ _An average of_ `|z|^2` _(an EMA, booted as a cumulative mean). Its mean is sign
 _The denominator in force (the state's_ `den` _, which_[_**dp\_carrier\_nda\_set\_denominator()**_](carrier__nda__core_8h.md#function-dp_carrier_nda_set_denominator) _derives from its arguments): the update's own_`|z|^2` _, a per-update limiter (the default, and the one_[_**carrier\_nda\_disc()**_](carrier__nda__core_8h.md#function-carrier_nda_disc) _computes). Gain_`E[1/(1 + n/A)]` _, falling with SNR._
 ```C++
 #define CARRIER_NDA_DEN_LIMITER `0`
+```
+
+
+
+
+<hr>
+
+
+
+### define CARRIER\_NDA\_DEN\_STEP 
+
+_The averaged and unit denominators' floor, as a fraction of the update's own_ `|z|^2` _: the denominator is never under_`|z|^2 / this` _, so the error 2IQ over it, at most_`|z|^2` _over it, is never past this in magnitude. Derived from a chosen rate, 1e-6: on noise alone_`|z|^2` _over its mean is exponential,_`P(|z|^2 > x mean) = e^-x` _, so x = -ln(1e-6) engages the floor on one update in 10^6. With a signal the unit form compares_`|z|^2` _with the signal's power_`A^2` _(its denominator's value), the noncentral chi-square tail_`Q_1(sqrt(2 gamma), sqrt(2 x gamma))` _at update SNR gamma: at the 415.1-B-1 floor's window sums, 2.6e-9 at gamma 2.397 (2.2 GHz) and 1.3e-7 at 1.884 (2.8 GHz), under the noise-only rate; the averaged form, against_`A^2 + N` _, 7e-14 and 3e-12. Printed by test\_carrier\_nda\_core.c's 17c through_[_**dp\_marcum\_q()**_](detection__core_8h.md#function-dp_marcum_q) _. Otherwise it engages only on a level step the running average has not yet followed (a burst, a gain step upstream), which the quotient would hand the loop unbounded._
+```C++
+#define CARRIER_NDA_DEN_STEP `13.815510557964274`
 ```
 
 

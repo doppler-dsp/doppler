@@ -203,6 +203,53 @@ test_composer_options (void)
     dp_carrier_nda_destroy (w);
   }
 
+  /* 17c. A level step the running average has not followed: a loop on
+     unit amplitude for 1000 updates, then one update 40 dB up at 45
+     degrees, where 2IQ is its whole power. Without the floor the unit
+     form divides 10^4 by an average of about 1 (the error ~1e4); with it
+     the error is CARRIER_NDA_DEN_STEP exactly, the floor's ratio, and the
+     samples before it are unchanged by the floor (their error matches
+     2IQ over the average). */
+  {
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    DP_REQUIRE (c != NULL);
+    DP_REQUIRE (dp_carrier_nda_set_denominator (c, 1.0 / 256.0, 10.0)
+                == DP_OK);
+    DP_REQUIRE (c->den == CARRIER_NDA_DEN_UNIT);
+    for (int k = 0; k < 1000; k++)
+      carrier_nda_update (c, 1.0f, 0.0);
+    DP_CHECK (dp_carrier_nda_get_last_error (c) == 0.0);
+    const float _Complex burst = 100.0f * cexpf (I * (float)(M_PI / 4.0));
+    carrier_nda_update (c, burst, 0.0);
+    const double e = dp_carrier_nda_get_last_error (c);
+    printf ("  a 40 dB step: the unit denominator's error %.4f (floor "
+            "%.4f)\n",
+            e, CARRIER_NDA_DEN_STEP);
+    DP_CHECK (fabs (e - CARRIER_NDA_DEN_STEP) < 1e-3 * CARRIER_NDA_DEN_STEP);
+    dp_carrier_nda_destroy (c);
+    /* How often the floor engages without a step: on noise alone e^-x, the
+       chosen 1e-6; with a signal at update SNR gamma, |z|^2 over the unit
+       form's A^2 past x is the noncentral chi-square tail Q_1(sqrt(2
+       gamma), sqrt(2 x gamma)), and over the averaged form's A^2 + N,
+       Q_1(sqrt(2 gamma), sqrt(2 x (gamma + 1))). At the 415.1-B-1 floor's
+       window sums, both under the noise-only rate. */
+    const double x = CARRIER_NDA_DEN_STEP;
+    DP_CHECK (fabs (dp_marcum_q (1, 0.0, sqrt (2.0 * x)) - 1e-6) < 1e-12);
+    static const double gs[2] = { 2.397, 1.884 };
+    for (int k = 0; k < 2; k++)
+      {
+        const double u
+            = dp_marcum_q (1, sqrt (2.0 * gs[k]), sqrt (2.0 * x * gs[k]));
+        const double a = dp_marcum_q (1, sqrt (2.0 * gs[k]),
+                                      sqrt (2.0 * x * (gs[k] + 1.0)));
+        printf ("  the floor engages at gamma %.3f: unit %.2e, averaged "
+                "%.2e an update (noise alone 1e-6)\n",
+                gs[k], u, a);
+        DP_CHECK (u < 1e-6 && a < u);
+      }
+  }
+
   /* 17b. The denominator: an exact quotient on known inputs. */
   {
     dp_carrier_nda_state_t *c

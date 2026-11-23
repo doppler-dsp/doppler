@@ -102,8 +102,8 @@ dB, the way a display converts only what it draws. It is the tested example
 ## Rows
 
 Row *k* covers stream samples `[k·hop, k·hop + nfft)`. With `hop == nfft`
-the rows tile the stream; with `hop < nfft` they overlap, and `nfft / hop`
-rows are computed per `nfft` samples. Each costs one FFT, so a quarter hop
+the rows cover the stream end to end; with `hop < nfft` they overlap, and
+`nfft / hop` rows are computed per `nfft` samples. Each costs one FFT, so a quarter hop
 costs about four times as much per input sample.
 
 A row is `nfft` floats of **linear power** by default

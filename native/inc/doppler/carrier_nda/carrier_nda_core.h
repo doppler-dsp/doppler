@@ -147,8 +147,8 @@
  *     Beta threshold at a Pfa, in place of the per-sample EMA.
  * The two M-th-power options are derived at M = 2 only and refused at 4 and
  * 8, whose laws are not derived. The derivation and the numbers at the
- * 415.1-B-1 point are docs/design/async-dsss-receiver.md, "The pre-despread
- * carrier loop becomes carrier_nda".
+ * 415.1-B-1 point are docs/design/async-dsss-receiver.md §4.10, "The
+ * pre-despread carrier loop".
  *
  * @par What `n` costs
  * `n` sets the arm window to `sps / n` samples, and the window is not free:

@@ -837,8 +837,9 @@ def handover(argv: list[str]) -> int:
             if r["t_pull_s"] != "nan" and r["t_track_s"] != "nan"
         ]
         never_pull = len(every) - len(t_pull)
-        # Each flag by C1's corrected count (§4.11): never sustained,
-        # sustained and changed over the data after it, sustained and clean.
+        # Each flag by C1's corrected count (this record's §4.11): never
+        # sustained, sustained and changed over the data after it,
+        # sustained and clean.
         flags = []
         for name, t_key, tog_key in (
             ("sym", "t_sym_s", "sym_tog"),

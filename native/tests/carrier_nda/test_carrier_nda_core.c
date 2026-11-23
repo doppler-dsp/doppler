@@ -103,8 +103,8 @@ settle_idx (int n, double bn, double f0, const float _Complex *rx, size_t N)
   return track_settle (8, n, 4, bn, f0, rx, N, 0.1, 50, 0);
 }
 
-/* ── 17. The composer's options (docs/design/async-dsss-receiver.md, "The
- * pre-despread carrier loop becomes carrier_nda"): the update period, the
+/* ── 17. The composer's options (docs/design/async-dsss-receiver.md §4.10,
+ * "The pre-despread carrier loop"): the update period, the
  * denominator and the block lock, each off by default. Every check names
  * the value the option ignored would give, so it can fail. ───────────── */
 

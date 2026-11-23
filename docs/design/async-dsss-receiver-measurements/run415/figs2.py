@@ -1,4 +1,5 @@
-"""Step 2's figure pages (async-dsss-receiver.md §4.11), from the captures.
+"""Step 2's figure pages (async-dsss-receiver-measurements.md §4.11),
+from the captures.
 
 Per captured draw, the page set: each loop on a whole-draw page and a
 hand-over-to-pull-in page, each detector on a whole-draw page and a zoom
@@ -232,7 +233,7 @@ def caption(r: dict[str, str], draw: str, note: str) -> str:
         f"{float(r['car_sd_deg']):.1f} deg. Symbol errors {r['errors']} of "
         f"{r['scored']} scored; works {r['works']}. rx.hold reads 1 while "
         "the code and symbol flags are both up (the hold snapshot "
-        f"refreshed), not a held loop (§4.11 C18). {note}"
+        f"refreshed), not a held loop (the record's §4.11 C18). {note}"
     )
 
 

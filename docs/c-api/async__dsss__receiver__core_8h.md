@@ -309,7 +309,7 @@ double dp_async_dsss_receiver_carrier_bn (
 
 
 
-The loop updates once a code period, `T = code_len / chip_rate`, on a coherent sum whose SNR is `rho = C/N0 T`. Its loop SNR, counting the M = 2 detector's squaring loss `S_L = 1 / (1 + 1/(2 rho))`, is `rho S_L / (2 bn)`, so ASYNC\_DSSS\_RX\_CARRIER\_LOOP\_SNR\_DB of it asks `bn <= rho S_L / 200`. The bandwidth is that, or ASYNC\_DSSS\_RX\_BN\_CARRIER where the rule allows more: the rule is a ceiling, and the release's 0.04 is the widest the loop has been designed at. At the 415.1-B-1 floor (C/N0 38.77 dB-Hz) it is 0.00993 at 2.2 GHz and 0.00744 at 2.8 GHz. create() sizes the receiver's carrier loop with it, at `cn0_dbhz`.
+The loop updates once a code period, `T = code_len / chip_rate`, on a coherent sum whose SNR is `rho = C/N0 T`. Its loop SNR, counting the M = 2 detector's squaring loss `S_L = 1 / (1 + 1/(2 rho))`, is `rho S_L / (2 bn)`, so ASYNC\_DSSS\_RX\_CARRIER\_LOOP\_SNR\_DB of it asks `bn <= rho S_L / 200`. The bandwidth is that, or ASYNC\_DSSS\_RX\_BN\_CARRIER where the rule allows more: the rule is a ceiling, and the release's 0.04 is the widest the loop has been designed at. At the 415.1-B-1 floor (C/N0 38.77 dB-Hz) it is 0.00993 at 2.2 GHz and 0.00744 at 2.8 GHz: about 30 Hz of loop noise bandwidth (`bn / T`) and an acquisition bound of about 15 Hz (ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ) at both carriers, the two carriers differing only through the squaring loss. create() sizes the receiver's carrier loop with it, at `cn0_dbhz`.
 
 
 

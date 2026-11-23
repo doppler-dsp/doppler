@@ -121,7 +121,8 @@
  * retired when the receiver's carrier loop became carrier_nda, which is
  * second order.
  *
- * The C12 controls (docs/design/async-dsss-receiver.md §4.11):
+ * The C12 controls (docs/design/async-dsss-receiver-measurements.md §4.11 (as
+ * planned)):
  * `--no-emitter` renders the emitter 400 dB under the noise, the scene's
  * noise alone with its truth still defined, and asserts that no flag
  * sustains on a draw; `--expect-broken` asserts that a draw does not work,
@@ -242,7 +243,8 @@ typedef struct
                                 kept the natural (whole-epoch) window */
   double t_track_s, t_sym_s, t_code_s; /* NAN: never */
   /* Changes over the data after the flag sustained; -1: it never did, so
-     a never-sustained flag is never read as a clean one (§4.11 C1). */
+     a never-sustained flag is never read as a clean one
+     (async-dsss-receiver-measurements.md §4.11 C1). */
   int64_t sym_tog, code_tog;
   /* The other three lock indicators the receiver exposes (owner: no lock
      indicator toggles in the data once acquired; it names no subset):
@@ -254,11 +256,12 @@ typedef struct
   int     car_up_end, dem_up_end, syn_up_end;
   double  sym_tog1_s, code_tog1_s; /* NAN: none */
   double  end_resid_hz;
-  /* The pull-in (async-dsss-receiver.md §4.11, D3's run): when the
-     carrier flag was first sustained (NAN: never), and whether the loop
-     pulled in, read against the truth: tracking at the end with the live
-     carrier inside the loop's own pull-in bound (base_pullin_hz), the
-     bound a loop outside capture never falls inside. */
+  /* The pull-in (async-dsss-receiver-measurements.md §4.11 (as planned), the
+     run at the rule's bandwidth): when the carrier flag was first sustained
+     (NAN: never), and whether the loop pulled in, read against the truth:
+     tracking at the end with the live carrier inside the loop's own pull-in
+     bound (base_pullin_hz), the bound a loop outside capture never falls
+     inside. */
   double t_car_s;
   int    pulled_in;
   /* When the carrier loop brought its frequency error, against the truth,
@@ -269,7 +272,8 @@ typedef struct
   double t_pull_s;
   /* The demodulator's carrier and sync flags' sustained times (NAN: never),
      beside t_sym_s, t_code_s and t_car_s, so each of the five flags has
-     its own "never sustained" (§4.11 C1). */
+     its own "never sustained" (async-dsss-receiver-measurements.md §4.11 C1).
+   */
   double t_demod_s, t_sync_s;
   double end_stale_hz; /* the hand-over's Doppler against the end's
                           truth: what end_resid_hz would read if it
@@ -296,7 +300,7 @@ typedef struct
      0.5 s, with the design's baselines beside them. */
   double car_mean_deg, car_sd_deg, code_mean_chip, code_sd_chip;
   size_t car_slips, ho_slips; /* steps past the fold: steady, transient */
-  /* D10's split, against the declared lock (t_lock_s), on the emitter's
+  /* The slip split, against the declared lock (t_lock_s), on the emitter's
      code: fold crossings from the hand-over to the declared lock, and
      after it; net_rev_post, the signed sum of the crossings after it (+1
      each forward through the fold, -1 back), whose magnitude is the pi
@@ -409,19 +413,21 @@ static double    pi_cell_key[PI_CELLS][3];
    (dp_async_dsss_receiver_carrier_bn() at the C/N0 it is built at); NAN:
    the receiver's own. */
 static double pi_bn_car = NAN;
-/* The C12 controls (async-dsss-receiver.md §4.11): --no-emitter renders the
-   emitter 400 dB under the noise (amplitude 1e-20), the scene's noise
-   alone with its truth still defined, and asserts no flag sustains;
+/* The C12 controls (async-dsss-receiver-measurements.md §4.11 (as planned)):
+   --no-emitter renders the emitter 400 dB under the noise (amplitude 1e-20),
+   the scene's noise alone with its truth still defined, and asserts no flag
+   sustains;
    --expect-broken asserts a draw does not work (the carrier loop opened
    through --bn-carrier). Each prints its verdict to stderr. */
 static int pi_no_emitter    = 0;
 static int pi_expect_broken = 0;
-/* --carrier-null (§4.11, proposal ii): at the entry to tracking, the first
-   carrier loop's NCO is moved K / T off the hand-over (K the Dll's partials
-   a code period, T the code period), where every partial's coherent sum is
-   at the null of sinc(df T / K). With --bn-carrier 0 the loop holds it: a
-   receiver broken by construction. Its verdict asserts the code and symbol
-   flags never sustain, beside --expect-broken's works 0. */
+/* --carrier-null (async-dsss-receiver-measurements.md §4.11, proposal ii): at
+   the entry to tracking, the first carrier loop's NCO is moved K / T off the
+   hand-over (K the Dll's partials a code period, T the code period), where
+   every partial's coherent sum is at the null of sinc(df T / K). With
+   --bn-carrier 0 the loop holds it: a receiver broken by construction. Its
+   verdict asserts the code and symbol flags never sustain, beside
+   --expect-broken's works 0. */
 static int pi_carrier_null = 0;
 /* --fine-k1: the fine hand-over's control, its sums forced to whole code
    periods (docs/design/async-dsss-receiver.md, "The control that must
@@ -614,10 +620,10 @@ pi_live_align (const dp_air_t *air, size_t first_in, double secs,
     }
 }
 
-/* The end's verdict (§4.11's "works": the data held to the end). The
-   meter re-detects the alignment on a marker near the end
-   (dp_ber_marker_place() backward from ns - guard); a different lag or an
-   inverted phase there is a slip. Where it cannot place one (its `ok`
+/* The end's verdict (async-dsss-receiver-measurements.md §4.11's "works": the
+   data held to the end). The meter re-detects the alignment on a marker near
+   the end (dp_ber_marker_place() backward from ns - guard); a different lag or
+   an inverted phase there is a slip. Where it cannot place one (its `ok`
    down), the end is judged by the start's alignment instead: the last
    PI_END_TAIL symbols scored against it in blocks of PI_END_BLK. A clean
    end reads the link's own rate; every block after a slip reads random
@@ -717,7 +723,7 @@ pi_end_controls (const float complex *syms, size_t ns, const uint8_t *truth,
 }
 
 /* One definition of a crossing of the fold, used by the stress, the
-   transitions, their baseline and D10's split: the folded error (cycles,
+   transitions, their baseline and the slip split: the folded error (cycles,
    period half a cycle) jumps by more than a quarter cycle (90 degrees)
    between consecutive tracked blocks. A crossing that comes back counts
    twice: these are crossings, not net cycle slips. */
@@ -728,7 +734,7 @@ pi_cross (const float *e_car, size_t b)
          && fabs (e_car[b] - e_car[b - 1]) > 0.25;
 }
 
-/* D10's split (draw_t's slips_pre .. post_s) over the blocks on the
+/* The slip split (draw_t's slips_pre .. post_s) over the blocks on the
    emitter's code (within half a chip) from the hand-over, cut at the
    declared lock. A jump down past the fold is the phase moving forward
    through +90 degrees (+1), up is back through -90 (-1). */
@@ -760,7 +766,7 @@ pi_d10_split (const float *e_car, const float *e_cod, size_t n_blk,
   d->post_s = (double)n_post * blk_s;
 }
 
-/* D10's gate's failing case, run once on the first draw that declares
+/* The slip gate's failing case, run once on the first draw that declares
    lock with a second of on-code tracking after it: the same error stream
    with a forced pi slip spliced in a second after the declared lock -- the
    phase walking forward half a cycle over PI_FORCED_SLIP_BLK blocks, then
@@ -790,7 +796,7 @@ pi_forced_slip (const float *e_car, const float *e_cod, size_t n_blk,
     }
   draw_t forced = *d;
   pi_d10_split (f, e_cod, n_blk, blk_s, d->t_track_s, d->t_lock_s, &forced);
-  printf ("  D10 gate's failing case: a forced pi slip %.1f s after the "
+  printf ("  the slip gate's failing case: a forced pi slip %.1f s after the "
           "declared lock reads %ld net reversal(s) (the draw: %ld)\n",
           1.0, forced.net_rev_post, d->net_rev_post);
   DP_CHECK_MSG (forced.net_rev_post == 1,
@@ -800,11 +806,12 @@ pi_forced_slip (const float *e_car, const float *e_cod, size_t n_blk,
 }
 
 /* Whether a draw's link works: every one of the five flags sustained
-   (§4.11 C17) and never changed over the data, up at the end, not a false
-   lock, the data held (no slip, and an end held: pi_end_verdict()), and the
-   error-rate window's two verdicts: all five sustained inside the lock
-   allocation (lock20) and the meter aligned at that start (aligned; its
-   failure is unaligned_lock). check_cell() pins the last two. */
+   (async-dsss-receiver-measurements.md §4.11 C17) and never changed over the
+   data, up at the end, not a false lock, the data held (no slip, and an end
+   held: pi_end_verdict()), and the error-rate window's two verdicts: all five
+   sustained inside the lock allocation (lock20) and the meter aligned at that
+   start (aligned; its failure is unaligned_lock). check_cell() pins the last
+   two. */
 static int
 pi_works (const draw_t *d)
 {
@@ -1273,10 +1280,10 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           FILE *fr = fopen (cp->rules, "w");
           DP_REQUIRE (fr != NULL);
           /* Each rule beside the settings that sized it, read from the
-             built receiver (async-dsss-receiver.md §4.11 B): the looks a
-             decision takes (0 for an EMA metric), the metric's EMA weight
-             (0 for a block statistic) and the bandwidth of the loop the
-             detector watches (NaN where none). */
+             built receiver (async-dsss-receiver-measurements.md §4.11 (as
+             planned) B): the looks a decision takes (0 for an EMA metric), the
+             metric's EMA weight (0 for a block statistic) and the bandwidth of
+             the loop the detector watches (NaN where none). */
           (void)fprintf (fr, "rule,up_thresh,down_thresh,n_up,n_down,"
                              "looks,alpha,loop_bn\n");
           const struct
@@ -1601,7 +1608,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           lock_sym = s_end[s5];
       }
   }
-  /* D10's split (draw_t): the same crossings (cross[]) and the same
+  /* The slip split (draw_t): the same crossings (cross[]) and the same
      on-code filter as car_slips, cut at the declared lock. */
   d->slips_pre = d->slips_post = 0;
   d->net_rev_post              = 0;
@@ -2333,13 +2340,13 @@ main (int argc, char **argv)
                           == 0);
               DP_CHECK_MSG (!ds[n].data_ended,
                             "the payload outlasted the run");
-              /* D10: no pi reversal after the declared lock. Slips before
-                 it are printed (slips_pre) and never gated: the lock
-                 declares the link, so a reversal it has not declared is
+              /* The slip gate: no net pi reversal after the declared lock.
+                 Slips before it are printed (slips_pre) and never gated: the
+                 lock declares the link, so a reversal it has not declared is
                  the pull-in's. Its failing case is pi_forced_slip(). */
               if (!pi_no_emitter && !pi_expect_broken)
                 DP_CHECK_MSG (ds[n].net_rev_post == 0,
-                              "D10: no net pi reversal after the declared "
+                              "no net pi reversal after the declared "
                               "lock");
               if (emit)
                 emit_row (&ds[n], s);
@@ -2359,15 +2366,16 @@ main (int argc, char **argv)
             }
         }
   free (ds);
-  /* The failing cases D10's gate and the end verdict rest on run on the
+  /* The failing cases the slip gate and the end verdict rest on run on the
      first draw that qualifies; a run where none did has not shown either
      gate can fail, so it says so. Not on a control: its draws are built
      not to work. */
   if (!pi_no_emitter && !pi_expect_broken)
     {
-      DP_CHECK_MSG (pi_forced_slip_done,
-                    "D10's failing case ran: a draw declared lock with a "
-                    "second of on-code tracking after it");
+      DP_CHECK_MSG (
+          pi_forced_slip_done,
+          "the slip gate's failing case ran: a draw declared lock with a "
+          "second of on-code tracking after it");
       DP_CHECK_MSG (pi_end_controls_done,
                     "the end verdict's failing cases ran: a draw aligned");
     }
@@ -2376,10 +2384,11 @@ main (int argc, char **argv)
       /* An out-of-use-case stress, printed and not gated: a 400 Hz/s
          ramp (DP_S415_RATE_HZ_S, the raw pass's peak rate, which the
          receiver does not meet: async-dsss-receiver.md §1.8; the owner,
-         11-17, "We don't want to test what will never happen"; D3's red
-         (iv)). The receiver is configured for R_env (dp_s415_r_env()).
-         The draw is sized so the hand-over's Doppler is past the
-         false-lock limit. */
+         11-17, "We don't want to test what will never happen"). At the
+         rule's bandwidth an order-2 loop lags that ramp past the check's
+         limit, so it is printed, not gated. The receiver is configured for
+         R_env (dp_s415_r_env()). The draw is sized so the hand-over's Doppler
+         is past the false-lock limit. */
       draw_t rd;
       DP_REQUIRE (run_draw (code, DP_S415_FC_HI, 10.0, DP_S415_RATE_HZ_S, 1,
                             PI_RAMP_CHECK_S, spc, NULL, NULL, &rd)

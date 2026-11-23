@@ -599,7 +599,9 @@ The escape hatch under [**dp\_dll\_configure\_lock()**](dll__core_8h.md#function
 >>> # >= 7 chips gives a usable lock statistic
 >>> code = rng.integers(0, 2, 63).astype(np.uint8)
 >>> chip = np.where(code & 1, -1.0, 1.0)
->>> x = np.tile(np.repeat(chip, 4), 400).astype(np.complex64)
+>>> one = np.repeat(chip, 4)                # one period: 63 chips x 4
+>>> x = np.concatenate([np.tile(one, 400), one[:126]])  # 400.5 periods
+>>> x = x.astype(np.complex64)
 >>> d = Dll(code, sps=4, bn=0.005)
 >>> # raw geometry: declare at R>3, drop at R<2.5, 8-look,
 >>> # 2-of-2 hysteresis
@@ -1699,7 +1701,7 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all five probes (th
 >>> d.set_telemetry(tlm, "code")
 >>> sorted(tlm.probe_names)
 ['code.e', 'code.lock', 'code.locked', 'code.nco', 'code.rate']
->>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
+>>> x = np.ones(31 * 2 * 50 + 31, dtype=np.complex64)  # 50.5 periods
 >>> _ = d.steps(x)
 >>> recs = tlm.read()   # five records per code epoch
 >>> len(recs) > 0 and len(recs) % 5 == 0
@@ -1791,9 +1793,12 @@ Number of prompt symbols written — one per completed code period (`segments` p
 >>> rng = np.random.default_rng(1)
 >>> code = rng.integers(0, 2, 31).astype(np.uint8)
 >>> chip = np.where(code & 1, -1.0, 1.0)    # BPSK spreading code
->>> x = np.tile(np.repeat(chip, 2), 40).astype(np.complex64)
+>>> one = np.repeat(chip, 2)                # one period: 31 chips x 2
+>>> x = np.concatenate([np.tile(one, 40), one[:31]])  # 40.5 periods
 >>> d = Dll(code=code, sps=2)
->>> sym = d.steps(x)                        # one prompt per period
+>>> sym = d.steps(x.astype(np.complex64))   # one prompt per period
+>>> len(sym)                                # the half period ends mid-period
+40
 >>> sym.dtype
 dtype('complex64')
 >>> round(float(np.mean(sym.real[-10:])), 1)  # despread to a clean +1
@@ -1925,10 +1930,10 @@ The number of steers taken.
 >>> from doppler.track import Dll
 >>> rng = np.random.default_rng(3)
 >>> code = rng.integers(0, 2, 63).astype(np.uint8)
->>> idx = (np.arange(63 * 4 * 200) // 4) % 63
+>>> idx = (np.arange(63 * 4 * 200 + 126) // 4) % 63
 >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
 >>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off
->>> _ = d.steps(x)                        # 200 epochs: the loop pulls in
+>>> _ = d.steps(x)                        # 200.5 periods: the loop pulls in
 >>> m = d.take_error_mean()               # the 200 steers' mean
 >>> 0.0 < abs(m) < 0.5                    # the pull-in's transient
 True
@@ -1979,10 +1984,10 @@ The mean of the steers since the last take; NaN when there were none.
 >>> from doppler.track import Dll
 >>> rng = np.random.default_rng(3)
 >>> code = rng.integers(0, 2, 63).astype(np.uint8)
->>> idx = (np.arange(63 * 4 * 200) // 4) % 63
+>>> idx = (np.arange(63 * 4 * 200 + 126) // 4) % 63
 >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
 >>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off
->>> _ = d.steps(x)                        # 200 epochs: the loop pulls in
+>>> _ = d.steps(x)                        # 200.5 periods: the loop pulls in
 >>> m = d.take_error_mean()               # the 200 steers' mean
 >>> 0.0 < abs(m) < 0.5                    # the pull-in's transient
 True

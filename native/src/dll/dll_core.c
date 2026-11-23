@@ -99,6 +99,7 @@ seed (dp_dll_state_t *s)
       = nco_norm_freq_to_inc (1.0 / ((double)s->sf * (double)s->sps));
   s->code_nco.norm_freq = 1.0 / ((double)s->sf * (double)s->sps);
   s->code_nco.nmax      = 0;
+  s->inc_resid          = 0.0; /* nothing dropped by a conversion yet */
   s->chip_pos           = s->seed_chip;
   s->code_rate          = 1.0;
   s->acc_e              = 0.0f;
@@ -705,6 +706,11 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
   if (!(t.off_chips >= 0.0 && t.off_chips < (double)t.sf))
     return DP_ERR_INVALID;
   if (!(t.noise_guard >= 0.0)) /* NaN fails the comparison */
+    return DP_ERR_INVALID;
+  /* The carried remainder is what one conversion drops: under one phase-word
+     step, 2^-32 cycles per sample (it is added to the next steer's frequency,
+     so a forged value is a forged rate). */
+  if (!(t.inc_resid >= 0.0 && t.inc_resid <= nco_word_to_norm (1u)))
     return DP_ERR_INVALID;
   /* The output level divides every partial: finite and non-negative (zero
      is a level not yet seen, which the emit takes as 1), its count at most

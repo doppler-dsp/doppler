@@ -479,6 +479,7 @@
 * **id\_row** ([**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md))
 * **id\_stat** ([**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md))
 * **init** ([**dp\_crc\_t**](structdp__crc__t.md))
+* **inc\_resid** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **inv\_sps** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **inv\_tsamps** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **inv\_tsamps2** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))

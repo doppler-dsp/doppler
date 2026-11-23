@@ -1240,6 +1240,94 @@ a_blob_from_before_the_unit_gain_integral_path_is_refused (void)
   return fails;
 }
 
+/* The code NCO's increment is a 32-bit word and the conversion truncates, so
+ * a command under one step (2^-32 cycles per sample) used to be dropped at
+ * every steer and the loop read as frozen (doppler#3249). The remainder is
+ * carried, so the MEAN increment over many steers is the commanded one. The
+ * integrator is seeded so the command is `lsb` steps exactly (the gain table
+ * says how many cycles per sample one unit of it is), the error is zero so
+ * nothing else moves it, and the mean of the increments is compared with
+ * the exact frequency the steer asked for. Without the carry the mean is the
+ * truncated nominal, off by the fraction of a step the command and the
+ * nominal rate together leave: 0.29 here. Returns the failed checks. */
+static int
+the_mean_increment_follows_a_command_under_one_step (size_t segments,
+                                                     double lsb)
+{
+  int          fails = 0;
+  const size_t sf    = 127;
+  const double step  = 1.0 / 4294967296.0; /* one phase-word step, cycles */
+  uint8_t     *code  = malloc (sf);
+  make_code (code, sf, 21u);
+  dp_dll_state_t *d
+      = dp_dll_create (code, sf, 4.0, 0.0, 0.002, 0.707, 0.5, segments);
+  DP_REQUIRE (code && d);
+  d->lf.integ      = lsb * step / d->ctrl_i;
+  const size_t n   = 4000;
+  double       sum = 0.0;
+  for (size_t k = 0; k < n; k++)
+    {
+      dll_steer (d, 1.0, 1.0, 1.0); /* e = 0: the integrator alone steers */
+      sum += (double)d->code_nco.phase_inc;
+    }
+  /* the exact frequency asked for, in steps: nominal plus the command */
+  const double want = (d->inv_tsamps + lsb * step) / step;
+  const double got  = sum / (double)n;
+  /* the carry holds the mean to a step over the number of steers */
+  DP_CHECK_MSG (fabs (got - want) <= 2.0 / (double)n,
+                "the mean increment is the commanded one");
+  if (fabs (got - want) > 2.0 / (double)n)
+    DP_TEST_ERR ("  segments %zu, command %+.3f step: mean %.4f, asked %.4f "
+                 "(off %.4f steps; the tolerance is %.4f)\n",
+                 segments, lsb, got, want, got - want, 2.0 / (double)n);
+  dp_dll_destroy (d);
+  free (code);
+  return fails;
+}
+
+/* A blob from before the remainder was carried (version 16) is refused, and
+ * so is a carried remainder no conversion could have dropped: it is added to
+ * the next steer's frequency, so a forged value is a forged rate. */
+static int
+the_carried_remainder_is_in_the_blob_and_checked (void)
+{
+  int          fails = 0;
+  const size_t sf    = 31;
+  uint8_t     *code  = malloc (sf);
+  make_code (code, sf, 5u);
+  dp_dll_state_t *a = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
+  dp_dll_state_t *b = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
+  DP_REQUIRE (code && a && b);
+  a->lf.integ = 0.3 * (1.0 / 4294967296.0) / a->ctrl_i; /* 0.3 of a step */
+  dll_steer (a, 1.0, 1.0, 1.0);
+  DP_CHECK_MSG (a->inc_resid > 0.0, "the steer left a remainder to carry");
+  const size_t bytes = dp_dll_state_bytes (a);
+  void        *blob  = malloc (bytes);
+  DP_REQUIRE (blob);
+  dp_dll_get_state (a, blob);
+  DP_CHECK (dp_dll_set_state (b, blob) == DP_OK);
+  DP_CHECK_MSG (b->inc_resid == a->inc_resid,
+                "the remainder resumes bit for bit");
+  dp_dll_state_t *in
+      = (dp_dll_state_t *)((char *)blob + sizeof (dp_state_hdr_t));
+  const double keep = in->inc_resid;
+  in->inc_resid     = 2.0 / 4294967296.0; /* more than one step */
+  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_ERR_INVALID,
+                "a remainder over one step is refused");
+  in->inc_resid = -1e-12;
+  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_ERR_INVALID,
+                "a negative remainder is refused");
+  in->inc_resid                     = keep;
+  ((dp_state_hdr_t *)blob)->version = 16u;
+  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_ERR_INVALID,
+                "a version 16 blob has no remainder");
+  free (blob);
+  dp_dll_destroy (a);
+  dp_dll_destroy (b);
+  free (code);
+  return fails;
+}
+
 int
 main (void)
 {
@@ -2613,6 +2701,19 @@ main (void)
   DP_CHECK (the_integrator_moves_the_phase_one_chip_per_update (127) == 0);
 
   DP_CHECK (a_blob_from_before_the_unit_gain_integral_path_is_refused () == 0);
+
+  /* The conversion's remainder is carried: a command under one phase-word
+     step moves the mean increment, at one segment and at partials, either
+     sign (doppler#3249). */
+  DP_CHECK (the_mean_increment_follows_a_command_under_one_step (1, 0.05)
+            == 0);
+  DP_CHECK (the_mean_increment_follows_a_command_under_one_step (1, -0.05)
+            == 0);
+  DP_CHECK (the_mean_increment_follows_a_command_under_one_step (4, 0.05)
+            == 0);
+  DP_CHECK (the_mean_increment_follows_a_command_under_one_step (4, -0.05)
+            == 0);
+  DP_CHECK (the_carried_remainder_is_in_the_blob_and_checked () == 0);
 
   DP_TEST_END ("test_dll_core");
 }

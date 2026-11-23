@@ -1006,8 +1006,12 @@ int dp_dll_set_bn(dp_dll_state_t *state, double val);
  * Doppler, `carrier_offset_hz / carrier_freq_hz`, so the code NCO rides the
  * code-rate dilation the discriminator alone can't pull in at low SNR.
  * Applied continuously across the epoch (via `phase_inc`), not as a phase
- * pulse. Also nudges the current `phase_inc` so the aid takes effect before
- * the first period update. `code_rate` stays the loop's own observable and
+ * pulse. The call only stores the aid: it reaches `phase_inc` at the next
+ * steer (a period boundary), and until then the NCO runs the increment it
+ * already has -- the last steer's on a loop that has been running, the
+ * nominal `1 / (sf * sps)` on a fresh or seeded one. Calling it every
+ * period, as a carrier-aided receiver does, therefore leads the NCO by one
+ * update. `code_rate` stays the loop's own observable and
  * is unaffected. A HELD loop (dp_dll_set_coast()) takes the new aid at its
  * next period boundary, where the held rate is converted with the aid in it:
  * a holder that refreshes the Doppler it holds (a searcher-timed receiver's
@@ -1044,11 +1048,15 @@ void dp_dll_set_rate_aid(dp_dll_state_t *state, double rate_aid);
  *
  * Coasting, the loop filter takes no update and the discriminator is read
  * but not steered on: on entry the filter is restored to the last
- * dp_dll_hold_here() and the rate is that filter's integrator -- the loop's
- * frequency memory, without the proportional term of a steer, which is a
- * phase correction for one interval and held as a rate walks the phase off
- * at chips per second -- plus the carrier aid as the caller leaves it. The
- * code phase advances at that rate, followed to within one phase-word step
+ * dp_dll_hold_here() and, from the next period boundary, the rate is that
+ * filter's integrator -- the loop's frequency memory, without the
+ * proportional term of a steer, which is a phase correction for one
+ * interval and held as a rate walks the phase off at chips per second --
+ * plus the carrier aid as the caller leaves it. Until that boundary the NCO
+ * keeps the last live steer's increment, proportional term included: the
+ * walk the hold prevents, bounded to one update interval (an epoch, or a
+ * symbol under the symbol aid). The code phase then advances at the held
+ * rate, followed to within one phase-word step
  * (2^-32 cycles per sample) of accumulated phase however long the hold: the
  * increment is converted at every period boundary through the same carried
  * remainder as a live steer, so the rate the loop estimated is the rate

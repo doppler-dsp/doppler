@@ -88,7 +88,7 @@ params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
 
 [[dll.methods]]
 name = "set_rate_aid"
-doc = "Set the carrier-aiding code-rate deviation (ratio; 0 = off): a fixed fractional rate bias summed into the code NCO's phase_inc every epoch, on top of the loop's own control. For physically-coupled Doppler, pass carrier_offset_hz / carrier_freq_hz so the code NCO rides the code-rate dilation the discriminator alone can't pull in at low SNR. Applied continuously across the epoch (not a phase pulse), and nudges the current phase_inc so the aid takes effect before the first period update. code_rate stays the loop's own observable and is unaffected."
+doc = "Set the carrier-aiding code-rate deviation (ratio; 0 = off): a fixed fractional rate bias summed into the code NCO's phase_inc every epoch, on top of the loop's own control. For physically-coupled Doppler, pass carrier_offset_hz / carrier_freq_hz so the code NCO rides the code-rate dilation the discriminator alone can't pull in at low SNR. Applied continuously across the epoch (not a phase pulse). The call only stores the aid: it reaches phase_inc at the next steer (a period boundary), and until then the NCO runs the increment it already has (the last steer's, or the nominal one on a fresh or seeded loop). code_rate stays the loop's own observable and is unaffected."
 arg_type = "void"
 return_type = "void"
 params = [{ name = "rate_aid", type = "double" }]

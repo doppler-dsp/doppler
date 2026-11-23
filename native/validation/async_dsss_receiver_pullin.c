@@ -619,15 +619,19 @@ pi_live_align (const dp_air_t *air, size_t first_in, double secs,
    (dp_ber_marker_place() backward from ns - guard); a different lag or an
    inverted phase there is a slip. Where it cannot place one (its `ok`
    down), the end is judged by the start's alignment instead: the last
-   PI_END_TAIL symbols scored against it. A clean end reads the link's own
-   rate; a slip anywhere before the tail reads random data, half of them
-   wrong. The tail is refused when its errors pass the midpoint of the two,
-   n (bound + 0.5) / 2, with bound the contract's (BPSK at Es/N0 less
-   PI_MARGIN_DB). That end-sync refusal is the meter's own: at 2.2 GHz, 10
-   dB, seed 43, the end marker the replay resolves noiselessly sat 0.26 dB
-   under the threshold at the right lag (56, the start's), and the stream
-   carried 6 errors in 178,175 symbols. */
+   PI_END_TAIL symbols scored against it in blocks of PI_END_BLK. A clean
+   end reads the link's own rate; every block after a slip reads random
+   data, half of it wrong. A block is refused when its errors pass the
+   midpoint of the two, PI_END_BLK (bound + 0.5) / 2, with bound the
+   contract's (BPSK at Es/N0 less PI_MARGIN_DB): at 100 symbols a random
+   block reads 50 +- 5 against a refusal near 27, and a clean one at the
+   4 dB floor's 0.06 about 6. A slip inside the last block can be missed;
+   it is the resolution, a block. That end-sync refusal is the meter's own:
+   at 2.2 GHz, 10 dB, seed 43, the end marker the replay resolves noiselessly
+   sat 0.26 dB under the threshold at the right lag (56, the start's), and the
+   stream carried 6 errors in 178,175 symbols. */
 #define PI_END_TAIL 1000u
+#define PI_END_BLK 100u
 static void
 pi_end_verdict (const float complex *syms, size_t ns, const uint8_t *truth,
                 size_t n_truth, const dp_ber_marker_t *mk,
@@ -650,18 +654,26 @@ pi_end_verdict (const float complex *syms, size_t ns, const uint8_t *truth,
       *slipped  = end.lag != sy->lag || cos (end.phase - sy->phase) < 0.0;
       return;
     }
-  const size_t lo = ns > PI_END_TAIL ? ns - PI_END_TAIL : 0;
-  dp_ber_t     acc;
-  dp_ber_init (&acc, 2, ULONG_MAX);
-  dp_ber_score (&acc, syms, lo, ns, truth, n_truth, mk, sy);
   const double bound
       = dp_ber_theory_ser (2, pow (10.0, (esn0 - PI_MARGIN_DB) / 10.0));
-  *tail_err = acc.errors;
-  *unsynced
-      = acc.symbols == 0
-        || (double)acc.errors > 0.5 * (double)acc.symbols * (bound + 0.5);
-  *slipped = 0;
-  dp_ber_free (&acc);
+  const size_t lo     = ns > PI_END_TAIL ? ns - PI_END_TAIL : 0;
+  size_t       scored = 0;
+  *unsynced           = 0;
+  *slipped            = 0;
+  for (size_t b = lo; b + PI_END_BLK <= ns; b += PI_END_BLK)
+    {
+      dp_ber_t acc;
+      dp_ber_init (&acc, 2, ULONG_MAX);
+      dp_ber_score (&acc, syms, b, b + PI_END_BLK, truth, n_truth, mk, sy);
+      *tail_err += acc.errors;
+      scored += acc.symbols;
+      if (acc.symbols
+          && (double)acc.errors > 0.5 * (double)acc.symbols * (bound + 0.5))
+        *unsynced = 1;
+      dp_ber_free (&acc);
+    }
+  if (scored == 0)
+    *unsynced = 1;
 }
 
 /* The end verdict's failing cases, once, on the first draw that aligns: the

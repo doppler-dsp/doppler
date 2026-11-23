@@ -1695,14 +1695,21 @@ class Dll:
         the delivered bandwidth is `bn` times (4 zeta^2 Kd + 1) / (4 zeta^2 +
         1), whatever the code length, where Kd is the discriminator's slope per
         chip: 1.31 at 4 samples per chip (1.02 at 2). The slope is 0 at a
-        spacing of one chip or more. The code-rate offset the loop pulls in
-        unaided is bounded by its natural frequency wn = 8 zeta bn / (4 zeta^2
-        + 1) per period: an offset `delta` is a ramp of `delta * sf` chips per
-        period, which must stay below wn (bn 0.005 has wn 0.0094, so about 7e-5
-        at 127 chips and 9e-6 at 1023). Measured at that bn the loop holds to
-        twice wn, is erratic from 2.2 to 2.6 times it and is lost from 2.8
-        (examples/dll_demo.py, dsss/tests/test_despreader.py); beyond wn, use
-        the rate aid (dp_dll_set_rate_aid()) or a wider `bn`.
+        spacing of one chip or more. TRACKING: the perfect integrator holds the
+        code rate, so a constant code-rate offset is followed with zero
+        steady-state error; the offset tracked is not bounded by `bn` or the
+        natural frequency wn = 8 zeta bn / (4 zeta^2 + 1). ACQUISITION: what is
+        bounded is the transient of an unseeded loop handed a rate step. The
+        phase error peaks near (rate step) / wn before the integrator has
+        wound, and the discriminator is not periodic (a carrier loop's is), so
+        once the peak leaves the correlation triangle there is no slip to
+        recover through. An offset `delta` is a ramp of `delta * sf` chips per
+        period; measured at bn 0.005 (wn 0.0094, so a ramp of 7e-5 at 127 chips
+        and 9e-6 at 1023 is 1 wn) the unseeded step is held to twice wn,
+        erratic from 2.2 to 2.6 times it and lost from 2.8
+        (examples/dll_demo.py, dsss/tests/test_despreader.py). Past that, seed
+        the rate (the rate aid, dp_dll_set_rate_aid()) or widen `bn` for
+        acquisition.
     zeta : float, default 0.707
         Damping factor (default 0.707).
     spacing : float, default 0.5

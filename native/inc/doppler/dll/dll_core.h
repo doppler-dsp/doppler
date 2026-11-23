@@ -937,15 +937,49 @@ void dp_dll_destroy(dp_dll_state_t *state);
 void dp_dll_reset(dp_dll_state_t *state);
 
 /**
- * @brief Output capacity hint for dp_dll_steps(): always 0.
+ * @brief The most partials one dp_dll_steps() call on @p x_len samples can
+ *        emit: the capacity to size its @p out from.
  *
- * Emitted prompts never outnumber input samples, so size @p out to the
- * input length.
+ * `segments x min(x_len, floor(2 x_len / P) + 1)`, with `P = sf x sps` the
+ * code period in samples (a real number: a period need not be a whole number
+ * of samples). A code period closes when the code NCO's phase wraps forward,
+ * and a close emits the period's `segments` partials together (one prompt
+ * at `segments` 1). The terms:
  *
- * @param state  Unused.
- * @return 0 (no state-derived bound).
+ * - `floor(2 x_len / P) + 1` closes: a call that begins just before a wrap
+ *   closes a period at its first sample, then one every `P / 2` samples at
+ *   most. The 2 is headroom for a loop that is tracking, or pulling in
+ *   near nominal (a locked loop sits within 1e-4 of it); it is not a limit
+ *   the Dll enforces, which has no rate clamp, and it is not a tracking-free
+ *   guarantee: a loop that is acquiring or re-acquiring can change its rate
+ *   wildly and slip cycles, so no rate is assumed to hold there. It needs no
+ *   carried phase: the +1 is the worst carried phase.
+ * - `min(x_len, ...)`: one wrap a sample at most, because the increment is
+ *   a 32-bit word. A call of 0 samples emits nothing.
+ *
+ * The hard ceiling, which holds at any rate and in any loop state: an epoch
+ * closes at most once per input sample, so `segments x x_len` partials are
+ * never exceeded. A caller that must not lose a partial under any loop state
+ * sizes to that, and pays for it in memory: a call of 1e6 samples at 127
+ * chips, 2 samples per chip and 8 segments is 8,000,000 partials (64 MB of
+ * complex64) against this bound's 63,000 (0.5 MB), 127 times as much.
+ *
+ * Sizing @p max_out from this keeps a tracking loop's call from ever having
+ * to stop. A call that must emit more than its @p max_out -- a capacity below
+ * the bound, or a loop past the headroom -- stops there without writing out
+ * of range and drops the rest: with the bound it is the caller's error, and
+ * past the headroom it is the price of a rate the bound does not assume.
+ *
+ * Held by test_dll_core.c: a one-sample call that completes a carried
+ * period at `segments` 4 emits all four partials, random call lengths at
+ * `segments` 1, 4 and 8 and at 2, 2.2 and 3.4219 samples per chip never
+ * exceed it, and a code rate of 1.9 times nominal does not either.
+ *
+ * @param state  DLL state.  Must be non-NULL.
+ * @param x_len  Number of input samples the call will be given.
+ * @return The bound, in partials; 0 for @p x_len 0.
  */
-size_t dp_dll_steps_max_out(dp_dll_state_t *state);
+size_t dp_dll_steps_max_out(dp_dll_state_t *state, size_t x_len);
 
 /**
  * @brief Correlate a carrier-wiped block against the local code and steer the
@@ -982,7 +1016,9 @@ size_t dp_dll_steps_max_out(dp_dll_state_t *state);
  * @param x        Carrier-wiped input samples (one contiguous block).
  * @param x_len    Number of input samples.
  * @param out      Output buffer for the emitted prompt symbols.
- * @param max_out  Capacity of @p out in elements; emission stops there.
+ * @param max_out  Capacity of @p out in elements, at least
+ *                 dp_dll_steps_max_out() for @p x_len: emission stops there
+ *                 (memory-safe).
  * @return Number of prompt symbols written — one per completed code period
  *         (`segments` per period when `segments > 1`) — up to @p max_out.
  * @code

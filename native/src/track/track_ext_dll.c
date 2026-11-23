@@ -106,14 +106,23 @@ DllObj_init (DllObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DllObj_steps_max_out (DllObject *self, PyObject *Py_UNUSED (ignored))
+DllObj_steps_max_out (DllObject *self, PyObject *args)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dp_dll_steps_max_out (self->handle));
+  Py_ssize_t x_len = 0;
+  if (!PyArg_ParseTuple (args, "n", &x_len))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (
+      dp_dll_steps_max_out (self->handle, (size_t)x_len));
 }
 
 static PyObject *
@@ -169,10 +178,9 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax    = dp_dll_steps_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
-                            ? _omax
-                            : ((size_t)PyArray_SIZE (x_arr));
+      size_t _omax
+          = dp_dll_steps_max_out (self->handle, (size_t)PyArray_SIZE (x_arr));
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -232,9 +240,9 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = dp_dll_steps_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  size_t _cap
+      = dp_dll_steps_max_out (self->handle, (size_t)PyArray_SIZE (x_arr));
+  (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
     {
@@ -1077,18 +1085,59 @@ static PyMethodDef DllObj_methods[] = {
     "1.0\n"
     ">>> round(d.code_rate, 3)                   # locked at nominal rate\n"
     "1.0\n" },
-  { "steps_max_out", (PyCFunction)DllObj_steps_max_out, METH_NOARGS,
-    "steps_max_out() -> int\n"
+  { "steps_max_out", (PyCFunction)DllObj_steps_max_out, METH_VARARGS,
+    "steps_max_out(x_len) -> int\n"
     "\n"
-    "Output capacity hint for dp_dll_steps(): always 0.\n"
+    "The most partials one dp_dll_steps() call on x_len samples can emit:\n"
+    "the capacity to size its out from.\n"
     "\n"
-    "Emitted prompts never outnumber input samples, so size out to the input\n"
-    "length.\n"
+    "`segments x min(x_len, floor(2 x_len / P) + 1)`, with `P = sf x sps`\n"
+    "the code period in samples (a real number: a period need not be a whole\n"
+    "number of samples). A code period closes when the code NCO's phase\n"
+    "wraps forward, and a close emits the period's `segments` partials\n"
+    "together (one prompt at `segments` 1). The terms:\n"
+    "\n"
+    "- `floor(2 x_len / P) + 1` closes: a call that begins just before a\n"
+    "  wrap closes a period at its first sample, then one every `P / 2`\n"
+    "  samples at most. The 2 is headroom for a loop that is tracking, or\n"
+    "  pulling in near nominal (a locked loop sits within 1e-4 of it); it is\n"
+    "  not a limit the Dll enforces, which has no rate clamp, and it is not\n"
+    "  a tracking-free guarantee: a loop that is acquiring or re-acquiring\n"
+    "  can change its rate wildly and slip cycles, so no rate is assumed to\n"
+    "  hold there. It needs no carried phase: the +1 is the worst carried\n"
+    "  phase.\n"
+    "- `min(x_len, ...)`: one wrap a sample at most, because the increment\n"
+    "  is a 32-bit word. A call of 0 samples emits nothing.\n"
+    "\n"
+    "The hard ceiling, which holds at any rate and in any loop state: an\n"
+    "epoch closes at most once per input sample, so `segments x x_len`\n"
+    "partials are never exceeded. A caller that must not lose a partial\n"
+    "under any loop state sizes to that, and pays for it in memory: a call\n"
+    "of 1e6 samples at 127 chips, 2 samples per chip and 8 segments is\n"
+    "8,000,000 partials (64 MB of complex64) against this bound's 63,000\n"
+    "(0.5 MB), 127 times as much.\n"
+    "\n"
+    "Sizing max_out from this keeps a tracking loop's call from ever having\n"
+    "to stop. A call that must emit more than its max_out -- a capacity\n"
+    "below the bound, or a loop past the headroom -- stops there without\n"
+    "writing out of range and drops the rest: with the bound it is the\n"
+    "caller's error, and past the headroom it is the price of a rate the\n"
+    "bound does not assume.\n"
+    "\n"
+    "Held by test_dll_core.c: a one-sample call that completes a carried\n"
+    "period at `segments` 4 emits all four partials, random call lengths at\n"
+    "`segments` 1, 4 and 8 and at 2, 2.2 and 3.4219 samples per chip never\n"
+    "exceed it, and a code rate of 1.9 times nominal does not either.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x_len : int\n"
+    "    Number of input samples the call will be given.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    0 (no state-derived bound).\n" },
+    "    The bound, in partials; 0 for x_len 0.\n" },
   { "set_telemetry", (PyCFunction)(void *)DllObj_set_telemetry,
     METH_VARARGS | METH_KEYWORDS,
     "set_telemetry(tlm, prefix, decim) -> None\n"

@@ -340,20 +340,18 @@ _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
   dp_costas_init (&car, 0.01, 0.707, 0.0, tsamps, bn_fll);
 
   float _Complex *wiped = malloc (tsamps * sizeof *wiped);
-  /* A period's samples close at most two epochs (two when the boundary
-     sits on the call's edge), 4 partials each: the capacity holds that
-     and one more, so a call that filled it would have dropped dumps
-     (dp_dll_steps() drops past max_out silently, #3282). Before #3281's
-     audit this read one partial of the four a period. */
-  float _Complex parts[2 * 4 + 1];
-  size_t most = 0;
+  /* The buffer is the bound for one period's samples (dp_dll_steps_max_out):
+     a call of one period can close two periods at segments > 1, and each
+     close emits all of its partials. */
+  const size_t    cap     = dp_dll_steps_max_out (dll, tsamps);
+  float _Complex *parts   = malloc (cap * sizeof *parts);
+  size_t          most    = 0;
   for (size_t p = 0; p < n_periods; p++)
     {
       const float _Complex *chunk = x + p * tsamps;
       for (size_t i = 0; i < tsamps; i++)
         wiped[i] = costas_wipeoff (&car, chunk[i]);
-      const size_t n_out = dp_dll_steps (dll, wiped, tsamps, parts,
-                                         sizeof parts / sizeof *parts);
+      const size_t n_out = dp_dll_steps (dll, wiped, tsamps, parts, cap);
       most               = n_out > most ? n_out : most;
       if (n_out == 0)
         continue;
@@ -366,12 +364,13 @@ _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
         prompt += parts[k] * (crealf (parts[k]) >= 0.0f ? 1.0f : -1.0f);
       costas_update (&car, prompt);
     }
-  DP_CHECK_MSG (most < sizeof parts / sizeof *parts,
+  DP_CHECK_MSG (most < cap,
                 "no period's call filled the partials' capacity");
 
   double tracked_hz  = dp_costas_get_norm_freq (&car) * fs;
   double true_at_end = rate_hz_per_s * (double)n_periods * (double)tsamps / fs;
 
+  free (parts);
   free (wiped);
   free (x);
   dp_dll_destroy (dll);

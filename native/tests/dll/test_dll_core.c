@@ -199,7 +199,9 @@ refused_blob_changes_nothing (void)
   make_code (code, SF, 2092u);
   float _Complex rx[40 * SF * SPS];
   size_t nrx = make_signal (rx, code, SF, SPS, 0.0, 40, 2092u, 0);
-  float _Complex out[64];
+  /* the bound for the largest call below: 49 segments, 3 samples a chip, 5080
+     samples is 3,969 partials (dp_dll_steps_max_out) */
+  float _Complex out[4096];
   dp_tlm_rec_t recs[512];
 
   dp_dll_state_t *b
@@ -217,7 +219,7 @@ refused_blob_changes_nothing (void)
     return 1;
   dp_dll_state_t *all[6] = { a, b, c, f, g, h };
   for (size_t k = 0; k < 6u; k++)
-    (void)dp_dll_steps (all[k], rx, nrx / 2, out, 64);
+    (void)dp_dll_steps (all[k], rx, nrx / 2, out, sizeof out / sizeof *out);
   if (dp_dll_set_telemetry (b, tlm, "b", 1) != DP_OK)
     return 1;
 
@@ -274,7 +276,8 @@ refused_blob_changes_nothing (void)
   /* And they track on -- b still telling its telemetry -- then go cleanly. */
   (void)dp_tlm_read (tlm, 512, recs, 512);
   for (size_t k = 0; k < 6u; k++)
-    (void)dp_dll_steps (all[k], rx + nrx / 2, nrx - nrx / 2, out, 64);
+    (void)dp_dll_steps (all[k], rx + nrx / 2, nrx - nrx / 2, out,
+                        sizeof out / sizeof *out);
   if (dp_tlm_read (tlm, 512, recs, 512) == 0)
     {
       DP_TEST_ERR ("  refused blob: the refusing instance went silent\n");
@@ -1061,18 +1064,22 @@ coast_reports_the_held_rate (size_t segments)
   const size_t sf = 63, sps = 4, nper = 800;
   uint8_t     *code = malloc (sf);
   make_code (code, sf, 23u);
-  float _Complex *rx  = malloc (sf * sps * nper * sizeof *rx);
-  float _Complex *sym = malloc (nper * segments * sizeof *sym);
+  float _Complex *rx = malloc (sf * sps * nper * sizeof *rx);
   dp_dll_state_t *d
       = dp_dll_create (code, sf, sps, 0.0, 0.01, 0.707, 0.5, segments);
-  DP_REQUIRE (code && rx && sym && d);
+  DP_REQUIRE (code && rx && d);
+  /* sized from the bound for the longest call, nper periods: a carried
+     phase closes one more period than the nominal count */
+  const size_t    cap = dp_dll_steps_max_out (d, sf * sps * nper);
+  float _Complex *sym = malloc (cap * sizeof *sym);
+  DP_REQUIRE (sym);
   const double aid = 1e-5;
   dp_dll_set_rate_aid (d, aid);
   size_t n = make_signal (rx, code, sf, sps, 3e-4, nper, 9u, 1);
-  (void)dp_dll_steps (d, rx, n, sym, nper * segments);
+  (void)dp_dll_steps (d, rx, n, sym, cap);
   dp_dll_hold_here (d);
   n = make_signal (rx, code, sf, sps, -3e-4, nper, 11u, 1);
-  (void)dp_dll_steps (d, rx, n, sym, nper * segments);
+  (void)dp_dll_steps (d, rx, n, sym, cap);
   const double live = dp_dll_get_code_rate (d);
   dp_dll_set_coast (d, 1);
 
@@ -1081,7 +1088,7 @@ coast_reports_the_held_rate (size_t segments)
      One phase-increment step, in chips per chip, is the NCO's resolution,
      and a rate that is not a whole word alternates between the two either
      side of it. */
-  (void)dp_dll_steps (d, rx, sf * sps, sym, segments);
+  (void)dp_dll_steps (d, rx, sf * sps, sym, cap);
   const double q    = 1.0 / 4294967296.0 / d->inv_tsamps;
   double       cmd  = (double)d->code_nco.phase_inc * q;
   double       rate = dp_dll_get_code_rate (d);
@@ -1097,14 +1104,14 @@ coast_reports_the_held_rate (size_t segments)
   /* A new aid while coasting re-steers the held NCO at the next boundary;
      the rate stays. */
   dp_dll_set_rate_aid (d, 4.0 * aid);
-  (void)dp_dll_steps (d, rx, sf * sps, sym, segments);
+  (void)dp_dll_steps (d, rx, sf * sps, sym, cap);
   cmd = (double)d->code_nco.phase_inc * q;
   DP_CHECK (dp_dll_get_code_rate (d) == rate);
   DP_CHECK_MSG (fabs (cmd - (rate + 4.0 * aid)) <= q,
                 "a coasting loop's new aid reaches the NCO, not the rate");
 
   /* And it stays so while coasting: no steer moves either. */
-  (void)dp_dll_steps (d, rx, n, sym, nper * segments);
+  (void)dp_dll_steps (d, rx, n, sym, cap);
   DP_CHECK (dp_dll_get_code_rate (d) == rate);
   DP_CHECK (fabs ((double)d->code_nco.phase_inc * q - cmd) <= q);
 
@@ -1980,6 +1987,137 @@ the_remainders_upper_edge_is_produced_and_accepted (void)
   free (blob);
   dp_dll_destroy (a);
   dp_dll_destroy (b);
+  free (code);
+  return fails;
+}
+
+/* The output bound, dp_dll_steps_max_out(): the capacity one call needs,
+ * segments x min(x_len, floor(2 x_len / P) + 1). A one-sample call that
+ * completes a carried period at segments 4 emits all four partials, and what
+ * a stream emits does not depend on how its calls are cut: fed in random
+ * lengths, each into a buffer of exactly its bound, the partials are the
+ * ones a single call into an ample buffer makes, bit for bit. Sabotaged: the
+ * old bound (the call's length, so one slot for one sample) -- the one-sample
+ * call drops three partials, and every cut stream differs from the reference
+ * (a Debug build asserts at the first drop instead). */
+static int
+a_one_sample_call_that_completes_a_carried_period_keeps_every_partial (void)
+{
+  int          fails = 0;
+  const size_t sf = 31, segments = 4;
+  const double sps  = 4.0;
+  uint8_t     *code = malloc (sf);
+  make_code (code, sf, 11u);
+  const size_t    p   = (size_t)(sf * sps); /* 124 samples a period */
+  float _Complex *x   = malloc (3 * p * sizeof *x);
+  uint32_t        rng = 2463534242u;
+  for (size_t i = 0; i < 3 * p; i++)
+    {
+      /* named locals: the order of two draws in one expression is the
+         compiler's */
+      const float re = (float)((int)(dp_xs32 (&rng) % 2001u) - 1000) / 1000.0f;
+      const float im = (float)((int)(dp_xs32 (&rng) % 2001u) - 1000) / 1000.0f;
+      x[i]           = re + I * im;
+    }
+  dp_dll_state_t *d
+      = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, segments);
+  dp_dll_state_t *ref
+      = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, segments);
+  DP_REQUIRE (code && x && d && ref);
+  float _Complex got[8], want[8];
+
+  /* P samples close nothing (the wrap is seen a sample after the phase
+     passes it); the next one closes the carried period */
+  size_t n0 = dp_dll_steps (d, x, p, got, dp_dll_steps_max_out (d, p));
+  DP_CHECK_MSG (n0 == 0, "a period's samples close nothing yet");
+  size_t cap = dp_dll_steps_max_out (d, 1);
+  DP_CHECK_MSG (cap >= segments, "the bound for one sample covers an epoch");
+  size_t n1 = dp_dll_steps (d, x + p, 1, got, cap);
+  DP_CHECK_MSG (n1 == segments,
+                "one sample emits all of the period's partials");
+  size_t nr = dp_dll_steps (ref, x, p + 1, want, 8);
+  DP_CHECK_MSG (nr == segments, "the reference makes the same period");
+  DP_CHECK_MSG (memcmp (got, want, segments * sizeof *got) == 0,
+                "and they are the reference's, bit for bit");
+  /* a build without assertions keeps the documented stop: a capacity of one
+     drops the rest, and writes nothing past it */
+#ifdef NDEBUG
+  {
+    float _Complex canary[3] = { 7.0f, 7.0f, 7.0f };
+    dp_dll_state_t *e
+        = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, segments);
+    DP_REQUIRE (e);
+    (void)dp_dll_steps (e, x, p, got, 8);
+    size_t k = dp_dll_steps (e, x + p, 1, canary, 1);
+    DP_CHECK_MSG (k == 1 && canary[1] == 7.0f && canary[2] == 7.0f,
+                  "past its capacity a call stops and writes nothing more");
+    dp_dll_destroy (e);
+  }
+#endif
+  dp_dll_destroy (d);
+  dp_dll_destroy (ref);
+  free (x);
+  free (code);
+  return fails;
+}
+
+static int
+random_call_lengths_never_exceed_the_bound (double sps, size_t segments,
+                                            double aid)
+{
+  int          fails = 0;
+  const size_t sf    = 31;
+  uint8_t     *code  = malloc (sf);
+  make_code (code, sf, 13u);
+  const double    period = (double)sf * sps;
+  const size_t    total  = (size_t)(24.0 * period);
+  float _Complex *x      = malloc (total * sizeof *x);
+  uint32_t        rng    = 88172645u;
+  for (size_t i = 0; i < total; i++)
+    {
+      /* named locals: the order of two draws in one expression is the
+         compiler's */
+      const float re = (float)((int)(dp_xs32 (&rng) % 2001u) - 1000) / 1000.0f;
+      const float im = (float)((int)(dp_xs32 (&rng) % 2001u) - 1000) / 1000.0f;
+      x[i]           = re + I * im;
+    }
+  dp_dll_state_t *d
+      = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, segments);
+  dp_dll_state_t *ref
+      = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, segments);
+  DP_REQUIRE (code && x && d && ref);
+  dp_dll_set_rate_aid (d, aid);
+  dp_dll_set_rate_aid (ref, aid);
+  const size_t    refcap = dp_dll_steps_max_out (ref, total);
+  float _Complex *want   = malloc (refcap * sizeof *want);
+  float _Complex *got    = malloc (refcap * sizeof *got);
+  DP_REQUIRE (want && got);
+  const size_t nwant = dp_dll_steps (ref, x, total, want, refcap);
+  size_t       ngot = 0, pos = 0;
+  while (pos < total)
+    {
+      size_t len = 1 + dp_xs32 (&rng) % (size_t)(3.0 * period);
+      if (len > total - pos)
+        len = total - pos;
+      const size_t cap = dp_dll_steps_max_out (d, len);
+      const size_t k   = dp_dll_steps (d, x + pos, len, got + ngot, cap);
+      if (k > cap)
+        fails++;
+      ngot += k;
+      pos += len;
+    }
+  DP_CHECK_MSG (fails == 0, "a call never emits more than its bound");
+  DP_CHECK_MSG (ngot == nwant && memcmp (got, want, nwant * sizeof *want) == 0,
+                "cut at random, the partials are the one-call partials");
+  if (ngot != nwant)
+    DP_TEST_ERR ("  sps %.4f, segments %zu, aid %.2f: %zu partials against "
+                 "%zu\n",
+                 sps, segments, aid, ngot, nwant);
+  dp_dll_destroy (d);
+  dp_dll_destroy (ref);
+  free (want);
+  free (got);
+  free (x);
   free (code);
   return fails;
 }
@@ -3454,6 +3592,21 @@ main (void)
   DP_CHECK (a_hold_follows_its_rate_to_a_step (6285, 5, 1) == 0);
   DP_CHECK (a_blob_taken_mid_hold_resumes () == 0);
   DP_CHECK (the_remainders_upper_edge_is_produced_and_accepted () == 0);
+  DP_CHECK (
+      a_one_sample_call_that_completes_a_carried_period_keeps_every_partial ()
+      == 0);
+  {
+    /* segments 1, 4 and 8 at 2, 2.2 and 3.4219 samples a chip; then the code
+       at 1.9 times nominal, inside the bound's headroom of two */
+    static const double spss[] = { 2.0, 2.2, 3.4219 };
+    static const size_t segs[] = { 1, 4, 8 };
+    for (size_t i = 0; i < 3; i++)
+      for (size_t j = 0; j < 3; j++)
+        DP_CHECK (
+            random_call_lengths_never_exceed_the_bound (spss[i], segs[j], 0.0)
+            == 0);
+    DP_CHECK (random_call_lengths_never_exceed_the_bound (2.2, 4, 0.9) == 0);
+  }
 
   DP_TEST_END ("test_dll_core");
 }

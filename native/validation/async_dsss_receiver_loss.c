@@ -323,11 +323,7 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
       MPSK_RX_AGC_BW_RATIO);
   dp_async_dsss_receiver_state_t *rx = whole ? make_rx (code, cn0) : NULL;
 
-  /* A block is one code period, which closes at most two epochs (two
-     when the boundary sits on the block's edge), SEGMENTS dumps each; one
-     slot more, so a call that filled it would have dropped dumps
-     (dp_dll_steps() drops past max_out silently, #3282; #3281). */
-  size_t         pcap = 2 * SEGMENTS + 1;
+  size_t         pcap = dp_dll_steps_max_out (dll, TE) + SEGMENTS;
   float complex *prt  = dp_xmalloc (pcap * sizeof *prt);
   size_t         qcap = (size_t)((double)N / TE * SEGMENTS * rate) + 64;
   float complex *q    = dp_xcalloc (qcap, sizeof *q);

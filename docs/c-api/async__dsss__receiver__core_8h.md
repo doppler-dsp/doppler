@@ -327,6 +327,9 @@ void dp_async_dsss_receiver_configure_lock_raw (
 
 
 
+The rule this replaces is sized when the chain is built, from rates the application chooses, by the detection module and not here: the non-coherent count by [**dp\_det\_n\_noncoh()**](detection__core_8h.md#function-dp_det_n_noncoh) (at the detection and false-alarm probabilities, and the design C/N0) and the drop count by [**dp\_det\_verify\_count()**](detection__core_8h.md#function-dp_det_verify_count) (at its miss probability and false-drop budget), handed to [**dp\_dll\_configure\_lock()**](dll__core_8h.md#function-dp_dll_configure_lock). The values are set in adr\_build\_track\_chain() (async\_dsss\_receiver\_core.c); this header does not restate them.
+
+
 
 
 **Parameters:**

@@ -611,9 +611,10 @@ extern "C"
    * 2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2): a per-look mean
    * (mean_lock_detect, from rolloff and the minimum operating Es/N0) drives
    * the classic N = variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 /
-   * threshold = Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation, implemented
-   * directly from a formula supplied by a doppler user (not re-derived
-   * against a primary source), with "variance" set from a direct
+   * threshold = Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation, computed by the
+   * detection module (dp_det_dwell_gauss() for avgs, dp_det_threshold_gauss()
+   * for the threshold) from a formula supplied by a doppler user (not
+   * re-derived against a primary source), with "variance" set from a direct
    * measurement of lock_signal's real per-look variance under noise
    * (~1.343, 5,000,000-sample Monte Carlo) rather than the placeholder
    * "8" this API originally shipped with -- see symsync_core.c's

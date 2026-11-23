@@ -2799,6 +2799,15 @@ class AsyncDsssReceiver:
         levels and verify counts trade declare latency against false-alarm
         rate.
 
+        The rule this replaces is sized when the chain is built, from rates the
+        application chooses, by the detection module and not here: the
+        non-coherent count by dp_det_n_noncoh() (at the detection and
+        false-alarm probabilities, and the design C/N0) and the drop count by
+        dp_det_verify_count() (at its miss probability and false-drop budget),
+        handed to dp_dll_configure_lock(). The values are set in
+        adr_build_track_chain() (async_dsss_receiver_core.c); this header does
+        not restate them.
+
         Parameters
         ----------
         up_thresh : float

@@ -540,16 +540,23 @@ wipes the code; [`dsss.Despreader`][doppler.dsss.Despreader] composes the two.
 ```python
 import numpy as np
 from doppler.track import Dll
-from doppler.wfm import Synth
+from doppler.wfm import PN
 
-code = np.random.default_rng(1).integers(0, 2, 127).astype(np.uint8)
-rx = Synth(type="pn", pn_length=7, sps=8).steps(127 * 8 * 4)  # PN-spread IQ
+code = np.asarray(PN(length=7, seed=1).generate(127)).astype(np.uint8)
+# the same code at 4 samples per chip, 800 periods, as carrier-wiped BPSK
+rx = np.tile(np.repeat(np.where(code & 1, -1.0, 1.0), 4), 800)
+rx = rx.astype(np.complex64)
 
-# code: 0/1 chips for one period; sps samples per chip
-d = Dll(code, sps=4, init_chip=0.0, bn=0.005, zeta=0.707, spacing=0.5)
+# code: 0/1 chips for one period; sps samples per chip; the replica starts
+# a quarter chip off
+d = Dll(code, sps=4, init_chip=0.25, bn=0.005, zeta=0.707, spacing=0.5)
 symbols = d.steps(rx)        # one prompt symbol per code period
 phase   = d.code_phase       # tracked code phase (chips)
 rate    = d.code_rate        # tracked chip rate (~1.0 + code Doppler)
+
+# The offset decays as exp(-zeta wn n), wn = 8 zeta bn / (4 zeta^2 + 1) =
+# 0.0094 per period: 800 periods leave about 1e-3 chip of the 0.25.
+assert abs(phase) < 0.01
 ```
 
 **Sub-epoch partials for an asynchronous symbol clock (`segments`).** When the

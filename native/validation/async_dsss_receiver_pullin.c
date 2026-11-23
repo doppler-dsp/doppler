@@ -2415,7 +2415,11 @@ main (int argc, char **argv)
          asserted as a regression row: seed 5, earliest to change then,
          holds now. No seed is known on which the cell's 3 changes at this
          head (seed 5 at 3 holds; at 2 it changes), so no behaviour row
-         stands in for the sizing one. */
+         stands in for the sizing one. The first conjunct compares the
+         draw's receiver with dp_s415_rx()'s, so it is red exactly when
+         run_draw stops building through dp_s415_rx() at the floor's C/N0:
+         #3134's cause was on that side, the harness building at the
+         cell's C/N0, which is what it holds. */
       {
         draw_t cd;
         pi_code_nl = 0;

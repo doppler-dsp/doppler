@@ -195,19 +195,25 @@ static int      gh_ho_only;
 static uint32_t gh_seeds[16];
 static size_t   gh_n_seeds;
 
-/* How near a whole number of image spacings a carrier offset must sit to
-   be on a carrier image, in spacings: a quarter, far past the loops'
-   jitter at the end (a few Hz against 1/(2T), 1,571 / 2,000 Hz) and far
-   inside the half spacing that would make the nearest image ambiguous. */
-#define GH_IMAGE_TOL 0.25
+/* How near an image a released ghost's carrier sits at its end, Hz,
+   derived from the rule it tests: the rule releases only when the
+   window's mean carrier delta is within ASYNC_DSSS_POOL_GHOST_EPS_HZ of an
+   image and the delta's standard deviation over the window is under
+   ASYNC_DSSS_POOL_GHOST_STILL_HZ, so the end value is within EPS plus
+   three of that sd of the image: 40 Hz, about 0.025 of an image spacing.
+   (The records' 30 releases ended at most 3.7 Hz off one.) */
+#define GH_IMAGE_TOL_HZ                                                       \
+  (ASYNC_DSSS_POOL_GHOST_EPS_HZ + 3.0 * ASYNC_DSSS_POOL_GHOST_STILL_HZ)
 
-/* An offset of `spacings` image spacings, 1/(2T), is on a carrier image:
-   within GH_IMAGE_TOL of a whole nonzero number of them. */
+/* A carrier offset of `df_hz` sits on a carrier image at spacing
+   `spacing_hz` (1/(2T)): within GH_IMAGE_TOL_HZ of a whole nonzero number
+   of spacings. */
 static int
-gh_on_image (double spacings)
+gh_on_image (double df_hz, double spacing_hz)
 {
-  const double k = round (spacings);
-  return isfinite (spacings) && k != 0.0 && fabs (spacings - k) < GH_IMAGE_TOL;
+  const double k = round (df_hz / spacing_hz);
+  return isfinite (df_hz) && k != 0.0
+         && fabs (df_hz - k * spacing_hz) <= GH_IMAGE_TOL_HZ;
 }
 
 /* a - b on a circle of n, in [-n/2, n/2). */
@@ -1056,10 +1062,11 @@ main (int argc, char **argv)
             /* The rule's claim, on the ghost's carrier at its end (its
                release step, or the run's end), against its parent's. */
             if (o.outcome == 1)
-              DP_CHECK_MSG (gh_on_image (o.df_end_lat),
-                            "the ghost rule releases a ghost only on a "
-                            "carrier image of its parent: a whole nonzero "
-                            "number of image spacings off");
+              DP_CHECK_MSG (
+                  gh_on_image (o.df_end_hz, o.df_end_hz / o.df_end_lat),
+                  "the ghost rule releases a ghost only on a "
+                  "carrier image of its parent: a whole nonzero "
+                  "number of image spacings off");
             if (emit)
               printf ("%.1f,%d,%u,%d,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.3f,%.3f,"
                       "%.3f,%.1f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%.3f,"
@@ -1092,9 +1099,11 @@ main (int argc, char **argv)
       printf ("  refine off, 2.8 GHz, k = +2: outcome %d, carrier %.2f "
               "image spacings off A at the end\n",
               o.outcome, o.df_end_lat);
-      DP_CHECK_MSG (o.outcome == 1 && fabs (o.df_end_lat - 2.0) < GH_IMAGE_TOL,
-                    "refine off: a k = 2 sidelobe ghost is released by the "
-                    "ghost rule");
+      DP_CHECK_MSG (
+          o.outcome == 1 && round (o.df_end_lat) == 2.0
+              && gh_on_image (o.df_end_hz, o.df_end_hz / o.df_end_lat),
+          "refine off: a k = 2 sidelobe ghost is released by the "
+          "ghost rule");
     }
   if (emit)
     {
@@ -1150,9 +1159,10 @@ main (int argc, char **argv)
                receiver, as the rule claims: the hand-over had moved B's
                receiver there (§8.2), which the rule correctly takes. */
             if (o.outcome == 1)
-              DP_CHECK_MSG (gh_on_image (o.df_end_lat),
-                            "the ghost rule releases a distinct emitter's "
-                            "receiver only off that emitter's carrier");
+              DP_CHECK_MSG (
+                  gh_on_image (o.df_end_hz, o.df_end_hz / o.df_end_lat),
+                  "the ghost rule releases a distinct emitter's "
+                  "receiver only off that emitter's carrier");
           }
         if (!emit && n)
           {

@@ -377,6 +377,7 @@
 * **dp\_async\_dsss\_receiver\_steps** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **dp\_async\_dsss\_receiver\_steps\_max\_out** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **dp\_\_adsss\_same\_code\_phase** ([**async\_dsss\_receiver\_private.h**](async__dsss__receiver__private_8h.md))
+* **dp\_\_async\_dsss\_receiver\_refine\_decided** ([**async\_dsss\_receiver\_private.h**](async__dsss__receiver__private_8h.md))
 * **dp\_async\_dsss\_receiver\_set\_pooled** ([**async\_dsss\_receiver\_private.h**](async__dsss__receiver__private_8h.md))
 * **dp\_async\_dsss\_receiver\_set\_search\_only** ([**async\_dsss\_receiver\_private.h**](async__dsss__receiver__private_8h.md))
 * **dp\_async\_dsss\_receiver\_take\_picks** ([**async\_dsss\_receiver\_private.h**](async__dsss__receiver__private_8h.md))

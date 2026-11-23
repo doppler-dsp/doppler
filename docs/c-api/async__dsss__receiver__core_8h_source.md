@@ -423,10 +423,10 @@ typedef enum
   int dp_async_dsss_receiver_get_threads (
       const dp_async_dsss_receiver_state_t *state);
 
-  size_t dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
+  size_t dp_async_dsss_receiver_get_coherent_bins (
       const dp_async_dsss_receiver_state_t *state);
 
-  size_t dp_async_dsss_receiver_get_coherent_bins (
+  size_t dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
       const dp_async_dsss_receiver_state_t *state);
 
   void dp_async_dsss_receiver_configure_lock_raw (

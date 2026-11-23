@@ -1097,11 +1097,14 @@ def det_ratio_pd(n: int, pfa: float, gamma: float, phase_var: float) -> float:
       under `Var W / (E W)^2 = 1 / w^2`; the cap is set where `w` reaches
       about 9.8e3 (32 points a period over the axis's 40 sd at 10^6 panel
       pairs), so the bound is 1.04e-8 at the boundary and smaller beyond,
-      and the two regions meet within it (test_detection_core.c). `E W < 0`
-      does not reach this region: a jitter centred on the signal keeps `E
-      cos^2 >= E sin^2`, so `E W < 0` needs gamma under about `r / (1 -
-      r)`, where `w` stays near `2 Q^-1(pfa) / sqrt(v)`, a few tens at
-      most.
+      and the two regions meet within it (test_detection_core.c). `E W <
+      0`, the 0 side, occurs at any gamma once `exp(-2 phase_var) < r (1 +
+      1/gamma)` (a term's mean is `A^2 exp(-2 phase_var) - r (A^2 + 2)`),
+      but it does not reach this region: `|E W|` is then at most about `r`
+      times the terms' spread, and `r` shrinks as `1/sqrt(n)`, so `w` stays
+      small. Over n 2 to 10^7, gamma 10^-3 to 10^12 and phase_var 10^-4 to
+      30 rad^2 its largest is 4.4 (searched with this function's own mean
+      and variance), so the 0 branch is a sign choice no input reaches.
 
     A Gaussian for the ratio (the delta method) is optimistic in the lower
     tail, where a detection probability near 1 is read: at `gamma` 2.397

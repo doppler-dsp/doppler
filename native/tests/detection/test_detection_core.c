@@ -112,6 +112,9 @@ test_ratio_sizing (void)
     const double out = dp_det_ratio_pd (2, 1e-3, 1e8, 0.0);
     printf ("  either side of the panel cap at n 2: %.15f, %.15f\n", in, out);
     DP_CHECK (!isnan (in) && !isnan (out) && fabs (in - out) < 1.04e-8);
+    /* The inside point came from the quadrature, not the limit: it is not
+       exactly 1 (so a cap moved lower, reading 1 on both sides, is red). */
+    DP_CHECK (in != 1.0);
     DP_CHECK (out == 1.0);
     DP_CHECK (dp_det_ratio_block_len (3.18e8, 0.0, 1e-3, 0.99, 64) == 2);
   }

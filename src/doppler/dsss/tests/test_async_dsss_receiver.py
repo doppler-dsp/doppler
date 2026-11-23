@@ -225,7 +225,7 @@ def test_an_unsizable_carrier_lock_is_refused():
     # with the message naming the fix; a sized one reads its count.
     code = np.asarray(Gold().generate(SF)).astype(np.uint8)
     kw = {"chip_rate": CHIP_RATE, "symbol_rate": SYM_RATE, "sample_rate": FS}
-    msg = "carrier lock can be sized"
+    msg = "carrier lock cannot be sized"
     with pytest.raises(ValueError, match=msg):
         AsyncDsssReceiver(code, cn0_dbhz=0.0, **kw)
     with pytest.raises(ValueError, match=msg):
@@ -237,11 +237,11 @@ def test_an_unsizable_carrier_lock_is_refused():
 
 def test_refine_false_needs_a_deep_search():
     # refine=False hands a seed straight to tracking, which holds only on
-    # a search at least 25 code periods deep: one epoch deep is refused,
-    # in the receiver and in the pool it builds them for.
+    # a search at least 1 / bn code periods deep: one epoch deep is
+    # refused, in the receiver and in the pool it builds them for.
     code = np.asarray(Gold().generate(SF)).astype(np.uint8)
     kw = {"chip_rate": CHIP_RATE, "symbol_rate": SYM_RATE, "sample_rate": FS}
-    msg = "refine false needs a search at least 25 code periods deep"
+    msg = "refine false needs a search at least 1 / bn code periods deep"
     with pytest.raises(ValueError, match=msg):
         AsyncDsssReceiver(code, refine=False, **kw)
     with pytest.raises(ValueError, match=msg):

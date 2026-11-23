@@ -397,13 +397,12 @@ _zone_run (const uint8_t *code, double ratio, double span, int deep,
   size_t          na, nb;
   double         *da, *db;
   const size_t    w = deep ? 450u : 0u, f = deep ? 500u : 0u;
-  /* Both depths at 50 dB-Hz. The deep runs need it: there a deep block lifts
-     the emitters' own lags (their slow-time sidelobes) over the gate on enough
-     rows to fill today's list, which the run asserts as its premise. They were
-     written at a label of 47 dB-Hz when the captures carried 3 dB less noise
-     than their label (#689), an effective 50; at a true 47 the list does not
-     fill on any of the four deep runs, at 50 it fills on all four, and the
-     zone identity holds 8 of 8 at both (swiftgo, 0373a01d5). */
+  /* Both depths at 50 dB-Hz. The deep runs need it: there a deep coherent
+     dwell lifts the emitters' own lags (their slow-time sidelobes) over the
+     gate on enough rows to fill the list, which the run asserts as its
+     premise. Measured (swiftgo, 0373a01d5): at 47 dB-Hz the list fills on
+     none of the four deep runs, at 50 on all four, and the zone identity
+     holds 8 of 8 at both. */
   const double cn0 = 50.0;
   dp_dsss_windowed_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 200.0, cn0,
                             deep ? 600 : 300, 1000, 11, w, f, &a, &na, &da);
@@ -950,7 +949,11 @@ _test_search_runs_once (void)
         }
     }
   DP_REQUIRE_MSG (both_at > 0, "both emitters held");
-  DP_CHECK (periods > both_at + 20); /* a long run past it */
+  /* A long run past it: at least two controller steps (it runs once a
+     group of ASYNC_DSSS_POOL_PERIODS_PER_JOIN periods), so the search
+     would have been fed again at least once more if the rule did not stop
+     it. */
+  DP_CHECK (periods >= both_at + 2 * (size_t)ASYNC_DSSS_POOL_PERIODS_PER_JOIN);
   for (size_t i = 0; i < 2; i++)
     DP_CHECK (dp_correlator_position (p->rx[i]->acq) == 0);
   DP_CHECK_MSG (p->search_periods == count_then,
@@ -1091,7 +1094,7 @@ _test_lost_is_released (void)
     {
       (void)dp_async_dsss_pool_push (
           p, off + pos, tail_n - pos < 1024 ? tail_n - pos : 1024);
-      /* The controller runs right after every whole period, and status()
+      /* The controller runs right after every whole group, and status()
          is as of the last one, so lost is never what it reads. */
       DP_CHECK (dp_async_dsss_pool_status (p, 0).state != ASYNC_DSSS_RX_LOST);
       searched_again = p->released_lost > 0;
@@ -1327,14 +1330,10 @@ _test_telemetry_one_producer (void)
   return 0;
 }
 
-/* reset() hands back every receiver idle and the search with no
-   exclusions, and the clock and counts at 0; set_threads refuses a
-   negative count unchanged. Sabotage: leave the search's exclusions -> a
-   reset pool still skips the old phases. */
 /* A pool reset with a part-filled carry gives a blob set_state() takes:
    get_state() writes the whole carry and set_state() refuses a nonzero
-   tail past carry_len, so a reset that left the old samples behind gave a
-   blob no pool would restore, one that was not a function of the state.
+   tail past carry_len, so a reset that left the old samples behind would
+   give a blob no pool restores, one that is not a function of the state.
    Sabotage: drop the carry's memset from reset() -> red. */
 static int
 _test_reset_clears_the_carry (void)
@@ -1361,6 +1360,10 @@ _test_reset_clears_the_carry (void)
   return 0;
 }
 
+/* reset() hands back every receiver idle and the search with no
+   exclusions, and the clock and counts at 0; set_threads refuses a
+   negative count unchanged. Sabotage: leave the search's exclusions -> a
+   reset pool still skips the old phases. */
 static int
 _test_reset_and_threads (void)
 {
@@ -1395,11 +1398,12 @@ _test_reset_and_threads (void)
   return 0;
 }
 
-/* Chunk invariance (dp_chunk_inv.h): the controller acts at code-period
-   positions of the stream, so how the stream is cut into pushes changes
-   nothing. One spec per holder, each comparing that receiver's symbols,
-   on the two-emitter stream through the hand-offs, the duplicate checks
-   and tracking (the third receiver searches throughout and emits none:
+/* Chunk invariance (dp_chunk_inv.h): the controller acts at group
+   positions of the stream (ASYNC_DSSS_POOL_PERIODS_PER_JOIN code periods,
+   on the grid counted from create), so how the stream is cut into pushes
+   changes nothing. One spec per holder, each comparing that receiver's
+   symbols, on the two-emitter stream through the hand-offs, the duplicate
+   checks and tracking (the third receiver searches throughout and emits none:
    its share is the holders' exclusions, which the symbols reflect). Sabotage:
    run the controller once per push instead of on the grid -> the partitions
    disagree. */

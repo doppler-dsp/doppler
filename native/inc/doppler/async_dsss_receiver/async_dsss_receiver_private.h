@@ -115,6 +115,20 @@ dp__adsss_same_code_phase (double a, double b, double code_len)
   return d <= DP_CORRELATOR_SAME_PHASE_CHIPS;
 }
 
+/**
+ * @brief Whether the refine has decided: its carrier estimator is ready
+ *        (and, with the fine hand-over on, the fine dwell is in), or it has
+ *        given up at its block cap. The one predicate the receiver's own
+ *        steps() and its period loop ask, exported for a test that stops a
+ *        stream at that point (a checkpoint taken there) rather than keep a
+ *        copy that drifts. No caller is promised it.
+ *
+ * @param state  Must be non-NULL, refining or not.
+ * @return 1 when decided, else 0.
+ */
+int dp__async_dsss_receiver_refine_decided (
+    const dp_async_dsss_receiver_state_t *state);
+
 #ifdef __cplusplus
 }
 #endif

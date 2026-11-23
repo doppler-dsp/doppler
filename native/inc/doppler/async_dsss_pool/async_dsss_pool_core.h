@@ -627,9 +627,16 @@ extern "C"
                                    size_t i, size_t j);
 
   /**
-   * @brief Borrow receiver @p receiver, for C-only configuration: its lock
-   *        and chain settings (dp_async_dsss_receiver_configure_lock_raw(),
-   *        dp_async_dsss_receiver_configure_chain_raw()).
+   * @brief Borrow receiver @p receiver, for C-only configuration: its chain
+   *        settings (dp_async_dsss_receiver_configure_chain_raw()), which
+   *        every chain it builds keeps.
+   *
+   * dp_async_dsss_receiver_configure_lock_raw() retunes only the Dll the
+   * receiver holds at the call: every seed and hand-over builds a fresh
+   * track chain with the derived lock sizing, so a lock set through the
+   * borrow on an idle receiver never reaches a tracking chain, and one set
+   * while tracking lasts until the next release. Call it on a tracking
+   * receiver, as its own header says, and again after each hand-over.
    *
    * Not for telemetry: dp_async_dsss_pool_set_telemetry() is the one
    * route that keeps a context to one producer. A borrowed receiver is

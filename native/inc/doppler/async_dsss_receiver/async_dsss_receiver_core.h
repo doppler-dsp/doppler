@@ -172,11 +172,10 @@ extern "C"
    * bandwidth (carrier_nda divides out its detector's slope, #3224). No
    * FLL. */
 #define ASYNC_DSSS_RX_BN_CARRIER 0.04
-/** The pre-despread carrier loop's least loop SNR at the design C/N0, dB:
- *  the owner's rule (async-dsss-receiver.md §1.3), `rho S_L / (2 bn)` with
- *  `rho = C/N0 T` the update's SNR and `S_L = 1 / (1 + 1/(2 rho))` the M = 2
- *  detector's squaring loss (the owner's ruling, 2026-11-22), so `bn <= rho
- *  S_L / 200`. */
+/** The pre-despread carrier loop's least loop SNR at the design C/N0, dB
+ *  (async-dsss-receiver.md §1.3): `rho S_L / (2 bn)` with `rho = C/N0 T`
+ *  the update's SNR and `S_L = 1 / (1 + 1/(2 rho))` the M = 2 detector's
+ *  squaring loss, which the 20 dB counts, so `bn <= rho S_L / 200`. */
 #define ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB 20.0
 /** The pre-despread carrier loop's unit denominator: the EMA weight an
  *  update of the window sum's power (docs/design/async-dsss-receiver.md,
@@ -188,13 +187,16 @@ extern "C"
 /** The carrier block lock's detection probability a block at the design
  *  C/N0, the code lock's. */
 #define ASYNC_DSSS_RX_CAR_LOCK_PD 0.99
-/** Half the pre-despread carrier loop's noise bandwidth, Hz, at @p bn:
- *  `B_L / 2 = bn / (2 T)`, T a code period. 97.8 Hz at 5 Mcps over
- *  Gold-1023 and bn 0.04. It is the owner's half-bandwidth rule for a
- *  frequency step; the sweep on carrier_nda (sweep-1b7312b09) measured
- *  its no-slip reach at the 4 dB floor at 0.25 `B_L` (unit form), half of
- *  this, so a step at this bound may slip during pull-in, where slips are
- *  allowed (the owner's ruling, 2026-11-22). */
+/** The pre-despread carrier loop's acquisition bound, Hz, at @p bn: half
+ *  its noise bandwidth, `B_L / 2 = bn / (2 T)` (0.5 bn an update), T a
+ *  code period; 97.8 Hz at 5 Mcps over Gold-1023 and bn 0.04. Empirical:
+ *  a frequency step inside it pulls a second-order loop in within its
+ *  normal lock time, about 5 / bn updates; past it the lock time is the
+ *  pull-in's and grows (the lock-time rows of sweep-1b7312b09, on
+ *  carrier_nda). It is not the no-slip reach, which the same sweep
+ *  measures lower, 0.25 `B_L` at the 4 dB floor (unit form): a step at
+ *  this bound may slip while it pulls in, and slips during pull-in are
+ *  allowed. */
 #define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(bn, chip_rate, code_len)              \
   ((bn) * (chip_rate) / (2.0 * (double)(code_len)))
 /** The least search depth, `coherent_bins`, a receiver built with `refine`
@@ -209,8 +211,8 @@ extern "C"
 
   /**
    * @brief The pre-despread carrier loop's bandwidth at a design C/N0: the
-   *        owner's loop-SNR rule (async-dsss-receiver.md §1.3), no wider
-   *        than ASYNC_DSSS_RX_BN_CARRIER.
+   *        loop-SNR rule (async-dsss-receiver.md §1.3), no wider than
+   *        ASYNC_DSSS_RX_BN_CARRIER.
    *
    * The loop updates once a code period, `T = code_len / chip_rate`, on a
    * coherent sum whose SNR is `rho = C/N0 T`. Its loop SNR, counting the
@@ -414,9 +416,8 @@ extern "C"
 /** @brief The hand-over took the fine estimate: the refine's squared pair
  *  sums located by PolynomialPhaseEstimator, divided by M. */
 #define ASYNC_DSSS_RX_HO_FINE 3
-/** The fine hand-over's probability, the dwell's target: the owner's
- *  ruling, 2026-11-22 ("0.99 is fine"; docs/design/async-dsss-receiver.md,
- *  "The dwell, derived"). */
+/** The fine hand-over's probability, the dwell's target: a design choice,
+ *  0.99 (docs/design/async-dsss-receiver.md, "The dwell, derived"). */
 #define ASYNC_DSSS_RX_FINE_P_HO 0.99
 
 /** The state machine's values (`state` below, also the first byte of a

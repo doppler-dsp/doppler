@@ -845,7 +845,11 @@ double dp_det_ratio_pd (
 Each term is `z = A d e^{j theta} + noise`, `|d| = 1`, the noise complex Gaussian; `gamma` is `A^2 / E|noise|^2` and `phase_var` the jitter `E[theta^2]`, Gaussian and independent from term to term. With `r` the threshold det\_ratio\_threshold() gives for (`n`, `pfa`), `R > r` is `W = sum((1 - r) I^2 - (1 + r) Q^2) > 0`, a sum of independent terms. Its characteristic function is one term's to the power `n`, and the probability is its inversion (Gil-Pelaez): a quadrature over the jitter at +/-8 sigma and Simpson's rule on the frequency axis, in real arithmetic. At `gamma` 0 it is the false-alarm rate, `pfa`.
 
 
-The frequency step is scaled to the integrand's oscillation, which grows as `sqrt(n gamma)`, at 32 points a period and never under 1,500 panel pairs, so it is exact (to the quadrature's rounding) across its domain: every `n gamma` whose oscillation needs at most 10^6 panel pairs (about `n gamma < 2e8`). Past that it returns NaN, and det\_ratio\_block\_len() reads a NaN as not reached. At the domain's high end the probability is 1 to double precision (test\_detection\_core.c: n 200, gamma 1000).
+The frequency step is scaled to the integrand's oscillation, `w = |E W| / sd(W)` a unit of the scaled axis (about `sqrt(n gamma / 2)`), at 32 points a period and never under 1,500 panel pairs. Two regions:
+* **w up to about 9.8e3** (at most 10^6 panel pairs; at n 2, gamma up to about 10^7.95): the quadrature's value, exact to its rounding. Near the top of this region one call takes about 0.13 s, so det\_ratio\_block\_len()'s few dozen calls take seconds there, against microseconds at a lock's design point.
+* **Past it**: the limit, 1 when `E W > 0` and 0 when it is below, not exact but bounded. Chebyshev on W puts the other side's probability under `Var W / (E W)^2 = 1 / w^2`; the cap is set where `w` reaches about 9.8e3 (32 points a period over the axis's 40 sd at 10^6 panel pairs), so the bound is 1.04e-8 at the boundary and smaller beyond, and the two regions meet within it (test\_detection\_core.c). `E W < 0` does not reach this region: a jitter centred on the signal keeps `E cos^2 >= E sin^2`, so `E W < 0` needs gamma under about `r / (1 - r)`, where `w` stays near `2 Q^-1(pfa) / sqrt(v)`, a few tens at most.
+
+
 
 
 A Gaussian for the ratio (the delta method) is optimistic in the lower tail, where a detection probability near 1 is read: at `gamma` 2.397 and 4.40 deg it gives 0.992 at n = 31, where this gives 0.982, and the measurement 0.982 (test\_detection\_core.c's ratio section).

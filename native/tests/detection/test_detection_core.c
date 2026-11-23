@@ -96,15 +96,24 @@ test_ratio_sizing (void)
      of the scaled axis, so a fixed step aliased there (doppler review C4).
      At n 200 and gamma 1000 the block's mean is hundreds of its sd's past
      the threshold: the probability is 1 to double precision, and the step
-     scaled to the oscillation reads it. Past the panel cap it is outside
-     the stated domain and reads NaN, and block_len, which treats a NaN as
-     not reached, finds no block rather than reading the first as enough. */
+     scaled to the oscillation reads it. Past the panel cap (at n 2,
+     between gamma 10^7.95 and 10^8) the function returns the limit, within
+     Chebyshev's 1 / w^2 < 1.04e-8: the two sides of the cap agree within
+     that, so a caller sees no step, and block_len sizes a lock at a design
+     C/N0 of 120 dB-Hz (gamma 3.2e8 at the 2.2 GHz 415.1 point) at 2. The
+     failing case is what it returned before: NaN past the cap, which
+     block_len read as no block, refusing a receiver whose lock detects at
+     certainty. */
   {
     const double hi = dp_det_ratio_pd (200, 1e-3, 1000.0, 0.0);
     printf ("  ratio Pd at n 200, gamma 1000: %.12f\n", hi);
     DP_CHECK (fabs (hi - 1.0) < 1e-9);
-    DP_CHECK (isnan (dp_det_ratio_pd (2, 1e-3, 1e12, 0.0)));
-    DP_CHECK (dp_det_ratio_block_len (1e12, 0.0, 1e-3, 0.99, 64) == 0);
+    const double in  = dp_det_ratio_pd (2, 1e-3, pow (10.0, 7.95), 0.0);
+    const double out = dp_det_ratio_pd (2, 1e-3, 1e8, 0.0);
+    printf ("  either side of the panel cap at n 2: %.15f, %.15f\n", in, out);
+    DP_CHECK (!isnan (in) && !isnan (out) && fabs (in - out) < 1.04e-8);
+    DP_CHECK (out == 1.0);
+    DP_CHECK (dp_det_ratio_block_len (3.18e8, 0.0, 1e-3, 0.99, 64) == 2);
   }
   DP_CHECK (isnan (dp_det_ratio_threshold (0.0, 31)));
   return 0;

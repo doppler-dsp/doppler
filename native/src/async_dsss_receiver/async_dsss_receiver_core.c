@@ -3139,7 +3139,11 @@ adr_carrier_is_built (const dp_async_dsss_receiver_state_t *s,
 
 /* Skip one child sub-blob on a peek reader, checking its envelope (magic,
    version, endian, size) as the child's own set_state would open: a
-   clobbered header is refused here, before any child commits. */
+   clobbered header is refused here, before any child commits. The child's
+   own set_state is the authority on its envelope; this restates its
+   MAGIC and VERSION as a pre-check (no child exposes a validate-only
+   entry), and must be kept in step with it. A payload the child refuses
+   after its envelope passes is the composite case, doppler#2104. */
 static int
 adr_peek_child (dp_reader_t *pk, size_t bytes, uint32_t magic,
                 uint16_t version)

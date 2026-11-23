@@ -1289,10 +1289,10 @@ _test_telemetry_follows_the_loops (void)
   {
     const int id_lock   = dp_tlm_probe_id (t, "rx.sym.lock");
     const int id_locked = dp_tlm_probe_id (t, "rx.sym.locked");
-    /* The instrumentation of async-dsss-receiver.md §4.11 B: the symbol
-       metric's two EMAs, the code loop's filter at each steer, and the
-       timing loop's two filter terms. Each one's last record is the
-       field it reads, as the receiver ends. */
+    /* The instrumentation of async-dsss-receiver-measurements.md §4.11 (as
+       planned) B: the symbol metric's two EMAs, the code loop's filter at each
+       steer, and the timing loop's two filter terms. Each one's last record is
+       the field it reads, as the receiver ends. */
     const int     id_num = dp_tlm_probe_id (t, "rx.sym.num");
     const int     id_den = dp_tlm_probe_id (t, "rx.sym.den");
     const int     id_se  = dp_tlm_probe_id (t, "rx.code.steer.e");
@@ -1488,13 +1488,13 @@ _test_telemetry_follows_the_loops (void)
  * engine, which no rebuild touches: attached with the loops, kept by a
  * refused re-attach, and detached with them -- or a searching receiver
  * would keep a context the caller may destroy. */
-/* A probe observes; it decides nothing (async-dsss-receiver.md §4.11 B).
- * One stream into two receivers, one with every set attached (the epoch
- * sets, the code loop's steer set, the timing loop's filter terms, the
- * symbol metric's EMAs), the other detached: the symbols they emit and
- * the state they end in are the same bytes. Sabotage: an emit site that
- * writes the loop it reads (the steer set's emit storing its kp * e into
- * last_error, say) -> the symbols or the blob differ. */
+/* A probe observes; it decides nothing (async-dsss-receiver-measurements.md
+ * §4.11 (as planned) B). One stream into two receivers, one with every set
+ * attached (the epoch sets, the code loop's steer set, the timing loop's
+ * filter terms, the symbol metric's EMAs), the other detached: the symbols
+ * they emit and the state they end in are the same bytes. Sabotage: an emit
+ * site that writes the loop it reads (the steer set's emit storing its kp * e
+ * into last_error, say) -> the symbols or the blob differ. */
 static int
 _test_telemetry_moves_no_output (void)
 {
@@ -6768,11 +6768,12 @@ _test_no_refine_hands_over_at_the_seed (void)
  * Sabotages: no refusal -> the D = 24 and D = 1 rows red; the rule moved a
  * bin (> in place of >=, or 1 / bn rounded down) -> the D = 25 row or the
  * D = 24 row red. */
-/* D3, the carrier loop's bandwidth from the owner's loop-SNR rule
- * (async-dsss-receiver.md §1.3): at the 415.1-B-1 floor, C/N0 38.77 dB-Hz,
- * rho = C/N0 T is 2.397 at 2.2 GHz and 1.884 at 2.8 GHz (T = 1023 chips at
- * the carrier times 31/21216), and with the M = 2 detector's squaring loss
- * S_L = 1 / (1 + 1/(2 rho)) (the owner's ruling, 2026-11-22) bn = rho S_L /
+/* The carrier loop's bandwidth from the loop-SNR rule
+ * (async-dsss-receiver.md §1.3 and §4.10, "Its bandwidth"): at the
+ * 415.1-B-1 floor, C/N0 38.77 dB-Hz, rho = C/N0 T is 2.397 at 2.2 GHz and
+ * 1.884 at 2.8 GHz (T = 1023 chips at the carrier times 31/21216), and
+ * with the M = 2 detector's squaring loss S_L = 1 / (1 + 1/(2 rho)),
+ * which the 20 dB counts, bn = rho S_L /
  * 200 is 0.00993 and 0.00744;
  * at a design C/N0 the rule allows wider, the release's 0.04. A receiver
  * built at the floor carries that bandwidth, and its tracking carrier loop

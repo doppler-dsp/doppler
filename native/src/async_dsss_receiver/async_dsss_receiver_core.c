@@ -738,7 +738,7 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
   if (r == DP_OK)
     r = dp_dll_set_telemetry (s->dll, t, code, d);
   /* The code loop's filter at its own cadence, each steer of the symbol
-     aid (async-dsss-receiver.md §4.11, B). */
+     aid (async-dsss-receiver-measurements.md §4.11 (as planned), B). */
   if (r == DP_OK)
     r = dp_dll_set_steer_telemetry (s->dll, t, code_steer, d);
   if (r == DP_OK)

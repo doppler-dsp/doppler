@@ -180,11 +180,10 @@ typedef struct {
        proportional term reach phase_inc (cycles per sample) and code_rate
        (a ratio), set once by segments in set_segments(). ONE steer,
        dll_steer(), applies it on both paths; the two tables record the
-       measured, separately pinned gains each path shipped with (the
-       coherent full-epoch loop treats the integrator as a rate ratio,
-       the partial-correlation loop treats the filter's output as chips
-       over sps) -- reconciling them is a certified-behaviour change,
-       tracked, not folded in here. */
+       gains each path ships with (the coherent full-epoch loop applies
+       both terms as chips per epoch, the partial-correlation loop treats
+       the filter's output as chips over sps) -- the segmented table is not
+       reconciled yet (doppler#3234). */
     double ctrl_i;           /**< integrator -> phase_inc, per inv_upd.   */
     double ctrl_p;           /**< kp*e       -> phase_inc, per inv_upd.   */
     double rate_i;           /**< integrator -> code_rate - 1, per inv_upd.*/
@@ -538,12 +537,13 @@ void dp_dll_lock_epoch(dp_dll_state_t *s);
  * state's gain table (`ctrl_i`, `ctrl_p`, `rate_i`, `rate_p`, set by
  * segments at configuration and scaled by `inv_upd` when the symbol aid
  * re-times the update): the coherent full-epoch loop (`segments == 1`)
- * treats the integrator as a code-rate ratio and the proportional term as
- * chips per epoch; the partial-correlation loop (`segments > 1`) treats the
- * filter's output as chips over `sps`. Until this function existed each
- * path carried its own copy of the discriminator and steer, and a fix to
- * one (the coast hold, design §12.22) did not reach the other. The gain
- * tables are the two loops' separately pinned behaviour, kept as data.
+ * applies both terms as chips per epoch, so the filter's output is a unit-gain
+ * control and `bn` is the loop's, as loop_filter_core.h's contract states;
+ * the partial-correlation loop
+ * (`segments > 1`) treats the filter's output as chips over `sps`. Until this
+ * function existed each path carried its own copy of the discriminator and
+ * steer, and a fix to one (the coast hold, design §12.22) did not reach the
+ * other. The gain tables are kept as data.
  *
  * The NCO free-runs at its own nominal rate (`1/tsamps` cycles/sample,
  * set once in seed() and never touched directly); this function only ever
@@ -663,11 +663,12 @@ dll_update(dp_dll_state_t *s)
  * >>> rng = np.random.default_rng(1)
  * >>> code = rng.integers(0, 2, 31).astype(np.uint8)  # a 31-chip PN code
  * >>> chip = np.where(code & 1, -1.0, 1.0)    # BPSK spreading code
- * >>> x = np.tile(np.repeat(chip, 2), 60).astype(np.complex64)
+ * >>> one = np.repeat(chip, 2)                # one period: 31 chips x 2
+ * >>> x = np.concatenate([np.tile(one, 60), one[:31]])  # 60.5 periods
  * >>> d = Dll(code=code, sps=2)               # 2 samples/chip loop
- * >>> sym = d.steps(x)                        # one prompt per period
- * >>> sym.shape                               # 60 despread symbols
- * (60,)
+ * >>> sym = d.steps(x.astype(np.complex64))   # one prompt per period
+ * >>> len(sym)                                # the half period ends mid-period
+ * 60
  * >>> round(float(np.mean(sym.real[-10:])), 1)  # despread to a clean +1
  * 1.0
  * >>> round(d.code_rate, 3)                   # code NCO at nominal rate
@@ -941,11 +942,11 @@ int dp_dll_set_bn(dp_dll_state_t *state, double val);
  * >>> idx = (np.arange(63 * 4 * 300) * (1 + delta) / 4).astype(
  * ...     np.int64) % 63
  * >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
- * >>> plain = Dll(code, sps=4, bn=0.005)
- * >>> _ = plain.steps(x)
+ * >>> plain = Dll(code, sps=4, bn=0.05)  # wn 0.09 per period: a ramp of
+ * >>> _ = plain.steps(x)                 # 0.03 chip/period stays in range
  * >>> round(plain.code_rate, 4)      # loop had to pull the whole Doppler
  * 1.0005
- * >>> aided = Dll(code, sps=4, bn=0.005)
+ * >>> aided = Dll(code, sps=4, bn=0.05)
  * >>> aided.set_rate_aid(delta)      # feed the Doppler forward instead
  * >>> _ = aided.steps(x)
  * >>> round(aided.code_rate, 4)      # loop integrator stays at nominal
@@ -1455,7 +1456,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
 /** @brief State-blob magic for the DLL (FourCC "DLL "). */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
 /** @brief DLL blob layout version; the trailing comment is its history. */
-#define DLL_STATE_VERSION 15u /* v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 16u /* v16: the one-segment gain table is unit gain, so an older blob would resume the loop sf times too wide (#3234); v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

@@ -488,16 +488,24 @@ _test_sustained_doppler_rate (void)
   DP_CHECK (ber4 < 0.05);
   DP_CHECK (evm4 < -8.0);
   DP_CHECK (snr4 > 8.0);
-  /* The async-lookback mechanism must be NEEDED, not incidental: on the
-   * IDENTICAL genuinely-async (~1.111 periods/symbol) signal, `segments=1`
-   * (no lookback -- a plain coherent full-epoch dump) must decode
-   * measurably WORSE than `segments=4` (DsssReceiver's own default) --
-   * proving the new pre-despread carrier composition still lets
-   * `dp_dll_steps()`'s segments>1 lookback do real, load-bearing work,
-   * exactly as it did before this session's carrier-loop addition.
-   * Confirmed directly: ber4=0.0000, ber1=0.1702 on the same run. */
-  DP_CHECK (ber1 > ber4);
-  DP_CHECK (ber1 > 0.05);
+  /* segments=1 on the same capture: the one-segment loop at its stated bn
+   * must hold lock and decode, held to the segments=4 arm's EVM bound. That
+   * bound, -8 dB, is where the constellation stops being error-free at this
+   * record length: hard-decision BPSK at an EVM of -8 dB has a BER of
+   * Q(sqrt(2 * 10^0.8)) = 1.9e-4, 0.46 errors expected over the record's
+   * ~2431 symbols. The error bound follows from it: at most 2 errors, a
+   * 1.2% false red at the EVM bound itself (Poisson, mean 0.46). BER is never
+   * asserted alone, hence the pair. Both fail on a loop whose integral path
+   * is not unit gain (doppler#3234: ~400 errors, EVM -2 dB on this capture).
+   *
+   * What this does NOT show is that segments > 1 is needed for decoding: BER
+   * does not separate the two arms here (EVM does, by 12 dB), and the
+   * premise that it must is unshown (doppler#3259). */
+  double evm1 = dp_test_evm_db_hard (syms1, n_syms1);
+  printf ("  segments=1: n=%zu ber=%.4f evm=%.1f dB\n", n_syms1, ber1, evm1);
+  DP_CHECK (n_syms1 > (n_sym / 2));
+  DP_CHECK (ber1 * (double)n_syms1 <= 2.0);
+  DP_CHECK (evm1 < -8.0);
 
   free (syms4);
   free (syms1);

@@ -344,7 +344,7 @@ JM_FORCEINLINE  JM_HOT void dll_steer (
 Runs the power-domain non-coherent early-minus-late discriminator `0.5 * (|E|^2 - |L|^2) / |P|^2` on the given powers (the prompt power is the normalizing "signal + noise power" reference  the validated design from `docs/design/async-dsss-receiver.md` §3.6, not a magnitude-domain `(|E|-|L|)/(|E|+|L|)` ratio), clamps it, records it (`last_error`, the `.e` probe, and the running sum [**dp\_dll\_take\_error()**](dll__core_8h.md#function-dp_dll_take_error) reads), and then  unless the loop is held ([**dp\_dll\_set\_coast()**](dll__core_8h.md#function-dp_dll_set_coast))  filters it and steers `phase_inc` (sample-and-hold, constant until the next call) from BOTH the integrator and the proportional term, spread smoothly across the whole next update interval rather than kicked directly into `phase`. Two things were tried and rejected while porting this design: (1) folding the loop filter's full combined control (`integ + kp*e`) into `phase_inc` as a single rate (mirroring `symsync_core.h`) massively over-corrects  a rate held for a whole `sf*sps`-sample period turns a `kp*e`-chip correction into a `kp*e*sf`-chip one, unstable at any non-tiny `bn`; (2) kicking `phase` directly once per period (mirroring `costas_core.c`) is unsafe right after a wrap (when `phase` is near zero)  a negative kick pushes phase backward across the just-crossed boundary, and the very next sample's forward step re-crosses it, registering a second, spurious wrap.
 
 
-How the filter's two terms reach `phase_inc` and `code_rate` is the state's gain table (`ctrl_i`, `ctrl_p`, `rate_i`, `rate_p`, set by segments at configuration and scaled by `inv_upd` when the symbol aid re-times the update): the coherent full-epoch loop (`segments == 1`) treats the integrator as a code-rate ratio and the proportional term as chips per epoch; the partial-correlation loop (`segments > 1`) treats the filter's output as chips over `sps`. Until this function existed each path carried its own copy of the discriminator and steer, and a fix to one (the coast hold, design §12.22) did not reach the other. The gain tables are the two loops' separately pinned behaviour, kept as data.
+How the filter's two terms reach `phase_inc` and `code_rate` is the state's gain table (`ctrl_i`, `ctrl_p`, `rate_i`, `rate_p`, set by segments at configuration and scaled by `inv_upd` when the symbol aid re-times the update): the coherent full-epoch loop (`segments == 1`) applies both terms as chips per epoch, so the filter's output is a unit-gain control and `bn` is the loop's, as [**loop\_filter\_core.h**](loop__filter__core_8h.md)'s contract states; the partial-correlation loop (`segments > 1`) treats the filter's output as chips over `sps`. Until this function existed each path carried its own copy of the discriminator and steer, and a fix to one (the coast hold, design §12.22) did not reach the other. The gain tables are kept as data.
 
 
 The NCO free-runs at its own nominal rate (`1/tsamps` cycles/sample, set once in seed() and never touched directly); this function only ever computes a pure correction (`ctrl`, built entirely from the loop filter's terms  no "1.0"/nominal anywhere in it) and adds it on top when steering `phase_inc`, beside the rate aid. Keeping the control path free of the nominal rate is what lets a second correction source sum in cleanly, and is what `code_rate` (a _public_, ratio-form observable  1.0 = nominal, unrelated to how phase\_inc is actually steered) must never be substituted for internally. Inline; no division.
@@ -674,11 +674,12 @@ Caller must call [**dp\_dll\_destroy()**](dll__core_8h.md#function-dp_dll_destro
 >>> rng = np.random.default_rng(1)
 >>> code = rng.integers(0, 2, 31).astype(np.uint8)  # a 31-chip PN code
 >>> chip = np.where(code & 1, -1.0, 1.0)    # BPSK spreading code
->>> x = np.tile(np.repeat(chip, 2), 60).astype(np.complex64)
+>>> one = np.repeat(chip, 2)                # one period: 31 chips x 2
+>>> x = np.concatenate([np.tile(one, 60), one[:31]])  # 60.5 periods
 >>> d = Dll(code=code, sps=2)               # 2 samples/chip loop
->>> sym = d.steps(x)                        # one prompt per period
->>> sym.shape                               # 60 despread symbols
-(60,)
+>>> sym = d.steps(x.astype(np.complex64))   # one prompt per period
+>>> len(sym)                                # the half period ends mid-period
+60
 >>> round(float(np.mean(sym.real[-10:])), 1)  # despread to a clean +1
 1.0
 >>> round(d.code_rate, 3)                   # code NCO at nominal rate
@@ -1547,11 +1548,11 @@ A fixed fractional rate bias summed into the sample-and-hold `phase_inc` on top 
 >>> idx = (np.arange(63 * 4 * 300) * (1 + delta) / 4).astype(
 ...     np.int64) % 63
 >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
->>> plain = Dll(code, sps=4, bn=0.005)
->>> _ = plain.steps(x)
+>>> plain = Dll(code, sps=4, bn=0.05)  # wn 0.09 per period: a ramp of
+>>> _ = plain.steps(x)                 # 0.03 chip/period stays in range
 >>> round(plain.code_rate, 4)      # loop had to pull the whole Doppler
 1.0005
->>> aided = Dll(code, sps=4, bn=0.005)
+>>> aided = Dll(code, sps=4, bn=0.05)
 >>> aided.set_rate_aid(delta)      # feed the Doppler forward instead
 >>> _ = aided.steps(x)
 >>> round(aided.code_rate, 4)      # loop integrator stays at nominal

@@ -669,16 +669,158 @@ _test_handover_under_clock_offset (void)
                         && dp_async_dsss_receiver_get_code_locked (rx) == 1,
                     "the live chain locks the dilated code from the "
                     "hand-over");
-      decoded += dp_async_dsss_receiver_get_locked (rx) == 1
-                 && n_syms > n_sym / 2 && ber < 0.05;
+      /* The decode inside this one second is claimed at 45 dB-Hz only:
+         the floor's decode is held to the owner's 20 s lock allocation
+         (_test_clock_offset_decodes_inside_the_allocation, below). */
+      if (cn0 == 45.0)
+        decoded += dp_async_dsss_receiver_get_locked (rx) == 1
+                   && n_syms > n_sym / 2 && ber < 0.05;
       free (syms);
       free (x);
       free (data);
       dp_async_dsss_receiver_destroy (rx);
     }
-  DP_CHECK_MSG (decoded == 8, "and the carrier locks and decodes on "
-                              "every seed at both operating points");
+  DP_CHECK_MSG (decoded == 4, "and at 45 dB-Hz the carrier locks and "
+                              "decodes on every seed inside a second");
   free (code);
+  return 0;
+}
+
+/* The hand-over under the clock offset at the floor (40 dB-Hz, Es/N0
+ * 5.7 dB), held to the owner's lock allocation, not to the one second the
+ * test above runs: DP_S415_LOCK_S (20 s, 2026-11-22). The scene is the
+ * shipped channel streamed (dp_air_test.h: the synth, the front end's
+ * converter, a DopplerChannel at 2.5 GHz, 20 ppm, so the code clock
+ * dilates; the shipped awgn), since 20 s at 10 MSa/s does not fit a
+ * capture. Per seed (three closing, one opening): the declared lock is the
+ * first symbol from which all five flags (dp_s415_lock_flags) have been up
+ * for 200 symbols, and it must come inside 20 s of arrival; from it, one
+ * second of symbols is scored against the payload, aligned from the
+ * scene's own truth (the symbol the first output sample carries,
+ * dp_air_truth(), and the payload's bits, dp_air_symbol_bit()) within the
+ * lag span _best_ber searches, and must be under 0.05. The run stops one
+ * second after the lock, so a draw that locks early costs about two seconds.
+ * Sabotage: the allocation at 0.5 s
+ * -> red on the seeds that lock later; drop the truth's base (s0 = 0) ->
+ * the payload lies past the lag search and the rate is chance, red. */
+static int
+_test_clock_offset_decodes_inside_the_allocation (void)
+{
+  const size_t sf        = 1023;
+  const size_t spc       = 2;
+  const double chip_rate = 5.0e6;
+  const double fs        = chip_rate * (double)spc;
+  const double sym_rate  = 2700.0;
+  const double carrier   = 2.5e9;
+  const double ppm       = 20.0;
+  const double cn0       = 40.0;
+  const size_t push      = 4096;
+  const size_t sustain   = 200;
+  const size_t win       = (size_t)sym_rate; /* one second scored */
+  uint8_t      code[1023];
+  uint32_t     cst = 13;
+  for (size_t i = 0; i < sf; i++)
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
+  const size_t    n_bits = (size_t)(sym_rate * (DP_S415_LOCK_S + 2.0)) + 1000;
+  uint8_t        *bits   = malloc (n_bits);
+  const size_t    cap    = n_bits;
+  float _Complex *syms   = malloc (cap * sizeof *syms);
+  float _Complex *x      = malloc (push * sizeof *x);
+  DP_REQUIRE (bits && syms && x);
+  int decoded = 0;
+  for (uint32_t seed = 100; seed <= 103; seed++)
+    {
+      const double sign = seed == 103 ? -1.0 : 1.0;
+      uint32_t     bst  = 0x5eedu + seed;
+      for (size_t i = 0; i < n_bits; i++)
+        bits[i] = (uint8_t)(dp_xs32 (&bst) & 1u);
+      dp_air_emitter_t e = { 0 };
+      e.code             = code;
+      e.code_len         = sf;
+      e.chip_rate        = chip_rate;
+      e.sym_rate         = sym_rate;
+      e.carrier_hz       = carrier;
+      e.f0_hz            = sign * ppm * 1e-6 * carrier;
+      e.cn0_dbhz         = cn0;
+      e.lag_s            = 0.001;
+      e.seed             = seed;
+      e.bits             = bits;
+      e.n_bits           = n_bits;
+      dp_air_t air;
+      DP_REQUIRE (dp_air_init (&air, &e, 1, fs, cn0, 7700u + seed, push));
+      dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+          code, sf, chip_rate, sym_rate, fs, 2, cn0, 1e-2, 0.9,
+          1.2 * ppm * 1e-6 * carrier, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
+          100000, carrier, 0.0, false, 0.0, 0.0, true);
+      DP_REQUIRE (rx != NULL);
+      size_t   ns = 0, run = 0, lock = SIZE_MAX;
+      uint64_t first_in = UINT64_MAX;
+      double   t        = 0.0;
+      for (uint64_t pos = 0;; pos += push)
+        {
+          t = (double)(pos + push) / fs;
+          if (t > DP_S415_LOCK_S + 2.0
+              || (lock != SIZE_MAX && ns >= lock + win))
+            break;
+          DP_REQUIRE (dp_air_next (&air, x, push));
+          const size_t k = dp_async_dsss_receiver_steps (
+              rx, x, push, syms + ns, ns < cap ? cap - ns : 0);
+          if (k && first_in == UINT64_MAX)
+            first_in = pos + push; /* the first output's block */
+          unsigned char f[DP_S415_N_FLAGS];
+          dp_s415_lock_flags (rx, f);
+          int all = 1;
+          for (size_t q = 0; q < DP_S415_N_FLAGS; q++)
+            all &= f[q] != 0;
+          for (size_t j = 0; j < k && lock == SIZE_MAX; j++)
+            {
+              run = all ? run + 1 : 0;
+              if (run >= sustain)
+                lock = ns + j + 1 - sustain;
+            }
+          ns += k;
+        }
+      const double t_lock
+          = lock == SIZE_MAX ? NAN
+                             : (double)first_in / fs + (double)lock / sym_rate;
+      double ber = 0.5;
+      if (lock != SIZE_MAX && ns >= lock + win)
+        {
+          /* The payload symbol the first output carries, from the truth
+             at its block; the lag search (as _best_ber's, +-250) covers
+             the block's span and the hand-over's own offset. BPSK's sign
+             is folded, as _best_ber does. */
+          const long s0 = dp_air_truth (&air, 0, first_in).symbol;
+          for (int lag = -250; lag <= 250; lag++)
+            {
+              size_t errs = 0, cnt = 0;
+              for (size_t i = lock; i < lock + win; i++)
+                {
+                  const int b
+                      = dp_air_symbol_bit (&air, 0, s0 + (long)i + lag);
+                  if (b < 0)
+                    continue;
+                  errs += (crealf (syms[i]) > 0.0f) != (b == 0);
+                  cnt++;
+                }
+              if (cnt < win / 2)
+                continue;
+              const double r = (double)errs / (double)cnt;
+              ber            = fmin (ber, fmin (r, 1.0 - r));
+            }
+        }
+      printf ("  clock offset %+.0f ppm, %.0f dB-Hz, seed %u: lock at %.2f s "
+              "(allocation %.0f s), BER %.4f over the second after it\n",
+              sign * ppm, cn0, seed, t_lock, DP_S415_LOCK_S, ber);
+      decoded += !isnan (t_lock) && t_lock <= DP_S415_LOCK_S && ber < 0.05;
+      dp_async_dsss_receiver_destroy (rx);
+      dp_air_free (&air);
+    }
+  DP_CHECK_MSG (decoded == 4, "at the floor the clock-offset hand-over "
+                              "locks inside the allocation and decodes");
+  free (bits);
+  free (syms);
+  free (x);
   return 0;
 }
 
@@ -6357,6 +6499,7 @@ main (void)
   DP_CHECK (_test_spec_ramp_decode () == 0);
   DP_CHECK (_test_symbol_domain () == 0);
   (void)_test_handover_under_clock_offset ();
+  (void)_test_clock_offset_decodes_inside_the_allocation ();
   (void)_test_spec_combined_scenario_at_spec_floor ();
   (void)_test_awgn_esn0_floor ();
   (void)_test_accessor_coverage ();

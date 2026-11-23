@@ -11,9 +11,9 @@ type with one constructor each; the Python class takes every knob and the C
 picks the flavor from them.
 
 The search's mathematics (the epoch matrix, the Doppler rolls, the gate, the
-delay-Doppler surface) is [the acquisition surface](acq-surface.md). How to use it is
-[the correlator guide](../guide/correlator.md). §11 is how it came to be one
-object.
+delay-Doppler surface) is [the acquisition surface](acq-surface.md). How to use
+it is [the correlator guide](../guide/correlator.md). §11 is how it came to be
+one object.
 
 ## Vocabulary
 
@@ -234,8 +234,8 @@ flavor is refused by every other; then each layer packs its own fields once.
     result.
 - **Searches:** the search's own section (the counts that are reject keys,
     and the stream position), the framer's snapshot, the non-coherent
-    accumulator when `n_noncoh > 1`, the twins, a rolled search's coherent dwell of raw epochs,
-    and `carrier_freq_hz`.
+    accumulator when `n_noncoh > 1`, the twins, a rolled search's coherent
+    dwell of raw epochs, and `carrier_freq_hz`.
 
 `set_state` checks the whole blob, children included, before it commits
 any of it. A search restores the carrier through the same rebuild
@@ -415,7 +415,8 @@ code-rate ramp. Its definition, its two schedules and its one rule
 
 - **The peak list** (`det_peak_list`) is the one peak picker for every
     detecting flavor: one peak for a detector, up to `max_peaks` for a
-    search, zoned by the peak zone (below). On equal cells it keeps the lowest index.
+    search, zoned by the peak zone (below). On equal cells it keeps the
+    lowest index.
 - **The peak zone.** By default a search's listed peak masks one native
     Doppler row by the template's mainlobe across the lags, so one strong
     emitter can fill the list with its own lag: its slow-time sidelobes,
@@ -527,15 +528,15 @@ chip gives the 1023-chip code a smooth period
 sample-rate question, not the correlator's. The pool's front end answers it
 by resampling to a 2,048-sample period; #2457's point does not.
 
-**The FFT backend's fast sizes.** The `fft` object (`dp_fft_create`) takes its float SIMD path (pffft)
-only for multiples of 16 whose only factors are 2, 3 and 5; every other
-length runs in double through pocketfft. The search's coherent dwell length $D$ is
-rounded to 7-smooth (`dp_fft_smooth_floor`), which is not that set: 180
-points take 0.57 µs, where 160 take 0.17 µs and 192 take 0.21 µs. The rule
-that would fix it floors $D\,I$ to the backend's fast set rather than to
-7-smooth, and its price is each point's own: at $D = 90$ the nearest fast
-length that keeps 2 rows a Doppler bin is 80 (0.5 dB), while the pool's $D = 150$
-(300 points) has 144 (288 points) for 0.18 dB.
+**The FFT backend's fast sizes.** The `fft` object (`dp_fft_create`) takes its
+float SIMD path (pffft) only for multiples of 16 whose only factors are 2, 3
+and 5; every other length runs in double through pocketfft. The search's
+coherent dwell length $D$ is rounded to 7-smooth (`dp_fft_smooth_floor`), which
+is not that set: 180 points take 0.57 µs, where 160 take 0.17 µs and 192 take
+0.21 µs. The rule that would fix it floors $D\,I$ to the backend's fast set
+rather than to 7-smooth, and its price is each point's own: at $D = 90$ the
+nearest fast length that keeps 2 points a Doppler bin is 80 (0.5 dB), while the
+pool's $D = 150$ (300 points) has 144 (288 points) for 0.18 dB.
 
 ### 9.2 Bytes against bandwidth
 
@@ -628,13 +629,13 @@ its own issue.
     no carry, a framer feature for every user.
 - **Batched SIMD across transforms, at full precision.** The default x86
     build is `x86-64-v2`, pffft runs 4-lane SSE, and every length outside
-    pffft's set (the 2,046-point forward, the 180-point slow time) runs
-    scalar in double. One kernel that runs many same-length transforms side
-    by side, a lane each (epochs for the forward, columns for slow time,
-    which the column stage already gathers 16 at a time), would run any
-    radix in float at the full vector width. That would also remove the
-    fast-size constraint behind §9.4's coherent-dwell trade. It needs runtime ISA
-    dispatch, and it is the shape a Q15 kernel would take. Not measured.
+    pffft's set (the 2,046-point forward, the 180-point slow time) runs scalar
+    in double. One kernel that runs many same-length transforms side by side, a
+    lane each (epochs for the forward, columns for slow time, which the column
+    stage already gathers 16 at a time), would run any radix in float at the
+    full vector width. That would also remove the fast-size constraint behind
+    §9.4's coherent-dwell trade. It needs runtime ISA dispatch, and it is the
+    shape a Q15 kernel would take. Not measured.
 - **The decide pass's magnitude** calls libm `cabsf` per cell
     (`search_tile_decide`), and the non-coherent sum squares the result.
     `sqrtf(re*re + im*im)` vectorizes and the sum needs no root; both move

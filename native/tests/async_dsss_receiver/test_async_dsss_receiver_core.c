@@ -746,6 +746,11 @@ _test_clock_offset_decodes_inside_the_allocation (void)
       e.seed             = seed;
       e.bits             = bits;
       e.n_bits           = n_bits;
+      /* Rendered at 2 samples a chip, the receive rate itself: at
+         DP_AIR_SPC (4) the front end decimates by exactly 2, a plan whose
+         group delay the converter does not publish, and the scene's
+         truth (the symbol a sample carries) would be NaN. */
+      e.spc = (unsigned)spc;
       dp_air_t air;
       DP_REQUIRE (dp_air_init (&air, &e, 1, fs, cn0, 7700u + seed, push));
       dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
@@ -791,6 +796,8 @@ _test_clock_offset_decodes_inside_the_allocation (void)
              the block's span and the hand-over's own offset. BPSK's sign
              is folded, as _best_ber does. */
           const long s0 = dp_air_truth (&air, 0, first_in).symbol;
+          DP_REQUIRE_MSG (s0 >= 0, "the scene's truth places the first "
+                                   "output symbol");
           for (int lag = -250; lag <= 250; lag++)
             {
               size_t errs = 0, cnt = 0;

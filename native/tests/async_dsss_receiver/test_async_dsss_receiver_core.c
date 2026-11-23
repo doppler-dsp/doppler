@@ -915,12 +915,12 @@ _test_spec_combined_scenario_at_spec_floor (void)
  * truth-free validators that cannot be fooled by a lucky BER lag/polarity --
  * the self-referenced EVM (each symbol vs its OWN hard decision, no lag) and
  * the blind M2M4 SNR (snr_m2m4_db, moment-based, no reference symbols).
- * AWGN-only, this receiver essentially MEETS the specification's 5 dB floor:
- * it decodes cleanly at 5 dB and only fails at 4 dB. (An earlier "~12 dB
- * floor" was a pure BER-lag artifact -- the settling delay grows toward the
- * floor, so a fixed short lag window reports chance while the receiver
- * actually decodes; the EVM/M2M4 corroboration is what caught and corrected
- * it.)
+ * AWGN-only, this receiver decodes at the use case's floor, 4 dB
+ * (DP_S415_FLOOR_DB), and above. The BER is scored from the symbol the first
+ * output carries (the record's own timing), so the receiver's latency, which
+ * grows toward the floor, never moves the payload out of the lag search: an
+ * earlier "~12 dB floor", and later chance at 4 and 5 dB, were that
+ * artifact, which the EVM/M2M4 corroboration exposed both times.
  */
 static int
 _test_awgn_esn0_floor (void)
@@ -992,12 +992,14 @@ _test_awgn_esn0_floor (void)
          link that never locks scores chance. */
       float _Complex *syms   = malloc (tot * sizeof *syms);
       unsigned char  *fl     = calloc (DP_S415_N_FLAGS * tot, 1);
-      size_t          n_syms = 0;
+      size_t          n_syms = 0, first_in = 0;
       for (size_t pos = 0; rx && pos < tot; pos += sf * spc)
         {
           const size_t take = pos + sf * spc <= tot ? sf * spc : tot - pos;
           const size_t k    = dp_async_dsss_receiver_steps (
               rx, x + pos, take, syms + n_syms, tot - n_syms);
+          if (k && !first_in)
+            first_in = pos + take; /* the first output's call */
           unsigned char f[DP_S415_N_FLAGS];
           dp_s415_lock_flags (rx, f);
           for (size_t j = 0; j < k; j++)
@@ -1011,10 +1013,20 @@ _test_awgn_esn0_floor (void)
       const int64_t at = dp_ber_lock_all (fp, DP_S415_N_FLAGS, n_syms, 200,
                                           0.9, n_syms, NULL);
       const size_t  w0 = at >= 0 ? (size_t)at : 0;
-      double        ber
-          = at >= 0 && (size_t)at < n_data
-                ? _best_ber (syms + w0, n_syms - w0, dsym + w0, n_data - w0)
-                : 0.5;
+      /* The symbol the first output carries: the record's own timing, the
+         sample of the first output's call less the silence, over the
+         samples a symbol. The receiver's latency (search, refine, the fine
+         dwell) grows toward the floor; scored from symbol 0 instead, the
+         +-250 lag search missed it at 4 and 5 dB (best lag 522 and 318)
+         and read chance on a link that decodes. */
+      const size_t base
+          = first_in > pre
+                ? (size_t)((double)(first_in - pre) / (cps * (double)spc))
+                : 0;
+      double ber = at >= 0 && w0 + base < n_data
+                       ? _best_ber (syms + w0, n_syms - w0, dsym + w0 + base,
+                                    n_data - w0 - base)
+                       : 0.5;
       double evm = dp_test_evm_db_hard (syms + w0, n_syms - w0); /* no lag */
       double snr = dp_test_m2m4_snr_db (syms + w0, n_syms - w0); /* blind */
       /* dp_test_m2m4_snr_db() reads the window's second half. */
@@ -1041,19 +1053,11 @@ _test_awgn_esn0_floor (void)
     }
   free (code);
 
-  /* AWGN-only, this receiver essentially MEETS the specification's 5 dB floor:
-     it decodes cleanly at 5 dB and only fails at 4 dB. (An earlier
-     characterization put the floor ~12 dB -- that was purely a narrow BER
-     lag-search artifact: the settling delay grows toward the floor, so a fixed
-     short lag window misses the alignment and reports chance even while the
-     receiver decodes perfectly. Widening the lag AND cross-checking with the
-     truth-free EVM/M2M4 validators is what corrected it.) */
-  DP_CHECK (ber_at[4] < 0.05); /* 10 dB: clean */
-  DP_CHECK (ber_at[3] < 0.05); /* 8 dB: clean */
-  DP_CHECK (
-      ber_at[1]
-      < 0.05); /* 5 dB: MEETS the specification's 5 dB floor (AWGN-only) */
-  DP_CHECK (ber_at[0] > 0.10); /* 4 dB: below the floor */
+  /* AWGN-only, the receiver decodes at every point down to the use case's
+     floor, 4 dB (scored from the record's own timing, above). Failing case:
+     score from symbol 0 (base 0) and 4 and 5 dB read chance, red. */
+  for (size_t p = 0; p < n_pts; p++)
+    DP_CHECK (ber_at[p] < 0.05);
 
   /* Independent, truth-free corroboration (no lag, no reference symbols):
      the self-referenced EVM and blind M2M4 SNR must AGREE with the BER

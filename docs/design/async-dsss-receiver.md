@@ -1,5 +1,5 @@
 ---
-description: "continuous DSSS, from spec to object: the CCSDS 415.1-B-1 specification point (3,000 sym/s at a 4 dB floor), the derived code period, the acquisition hand-off, the asynchronous despreader, the receiver's states, its results, conclusions and proposed design at the specification point, the pool's one search, what it costs and the status record"
+description: "continuous DSSS, from spec to object: the CCSDS 415.1-B-1 specification point (3,000 sym/s at a 4 dB floor), the derived code period, the acquisition hand-off, the asynchronous despreader, the receiver's states, its tracking stage, hand-over and error-rate window at the specification point, the pool's one search, what it costs and the status record"
 ---
 
 # AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object
@@ -56,8 +56,8 @@ not invented.
 Carrier and code come from one timebase, the chip rate a fixed fraction of
 the carrier, and Doppler moves them together; the data clock belongs to
 neither (§1.6). The point is one case, a symbol at least a code period
-long (§1.5). What the owner has not ruled is §1.7. The receiver's results
-at this point are §4.2. A number in §2, §3 or §5–§11 names the point it is
+long (§1.5). What the owner has not ruled is §1.7. The receiver at this
+point is §4.10 to §4.12, its runs [the record](async-dsss-receiver-measurements.md). A number in §2, §3 or §5–§11 names the point it is
 measured at: the certification's 3.069 Mcps point, below, or the pool's
 5 Mcps sizing point (§5).
 
@@ -119,10 +119,9 @@ two samples a chip that is $2 \times 1023 = 2 \cdot 3 \cdot 11 \cdot 31$,
 and pocketfft has no radix-31 or fast radix-11 pass: profiling one total dwell of
 the one-tile search put about 83% of it in FFT passes and 62% in the
 generic radix-31 and the radix-11 passes, and a 2,046-point transform takes
-9.89 µs against 1.99 µs at 2,048 (record §9.4). `spc` is removed from
-`Acquisition`, `AsyncDsssReceiver` and `AsyncDsssPool`, a breaking change
-made before 1.0. The burst objects (`DsssBurstReceiver`, `BurstDemod`)
-keep it.
+9.89 µs against 1.99 µs at 2,048 (record §9.4). `Acquisition`, `AsyncDsssReceiver` and `AsyncDsssPool`
+take no `spc`; the burst objects (`DsssBurstReceiver`, `BurstDemod`)
+do.
 
 ### 1.3 The loop SNR rule
 
@@ -260,7 +259,7 @@ What follows, by reasoning:
 
 - **An epoch holds at most one transition**, so a code-period window that
     avoids it is always available: the look-back (§3.6) finds one. The
-    carrier detector §4.4 proposes rests on that, and holds only while a
+    carrier detector (§4.4, §4.10) rests on that, and holds only while a
     symbol is at least a code period, which is the case here.
 - **2.2 GHz is the near-one end.** A symbol is 1.047 epochs, so
     the symbol boundary creeps through the epoch at the difference of the
@@ -323,7 +322,7 @@ The model does not depend on the chip rate being on the standard's ratio,
 and nothing checks that it is. With `carrier_freq_hz` 0 all of it is off.
 At this point the harnesses build the receiver with the carrier on
 (`dp_s415_rx()`, `dp_s415_pool()` in `native/tests/dp_s415_test.h`), so
-every row of the validation plan (§4.10) runs the coupling. The
+every harness this page cites runs the coupling. The
 certification record at 3.069 Mcps (§1) ran with `carrier_freq_hz` 0 and
 certifies nothing about it. The library's Doppler channel dilates the whole stream by one
 factor (code, data symbols and the gap) and offsets the carrier to match:
@@ -343,7 +342,7 @@ Not ruled by the owner, and not decided here:
 1. **`reacquire` as the default.** It is off by default; at this point a lock
     on the wrong Doppler never releases without it
     ([#3092](https://github.com/doppler-dsp/doppler/issues/3092)).
-1. **`refine`**, the one knob §4.4 still has: its name, or its retirement.
+1. **`refine`**, the knob §4.4 describes: its name, or its retirement.
 1. **What must hold at the floor**: the allowed loss against the BPSK bound,
     and how soon after arrival the receiver must be decoding. With the
     dropout time and the lock budget, these are the figures the
@@ -457,10 +456,10 @@ largest at zero residual offset.
 **What the loops meet** at the owner's rule (§1.3; `bn = ρ_floor·S_L/200`,
 0.00993 at 2.2 GHz and 0.00744 at 2.8 GHz), the larger of the carriers':
 
-|                                                  | at R_env (11 Hz/s)        | at the cross-check's largest           |
-| ------------------------------------------------ | ------------------------- | -------------------------------------- |
-| order-2 lag                                      | 1.27°                     | 2.15° (18.7 Hz/s) to 2.80° (24.3 Hz/s) |
-| hand-over error from drift over the refine dwell | 11 Hz/s × 0.045 s, 0.5 Hz |                                        |
+|                                                          | at R_env (11 Hz/s)        | at the cross-check's largest           |
+| -------------------------------------------------------- | ------------------------- | -------------------------------------- |
+| order-2 lag                                              | 1.27°                     | 2.15° (18.7 Hz/s) to 2.80° (24.3 Hz/s) |
+| hand-over error from drift over the refine's total dwell | 11 Hz/s × 0.045 s, 0.5 Hz |                                        |
 
 The hand-over figure compares with 7 to 8 Hz static.
 
@@ -527,10 +526,10 @@ engine never adds to its non-coherent count: it sizes on the burst and reports `
 
 **Two inputs size the coherent depth `D`: `code_only_epochs` and
 `doppler_rate`.** It is the smaller of `⌊(code_only_epochs + 1)/2⌋`, so a
-whole block always fits inside the pure-code window, and
+whole coherent dwell always fits inside the pure-code window, and
 `f_epoch/√(2·doppler_rate)`, which is `f_epoch/√1000` at 500 Hz/s and
 `f_epoch/√22` at the 415.1-B-1 point's residual rate R_env (11 Hz/s), so the
-drift over one block stays inside half a slow-time bin, rounded down to a
+drift over one coherent dwell stays inside half a slow-time bin, rounded down to a
 7-smooth length (`dp_fft_smooth_floor()`): `D` is a slow-time FFT length,
 and a prime factor of 13 or more costs the FFT its slow path, so 94 epochs
 run as 90. `code_only_epochs`
@@ -929,11 +928,11 @@ The partial sums double as the integrate-and-dump output, each divided by
 the samples it spans and by a **slowly tracked level**: the running mean of
 the winner's magnitude, `max_abs` = `correlations[max_window]`, over
 `DLL_OUT_LEVEL_PERIODS` = 32 periods, its plain mean until 32 have accrued. The output then sits near unit amplitude at any input gain,
-which the timing detectors downstream assume. Never by the period's own
-`max_abs`: that divisor carries the period's own noise, so it compressed the
-in-phase error against the quadrature and coupled the symbols that share a
-period, and the receiver lost 0.2 dB of error rate while its EVM read better
-than the error rate allowed
+which the timing detectors downstream assume. Not by the period's own
+`max_abs`: that divisor carries the period's own noise, so it compresses the
+in-phase error against the quadrature and couples the symbols that share a
+period, measured at 0.2 dB of error rate while the EVM reads better than the
+error rate allows
 ([#2495](https://github.com/doppler-dsp/doppler/issues/2495)). The header
 (`dll_core.h`) sets the length inside a band, 16 to 40: at least 16 holds
 the compression, measured, under 0.15 dB, and at most 40 settles a step in
@@ -1060,7 +1059,7 @@ receiver in a pool is §6, where it has a fifth state, idle; this section is
 the chain under both.
 
 - **searching** — on its own, samples feed an embedded continuous
-    continuous search (§2)
+    search (§2)
     over `±doppler_uncertainty`, at the coherent depth `D` its code-only
     window sizes (§2.3; `D = 1`, a one-epoch coherent dwell, without one). A hit becomes
     a seed through `dp_correlator_build_handoff()` and `seed()`, and the
@@ -1129,7 +1128,7 @@ chunking.
 
 Two lock detectors run while tracking: the `Dll`'s CFAR-based **code lock**
 (§3.5) and a hysteretic **symbol lock** on the emitted symbols — the BPSK
-`cos(2φ)` statistic as an SNR-weighted EMA over a 30-symbol dwell, declared
+`cos(2φ)` statistic as an SNR-weighted EMA with a memory of 30 symbols, declared
 after 30 consecutive symbols above 0.5 and dropped after 15 below 0.3.
 The statistic certifies that the symbols are clean, not that they are
 the right symbols: `cos(2φ)` is the same after a half-cycle carrier slip,
@@ -1183,7 +1182,7 @@ estimate measures worse than the search's ([the record](async-dsss-receiver-meas
     ([doppler#2421](https://github.com/doppler-dsp/doppler/issues/2421)),
     and only an allocation failure still aborts
     ([#2112](https://github.com/doppler-dsp/doppler/issues/2112))), and
-    `set_refine_min_blocks` floors the refine's dwell. That floor is not
+    `set_refine_min_blocks` floors the refine's total dwell. That floor is not
     cosmetic: `CarrierAcquisition`'s total dwell is sized for *detection* at the
     derated C/N0, so it shortens as C/N0 rises while the noise of the
     estimate it hands the tracking chain does not, and too short a total dwell
@@ -1237,13 +1236,13 @@ least a code period (`symbol_rate · code_len ≤ chip_rate`), so a window
 free of transitions exists. The specification's case is one (§1.5), and
 create refuses a shorter symbol. `K` is the existing `segments`, default 4
 ([#3095](https://github.com/doppler-dsp/doppler/issues/3095) on 8). It
-is the one mode: the `carrier_window` argument is removed (`72f577f90`).
+is the one mode: there is no `carrier_window` argument.
 The measurement it rests on, the partials window against this one at the
 4 dB floor, is [the record](async-dsss-receiver-measurements.md), §12.30.
 
 `refine` is a constructor knob (bool, default true); its name is a
 placeholder (§1.7). False skips the refine: the search's Doppler is the
-hand-over, the refine's dwell is not spent, tracking starts at the seed's
+hand-over, the refine's total dwell is not spent, tracking starts at the seed's
 sample, and the `refine_*` settings are unused.
 
 `refine` false skips the refining state: a seed builds the tracking chain
@@ -1317,7 +1316,7 @@ receiver cannot reach.
     ([#3092](https://github.com/doppler-dsp/doppler/issues/3092)).
 1. Order 3's pull-in with this discriminator
     ([#3123](https://github.com/doppler-dsp/doppler/issues/3123)).
-1. A one-tile deep search fans its block across the workers
+1. A one-tile deep search fans its coherent dwell across the workers
     ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)).
 
 ### 4.7 The refine: the data template's estimator
@@ -1655,7 +1654,7 @@ and the code and pre-despread carrier statistics magnitudes.
     every run: a π slip spliced in a second after the first draw's declared
     lock must read one net reversal (`pi_forced_slip()`), and a run in which
     no draw qualified for it fails.
-- **Read:** 0 net reversals after lock in all 720 draws of step D's run
+- **Read:** 0 net reversals after lock in all 720 draws of the `d-6fc84cc80` run
     at `6fc84cc80`, both carriers, 4, 5 and 10 dB, static and ±R_env
     ([d-6fc84cc80/read_d.py](async-dsss-receiver-measurements/d-6fc84cc80/read_d.py),
     `python -I read_d.py`, the "net rev post (draws)" column).
@@ -1731,7 +1730,7 @@ arguments; at the 415.1-B-1 point (`dp_s415_rx()`) they are:
     ("The hand-over: the M-th power of the refine's partial dumps", below).
 
 A sequential estimator that detects early decides when the fine buffer has
-the fine dwell's sums, not at its own crossing.
+the fine hand-over's total dwell of sums, not at its own crossing.
 
 **What it hands over.** At the decision the receiver takes the fine
 estimate when its check passes (`ASYNC_DSSS_RX_HO_FINE`), else
@@ -1743,7 +1742,7 @@ or to idle when pooled.
 
 **Against the loop's requirement.** The hand-over must land inside the
 carrier loop's no-slip edge, 11.9 Hz at 2.2 GHz and 11.4 Hz at 2.8 GHz at
-the floor (§4.10, "Its bandwidth"). In step D's 720 draws at `6fc84cc80`
+the floor (§4.10, "Its bandwidth"). In the 720 draws of the `d-6fc84cc80` run
 every hand-over is the fine estimate (`ho_src` 3), and the worst error is
 1.68 Hz
 ([d-6fc84cc80/read_d.py](async-dsss-receiver-measurements/d-6fc84cc80/read_d.py),
@@ -1751,7 +1750,7 @@ the `fine_err med/max Hz` column).
 
 #### The hand-over: the M-th power of the refine's partial dumps
 
-The receiver hands over this estimate: `dp_async_dsss_receiver_fine_design()` derives it at create, and the refine's decision runs it. Step D's run, below, measures it.
+The receiver hands over this estimate: `dp_async_dsss_receiver_fine_design()` derives it at create, and the refine's decision runs it. The `d-6fc84cc80` run, below, measures it.
 
 **The owner, 2026-11-22.**
 
@@ -1785,16 +1784,16 @@ The receiver hands over this estimate: `dp_async_dsss_receiver_fine_design()` de
 - `ρ²/κ` is the replica's 0.39 dB (§3.6).
 - `ε` is the code error in chips.
     - The search's grid places the seed within half a sample, 0.25 chip (`base_half_sample_chip`).
-    - Run 415's rows read more than that: `seed_code_chip` has a median of 0.11 to 0.15 and a worst of 0.40, and the tracking `Dll`'s first error after the hand-over (`ho_code_chip`) is as high as 0.39. That excess is not explained here.
+    - The `run415` rows read more than that: `seed_code_chip` has a median of 0.11 to 0.15 and a worst of 0.40, and the tracking `Dll`'s first error after the hand-over (`ho_code_chip`) is as high as 0.39. That excess is not explained here.
     - The refine `Dll`'s own error during the total dwell is in no row.
 - `e` is the seed's error in Hz.
     - Its design bound is `min(2 · doppler_uncertainty, Rs + row)`. At the certified point the span's arm binds, 2 × 1,500 = 3,000 Hz, against `Rs + row` = 3,021.8 / 3,022.2 Hz (below, "The seed's error bound").
-    - Run 415's worst seed errors are 371, 936, 1,235 and 1,498 Hz at the four cells.
+    - The `run415` rows' worst seed errors are 371, 936, 1,235 and 1,498 Hz at the four cells.
 
 **The seed's error bound.** The bound the design covers is the right emitter's seed error, `min(2 · doppler_uncertainty, Rs + row)`.
 
 - **The span's worst pair** (the seed and the truth each inside `±doppler_uncertainty`) bounds any peak the search returns. It is kept as the cap. It is not a bound on the mechanism: a wide span asks for a `K` no divisor of `refine_segments` covers, and the fine hand-over goes off exactly where the coarse seed is worst.
-- **The right emitter's seed lands inside the data spectrum's main lobe.** A search coherent dwell partly in data smears the peak (§2.3) to anywhere inside `±Rs`, the first nulls, and the search's row adds its resolution. Step D's 720 draws (`async-dsss-receiver-measurements/d-6fc84cc80/`, `seed_err_hz`) read:
+- **The right emitter's seed lands inside the data spectrum's main lobe.** A search coherent dwell partly in data smears the peak (§2.3) to anywhere inside `±Rs`, the first nulls, and the search's row adds its resolution. The `d-6fc84cc80` run's 720 draws (`async-dsss-receiver-measurements/d-6fc84cc80/`, `seed_err_hz`) read:
 
 | carrier | row     | lattice `1/(2T)` | median abs | p90    | p99      | max      | past 3 rows | nearest lattice multiple |
 | ------- | ------- | ---------------- | ---------- | ------ | -------- | -------- | ----------- | ------------------------ |
@@ -1821,7 +1820,7 @@ Losses at `ε` 0.13 with the replica's 0.39 dB. The roll-off is `sinc²(e·T/K)`
 | 2.8/10 | 1   | ±1,000 Hz       | 10.5 + 3.2 = 13.6 dB                               | 1,498 Hz: 2.1 + 0.6 = 2.7 dB                  | 2.5 dB       |
 | 2.8/10 | 5   | ±4,999 Hz       | 0.3 + 1.8 = 2.1 dB                                 | 0.1 + 1.7 = 1.8 dB                            | 0.5 dB       |
 
-- **`K = 1` cannot hand over at the design bound.** At 2.2 GHz a 3,000 Hz error is 0.95 of a cycle across the period, at the sum's own null. At run 415's worst seeds it costs 2.4 to 2.9 dB, and it still needs the spectral estimate to pick the image.
+- **`K = 1` cannot hand over at the design bound.** At 2.2 GHz a 3,000 Hz error is 0.95 of a cycle across the period, at the sum's own null. At the `run415` rows' worst seeds it costs 2.4 to 2.9 dB, and it still needs the spectral estimate to pick the image.
     - That pick fails when the coarse error passes `1/(4T)`, 786 / 1,000 Hz. The coarse sd is 92 Hz, so that is `2Q(8.6)`, about 10⁻¹⁷. The rows' worst coarse error is 403 Hz.
     - `K = 1` also pays 2.5 to 3.3 dB on symbol edges.
 - **`K = 5` stands alone.** Its range covers the design bound with 928 / 1,999 Hz to spare. At the floor it pays about 3 dB more squaring loss than `K = 1` at the rows' seeds, and gets most of it back on symbol edges.
@@ -1840,7 +1839,7 @@ Losses at `ε` 0.13 with the replica's 0.39 dB. The roll-off is `sinc²(e·T/K)`
 
 The frequency handed over is the tone's at the buffer's end, `f + r(n − 1)`. At the 415.1-B-1 floor, `P_ho` 0.99, `_test_fine_design` prints:
 
-| carrier | rate            | chirp loss at `max_rate` 0 | axis         | dwell                                 |
+| carrier | rate            | chirp loss at `max_rate` 0 | axis         | total dwell                           |
 | ------- | --------------- | -------------------------- | ------------ | ------------------------------------- |
 | 2.2 GHz | 11 Hz/s (R_env) | 0.06 dB                    | off          | 39 blocks                             |
 | 2.8 GHz | 11 Hz/s         | 0.08 dB                    | off          | 43 blocks (one past the rate-free 42) |
@@ -1852,7 +1851,7 @@ The receiver meets R_env (§1.8), so at the spec point the axis is off. The 400 
 - **New code:** the pair sums, their M-th power (one multiply a sum at M = 2), a buffer of `N_s` sums, and the check.
 - **M is the receiver's `m`** (2, 4 or 8). The loss law above is M = 2's; M = 4 and 8 need their own, which is not derived here. 415.1 is M = 2.
 - **Not reused: `CarrierAcquisition`'s detector.** It correlates a spectrum against a template, and against a tone's template that reduces to the periodogram peak `PolynomialPhaseEstimator` already takes.
-- **Not reused: `79fa50cfe`.** It squared the 12 kSa/s stream after the `RateConverter`, at −2.0 dB a sample, and tested it with a fitted κ.
+- **Not reused: a squared-stream estimator** (`79fa50cfe`): the 12 kSa/s stream after the `RateConverter` squared, at −2.0 dB a sample, and tested with a fitted κ.
 
 **The estimate's error, derived.**
 
@@ -1874,7 +1873,7 @@ The receiver meets R_env (§1.8), so at the spec point the axis is off. The 400 
     - An exponential bin's mean dB sits 2.51 dB under the dB of its mean (Euler's constant).
     - So the threshold is `snr_db ≥ 10·log10(t) + 2.51` = 14.2 dB at 2.2 GHz and 14.3 dB at 2.8, at `pfa` 10⁻³. It is derived, not fitted.
 - **A refusal falls back** to `CarrierAcquisition`'s estimate if it fired, otherwise the seed.
-- **The spectral estimate leaves the decision.** Its value is kept as a probe beside the fine one, and step D's rows count where the two disagree.
+- **The spectral estimate leaves the decision.** Its value is kept as a probe beside the fine one, and the `d-6fc84cc80` rows count where the two disagree.
 - **A new source:** `ho_src` 3, the fine estimate.
 
 **The total dwell, derived.** It is the smallest whole number of refine blocks (5.33 ms each) with `P_w + P_miss ≤ 1 − P_ho`. Here `P_ho` is the ruled 0.99, and `P_miss` is the check's (non-central χ², Marcum Q). It is evaluated at the design C/N0, `e` 3,000 Hz and `ε` 0.25. The design point's columns are `_test_fine_design`'s printout; the median columns are this section's formulas at the same `N_s`.
@@ -1896,10 +1895,10 @@ At 10 dB the same total dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 
 
 - **The estimate's age.** At 11 Hz/s, `R·D/2` is 1.14 / 1.26 Hz. With the sd, the hand-over sits well inside the no-slip edge (11.4 Hz at 2.8 GHz, the narrower; §4.10) whenever the right peak is taken. So the edge's probability is `1 − P_w − P_miss`.
 - **`CarrierAcquisition`'s test runs over the same total dwell.** Its `dwell_target` is raised to the fine one, which only makes its detection more certain.
-- **If `ε`'s bound is the rows' 0.40, not 0.25,** the total dwell is longer, and the rate rule above may turn the axis on there. Its length at β 6.85 is not printed yet. No committed row reads `ε` (step D's rows have no column for it), so this is open.
+- **If `ε`'s bound is the rows' 0.40, not 0.25,** the total dwell is longer, and the rate rule above may turn the axis on there. Its length at β 6.85 is not printed yet. No committed row reads `ε` (the `d-6fc84cc80` rows have no column for it), so this is open.
 - **A candidate cause of the 0.40, not established.** The refine `Dll` runs at bn 0.002, and a closed-loop reading of the `Dll` at the receiver's configuration (Gold-1023, 2 samples a chip, segments 4 and 10, the aid on and off; #3234) measures its loop about 19 times wider than that. A loop that wide has about 4.4 times the code jitter sd its bn predicts. That could be the rows' 0.40 chip against the grid's 0.25. The reading was at 3.069 Mcps; the one at 415.1-B-1's rates is owed, and a row with the refine `Dll`'s code error over the total dwell would decide; none is committed.
 
-**What the run measured.** Step D's run: `validate_async_dsss_receiver_pullin --emit --dynamics pass` at `6fc84cc80` on a clean tree, 2.2 and 2.8 GHz × 4, 5 and 10 dB × 0 and ±R_env, 60 draws a cell, and `--fine-k1` on the eight draws whose seed error in run 415 was past `±1/(4T)` (listed in [the record](async-dsss-receiver-measurements.md)'s copy of the test row). Its rows, and `read_d.py`, the reader that prints every number below, are in `docs/design/async-dsss-receiver-measurements/d-6fc84cc80/`.
+**What the run measured.** The `d-6fc84cc80` run: `validate_async_dsss_receiver_pullin --emit --dynamics pass` at `6fc84cc80` on a clean tree, 2.2 and 2.8 GHz × 4, 5 and 10 dB × 0 and ±R_env, 60 draws a cell, and `--fine-k1` on the eight draws whose seed error in the `run415` rows was past `±1/(4T)` (listed in [the record](async-dsss-receiver-measurements.md)'s copy of the test row). Its rows, and `read_d.py`, the reader that prints every number below, are in `docs/design/async-dsss-receiver-measurements/d-6fc84cc80/`.
 
 - **The hand-over.** `ho_src` 3 on all 720 draws, no refusal. The median `|fine_err|` at 0 Hz/s is 0.10 / 0.06 Hz at the floor (2.2 / 2.8 GHz) and 0.04 / 0.02 Hz at 10 dB, the derivation's 0.10 / 0.09 Hz and 0.03 to 0.05 Hz. At ±11 Hz/s it is 1.10 to 1.27 Hz, the age. The worst of the 720 is 1.68 Hz, against the no-slip edge, 11.9 / 11.4 Hz (§4.10).
 - **The check's `snr_db`** reads above the prediction: medians 21.6 / 21.9 dB at the floor and 30.2 / 30.8 dB at 10 dB, against 20.4 / 20.2 and 28.9 / 29.0. So the SNR model is conservative by 1.1 to 1.8 dB. The refine `Dll`'s code error over the total dwell (`ε`) is in no column, so which loss is over-counted is not read.
@@ -1911,19 +1910,19 @@ At 10 dB the same total dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 
     - The loss grows with Es/N0, and thermal timing jitter falls with it even in a loop wider than its stated bn. So the remainder points at something deterministic: the `Dll` increment's truncation (#3249, a loop frozen between least significant bits), the timing detector's pattern self-noise, or the replica and interpolation geometry.
     - #3249's test is the loss at 10 dB at an integer against a non-integer samples-a-chip. This run cannot read it: both carriers are non-integer (3.42 and 2.69 samples a chip), and their 10 dB losses agree.
     - The draws are not the cause: leaving out the ones that do not work, the 10 dB pooled rate is unchanged, and the per-draw median is 3.1 / 3.4 × 10⁻⁵.
-- **At 10 dB static "every draw's link works" is red** on 1 to 3 draws a cell, where the error-rate meter is unaligned at the start or unsynced at the end. The receiver shows no carrier crossing and no flag change on those draws, and they carry 3 to 8 errors in 178,000 symbols. Run 415 (before step D) had the same. Step D raised the 10 dB static draws that work from 40 to 57 (2.2 GHz) and from 53 to 58 (2.8 GHz). It is the meter, not a symbol-timing slip. A capture of 2.2 GHz seed 43 (`--telemetry --draw 2.2,10,0,43`) re-detects the alignment 113 times from 3.6 to 59.6 s (`err.sym_lag`) and reads a lag of 0 every time, with 6 errors to the end (`err.count`). So the end check's refusal (`dp_ber_sync` placing no marker near the end) is the meter's own, as the validator's comment already records at 20 dB. The end marker the noiseless replay resolves sat 0.26 dB under the noisy threshold, at the right lag. The validator now judges an end the sync cannot place on its tail: the start's alignment over the last 1,000 symbols, in 100-symbol blocks, each refused past the midpoint between the contract's rate and a slip's 0.5 (`pi_end_verdict`). Seed 43 works under it; a symbol dropped 500 before the end is refused, with the end sync and without it (the `--check` controls).
+- **At 10 dB static "every draw's link works" is red** on 1 to 3 draws a cell, where the error-rate meter is unaligned at the start or unsynced at the end. The receiver shows no carrier crossing and no flag change on those draws, and they carry 3 to 8 errors in 178,000 symbols. The `run415` rows show the same at that cell; `d-6fc84cc80` has 57 (2.2 GHz) and 58 (2.8 GHz) of 60 working at 10 dB static, against 40 and 53 in `run415`. It is the meter, not a symbol-timing slip. A capture of 2.2 GHz seed 43 (`--telemetry --draw 2.2,10,0,43`) re-detects the alignment 113 times from 3.6 to 59.6 s (`err.sym_lag`) and reads a lag of 0 every time, with 6 errors to the end (`err.count`). So the end check's refusal (`dp_ber_sync` placing no marker near the end) is the meter's own, as the validator's comment already records at 20 dB. The end marker the noiseless replay resolves sat 0.26 dB under the noisy threshold, at the right lag. The validator judges an end the sync cannot place on its tail: the start's alignment over the last 1,000 symbols, in 100-symbol blocks, each refused past the midpoint between the contract's rate and a slip's 0.5 (`pi_end_verdict`). Seed 43 works under it; a symbol dropped 500 before the end is refused, with the end sync and without it (the `--check` controls).
 
 **What the receiver does.**
 
 - **The refine period.** After `dp_dll_steps()`, the dumps are summed in groups to `fine.k` sums a period, squared, and appended to the fine buffer. The buffer holds the total dwell and a period, and slides if the refine runs longer, so the estimate is always the latest total dwell's.
-- **At the refine's decision.** It waits out the fine dwell (`adr_refine_decided`): `dwell_target` is the larger of `CarrierAcquisition`'s detection dwell and the fine one, and a sequential estimator that fires early waits for it too. Then `dp_ppe_estimate()` runs, the check is applied, and the result divided by M is handed over against the frozen carrier's reference (`ASYNC_DSSS_RX_HO_FINE`, 3). Refused, today's chain: `CarrierAcquisition`'s estimate if it fired, otherwise the seed. A give-up at the block cap runs the same check, so the fine estimate can be handed over there too.
+- **At the refine's decision.** It waits out the fine hand-over's total dwell (`adr_refine_decided`): `dwell_target` is the larger of `CarrierAcquisition`'s detection total dwell and the fine one, and a sequential estimator that fires early waits for it too. Then `dp_ppe_estimate()` runs, the check is applied, and the result divided by M is handed over against the frozen carrier's reference (`ASYNC_DSSS_RX_HO_FINE`, 3). Refused, it falls back to `CarrierAcquisition`'s estimate if it fired, otherwise the seed. A give-up at the block cap runs the same check, so the fine estimate can be handed over there too.
 - **Probes:** `rx.ref_fine.hz`, `.snr_db`, `.n`, once at the decision, whether or not the check passed.
 - **Configuration.** The design is derived at create from `cn0_dbhz`, `m`, the code's flips, `refine_segments`, `doppler_uncertainty`, `doppler_rate`, the search's half sample, the refine block, `pfa` and `refine_max_n_blocks`, plus one constant, `ASYNC_DSSS_RX_FINE_P_HO` (0.99, ruled). The caller passes no new argument, and no mutator reaches any of them. It is off where the design refuses (M other than 2).
 - **State.** The `PolynomialPhaseEstimator` child is stateless and outside the blob. The buffer and its count go in, after the hand-over ring: `ASYNC_DSSS_RECEIVER_STATE_VERSION` 23. The buffer's size, `fine_cap`, follows from create's C/N0, so a blob from a receiver built at another C/N0 is refused on size.
 - **`ho_src`** is refused past 3.
 - **Its near-far tolerance is about 23 dB at every lag (at K 5),** below tracking's 60.2 dB on three quarters of the lags: a stronger emitter's partial-period leak can carry the hand-over a whole lattice step onto its own lines. Declared in §8.2, with the measurement and doppler#3263.
 - **Pins, each with its sabotage** (`test_async_dsss_receiver_core.c`):
-    - `_test_fine_design`: the six total dwells of the cost table, `K` 5, the rate rows, M 4 and an uncovered `e` refused, and a Monte Carlo through `PolynomialPhaseEstimator` itself (400 draws, 3 failed against a designed 8.1 × 10⁻³). Sabotage: the page's earlier β (4.55) gives 32 / 35 and fails the Monte Carlo at that total dwell.
+    - `_test_fine_design`: the six total dwells of the cost table, `K` 5, the rate rows, M 4 and an uncovered `e` refused, and a Monte Carlo through `PolynomialPhaseEstimator` itself (400 draws, 3 failed against a designed 8.1 × 10⁻³). Sabotage: a β of 4.55 gives 32 / 35 and fails the Monte Carlo at that total dwell.
     - `_test_fine_hands_over`: Gold-1023, 50 dB-Hz, the carrier 500 Hz off and seeded 1,200 Hz off, past a whole-period sum's 781 Hz: hands over at 499.41 Hz with `ho_src` 3; noise alone refuses (9.9 dB) and falls back to the seed. Sabotage: `K` forced to 1 lands one image off, at 2,063.41 Hz.
     - The hand-over's domain test hands the fine estimate over past fs/2 and is refused.
 - **Unchanged:** `CarrierAcquisition`, `PolynomialPhaseEstimator`, the search.
@@ -1932,7 +1931,9 @@ At 10 dB the same total dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 
 
 Every harness that scores the receiver's errors scores them in one window,
 which opens at the observed lock. The 415.1-B-1 allocation gives a signal
-20 s to lock (§7.4.1, `DP_S415_LOCK_S`).
+20 s to lock (§7.4.1, `DP_S415_LOCK_S`), and the requirement is that a link
+at 4 and 5 dB locks inside it (the owner's ruling;
+`validate_async_dsss_receiver_pullin`'s `check_acq()` holds it per cell).
 
 - **The start** is the latest of the five flags' sustained times
     (`dp_ber_lock_all()`, `native/tests/dp_ber_test.h`): symbol, code,
@@ -2043,8 +2044,8 @@ from the bound (§2.1).
     the pool's thread count, at most one worker a Doppler tile, so a
     one-tile search is serial
     ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)). It fans the
-    stages that run once a block, and only when a block is more than one
-    epoch; the stages that run once an epoch run inline, where a wake-up
+    stages that run once a coherent dwell, and only when a coherent dwell is
+    more than one epoch; the stages that run once an epoch run inline, where a wake-up
     hands out one lag inverse a tile. On bare metal that takes a full-span
     total dwell to 0.52-0.68 of the serial time at 2 workers to all cores, on
     WSL2 to 0.47-0.66, and every one-epoch row ties serial on both. A
@@ -2395,7 +2396,7 @@ lags; the hand-over tolerates about 23 dB on all of them.
     held (`run-ho-74185cf38`, `read_ho.py`).
 - **Why no guard closes it.** A refusal keyed on "a whole lattice
     step off the seed" cannot be used: a correct search seed is itself off
-    by up to 0.8 of a lattice step (step D's 720 draws reach 1,260 Hz
+    by up to 0.8 of a lattice step (the `d-6fc84cc80` run's 720 draws reach 1,260 Hz
     against a 1,571 Hz step, on the data-smeared peak). Full-period sums
     cannot resolve k at all, because the lattice is exactly their
     ambiguity.
@@ -2426,7 +2427,7 @@ scenes: a strong emitter with a second one pinned within 5 Hz of its
 carrier for 20 s. That is the bounding case, and one the use case produces
 only in passing, as two tracks cross. The gallery scene (ten moving
 emitters within 16 dB at 2.2 GHz, `scene-ghosts`, `read_scene.py`) shows
-no ghost, at the head and before the fine hand-over alike:
+no ghost, with the fine hand-over and without it alike:
 
 - 0 ghost and 0 duplicate releases;
 - tracking with no emitter matched only as one pull-in transient (0.025 s
@@ -2588,12 +2589,7 @@ ______________________________________________________________________
 ### 11.1 Idle is the receiver with no search of its own
 
 A pooled receiver is seeded from outside (§6), and while it holds nothing
-it is idle, state value 3. The values are persisted, so 3 keeps the
-meaning it has had since the pool's cell receivers, seeded the same way,
-held it. The cell flavor as it stood is §11.1 at
-[`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md),
-its code at
-[`35d8049a2`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h).
+it is idle, state value 3. The values are persisted, so 3 means idle in every blob.
 
 ### 11.2 Lost is a state of the receiver
 
@@ -2659,8 +2655,8 @@ ______________________________________________________________________
 ## See also
 
 - [the measurement record](async-dsss-receiver-measurements.md) — every run
-    behind the numbers here, under the same section numbers, the pool as
-    built's included.
+    behind the numbers here, under the same section numbers, the pool's
+    included.
 - [the certification record](https://github.com/doppler-dsp/doppler/blob/v0.85.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
     — the receiver at the 3.069 Mcps point (§1), and only there; the
     [validation log](../dev/contributing/validation-log.md) holds the stages

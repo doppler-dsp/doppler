@@ -2498,7 +2498,7 @@ $D = 90$); from +4 dB there are none, and the validator gates that.
 | +18 dB                     | 13 of 32 (0.26–0.58)  | 0 of 17 (0.00–0.18)    |
 | +20 dB                     | 7 of 34 (0.10–0.37)   | 0 of 17 (0.00–0.18)    |
 
-Sidelobes taken, with or without the weaker emitter, over every row: 0. Run `validate_async_dsss_near_far --emit` at `b15233152`, 2026-11-01 20:05 UTC on `zen-x2elite-x`, 1343.6 s. b15233152 is a pre-squash commit of #2731, not an ancestor of the merged head; its rule-2 code (adr_pick, adr_sidelobe_bound, the sidelobe ratio (dp_correlator_sidelobe_ratio now), acq_sidelobe_row, acq_peak_on_lag) is byte-identical to the squashed commit's, so the data stands (doppler#2735).
+Sidelobes taken, with or without the weaker emitter, over every row: 0. Run `validate_async_dsss_near_far --emit` at `b15233152`, 2026-11-01 20:05 UTC on `zen-x2elite-x`, 1343.6 s. b15233152 is a pre-squash commit of #2731, not an ancestor of the merged head; its rule-2 code (adr_pick, adr_sidelobe_bound, the sidelobe ratio, which the tree names dp_correlator_sidelobe_ratio, acq_sidelobe_row, acq_peak_on_lag) is byte-identical to the squashed commit's, so the data stands (doppler#2735).
 
 <!-- async-dsss-pool:design-near-far:end -->
 
@@ -2729,12 +2729,12 @@ state at the 3.069 Mcps point, one thread (record §9.1):
 
 <!-- async-dsss-pool:design-cost:start -->
 
-| receiver state                              | × real time, one thread |
-| ------------------------------------------- | ----------------------- |
-| tracking                                    | 0.07                    |
-| searching one tile, one-epoch looks         | 0.14                    |
-| searching ±1/T_E (3 tiles), one-epoch looks | 0.22                    |
-| searching ±1/T_E, slow time over D = 154    | 0.54                    |
+| receiver state                                        | × real time, one thread |
+| ----------------------------------------------------- | ----------------------- |
+| tracking                                              | 0.07                    |
+| searching one tile, one-epoch coherent dwells         | 0.14                    |
+| searching ±1/T_E (3 tiles), one-epoch coherent dwells | 0.22                    |
+| searching ±1/T_E, slow time over D = 154              | 0.54                    |
 
 <!-- async-dsss-pool:design-cost:end -->
 

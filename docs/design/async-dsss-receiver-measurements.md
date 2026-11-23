@@ -3041,13 +3041,13 @@ load either side of the bench is in the stamp.
 
 <!-- async-dsss-pool:cost:start -->
 
-| receiver state                              | bench row                                        | ns a sample, mean (min–max) | × real time at 6.138 MSa/s |
-| ------------------------------------------- | ------------------------------------------------ | --------------------------- | -------------------------- |
-| tracking                                    | `async_dsss_receiver::steps[cell,sf=1023,5Mcps]` | 11.1 (11.0–11.6)            | 0.07                       |
-| searching one tile, one-epoch looks         | `acq::native_nc90`                               | 22.4 (22.3–22.8)            | 0.14                       |
-| searching ±1/T_E (3 tiles), one-epoch looks | `acq::op5M_U5k_nc225`                            | 36.6 (36.5–37.1)            | 0.22                       |
-| searching ±1/T_E, slow time over D = 154    | `acq::op5M_U5k_D154_t1_nc1`                      | 88.0 (87.6–88.6)            | 0.54                       |
-| the same, four threads                      | `acq::op5M_U5k_D154_t4_nc1`                      | 50.8 (43.6–56.8)            | 0.31 on four threads       |
+| receiver state                                        | bench row                                        | ns a sample, mean (min–max) | × real time at 6.138 MSa/s |
+| ----------------------------------------------------- | ------------------------------------------------ | --------------------------- | -------------------------- |
+| tracking                                              | `async_dsss_receiver::steps[cell,sf=1023,5Mcps]` | 11.1 (11.0–11.6)            | 0.07                       |
+| searching one tile, one-epoch coherent dwells         | `acq::native_nc90`                               | 22.4 (22.3–22.8)            | 0.14                       |
+| searching ±1/T_E (3 tiles), one-epoch coherent dwells | `acq::op5M_U5k_nc225`                            | 36.6 (36.5–37.1)            | 0.22                       |
+| searching ±1/T_E, slow time over D = 154              | `acq::op5M_U5k_D154_t1_nc1`                      | 88.0 (87.6–88.6)            | 0.54                       |
+| the same, four threads                                | `acq::op5M_U5k_D154_t4_nc1`                      | 50.8 (43.6–56.8)            | 0.31 on four threads       |
 
 <!-- async-dsss-pool:cost:end -->
 

@@ -1,11 +1,12 @@
 ---
-description: "the library's decision vocabulary: the signal and the search's grid, decision and detection, tracking loops and lock detection, the retired words and the names the fields take"
+description: "the library's vocabulary: the signal and the search's grid, decision and detection, tracking loops and lock detection, the retired words and the names the fields take"
 ---
 
 # Vocabulary
 
-The words the library's design pages, headers and reviews use for a search, a
-decision and a loop. A term names its own axis or role; a bare general word
+The library's vocabulary: the words its design pages, headers and reviews
+use. A term enters this page when it is agreed, so a word absent from it is
+not yet defined here. A term names its own axis or role; a bare general word
 (`block`, `look`, `tile`, `bin`, `row`, `cell`, `surface`, `span`) is not a
 term. A name in backticks is the C field; `py:` gives the Python name where it
 differs. Numbers in brackets are the correlator's UNO Q case ([correlator

@@ -4,14 +4,14 @@ description: "the library's vocabulary: the signal and the search's grid, decisi
 
 # Vocabulary
 
-The library's vocabulary: the words its design pages, headers and reviews
-use. A term enters this page when it is agreed, so a word absent from it is
-not yet defined here. A term names its own axis or role; a bare general word
-(`block`, `look`, `tile`, `bin`, `row`, `cell`, `surface`, `span`) is not a
-term. A name in backticks is the C field; `py:` gives the Python name where it
-differs. An entry that is a draft names the issue it waits on. Each section
-is an area of the library; Common holds the terms more than one area uses,
-and an area has a section once it has an agreed entry.
+The library's vocabulary: the words its design pages, headers and reviews use.
+A term enters this page when it is agreed, so a word absent from it is not yet
+defined here. A term names its own axis or role; a bare general word (`block`,
+`look`, `tile`, `bin`, `row`, `cell`, `surface`, `span`, `rate`) is not a term.
+A name in backticks is the C field; `py:` gives the Python name where it
+differs. An entry that is a draft names the issue it waits on. Each section is
+an area of the library; Common holds the terms more than one area uses, and an
+area has a section once it has an agreed entry.
 
 ## Common
 
@@ -22,7 +22,8 @@ A number in brackets in this section is the correlator's UNO Q case
 - **`sps`**: samples per symbol. The Dll, the Despreader and the
     BurstDespreader still spell samples per chip `sps` until #3278.
 - **`spc`**: samples per chip.
-- **epoch**: one template period: N samples at the search rate, nominally.
+- **epoch**: one template period: N samples at the search's sample rate,
+    nominally.
     The engine processes the stream in N-sample epochs; the received
     signal's epochs are offset from them by the delay and dilated by
     Doppler. One full template, received at an unknown time offset and
@@ -80,8 +81,8 @@ Numbers in brackets are the correlator's UNO Q case ([correlator
 - **template**: one period of the known waveform, as handed to the
     constructor (`tmpl` on the burst door; chips `code` on the continuous
     door; `py: ref`). Not always a code.
-- **template length**, N: its length in samples at the search rate
-    (`code_bins`) [512].
+- **template length**, N: its length in samples at `fs` (`code_bins`)
+    [512].
 - **epoch rate**: `fs`/N [1,280 Hz]. Also the Doppler range the slow-time
     transform covers on its own.
 - **Doppler uncertainty**, ±U: the half-range of the
@@ -92,8 +93,8 @@ Numbers in brackets are the correlator's UNO Q case ([correlator
 
 ### The engine's grid
 
-- **search rate**: `fs` (`py: sample_rate`), the rate of the samples the
-    search runs on, after any down-conversion [655.36 kSa/s].
+- **`fs`** (`py: sample_rate`): the search's sample rate, after any
+    down-conversion [655.36 kSa/s].
 - The map flavors' `dwell` parameter is the coherent dwell (Common) counted
     in frames.
 - **Doppler bin**: the spacing of the Doppler grid, `fs`/(N·D)
@@ -138,12 +139,14 @@ Numbers in brackets are the correlator's UNO Q case ([correlator
 
 ### Cost
 
-- **ns a sample**: wall-clock ns per search-rate sample, one thread unless
-    a thread count is given.
-- **core time**: ns a sample times the threads in use.
-- **real time**: 1/`fs` per sample per core [1,526 ns].
-- **budget**: real time times the cores available, minus what the front
-    end takes.
+- **processing time per sample**: wall-clock time the search spends per
+    input sample, in ns, at a stated thread count (one unless given).
+- **CPU time per sample**: processing time per sample times the threads in
+    use.
+- **sample period**, Ts = 1/`fs` [1,526 ns]. The search runs in real time
+    when its CPU time per sample is at most Ts times the cores available.
+- **budget**: the CPU time per sample available: Ts times the cores
+    available, minus what the front end takes.
 
 ### Search statistics
 
@@ -224,6 +227,7 @@ prose.
 | `look count`, `n looks`                                                                  | non-coherent count                                                             | —           |
 | `tile`, `tiles`, `Doppler window`, `native span`                                         | Doppler roll; its width is the epoch rate                                      | —           |
 | `lattice`, `lattices`, `lattice step`, `lattice image`, `carrier image`, `image spacing` | Doppler ambiguity, ambiguity interval                                          | —           |
+| `core time`                                                                              | CPU time per sample                                                            | —           |
 | `reliable pull-in`, `lock-in`                                                            | acquisition bound, or no-slip edge                                             | —           |
 | `block`, `depth` (for the search's coherent sum)                                         | coherent dwell, and D its length in epochs                                     | review only |
 | `block` (for a lock's decision interval)                                                 | non-coherent count                                                             | review only |
@@ -240,6 +244,8 @@ prose.
 | `sliding`, `phase` (for total-dwell offsets)                                             | total-dwell offset; phase is carrier phase                                     | review only |
 | `code phase` (for lag, of a non-code template)                                           | lag                                                                            | review only |
 | `image` (for a Doppler ambiguity)                                                        | Doppler ambiguity; image means a spectral, I/Q-mismatch or interpolation image | review only |
+| `ns a sample`                                                                            | processing time per sample                                                     | review only |
+| `real time` (for the sample period)                                                      | sample period                                                                  | review only |
 
 On design pages only, narration: a page states what is, so its prose does
 not use these.
@@ -302,6 +308,9 @@ New on that branch:
 | `doppler_span_hz` (half the epoch rate)               | `epoch_rate_hz` (the full rate) | the correlator                                                          |
 | `pd_burst`                                            | `pd_acquisition`                | the correlator                                                          |
 | `n_blocks`, `max_n_blocks`, `refine_max_n_blocks`     | not yet named                   | CarrierAcquisition, and the receiver's refine argument                  |
+
+The same PR renames the "ns a sample" table headings in correlator.md and the
+benchmarks page to processing time per sample.
 
 **In its own PR after the release (#3278)**, shipped:
 

@@ -1965,11 +1965,18 @@ _test_refine_passes_through (void)
    co-located true emitter look the same to it, §8, doppler#2551), and the
    ghost, on a -24 dB sidelobe of a 60 dB-Hz A, keeps a flag up often
    enough that the loss release never fires: the pool ends the allocation
-   with two receivers on A. Seed 5 is one the record holds
-   (run-cen-0373a01d5's ghosts_forced.csv, the validator's FORCED arm on
-   this same scene: 4 of 20 held at k = 2, seed 2 freed by the loss release
-   inside the allocation; run as seed 2 this test is red, its failing
-   case). That is the declared near-far limit; no rule
+   with two receivers on A. Seed 12 is one the record holds
+   (docs/design/async-dsss-receiver-measurements/final-9ce208250/
+   ghosts_forced.csv, the validator's FORCED arm on this same scene: 5 of
+   20 held at k = 2 at 2.8 GHz, seeds 3, 9, 10, 12 and 13; seed 2 freed by
+   the loss release inside the allocation; run as seed 2 this test is red,
+   its failing case). Seed 12's longest run with both flags down is
+   0.256 s against lost_confirm_s 2.0 s, the widest margin of the five.
+   Which draws are held moves with the tree (run-cen-0373a01d5 held seeds
+   5, 9, 15 and 20; seed 5, at 1.76 s, is freed on this one), so a seed
+   is a pin on one tree; a count over the validator would not be, and
+   removing that fragility is doppler#3263's. That is the declared
+   near-far limit; no rule
    built today separates it without releasing usable tracks
    (doppler#3263). The test asserts the defect is STILL THERE, so it goes
    red the day a rule closes it: then restore the claim (receiver 1 idle,
@@ -2011,9 +2018,9 @@ _test_shipped_pool_leaves_one_on_a (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  int held5, held2;
-  DP_REQUIRE (_shipped_ghost_held (code, 5, &held5) == 0);
-  DP_CHECK_MSG (held5,
+  int held12, held2;
+  DP_REQUIRE (_shipped_ghost_held (code, 12, &held12) == 0);
+  DP_CHECK_MSG (held12,
                 "XFAIL (strict) doppler#3263: the shipped pool still holds a "
                 "k = 0 ghost on A, its tenure unbroken, to the allocation's "
                 "end; if this is red, a rule closed it -- restore the claim "

@@ -57,6 +57,7 @@
 #include "async_dsss_receiver_common.h"
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include "doppler/async_dsss_pool/async_dsss_pool_private.h"
+#include "doppler/detection/detection_core.h"
 #include "dp_air_test.h"
 #include "dp_dsss_test.h"
 #include "dp_s415_test.h"
@@ -152,7 +153,24 @@ typedef struct
      (best of a +-250 lag, the sign folded; NaN when not scored). */
   long   lag_r;
   double b_ber;
+  /* The centered data-copy test: each block less its mean before the
+     normalized |sum|, so a code-only run (constant in both streams)
+     centers away. At blocks of 100 and 25 symbols, at the lag the
+     100-symbol statistic picks; its null measured in the same draw at
+     +GH_NULL_SHIFT symbols (five whole frames: the code-only windows stay
+     aligned, the data are independent), best over the same +-GH_RHO_LAG;
+     the threshold at 25 is that null's mean plus Q_inv(GH_PFA / lags)
+     null block sd over sqrt(blocks), and t_cross the first time, s of
+     collected symbols, the running mean clears the threshold at its own
+     block count (NaN: never). */
+  double rc100, rc25, nl100, nl25, ns25, thr25, t_cross;
+  size_t nb25;
 } gh_t;
+
+/* The centered test's null shift, symbols: five frames of 1,000. */
+#define GH_NULL_SHIFT 5000
+/* Its false-release probability, a decision, before the lags' union. */
+#define GH_PFA 1e-3
 
 /* The phase spread's window, s. */
 #define GH_WIN_S 2.0
@@ -384,6 +402,124 @@ gh_rho (const gh_acc_t *a, gh_t *o)
   o->n_rho   = best_len;
 }
 
+/* Centered blocks of B symbols at one lag: each block's normalized |sum|
+   of (s1 - mean) conj (s0 - mean), into v (at most n_max); returns the
+   count. s1[i] against s0[i + lag]. */
+static size_t
+gh_cblocks (const gh_acc_t *a, long lag, size_t B, double *v, size_t n_max)
+{
+  const long n0 = (long)a->ns[0], n1 = (long)a->ns[1];
+  const long lo = lag < 0 ? -lag : 0;
+  const long hi = n1 < n0 - lag ? n1 : n0 - lag;
+  size_t     nb = 0;
+  for (long b = lo; b + (long)B <= hi && nb < n_max; b += (long)B)
+    {
+      double _Complex m0 = 0.0, m1 = 0.0;
+      for (long i = b; i < b + (long)B; i++)
+        {
+          m1 += a->s[1][i];
+          m0 += a->s[0][i + lag];
+        }
+      m0 /= (double)B;
+      m1 /= (double)B;
+      double _Complex ab = 0.0;
+      double e0 = 0.0, e1 = 0.0;
+      for (long i = b; i < b + (long)B; i++)
+        {
+          const double _Complex x = a->s[1][i] - m1;
+          const double _Complex y = a->s[0][i + lag] - m0;
+          ab += x * conj (y);
+          e1 += creal (x * conj (x));
+          e0 += creal (y * conj (y));
+        }
+      v[nb++] = e0 > 0.0 && e1 > 0.0 ? cabs (ab) / sqrt (e0 * e1) : 0.0;
+    }
+  return nb;
+}
+
+static double
+gh_vmean (const double *v, size_t n)
+{
+  double m = 0.0;
+  for (size_t i = 0; i < n; i++)
+    m += v[i];
+  return n ? m / (double)n : NAN;
+}
+
+/* The centered test (gh_t's rc100 ... t_cross). */
+static void
+gh_rho_centered (const gh_acc_t *a, gh_t *o)
+{
+  o->rc100 = o->rc25 = o->nl100 = o->nl25 = o->ns25 = o->thr25 = NAN;
+  o->t_cross                                                   = NAN;
+  o->nb25                                                      = 0;
+  const size_t n = a->ns[0] < a->ns[1] ? a->ns[0] : a->ns[1];
+  if (n < 400)
+    return;
+  const size_t nmax = n / 25 + 1;
+  double      *v    = dp_xmalloc (nmax * sizeof *v);
+  long         best = 0;
+  double       bm   = -1.0;
+  for (long lag = -GH_RHO_LAG; lag <= GH_RHO_LAG; lag++)
+    {
+      const double m = gh_vmean (v, gh_cblocks (a, lag, 100, v, nmax));
+      if (m > bm)
+        {
+          bm   = m;
+          best = lag;
+        }
+    }
+  o->rc100 = bm;
+  o->nb25  = gh_cblocks (a, best, 25, v, nmax);
+  o->rc25  = gh_vmean (v, o->nb25);
+  /* The null, the same statistic five frames off, best over the lags. */
+  double sd25 = NAN;
+  if (n > GH_NULL_SHIFT + 2 * GH_RHO_LAG + 400)
+    {
+      double b100 = -1.0, b25 = -1.0;
+      for (long d = -GH_RHO_LAG; d <= GH_RHO_LAG; d++)
+        {
+          const long   lag = GH_NULL_SHIFT + d;
+          const double m1  = gh_vmean (v, gh_cblocks (a, lag, 100, v, nmax));
+          if (m1 > b100)
+            b100 = m1;
+          const size_t k  = gh_cblocks (a, lag, 25, v, nmax);
+          const double m2 = gh_vmean (v, k);
+          if (m2 > b25)
+            {
+              b25       = m2;
+              double ss = 0.0;
+              for (size_t i = 0; i < k; i++)
+                ss += (v[i] - m2) * (v[i] - m2);
+              sd25 = k > 1 ? sqrt (ss / (double)(k - 1)) : NAN;
+            }
+        }
+      o->nl100 = b100;
+      o->nl25  = b25;
+      o->ns25  = sd25;
+    }
+  /* The threshold at the tenure's blocks, and the first crossing of the
+     running mean at its own count (from 8 blocks, 200 symbols). */
+  const double q = dp_det_q_inv (GH_PFA / (double)(2 * GH_RHO_LAG + 1));
+  if (!isnan (o->nl25) && !isnan (sd25) && o->nb25)
+    {
+      o->thr25         = o->nl25 + q * sd25 / sqrt ((double)o->nb25);
+      const size_t k   = gh_cblocks (a, best, 25, v, nmax);
+      double       sum = 0.0;
+      for (size_t j = 0; j < k; j++)
+        {
+          sum += v[j];
+          const double thr = o->nl25 + q * sd25 / sqrt ((double)(j + 1));
+          if (j + 1 >= 8 && sum / (double)(j + 1) > thr)
+            {
+              o->t_cross = (double)((j + 1) * 25) / DP_S415_SYM;
+              break;
+            }
+        }
+    }
+  free (v);
+}
+
 /* B's error rate against its payload: the symbols receiver 1 emitted while
    both tracked, from the truth's symbol at the first such push, the best of
    a +-250 lag with the sign folded. */
@@ -445,6 +581,7 @@ gh_close (const uint8_t *code, gh_acc_t *a, gh_t *o)
       o->dphi_win_med = w[(a->nw - 1) / 2];
     }
   gh_rho (a, o);
+  gh_rho_centered (a, o);
 }
 
 static void
@@ -775,7 +912,8 @@ main (int argc, char **argv)
             "code_down0_s,both_down0_s,code_down1_s,both_down1_s,"
             "t_code_first_s,t_code_last_s,df_end_hz,"
             "ratio_med_db,ratio_p10_db,ratio_p90_db,dphi_start,dphi_end,"
-            "dphi_spread,acf_start_db,dphi_win_med,rho_coh,rho_nc,n_rho\n");
+            "dphi_spread,acf_start_db,dphi_win_med,rho_coh,rho_nc,n_rho,"
+            "rc100,rc25,nl100,nl25,ns25,thr25,nb25,t_cross_s\n");
   else
     printf ("ghosts: 415.1-B-1, 11 MSa/s, a pool designed at 38.8 dB-Hz; "
             "FORCED on a %.0f dB-Hz parent's %u-chip sidelobe, %.0f s\n",
@@ -805,14 +943,15 @@ main (int argc, char **argv)
             if (emit)
               printf ("%.1f,%d,%u,%d,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.3f,%.3f,"
                       "%.3f,%.1f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%.3f,"
-                      "%.4f,%.4f,%zu\n",
+                      "%.4f,%.4f,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%zu,%.2f\n",
                       fcs[f] / 1e9, k, s, o.outcome, o.code_frac, o.sym_frac,
                       o.any_k, o.code_down_s[0], o.both_down_s[0],
                       o.code_down_s[1], o.both_down_s[1], o.t_code_first_s,
                       o.t_code_last_s, o.df_end_hz, o.ratio_med_db,
                       o.ratio_p10_db, o.ratio_p90_db, o.dphi_start, o.dphi_end,
                       o.dphi_spread, o.acf_start_db, o.dphi_win_med, o.rho_coh,
-                      o.rho_nc, o.n_rho);
+                      o.rho_nc, o.n_rho, o.rc100, o.rc25, o.nl100, o.nl25,
+                      o.ns25, o.thr25, o.nb25, o.t_cross);
           }
         if (!emit && n)
           {
@@ -836,7 +975,7 @@ main (int argc, char **argv)
     printf ("# second\nfc_ghz,b_dbhz,seed,outcome,code_frac,any_k,"
             "ratio_med_db,ratio_p10_db,ratio_p90_db,dphi_start,dphi_end,"
             "dphi_spread,acf_start_db,dphi_win_med,rho_coh,rho_nc,n_rho,"
-            "lag_r,b_ber\n");
+            "lag_r,b_ber,rc100,rc25,nl100,nl25,ns25,thr25,nb25,t_cross_s\n");
   else
     printf ("  SECOND: a distinct emitter on a %.0f dB-Hz one's carrier\n",
             GH_A2_DBHZ);
@@ -854,12 +993,14 @@ main (int argc, char **argv)
             DP_REQUIRE (gh_second (code, fcs[f], b_lvls[l], s, &o) == 0);
             if (emit)
               printf ("%.1f,%.1f,%u,%d,%.3f,%d,%.2f,%.2f,%.2f,%.3f,%.3f,"
-                      "%.3f,%.2f,%.3f,%.4f,%.4f,%zu,%ld,%.5f\n",
+                      "%.3f,%.2f,%.3f,%.4f,%.4f,%zu,%ld,%.5f,%.4f,%.4f,%.4f,"
+                      "%.4f,%.4f,%.4f,%zu,%.2f\n",
                       fcs[f] / 1e9, b_lvls[l], s, o.outcome, o.code_frac,
                       o.any_k, o.ratio_med_db, o.ratio_p10_db, o.ratio_p90_db,
                       o.dphi_start, o.dphi_end, o.dphi_spread, o.acf_start_db,
                       o.dphi_win_med, o.rho_coh, o.rho_nc, o.n_rho, o.lag_r,
-                      o.b_ber);
+                      o.b_ber, o.rc100, o.rc25, o.nl100, o.nl25, o.ns25,
+                      o.thr25, o.nb25, o.t_cross);
             /* Counted, not scored: the parent never tracked A. */
             DP_CHECK_MSG (!o.no_parent, "receiver 0 tracks A with code lock");
             if (o.no_parent)

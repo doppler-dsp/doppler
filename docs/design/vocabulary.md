@@ -18,9 +18,10 @@ and an area has a section once it has an agreed entry.
 A number in brackets in this section is the correlator's UNO Q case
 (Correlator, below).
 
-- **sample**: one complex sample at the search rate
-    `fs` (`py: sample_rate`), after any down-conversion [655.36 kSa/s].
-    Never the capture rate [5 MSa/s].
+- **sample**: one value of a discrete-time signal.
+- **`sps`**: samples per symbol. The Dll, the Despreader and the
+    BurstDespreader still spell samples per chip `sps` until #3278.
+- **`spc`**: samples per chip.
 - **epoch**: one template period: N samples at the search rate, nominally.
     The engine processes the stream in N-sample epochs; the received
     signal's epochs are offset from them by the delay and dilated by
@@ -36,11 +37,16 @@ A number in brackets in this section is the correlator's UNO Q case
 - **delay** (τ): the offset between the signal's
     epoch boundaries and the engine's; continuous, 0 to N samples.
     **Sub-sample delay**: its fractional part only.
+- **Doppler ambiguity**: an estimate displaced from the true Doppler by a
+    whole number of ambiguity intervals. An M-th power estimate over a
+    coherent sum of length T measures the Doppler only modulo 1/(M T), as a
+    pulse train measures it modulo its repetition frequency. **Ambiguity
+    interval**: 1/(M T) \[at the 415.1-B-1 point, M = 2 and T one code
+    period: 1,571 Hz at 2.2 GHz and 2,000 Hz at 2.8 GHz\].
 - **dwell**: an integration interval. It can span many hypotheses, and it
     always takes a qualifier:
     - **coherent dwell**: D epochs summed coherently, D·N samples. D
-        (`coherent_bins`) is its length in epochs. The map flavors' `dwell`
-        parameter is the same thing counted in frames.
+        (`coherent_bins`) is its length in epochs.
     - **non-coherent count**, K (`n_noncoh`): how many coherent dwells have
         their power summed.
     - **total dwell**: K coherent dwells, K·D epochs. One threshold
@@ -86,6 +92,10 @@ Numbers in brackets are the correlator's UNO Q case ([correlator
 
 ### The engine's grid
 
+- **search rate**: `fs` (`py: sample_rate`), the rate of the samples the
+    search runs on, after any down-conversion [655.36 kSa/s].
+- The map flavors' `dwell` parameter is the coherent dwell (Common) counted
+    in frames.
 - **Doppler bin**: the spacing of the Doppler grid, `fs`/(N·D)
     (`doppler_res_hz`), whether the grid comes from rolling, from the
     slow-time transform, or both [20 Hz at D = 64]. **Doppler bin count**:
@@ -146,6 +156,10 @@ Numbers in brackets are the correlator's UNO Q case ([correlator
 - **`pfa_cell`**: `pfa` split (Šidák) over the cells the total dwell's
     maximum ranges over: in-band Doppler grid points × `lag_bins` × rate
     hypotheses.
+- **false-alarm rate**: hits per unit time on noise: `pfa` / total
+    integration time, times the number of total-dwell offsets. Always
+    carries a time unit \[1.4e-5 a 50 ms total dwell is about one an hour
+    at one offset\]. No field computes it.
 - **acquisition Pd**: the probability an acquisition sequence is detected,
     at a stated alignment prior. "Pd" unqualified means this.
 - **`pd_predicted`**: the model's Pd of one total dwell lying wholly
@@ -164,10 +178,6 @@ Numbers in brackets are the correlator's UNO Q case ([correlator
 - **verify count**: how many consecutive decisions declare a lock (up) or
     drop it (down): LockDet's `n_up` and `n_down`, sized by
     `dp_det_verify_count()`.
-- **false-alarm rate**: hits per unit time on noise: `pfa` / total
-    integration time, times the number of total-dwell offsets. Always
-    carries a time unit \[1.4e-5 a 50 ms total dwell is about one an hour
-    at one offset\]. No field computes it.
 
 ## Tracking loops
 
@@ -189,16 +199,10 @@ Numbers in brackets are the correlator's UNO Q case ([correlator
 - **no-slip edge**: the largest frequency step from which no start phase
     crosses two lock points on the mean loop. It is the detector's own,
     printed by `validate_costas_pullin --design` (`edge_worst`).
-- **false lock**: a tracking loop sitting on a Doppler ambiguity. It is one
-    definition for both uses: the receiver's carrier loop on an estimate
-    whole ambiguity intervals off, and `carrier_nda`'s own stable locks at
-    k/M cycles a sample, its ambiguity at an update of one sample.
-- **Doppler ambiguity**: an estimate displaced from the true Doppler by a
-    whole number of ambiguity intervals. An M-th power estimate over a
-    coherent sum of length T measures the Doppler only modulo 1/(M T), as a
-    pulse train measures it modulo its repetition frequency. **Ambiguity
-    interval**: 1/(M T) \[at the 415.1-B-1 point, M = 2 and T one code
-    period: 1,571 Hz at 2.2 GHz and 2,000 Hz at 2.8 GHz\].
+- **false lock**: a tracking loop sitting on a Doppler ambiguity (Common). It
+    is one definition for both uses: the receiver's carrier loop on an estimate
+    whole ambiguity intervals off, and `carrier_nda`'s own stable locks at k/M
+    cycles a sample, its ambiguity at an update of one sample.
 
 ## Retired words
 
@@ -298,3 +302,9 @@ New on that branch:
 | `doppler_span_hz` (half the epoch rate)               | `epoch_rate_hz` (the full rate) | the correlator                                                          |
 | `pd_burst`                                            | `pd_acquisition`                | the correlator                                                          |
 | `n_blocks`, `max_n_blocks`, `refine_max_n_blocks`     | not yet named                   | CarrierAcquisition, and the receiver's refine argument                  |
+
+**In its own PR after the release (#3278)**, shipped:
+
+| name                     | becomes | where                                           |
+| ------------------------ | ------- | ----------------------------------------------- |
+| `sps` (samples per chip) | `spc`   | the Dll, the Despreader and the BurstDespreader |

@@ -2125,8 +2125,8 @@ _fine_run (int signal, double *ho_hz, int *src)
  * reaches the tracked one's correlator at its autocorrelation at their
  * offset, which takes three values, 63, -65 and -1 of 1023 (t(10) = 2^6 + 1
  * and its partners). The tolerance at each is -20 log10 (|R| / 1023):
- * 24.2, 23.9 and 60.2 dB, the first two on about three quarters of the
- * lags.
+ * 24.2, 23.9 and 60.2 dB: the two sidelobe values on 136 lags each, a
+ * quarter of the 1022 between them, and -1 on the other 750.
  *
  * The fine hand-over, a K-th of a period: a partial correlation over N / K
  * chips is a sum of about N / K terms of random sign whatever the lag, so
@@ -2179,7 +2179,9 @@ _test_near_far_levels (void)
   printf ("  near-far, tracking (full period): %.1f dB on %zu lags (+63), "
           "%.1f dB on %zu (-65), %.1f dB on %zu (-1) of %zu\n",
           t63, c63, t65, c65, t1, c1, n - 1);
-  DP_CHECK (c63 + c65 > c1 / 2); /* the sidelobe lags are the many */
+  /* The page's shares: a quarter of the lags at the sidelobe level, three
+     quarters at -1. */
+  DP_CHECK (c63 == 136 && c65 == 136 && c1 == 750);
   double              leak[2];
   static const size_t ks[2] = { 5, 11 };
   for (int j = 0; j < 2; j++)

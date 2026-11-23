@@ -2972,6 +2972,7 @@ At 10 dB the same dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 11 Hz/
 - **Configuration.** The design is derived at create from `cn0_dbhz`, `m`, the code's flips, `refine_segments`, `doppler_uncertainty`, `doppler_rate`, the search's half sample, the refine block, `pfa` and `refine_max_n_blocks`, plus one constant, `ASYNC_DSSS_RX_FINE_P_HO` (0.99, ruled). The caller passes no new argument, and no mutator reaches any of them. It is off where the design refuses (M other than 2).
 - **State.** The `PolynomialPhaseEstimator` child is stateless and outside the blob. The buffer and its count go in, after the hand-over ring: `ASYNC_DSSS_RECEIVER_STATE_VERSION` 23. The buffer's size, `fine_cap`, follows from create's C/N0, so a blob from a receiver built at another C/N0 is refused on size.
 - **`ho_src`** is refused past 3.
+- **Its near-far tolerance is about 23 dB at every lag (at K 5),** below tracking's 60.2 dB on three quarters of the lags: a stronger emitter's partial-period leak can carry the hand-over a whole lattice step onto its own lines. Declared in §8.2, with the measurement and doppler#3263.
 - **Pins, each with its sabotage** (`test_async_dsss_receiver_core.c`):
     - `_test_fine_design`: the six dwells of the cost table, `K` 5, the rate rows, M 4 and an uncovered `e` refused, and a Monte Carlo through `PolynomialPhaseEstimator` itself (400 draws, 3 failed against a designed 8.1 × 10⁻³). Sabotage: the page's earlier β (4.55) gives 32 / 35 and fails the Monte Carlo at that dwell.
     - `_test_fine_hands_over`: Gold-1023, 50 dB-Hz, the carrier 500 Hz off and seeded 1,200 Hz off, past a whole-period sum's 781 Hz: hands over at 499.41 Hz with `ho_src` 3; noise alone refuses (9.9 dB) and falls back to the seed. Sabotage: `K` forced to 1 lands one image off, at 2,063.41 Hz.
@@ -3499,6 +3500,94 @@ appended live and finalized at close (`dp_event_log`,
 `native/inc/doppler/dp_event_log/dp_event_log_core.h`), while telemetry stays
 a flat record file the sidecar points at, each in the format that suits its
 rate. The clock rule the receiver obeys is §11.3.
+
+### 8.2 The near-far limit, declared
+
+Two emitters on one code, one stronger than the other, are told apart at
+two places, and each has its own tolerance. The exact figures come first.
+They are printed from the code by `_test_near_far_levels`
+(`test_async_dsss_receiver_core.c`).
+
+| where                                  | what the weaker one meets                                                          | tolerance                                                                      | on which lags                                                             |
+| -------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| tracking, a full code period           | the stronger one's autocorrelation at their offset: +63, −65 or −1 of 1023         | 24.2, 23.9, 60.2 dB                                                            | +63 and −65 on 136 lags each (a quarter of the 1022), −1 on the other 750 |
+| the fine hand-over, a K-th of a period | the stronger one's partial-period correlation, about K / N of its power on any lag | 10 log10(N / K): 22.9 dB at K 5 (derived 23.1), 19.6 dB at K 11 (derived 19.7) | every lag                                                                 |
+
+**In practice, 20 dB.** An emitter within 20 dB of the strongest one in
+the fine estimator's range (Rs plus the search's row) is handed over,
+held and decoded. At the certified point (K 5) the leak is 22.9 dB, so 20
+dB leaves about 3 dB in hand for estimate bias and uncertainty. At K 11,
+which item 4's seed bound picks at a 5 Mcps, ±60 kHz configuration, the
+leak is itself 19.6 dB: 20 dB to the nearest dB, with nothing in hand.
+That figure is computed from the code and not measured in a receiver. For
+any other code length N and sum count K, the exact figure is
+10 log10(N / K).
+
+**What 20 dB looks like, measured.** B at 50 dB-Hz under a 70 dB-Hz A on
+A's carrier:
+
+- **Handed over within 2 Hz** of B on both of its draws, and held for 4 s
+    (`run-ho-74185cf38`, `read_ho.py`).
+- **Never released by the ghost rule.** None of 28 draws was released over
+    20 s (`run-rho-145281207`, `read_rho.py`).
+- **Decoded.** B's error rate is 1 × 10⁻⁴ (median) on a −1 lag, and 7 × 10⁻⁴
+    to 3 × 10⁻³ on the +63 and −65 lags (`run-cen-0373a01d5`, `read_cen.py`).
+
+**Past it, the fine hand-over is where the limit bites.** The estimator
+squares K partial-period sums. A stronger emitter's partial-period leak is
+periodic in the code period, so it puts lines at that emitter's carrier
+plus whole lattice steps, 1 / (2 T_period). More than about 23 dB stronger
+(at K 5), one of those lines beats the weaker emitter's own, and the
+hand-over lands on it. Tracking tolerates 60.2 dB on three quarters of the
+lags; the hand-over tolerates about 23 dB on all of them.
+
+- **Measured:** B seeded at its own truth under a 70 dB-Hz A, seeds 4 and
+    5, both carriers. With the fine hand-over, 6 of 17 scored draws were
+    handed over a whole lattice step or more off B (−2 at 42 and 44 dB-Hz,
+    +1 at 44 and 46). The ghost rule then released 3 of them, correctly: by
+    then they were tracking A's image, not B. Before the fine hand-over
+    (b1b1090d5), none and none: every draw was handed over within 230 Hz and
+    held (`run-ho-74185cf38`, `read_ho.py`).
+- **Why no guard closes it today.** A refusal keyed on "a whole lattice
+    step off the seed" cannot be used: a correct search seed is itself off
+    by up to 0.8 of a lattice step (step D's 720 draws reach 1,260 Hz
+    against a 1,571 Hz step, on the data-smeared peak). Full-period sums
+    cannot resolve k at all, because the lattice is exactly their
+    ambiguity.
+
+**The pool: a ghost on its parent's carrier.** A receiver on a strong
+emitter's code sidelobe and a weak emitter within about 24 dB on the same
+carrier cannot be separated by power, code phase or data without also
+releasing usable tracks. The fine hand-over moves every ghost onto its
+parent's carrier (k = 0), where the ghost rule leaves it alone (§8,
+doppler#2551). At 2.8 GHz the shipped pool holds 4 to 8 of 20 ghosts for
+20 s, per k.
+
+- **Evidence:** `run-b-34cfdce9b` (`read_b.py`), `run-pc-8df79b4cc`
+    (`read_pc.py`: the prompt ratio and the phase spread both fail) and
+    `run-cen-0373a01d5` (`read_cen.py`).
+- **The closest candidate,** the centered data-copy test, catches 27 of 27
+    held ghosts but releases 13 of 180 distinct emitters that decode.
+- **The pin.** `_test_shipped_pool_leaves_one_on_a` is a strict xfail on
+    seed 5, a draw the record holds for the whole 20 s allocation. Seed 2,
+    which the loss release frees inside the allocation, is its failing
+    case.
+
+**What the evidence is, and is not.** The limit is measured in static
+scenes: a strong emitter with a second one pinned within 5 Hz of its
+carrier for 20 s. That is the bounding case, and one the use case produces
+only in passing, as two tracks cross. The gallery scene (ten moving
+emitters within 16 dB at 2.2 GHz, `scene-ghosts`, `read_scene.py`) shows
+no ghost, at the head and before the fine hand-over alike:
+
+- 0 ghost and 0 duplicate releases;
+- tracking with no emitter matched only as one pull-in transient (0.025 s
+    and 0.017 s).
+
+The pool's real test has not been run: a dense LEO constellation of
+emitters rising and setting on differing pass tracks, with a spread past
+20 dB. The rule that would close the limit, its acceptance scene and the
+candidates are doppler#3263.
 
 ## 9. What it costs
 

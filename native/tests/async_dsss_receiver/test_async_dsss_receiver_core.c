@@ -1947,12 +1947,13 @@ _test_fine_hands_over (void)
  * zeta. So is a blob from a receiver built at another C/N0: at 45 dB-Hz
  * (key 8) it is not even the same size, since create's C/N0 sizes the fine
  * hand-over's buffer (fine_cap, from fine.blocks; no mutator reaches either),
- * and the envelope refuses it on size; key 9 is the nearest C/N0 above the
- * twin's, in 0.01 dB steps, whose blob IS the twin's size and whose carrier
- * design differs, so the carrier key, not the size, refuses it. The twin is
- * untouched by a refusal of its carrier children. Sabotage: drop the
- * adr_carrier_is_built() check -> every forged row but key 8 restores,
- * red. */
+ * and the envelope refuses it on size. No other C/N0 builds a twin of the
+ * same size: on this fixture the fine dwell moves at every 0.01 dB (3,696
+ * blocks at 38.77 dB-Hz, 3,610 at 38.82), so the carrier key's C/N0-derived
+ * fields (the denominator's design gamma, the block length) are exercised
+ * at the same size by keys 3 and 5. The twin is untouched by a refusal of
+ * its carrier children. Sabotage: drop the adr_carrier_is_built() check ->
+ * every forged row but key 8 restores, red. */
 static dp_async_dsss_receiver_state_t *
 _car_twin (double cn0)
 {
@@ -1964,32 +1965,9 @@ _car_twin (double cn0)
 static int
 _test_carrier_config_is_a_reject_key (void)
 {
-  /* Key 9's C/N0: the twin's size, another carrier. */
-  double cn0_same = NAN;
-  {
-    dp_async_dsss_receiver_state_t *b = _car_twin (38.77);
-    DP_REQUIRE (b != NULL);
-    for (int j = 1; j <= 100 && isnan (cn0_same); j++)
-      {
-        const double                    cn0 = 38.77 + 0.01 * j;
-        dp_async_dsss_receiver_state_t *a   = _car_twin (cn0);
-        DP_REQUIRE (a != NULL);
-        if (dp_async_dsss_receiver_state_bytes (a)
-                == dp_async_dsss_receiver_state_bytes (b)
-            && a->car_gamma != b->car_gamma)
-          cn0_same = cn0;
-        dp_async_dsss_receiver_destroy (a);
-      }
-    dp_async_dsss_receiver_destroy (b);
-    DP_REQUIRE_MSG (!isnan (cn0_same),
-                    "a C/N0 within 1 dB of the twin's gives its size and "
-                    "another carrier");
-  }
-  for (int key = 0; key <= 9; key++)
+  for (int key = 0; key <= 8; key++)
     {
-      dp_async_dsss_receiver_state_t *a = _car_twin (key == 8   ? 45.0
-                                                     : key == 9 ? cn0_same
-                                                                : 38.77);
+      dp_async_dsss_receiver_state_t *a = _car_twin (key == 8 ? 45.0 : 38.77);
       dp_async_dsss_receiver_state_t *b = _car_twin (38.77);
       DP_REQUIRE (a && b);
       dp_carrier_nda_state_t *c = &a->car;
@@ -3792,8 +3770,15 @@ _test_handover_holds_the_refined_doppler_to_the_domain (void)
       dp_async_dsss_receiver_get_state (src, blob);
       DP_CHECK (dp_async_dsss_receiver_set_state (dst, blob) == DP_OK);
       const uint64_t refused0 = dst->refused_hits;
-      float _Complex x[1024]  = { 0 }, out[1024];
-      (void)dp_async_dsss_receiver_steps (dst, x, 1024, out, 1024);
+      /* The live chain starts n_blocks of refine blocks after the seed, a
+         whole number of periods on: fed in calls of 64 samples until the
+         receiver leaves refining, so the call that hands over carries
+         less than the 1,946 samples a refused search still owes to the
+         grid. Bounded at a second. */
+      float _Complex x[64] = { 0 }, out[64];
+      for (size_t fed = 0;
+           dst->state == ASYNC_DSSS_RX_REFINING && fed < (size_t)fs; fed += 64)
+        (void)dp_async_dsss_receiver_steps (dst, x, 64, out, 64);
       if (inside[k])
         {
           /* Inside: tracks at seed plus residual, exactly, from

@@ -41,12 +41,21 @@
  * ghost the pool took on its own: its offset in chips and in lattice
  * steps, and how it ended.
  *
- * Asserted, the same in the sweep and --check: the rule never releases a
- * distinct emitter on its parent's carrier (SECOND, every level), and it
- * releases a k = 2 sidelobe ghost (FORCED, k = 2, every draw). Printed,
- * with Wilson 95% intervals: the forced outcomes by k, the counterfactual
- * release rate by B's level, and the pool's own ghosts. --check: 2.8 GHz,
- * FORCED k = 0 and 2 and SECOND at 38.8 and 50 dB-Hz, one draw each.
+ * Asserted, the same in the sweep and --check, the ghost rule's own two
+ * claims (async-dsss-receiver.md §8), on every draw: it releases a
+ * receiver only when that receiver's carrier sits a whole nonzero number
+ * of lattice steps off a stronger holder's (FORCED: off A's; SECOND: off
+ * B's own, so a distinct B is released only after the hand-over moved its
+ * receiver onto a lattice image), and it never takes one on its parent's
+ * carrier (FORCED, within half a step of A at the end). The shipped pool's
+ * fine hand-over carries most forced ghosts to A's own carrier, where the
+ * rule leaves them (the declared near-far limit, §8.2, doppler#3263), so
+ * the rule's release of a k = 2 ghost is pinned on a pool with the refine
+ * off, where the seed stays on its lattice image (--check, one draw).
+ * Printed, with Wilson 95% intervals: the forced outcomes by k, the
+ * counterfactual release rate by B's level, and the pool's own ghosts.
+ * --check: 2.8 GHz, FORCED k = 0 and 2 and SECOND at 38.8 and 50 dB-Hz,
+ * one draw each, and the refine-off k = 2 draw.
  *
  * Usage:  validate_async_dsss_pool_ghosts [--check] [--emit] [--draws N]
  *             [--shard i/n] [--forced-s S]  (FORCED's run past the seed,
@@ -75,10 +84,14 @@
 #define GH_PARENT_DBHZ 60.0
 #define GH_A2_DBHZ 70.0
 
+/* The refine stage: on, the shipped pool; off only for the ghost rule's
+   own k = 2 pin in --check. */
+static bool gh_refine = true;
+
 static dp_async_dsss_pool_state_t *
 gh_pool (const uint8_t *code, double fc, size_t n, double lost_s)
 {
-  return dp_s415_pool (code, fc, n, lost_s, 1);
+  return dp_s415_pool_refine (code, fc, n, lost_s, 1, gh_refine);
 }
 
 static dp_air_emitter_t
@@ -121,7 +134,7 @@ typedef struct
      end, Hz. The release rules' two candidates read against
      lost_confirm_s. */
   double code_down_s[2], both_down_s[2];
-  double t_code_first_s, t_code_last_s, df_end_hz;
+  double t_code_first_s, t_code_last_s, df_end_hz, df_end_lat;
   /* Both arms, every GH_RATIO_DT while both receivers track: the second
      receiver's Dll prompt amplitude over the first's, dB (its median and
      10th / 90th percentiles over the run), and their code-phase
@@ -697,9 +710,10 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
       gh_run_add (fc, k, seed, r, 0, run_c[r]);
       gh_run_add (fc, k, seed, r, 1, run_b[r]);
     }
-  o->outcome   = p->released_ghost ? 1 : p->released_lost ? 2 : 0;
-  o->code_frac = n ? (double)code_up / (double)n : NAN;
-  o->sym_frac  = n ? (double)sym_up / (double)n : NAN;
+  o->outcome    = p->released_ghost ? 1 : p->released_lost ? 2 : 0;
+  o->code_frac  = n ? (double)code_up / (double)n : NAN;
+  o->sym_frac   = n ? (double)sym_up / (double)n : NAN;
+  o->df_end_lat = o->df_end_hz / p->lattice_hz;
   gh_close (code, &acc, o);
   o->b_ber = NAN;
   gh_acc_free (&acc);
@@ -982,7 +996,13 @@ main (int argc, char **argv)
                       o.lag_r, o.ho_src, o.t_ho_s, o.ho_b_hz, o.ho_a_hz,
                       o.t_end_s, o.end_b_lat, o.end_a_lat, o.end_b_chips,
                       o.end_a_chips);
-              DP_CHECK (o.outcome >= -1);
+              /* A receiver that reached tracking reports the estimate it
+                 was handed over from: one of the three sources. */
+              if (!isnan (o.t_ho_s))
+                DP_CHECK_MSG (o.ho_src >= ASYNC_DSSS_RX_HO_SEED
+                                  && o.ho_src <= ASYNC_DSSS_RX_HO_FINE,
+                              "a tracking receiver names its hand-over "
+                              "source");
             }
       free (gh_ratios);
       DP_TEST_END ("validate_async_dsss_pool_ghosts");
@@ -1015,12 +1035,15 @@ main (int argc, char **argv)
             rel += o.outcome == 1;
             lost += o.outcome == 2;
             held += o.outcome == 0;
-            if (k == 2)
-              DP_CHECK_MSG (o.outcome == 1, "a k = 2 sidelobe ghost is "
-                                            "released by the ghost rule");
-            if (k == 0)
+            /* The rule's two claims, on the ghost's carrier at its end
+               (its release step, or the run's end). */
+            if (o.outcome == 1)
+              DP_CHECK_MSG (fabs (o.df_end_lat) >= 0.5,
+                            "the ghost rule releases a ghost only off its "
+                            "parent's carrier by a whole lattice step");
+            if (fabs (o.df_end_lat) < 0.5)
               DP_CHECK_MSG (o.outcome != 1, "the ghost rule never takes a "
-                                            "k = 0 ghost");
+                                            "ghost on its parent's carrier");
             if (emit)
               printf ("%.1f,%d,%u,%d,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.3f,%.3f,"
                       "%.3f,%.1f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%.3f,"
@@ -1042,6 +1065,21 @@ main (int argc, char **argv)
             gh_rate ("held", held, n);
           }
       }
+  if (check)
+    {
+      /* The ghost rule's own pin: with the refine off the seed stays on
+         its lattice image, two steps off A, and the rule releases it. */
+      gh_refine = false;
+      gh_t o;
+      DP_REQUIRE (gh_forced (code, fcs[1], 2, 1, &o) == 0);
+      gh_refine = true;
+      printf ("  refine off, 2.8 GHz, k = +2: outcome %d, carrier %.2f "
+              "lattice steps off A at the end\n",
+              o.outcome, o.df_end_lat);
+      DP_CHECK_MSG (o.outcome == 1 && fabs (o.df_end_lat - 2.0) < 0.5,
+                    "refine off: a k = 2 sidelobe ghost is released by the "
+                    "ghost rule");
+    }
   if (emit)
     {
       printf ("# runs\nfc_ghz,k,seed,receiver,both,len_s\n");
@@ -1092,9 +1130,13 @@ main (int argc, char **argv)
             n++;
             rel += o.outcome == 1;
             would += (size_t)o.any_k;
-            DP_CHECK_MSG (o.outcome != 1, "the ghost rule never releases a "
-                                          "distinct emitter on its "
-                                          "parent's carrier");
+            /* Released only when its receiver no longer sat on B's
+               carrier: the hand-over had moved it onto a lattice image
+               (§8.2), which the rule correctly takes. */
+            if (o.outcome == 1)
+              DP_CHECK_MSG (fabs (o.end_b_lat) >= 0.5,
+                            "the ghost rule releases a distinct emitter's "
+                            "receiver only off that emitter's carrier");
           }
         if (!emit && n)
           {

@@ -1637,57 +1637,41 @@ and the code and pre-despread carrier statistics magnitudes.
 
 #### The five lock flags
 
-The owner's rule is that a working link shows **no toggle of any flag** in the data section.
+Five flags report the tracking chain's health. A working link holds all
+five after they settle: the pull-in validator's per-draw `works` verdict
+(`pi_works()`) requires every flag sustained, no change of any flag over
+the data, and every flag up at the end. The rule rows of
+`validate_async_dsss_receiver_pullin --emit` print each flag's thresholds,
+counts and length (the `.rules.csv` beside each capture).
 
-| flag                | object, statistic                                                                                         | sized today                                                                                                             | proposed                                                                 |
-| ------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `code.locked`       | the Dll, R above                                                                                          | det, Pd 0.99 / Pfa 10⁻³ (#3134)                                                                                         | the code look above                                                      |
-| `car.locked`        | `Costas`: EMA (α 0.1) of \|Re P\|/\|P\| = \|cos φ\| per update                                            | under noise only: up 0.85, down 0.78, n 8 / 32 (`costas_core.c:7-17`, #3176)                                            | block average, below                                                     |
-| `sym.locked`        | the receiver: power-weighted EMA over 30 symbols of (I² − Q²)/(I² + Q²) = cos 2φ (`ASYNC_DSSS_RX_LOCK_*`) | constants: up 0.5, down 0.3, n 30 / 15                                                                                  | block of B = 40 / 41, threshold 0.463 / 0.458 (D8, below)                |
-| `demod.car.locked`  | `MpskReceiver`: EMA (`CARRIER_NDA_LOCK_ALPHA`) of `carrier_nda_disc()`'s lock output                      | constants: 0.3, down 0.24, n 8 / 32                                                                                     | block of B = 35 / 36, threshold 0.369 / 0.364 (D8, below)                |
-| `demod.sync.locked` | `RateSync`: block of 133 of 2(\|on\|² − \|mid\|²)/(\|on\|² + \|mid\|²)                                    | symsync's Pfa 10⁻³ / Pd 0.9 sizing at roll-off 0.35, Es/N0 10 dB, transferred (`ratesync_core.c:18-32`); 0.311, n 1 / 8 | **not derived** for this pulse at the floor; what it needs is below (D8) |
+| flag                | statistic, per decision                                                                                                                                | threshold, and where it comes from                                                                                            | counts (up / down)                                     | sized at the design C/N0?                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `code.locked`       | `R = sqrt(2 Σ abs(P)² / E abs(O)²)` over a non-coherent count of n = 22 / 20 terms, one a symbol, each the aid's window ("The code loop and its lock") | `det_threshold_noncoherent(10⁻³, n)`, 8.874 / 8.567: H0 at a stated Pfa                                                       | 2 / 3, `det_verify_count` at a 10⁻⁶ budget             | yes: n from `dp_det_n_noncoh()` at Pd 0.99                                                 |
+| `car.locked`        | `Σ(I² − Q²) / Σ(I² + Q²)` over `car_blk` = 33 / 43 window sums, one a code period ("The carrier lock")                                                 | the exact `Beta(car_blk/2, car_blk/2)` point at Pfa 10⁻³                                                                      | 2 / 3, the code lock's                                 | yes: `car_blk` from `dp_det_ratio_block_len()` at Pd 0.99                                  |
+| `sym.locked`        | the receiver's power-weighted EMA, weight 1/30 a symbol (`ASYNC_DSSS_RX_LOCK_DWELL`), of `(I² − Q²)/(I² + Q²)` = `cos 2φ` on the demodulator's symbols | up 0.5, down 0.3 (`ASYNC_DSSS_RX_LOCK_UP`, `ASYNC_DSSS_RX_LOCK_DOWN`): constants                                              | 30 / 15 symbols (`ASYNC_DSSS_RX_LOCK_N_UP`, `_N_DOWN`) | no: its rates are not stated ([#3253](https://github.com/doppler-dsp/doppler/issues/3253)) |
+| `demod.car.locked`  | `MpskReceiver`'s EMA, weight 0.05 a symbol (`CARRIER_NDA_LOCK_ALPHA`), of `Re((z/abs(z))²)` = `cos 2φ` of the on-time strobe                           | up 0.3 (`ASYNC_DSSS_RX_DEMOD_LOCK_THRESH`), down 0.24: constants                                                              | 8 / 32 symbols                                         | no                                                                                         |
+| `demod.sync.locked` | `RateSync`'s `2(abs(on)² − abs(mid)²)/(abs(on)² + abs(mid)²)` averaged over 133 symbols                                                                | 0.311: sized for symsync's pulse at roll-off 0.35 and Es/N0 10 dB (`ratesync_core.c`), not for this receiver's pulse or floor | 2 / 6                                                  | no                                                                                         |
 
-- **`car.locked`, derived.** With the code-period window the metric is `|cos φ|` per update, where φ is a phasor's phase at the window's ρ.
+The values are the 415.1-B-1 point's at 2.2 / 2.8 GHz, from the committed
+rule rows at `2bb1a6c8f` for every flag but `car.locked`, whose length is
+"The carrier lock"'s.
 
-    - Under noise φ is uniform: mean 2/π = 0.637, sd 0.308.
-    - Under signal, §4.8's density gives single quadratures: 0.884 / 0.169 at 2.2 GHz 4 dB, and 0.858 / 0.196 at 2.8 GHz 4 dB. The loop's 5° error lowers the mean by about 0.4%.
-    - With a block average of B updates, so that decisions are independent as det assumes, and a Gaussian approximation of the block mean (B ≥ 30): `√B = (z_fa σ₀ + z_d σ₁) / (μ₁ − μ₀)`, threshold `= μ₀ + z_fa σ₀ / √B`. At Pfa 10⁻³ and Pd 0.99 per decision that is B = 30 (9.5 ms) with threshold 0.810 at 2.2 GHz, and B = 41 (10.3 ms) with threshold 0.785 at 2.8 GHz. The verify counts come from the code lock's 10⁻⁶ budget (2 up, 3 down).
-    - **This is a change to the general `Costas` object**, not configuration. It gains a lock-metric mode: a block average of B with caller-given thresholds, beside today's EMA, or replacing it. B and the thresholds are sized by the caller from its own ρ, not hardcoded for this receiver.
-    - Users of `Costas`'s lock metric that it touches: the Python `Costas` (`track_ext_costas.c`), the `Despreader` (`despreader_core.c:59`, `:383-389`), `DsssReceiver` (`dsss_receiver_core.c:148`) and this receiver (`:170`, `:387`). Each keeps today's rule unless it opts in. The override is `dp_costas_configure_lock()`.
-    - Measured today at 2.8 GHz 4 dB (*uncommitted, to be rerun*): the metric's mean is 0.839 at the shipped bn and 0.851 at the rule's bn. Both sit on the 0.85 declare threshold, and the flag drops 25 times in 53 s.
-    - Under D0 the metric updates once a symbol, so B = 30 and 41 updates last 10.0 and 13.7 ms. At 2.2 GHz the placement lowers the signal mean slightly. The sizing is redone on the window D0 decides, by the same formula.
-
-- **D8: how the three receiver-side flags are sized.** A flag decides on a block of B symbols, so that its decisions are independent, as `det` assumes. It declares at Pfa 10⁻³ and Pd 0.99 per decision, with verify counts 2 up and 3 down from the code lock's 10⁻⁶ budget, as `car.locked` does. The signal model is fixed before any run:
-
-    - the Es/N0 at the decisions is the floor less the replica (0.39 dB) and the front-end band (0.24 / 0.38 dB): 3.37 dB at 2.2 GHz and 3.23 dB at 2.8;
-    - the phase error at the decisions is Gaussian, with sd 5.6° (the predicted jitter handed over, plus the demodulator's own 1.6° at bn 0.001) or 7.4° (the uncommitted reading at the shipped demodulator bn). The table gives the larger;
-    - the timing loss is 0. That is **not derived** (#3177), and the rows' measured mean tests it.
-
-    A receiver sized at the floor keeps its sizing at 10 dB, as the code look does (§4.10's inputs).
-
-- **`sym.locked`, derived.** The statistic is `R = (ΣI² − ΣQ²) / Σ(I² + Q²)` over B symbols, a ratio of sums: the power weighting the EMA form approximated.
-
-    - **Under noise** I and Q are independent `N(0, σ²)`, so `ΣI²` and `ΣQ²` are independent `σ²χ²_B`, and `(R + 1)/2` is exactly `Beta(B/2, B/2)`. Its mean is 0 and its variance `1/(B + 1)`. The threshold is that Beta's 10⁻³ upper point, with no Gaussian approximation.
-    - **Under signal** (`A² = 2 Es/N0` with σ = 1), the mean is `μ₁ = (Es/N0) E[cos 2θ] / (Es/N0 + 1)`. The delta method gives the per-symbol sd as `√(Var x − 2μ₁ Cov(x, y) + μ₁² Var y) / E y`, with `x = I² − Q²`, `y = I² + Q²`, `Var x = Var y = 4 + 4A²` and `Cov = 4A² E[cos 2θ]`.
-    - At the floor that gives μ₁ 0.662 / 0.656 and per-symbol sd 0.459 / 0.468. `√B = (z_fa · 1 + z_d σ₁)/μ₁` gives B = 40 (13.3 ms) at 2.2 GHz with threshold 0.463, and B = 41 (13.7 ms) at 2.8 GHz with threshold 0.458. The Pd at the Beta threshold is 0.996 to 0.997.
-    - At 10 dB on a 10 dB design the same formula gives B = 17 and threshold 0.662. That is under 30, where the Gaussian form for the signal is not trusted, so the floor's sizing is the one proposed.
-    - **Setter: none today.** It needs one on the receiver (B, thresholds, verify counts), and the receiver's `configure_lock_raw()` is where it goes.
-
-- **`demod.car.locked`, derived.** The statistic per decision is `carrier_nda_disc()`'s lock output, `Re((z/|z|)²) = cos 2φ` of the limited strobe, which `mpsk_rx_disc()` steps once an on-time strobe.
-
-    - **Under noise** it is bounded, with mean 0 and variance exactly ½ (`carrier_nda_core.h`, for every M).
-    - **Under signal** its mean and variance come from §4.8's phase density at the decision's Es/N0: `E[cos 2φ]` and `(1 + E[cos 4φ])/2 − E[cos 2φ]²`, each scaled by the Gaussian phase error's `e^(−2s²)` and `e^(−8s²)`. At the floor that gives μ₁ 0.573 / 0.564 and sd 0.501 / 0.508.
-    - The block mean, by the same Gaussian form (B ≥ 30), gives B = 35 (11.7 ms) at 2.2 GHz with threshold 0.369, and B = 36 (12.0 ms) at 2.8 GHz with threshold 0.364.
-    - Today's rule is an EMA (N_eff 39) at 0.3 / 0.24 with n 8 / 32. Its verify counts are shorter than its correlation length, the failure mode `carrier_nda_core.h` documents for n_up = 8.
-    - **This is a change to `MpskReceiver`**, a block mode beside its EMA, as `car.locked`'s is to `Costas`. It needs a setter too, since `lock_thresh` is create-only.
-
-- **`demod.sync.locked`, not derived, and what is missing.** The statistic is `2(|on|² − |mid|²)/(|on|² + |mid|²)`, averaged over a block of 133. Three things are missing:
-
-    - **The pulse.** The despread stream's symbol is a rectangle (the Dll's integrate-and-dump partials) through `RateConverter` and `MpskReceiver`'s RRC (β 0.35, span 8). The on-time and mid strobes' signal values follow from that composite pulse sampled at `RateConverter`'s sps, with the data's transitions on half the boundaries. Nobody has written that composite pulse down.
-    - **The noise.** The on and mid strobes share noise through the same filter. Their correlation is the composite filter's autocorrelation at half a symbol, which is not computed.
-    - **The timing error at the strobes** (#3177), which shifts both values.
-
-    With those three, the statistic's mean and variance follow from the same delta method, and the block's B and threshold by the formula above. `RateSync`'s transferred 0.311 at roll-off 0.35, Es/N0 10 dB was sized for a different pulse and a different floor, and its own source declines to resize it. The override is `dp_ratesync_configure_lock_raw()`.
+- **A decision of an EMA flag is not independent of the next.** The
+    counts on `sym.locked` and `demod.car.locked` count consecutive updates
+    of an average whose memory (59 and 39 symbols) is longer than the
+    counts, so they do not give the false-drop rate a count on disjoint
+    decisions would. `code.locked` and `car.locked` decide on disjoint terms.
+- **No flag sees a carrier slip.** The symbol and demodulator statistics
+    are `cos 2φ`, blind to π, the sync statistic an eye ratio, and the code
+    and carrier statistics magnitudes ("Slips").
+- **The code lock false-declares above its stated rate.** On noise alone
+    it declares 1.66 to 2.19 × 10⁻³ a decision against the 10⁻³ its
+    threshold is set for, at both carriers and both design points; the same
+    term held at one timing hypothesis reads 0.86 to 1.22 × 10⁻³ (`# code_lock_noise`
+    of `validate_async_dsss_receiver_lock`, committed at `edea9c649` in
+    `src/doppler/dsss/tests/validation/async_dsss_receiver/data/sweep.txt`).
+    The aid's choice reads the window being summed ("The code loop and its
+    lock"), which is the difference.
 
 ### 4.11 The receiver as it is: what is run, what it shows, and what the harness can tell (step 1, proposed)
 
@@ -2313,66 +2297,6 @@ Built at `77547aa86`, step 1 of the build order.
 | (iv) `validate_async_dsss_receiver_pullin --check`, "the live carrier holds a 400 Hz/s ramp at 10 dB" (`:2698`) | a 3 s draw (`PI_RAMP_CHECK_S`, `:232`); asserts the end state                                       | **not a window of this kind.** It asserts tracking at a rate the owner ruled outside the loops' sizing (11 Hz/s governs). D3's wording "an order-2 loop lags that ramp past the check's limit" is not borne out by the loop's own ramp error, `2π R T²/(ω_n T)²` (`:1642`): 0.79° at 11 Hz/s is 29° at 400 Hz/s, inside the fold. So the failure is the pull-in under the ramp, not a steady lag. No line from the failing run is committed. D3's wording is to be corrected | printed by `--check`, not gated (the receiver is configured for R_env); no committed reading |
 
 So (i) and (ii) cannot read the receiver at all with a window that short, (iii) is green under the window at `77547aa86`, and (iv) is a check outside the use case. None of the four is shown on this page to be a receiver that fails inside a 20 s allocation.
-
-#### The five lock detectors at today's settings, and the proposed sizing
-
-On paper.
-
-**The owner's question.** "are we using the proper integrate-and-dump length on the test statistic so that signals snr is high enough to not declare unlock falsely? Are we assuming a DC level in AWGN for the lock signal or are we calibrating the null hypothesis threshold to false alarm-rate?"
-
-**How the table is computed.** H0 is noise alone. H1 is the floor, Es/N0 4 dB. The H1 per-look statistics are D7's and D8's (§4.10), and the code look's is `det`'s.
-
-- An EMA's sd is the per-look sd times `√(α/(2 − α))`, with `N_eff = (2 − α)/α`.
-- Rates on an EMA are per update, Gaussian on the EMA. They are not per-decision rates, because the verify counts are shorter than the EMA's memory.
-- The changes measured are run 415's committed rows (guideline arm, at the floor, 2.2 / 2.8 GHz, after each flag sustained), per minute.
-
-| flag                | statistic and integration                                                                                      | H0, and the threshold from it                                                                                                                                                                                                                                                                                       | H1 at the floor                                            | Pd, and the false-unlock rate                                                                                                                                              | consecutive decisions independent?                | measured changes, a minute |
-| ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------- |
-| code                | `R = √(2 Σ abs(P)² / noise)` over a block of n = 22 / 20 looks, one a symbol: 7.3 / 6.7 ms; noise EMA α 1/1024 | χ² with 2n degrees of freedom; η = `det_threshold_noncoherent(10⁻³, n)` = 8.87 / 8.57. **Set from H0 at a stated Pfa** (10⁻³), with the noise reference taken as exact                                                                                                                                              | look SNR 2.55 / 2.75 dB; R mean 11.10 / 10.74, sd 0.91     | Pd 0.993 / 0.992 a decision; false unlock 0.007 / 0.008 a decision, 10⁻⁶ after 3 down. Measured Pfa 1.7 to 2.2 × 10⁻³, twice the stated (`# code_lock_noise`, `d2e66eea9`) | yes: disjoint blocks, sharing only the noise EMA  | 0.07 / 0.13                |
-| carrier (`Costas`)  | EMA (α 0.1) of `abs(Re P)/abs(P)` once a code period: `N_eff` 19, 6.0 / 4.75 ms                                | `abs(cos)` of a uniform phase: mean 0.637, sd 0.308, EMA sd 0.071. Up 0.85 sits 3.0 sd above, down 0.78 2.0 sd. **Modeled, but no Pfa is stated and none is derived**; "about 3σ" in Gaussian terms                                                                                                                 | mean 0.884 / 0.858, sd 0.169 / 0.196; EMA sd 0.039 / 0.045 | above up on 81% / 57% of updates; below down on 3.7 × 10⁻³ / 4.1 × 10⁻² of updates                                                                                         | no: 8 up and 32 down, against an EMA memory of 19 | 0.43 / 8.77                |
-| symbol              | EMA ratio (α 1/30) of `(I² − Q²)/(I² + Q²)` once a symbol: `N_eff` 59, 19.7 ms                                 | mean 0, EMA sd 0.130; up 0.5 sits 3.8 sd above, down 0.3 2.3 sd. **No derivation** (`ASYNC_DSSS_RX_LOCK_*` constants)                                                                                                                                                                                               | mean 0.662 / 0.656, sd 0.459 / 0.468; EMA sd 0.060 / 0.061 | above up on 99.7% / 99.5% of symbols; below down on 7 × 10⁻¹⁰ / 3 × 10⁻⁹                                                                                                   | no: 30 up and 15 down, against 59                 | 1.16 / 0.69                |
-| demodulator carrier | EMA (α 0.05) of `Re((z/abs(z))²)` once a symbol: `N_eff` 39, 13 ms                                             | exact: mean 0, variance ½, EMA sd 0.113. The object's own threshold, 0.5, is derived at Pfa 5 × 10⁻⁶ a look with n_up 64. **The receiver overrides it** with 0.3 (2.65 sd) and 8 / 32 (`ASYNC_DSSS_RX_DEMOD_LOCK_THRESH`, no derivation). `carrier_nda_core.h` measured n_up 8 false-locking 4 times in 30 on noise | mean 0.573 / 0.564, sd 0.501 / 0.508; EMA sd 0.080 / 0.081 | above up on 99.97% / 99.94%; below down on 1.7 × 10⁻⁵ / 3.4 × 10⁻⁵                                                                                                         | no: 8 and 32, against 39                          | 1.07 / 0.97                |
-| sync                | block of 133 of `2(abs(on)² − abs(mid)²)/(abs(on)² + abs(mid)²)`: 44.3 ms                                      | symsync's Monte Carlo at Pfa 10⁻³, Pd 0.9, roll-off 0.35, **Es/N0 10 dB**, transferred (`ratesync_core.c:18-32`); 0.311 for both. **Not derived for this pulse or the floor**                                                                                                                                       | not derived (D8 lists the three missing inputs)            | not derived                                                                                                                                                                | yes: disjoint blocks; 2 / 6 from the 10⁻⁶ budget  | 3.69 / 3.45                |
-
-**What the model and the measurement say together.** For the symbol and demodulator flags, the stationary model at the floor gives a false unlock of 10⁻⁹ to 10⁻⁵ an update. The rows show about one change a minute.
-
-- So those changes come from outside the stationary model: excursions such as the carrier loop's slips, which the rows' `exc*_win_frac` columns attribute. They do not come from the threshold's noise.
-- The carrier flag at 2.8 GHz sits on its own up threshold: H1's mean 0.858 against 0.85. It changes 8.8 times a minute. That one is the threshold.
-
-**The answer to the owner's two questions, at today's settings.**
-
-- **Integrate-and-dump length:** only the code flag's is sized for the floor's SNR (`det_n_noncoh` at Pd 0.99, Pfa 10⁻³).
-    - The carrier, symbol and demodulator flags are EMAs with lengths not derived from SNR.
-    - The sync flag's 133 was sized for another pulse at 10 dB.
-- **A DC level in AWGN:** no detector assumes one.
-- **Calibrating the null hypothesis to a false-alarm rate:**
-    - only the code flag sets its threshold from H0 at a stated Pfa, and its measured Pfa is twice that;
-    - the carrier flag's threshold is placed by a Gaussian rule of thumb on a modeled H0;
-    - the symbol and demodulator thresholds are constants;
-    - the sync threshold is calibrated for a different case.
-- **The verify counts:** on every EMA they count correlated looks, so the 10⁻⁶ budget they are meant to give is not what they give.
-
-**The proposed sizing, beside today's.** Every flag decides on a block of B with a threshold from H0 at Pfa 10⁻³ and B from H1 at the floor for Pd 0.99. The verify counts are 2 up and 3 down from the 10⁻⁶ budget, on independent blocks. Each is formed on the despread signal, without a decision (the NDA audit above).
-
-| flag                | today                              | proposed                                                                                                                               | B, threshold (2.2 / 2.8 GHz)                    | Pd            | from                        |
-| ------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------- | --------------------------- |
-| code                | det block, n 22 / 20               | unchanged; the look's Pfa excess is D5's, on paper                                                                                     | —                                               | 0.993 / 0.992 | §4.10                       |
-| carrier             | `Costas` EMA of `abs(Re P)/abs(P)` | `carrier_nda`'s `Σ(I² − Q²) / Σ(I² + Q²)` on the window sum, exact Beta threshold. This replaces D7's block mean of `abs(Re P)/abs(P)` | 33 / 43 updates (10.5 / 10.8 ms), 0.504 / 0.449 | 0.990 / 0.991 | the `carrier_nda` row above |
-| symbol              | EMA, 0.5 / 0.3, 30 / 15            | block ratio of sums, exact Beta threshold                                                                                              | 40 / 41 symbols (13.3 / 13.7 ms), 0.463 / 0.458 | 0.996 / 0.997 | D8                          |
-| demodulator carrier | EMA, 0.3 / 0.24, 8 / 32            | block of `Re((z/abs(z))²)`                                                                                                             | 35 / 36 symbols (11.7 / 12.0 ms), 0.369 / 0.364 | 0.99          | D8                          |
-| sync                | block 133, 0.311                   | **not derived**: needs the composite pulse, the noise correlation at half a symbol, and the timing error (#3177)                       | —                                               | —             | D8                          |
-
-**EARLY LOCK, from the error-rate window's budget check** (`77547aa86`, the burst `--check` at 2.8 GHz 7 dB): the three bursts handed over inside the edge (+2.1, −13.6 and +8.9 Hz) open their window at symbols 265 to 531. The budget is 3,000. Two readings fit it:
-
-- **The budget is loose,** by 6 to 11 times. Its `2 (5/bn_t + 5/bn_c)` settles both demodulator loops from any start, and these hand-overs start inside the edge.
-- **The flags declare before the loops settle.** The window then opens on a transient, and the first scored second carries it.
-
-**What tells them apart.** The carrier phase error's sd over the first second of the scored window, against its last second.
-
-- Equal within their intervals: the loops had settled, and the budget is loose.
-- The first wider: the flags declared early, which is a detector finding for the sizing above.
-
-It stays printed, and there is no run for it yet.
 
 ## 5. The pool: N receivers, one search
 

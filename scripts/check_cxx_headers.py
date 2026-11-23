@@ -58,7 +58,21 @@ judgment. An entry must be
 An entry that fails either test, has no reason, names a header that is not
 installed, or is on both lists fails the gate.
 
-A missing compiler is not a pass: the gate exits 1 and says it did not run.
+What a parse cannot see: linkage
+--------------------------------
+A header that parses can still fail to LINK from C++: a function it
+declares outside `extern "C"` gets C++ linkage there, so the caller asks
+for a mangled symbol the C library never defined. `dp_tlm_core.h` shipped
+that way, and `-fsyntax-only` passed it. So every header that parses is
+read a second time by clang++'s AST dump, and any function declared at
+file scope -- outside every `extern "C"` block -- that is neither `static`
+nor `inline` is a fault, named with the header that declares it (the one
+showing it whose own includes do not). No list: the correct count is zero
+and it is zero. A `static` or `inline` body is compiled into the caller,
+so its linkage cannot fail a link.
+
+A missing compiler is not a pass: the gate exits 1 and says it did not run,
+and the linkage read needs a clang++ among `--cxx`.
 """
 
 from __future__ import annotations
@@ -193,6 +207,75 @@ def first_error(cxx: str, std: str, inc: pathlib.Path, header: str) -> str:
     return f"{cxx} exited {proc.returncode} with no diagnostic"
 
 
+#: A file-scope function in clang's text AST dump: the line starts at the
+#: translation unit's own depth (a declaration inside `extern "C"` is one
+#: level deeper, under its LinkageSpecDecl), and ends with the name, the
+#: type (and its desugared form), then any storage class / inline flags.
+_TOP_FN = re.compile(
+    r"^[|`]-FunctionDecl .* (\w+) '[^']*'(?::'[^']*')?((?: [a-z_]+)*)$"
+)
+
+
+def cxx_linkage(
+    cxx: str, std: str, inc: pathlib.Path, header: str
+) -> set[str]:
+    """The functions *header* (and what it includes) gives C++ linkage.
+
+    Read off clang++'s AST dump of a translation unit holding only the
+    include: a function declared at file scope that is neither ``static``
+    nor ``inline``. Empty when everything a caller links against is inside
+    ``extern "C"``.
+    """
+    proc = subprocess.run(
+        [
+            cxx,
+            f"-std={std}",
+            "-x",
+            "c++",
+            "-fsyntax-only",
+            "-fno-color-diagnostics",
+            "-Xclang",
+            "-ast-dump",
+            f"-I{inc}",
+            "-",
+        ],
+        input=f'#include "{header}"\n',
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    out: set[str] = set()
+    for line in proc.stdout.splitlines():
+        m = _TOP_FN.match(line)
+        if m and not {"static", "inline"} & set(m.group(2).split()):
+            out.add(m.group(1))
+    return out
+
+
+def declared_in(
+    shown: dict[str, set[str]], graph: dict[str, set[str]]
+) -> dict[str, str]:
+    """``{function: the header that declares it}``.
+
+    A function shows in every header that includes its declaration; the
+    declaring one is the header showing it none of whose (transitive)
+    includes does.
+    """
+
+    def closure(h: str, seen: set[str]) -> set[str]:
+        for g in graph.get(h, ()):
+            if g not in seen:
+                seen.add(g)
+                closure(g, seen)
+        return seen
+
+    out: dict[str, str] = {}
+    for fn, hs in shown.items():
+        roots = sorted(h for h in hs if not (closure(h, set()) & hs))
+        out[fn] = roots[0] if roots else sorted(hs)[0]
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the sweep; 0 only when the tree and the exempt list agree."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
@@ -256,6 +339,32 @@ def main(argv: list[str] | None = None) -> int:
         results = dict(pool.map(check, names_cxx))
 
     broken = {n: e for n, e in results.items() if e}
+
+    clang = next((c for c in compilers if "clang" in pathlib.Path(c).name), "")
+    if not clang:
+        problems.append(
+            "no clang++ among --cxx: the linkage read did not run, so it "
+            "has not passed"
+        )
+    else:
+        parsing = [n for n in names_cxx if n not in broken]
+
+        def linkage(name: str) -> tuple[str, set[str]]:
+            return name, cxx_linkage(clang, args.std, inc, name)
+
+        with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
+            got = dict(pool.map(linkage, parsing))
+        shown: dict[str, set[str]] = {}
+        for name, fns in got.items():
+            for fn in fns:
+                shown.setdefault(fn, set()).add(name)
+        for fn, hdr in sorted(
+            declared_in(shown, includes(inc, names)).items()
+        ):
+            problems.append(
+                f'{hdr}: `{fn}` is declared outside extern "C", so a C++ '
+                "caller links a mangled name the library does not define"
+            )
     for name in sorted(broken):
         if name not in exempt:
             problems.append(
@@ -278,7 +387,8 @@ def main(argv: list[str] | None = None) -> int:
         f"cxx-headers-check: OK -- {passing} of {len(names_cxx)} installed "
         f"headers parse as {args.std} under {' and '.join(compilers)}; "
         f"{len(broken)} exempt (the list only shrinks); {len(not_cxx)} "
-        "not C++ headers (private or Python-only)."
+        "not C++ headers (private or Python-only); every function a caller "
+        "links against has C linkage."
     )
     return 0
 

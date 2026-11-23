@@ -164,7 +164,12 @@ void dp_costas_init(dp_costas_state_t *s, double bn, double zeta,
  * @param s  Costas state.  Must be non-NULL.
  * @param x  One input sample.
  * @return The de-rotated sample to feed the integrator.
+ *
+ * @note C only, with costas_update(): the bodies call lo_step() and the C99
+ *   complex library (crealf, cabsf), which C++ does not have (dp_complex.h,
+ *   "From C++"). A C++ caller uses dp_costas_steps().
  */
+#ifndef __cplusplus
 JM_FORCEINLINE JM_HOT float _Complex
 costas_wipeoff(dp_costas_state_t *s, float _Complex x)
 {
@@ -239,6 +244,7 @@ costas_update(dp_costas_state_t *s, float _Complex P)
      * `locked`. Inline POD step — no call, one branch per symbol. */
     (void)dp_lockdet_step(&s->lock, s->lock_metric);
 }
+#endif /* !__cplusplus */
 
 /**
  * @brief Create a Costas instance.

@@ -2025,7 +2025,14 @@ The composition API: mixes, decimates and matched-filters `x` through the front 
 
 **Returns:**
 
-1 if a symbol was emitted (into `y_out`), 0 otherwise. 
+1 if a symbol was emitted (into `y_out`), 0 otherwise.
+
+
+
+
+**Note:**
+
+C only, with [**mpsk\_receiver\_step\_real\_ted()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_step_real_ted): both fold through [**mpsk\_rx\_fold()**](mpsk__rx__loops_8h.md#function-mpsk_rx_fold), which is C-only ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md)). A C++ caller uses [**dp\_mpsk\_receiver\_steps()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_steps). 
 
 
 

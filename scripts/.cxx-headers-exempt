@@ -6,12 +6,3 @@
 # the gate fails on a header that is missing from it, and on a line whose
 # header now parses. What crosses into C++ and what does not is
 # native/inc/doppler/dp_complex.h, "From C++".
-doppler/async_dsss_pool/async_dsss_pool_core.h  # an inline body calls lo_step(), which is C-only, via costas/costas_core.h
-doppler/async_dsss_receiver/async_dsss_receiver_core.h  # an inline body calls lo_step(), which is C-only, via costas/costas_core.h
-doppler/async_dsss_receiver/async_dsss_receiver_private.h  # an inline body calls lo_step(), which is C-only, via costas/costas_core.h
-doppler/costas/costas_core.h  # an inline body calls lo_step(), which is C-only
-doppler/despreader/despreader_core.h  # an inline body calls lo_step(), which is C-only, via costas/costas_core.h
-doppler/dll/dll_core.h  # an inline body uses the C99 complex library (`cabsf`)
-doppler/doppler.h  # an inline body calls lo_step(), which is C-only, via costas/costas_core.h
-doppler/dsss_receiver/dsss_receiver_core.h  # an inline body uses the C99 complex library (`cabsf`), via dll/dll_core.h
-doppler/mpsk_receiver/mpsk_receiver_core.h  # an inline body calls mpsk_rx_fold(), which is C-only

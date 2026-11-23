@@ -1331,7 +1331,10 @@ wfofdm_read_pair (const wfm_source_t *src, int *c, int *r)
   (void)dp_wlan_rate_resolve (dp_wlan_tables_standard (), &dc, &dr, 0u);
   if (!dp_wlan_n_bpsc (*c))
     *c = dc;
-  if (*r < 0 || *r >= WLAN_CODE_AUTO)
+  /* a code is valid when wlan's own predicate says so (dp_wlan_rate_ok
+     reads the one list of codes), never by its place beside auto */
+  const dp_wlan_rate_t pr = { dp_wlan_n_bpsc (*c), (dp_wlan_code_t)*r };
+  if (!dp_wlan_rate_ok (&pr))
     *r = dr;
 }
 

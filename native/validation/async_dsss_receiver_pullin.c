@@ -770,8 +770,9 @@ pi_d10_split (const float *e_car, const float *e_cod, size_t n_blk,
    lock with a second of on-code tracking after it: the same error stream
    with a forced pi slip spliced in a second after the declared lock -- the
    phase walking forward half a cycle over PI_FORCED_SLIP_BLK blocks, then
-   holding there, refolded -- must read one net reversal, so the gate
-   (net_rev_post == 0) goes red on it. */
+   holding there, refolded -- must read one net reversal more than the
+   draw's own, so the gate (net_rev_post == 0) goes red on it whatever the
+   draw read. */
 #define PI_FORCED_SLIP_BLK 20
 static int pi_forced_slip_done = 0;
 
@@ -799,7 +800,7 @@ pi_forced_slip (const float *e_car, const float *e_cod, size_t n_blk,
   printf ("  the slip gate's failing case: a forced pi slip %.1f s after the "
           "declared lock reads %ld net reversal(s) (the draw: %ld)\n",
           1.0, forced.net_rev_post, d->net_rev_post);
-  DP_CHECK_MSG (forced.net_rev_post == 1,
+  DP_CHECK_MSG (forced.net_rev_post - d->net_rev_post == 1,
                 "control: a forced pi slip after the declared lock is one "
                 "net reversal, so the gate is red on it");
   free (f);
@@ -2089,7 +2090,7 @@ pi_design (const double fcs[2], const double esn0s[4])
   static const double delays[3] = { 0.0, 1.0, 1.75 };
   printf ("# design\nfc_ghz,esn0_db,order,bn_source,bn,"
           "T_us,rho,kw,slope,delay,bn_delivered,lsnr_rule_db,lsnr_sq_db,"
-          "lag400_deg\n");
+          "lag_r_env_deg\n");
   for (int f = 0; f < 2; f++)
     for (int e = 0; e < 4; e++)
       {

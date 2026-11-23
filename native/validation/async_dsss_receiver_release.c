@@ -107,7 +107,7 @@
 #define FS (CHIP_RATE * (double)SPC)
 #define SYM_RATE 2700.0
 
-#define SETTLE_BLOCKS 200 /* both flags on for this many blocks first  */
+#define SETTLE_BLOCKS 200 /* tracking with symbol lock up this long first */
 #define MAX_LOCK_S 6.0    /* give up on a trial that never settles      */
 #define POST_S 1.5        /* watch this long after a fade or a step     */
 #define OFF_WATCH_S                                                           \

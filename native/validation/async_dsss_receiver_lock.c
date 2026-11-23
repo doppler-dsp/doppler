@@ -900,9 +900,12 @@ ramp_rows (const uint8_t *code, int check, int emit)
                       "refine false hands over within a row plus the "
                       "half-dwell age of the truth");
       }
-  /* The bound's failing case, produced: refine false seeded two rows off
-     the truth hands over two rows off, and the predicate the rows are
-     held to refuses it. */
+  /* The bound's failing case: refine false seeded two rows off the truth.
+     With refine false the seed IS the hand-over, so this reads back what
+     the harness set: it tests the predicate the rows are held to and the
+     path that reads a hand-over's error (the first tracking call against
+     the truth at its start), not a hand-over the receiver computed. The
+     search cannot be made to land two rows off from outside it. */
   {
     ramp_t fr = { .ho_err_hz = NAN };
     DP_REQUIRE (run_ramp_forced (code, false, f0s[0], 1, 1, 2.0, &bound, &fr)

@@ -33,11 +33,13 @@ ratio_mc (double g, double sg, int n, double r, int nb, uint32_t seed,
       double num = 0.0, den = 0.0, n0 = 0.0, d0 = 0.0;
       for (int k = 0; k < n; k++)
         {
-          const double d         = (dp_xs32 (&st) & 1u) ? 1.0 : -1.0;
-          const double th        = sg * dp_gauss (&st);
-          const float _Complex e = dp_cgauss (&st), w = dp_cgauss (&st);
-          const double zi = amp * d * cos (th) + (double)crealf (e);
-          const double zq = amp * d * sin (th) + (double)cimagf (e);
+          const double d  = (dp_xs32 (&st) & 1u) ? 1.0 : -1.0;
+          const double th = sg * dp_gauss (&st);
+          /* Two draws, sequenced: e first, then w. */
+          const float _Complex e = dp_cgauss (&st);
+          const float _Complex w = dp_cgauss (&st);
+          const double zi        = amp * d * cos (th) + (double)crealf (e);
+          const double zq        = amp * d * sin (th) + (double)cimagf (e);
           const double wi = (double)crealf (w), wq = (double)cimagf (w);
           num += zi * zi - zq * zq;
           den += zi * zi + zq * zq;

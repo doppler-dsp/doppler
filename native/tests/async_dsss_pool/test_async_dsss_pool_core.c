@@ -1588,8 +1588,6 @@ typedef struct
   double                      df_end;  /* receiver 1's carrier minus 0's */
   int                         tracked; /* receiver 1 reached tracking     */
   long n, code_up, sym_up, both_down;  /* its tracking steps and flags   */
-  int  rule_k, any_k; /* while both rings were full: the ghost rule, and its
-                         counterfactual with k = 0 admitted, took it      */
 } _g415_t;
 
 /* The sidelobe the ghost scenes seed on: 167 chips from the code's peak,
@@ -1645,7 +1643,6 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
   out->tracked         = 0;
   out->df_end          = NAN;
   out->n = out->code_up = out->sym_up = out->both_down = 0;
-  out->rule_k = out->any_k = 0;
   for (;;)
     {
       const size_t want = push - p->carry_len;
@@ -1679,8 +1676,6 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
           out->code_up += s1.code_locked != 0;
           out->sym_up += s1.locked != 0;
           out->both_down += !s1.code_locked && !s1.locked;
-          out->rule_k |= dp_async_dsss_pool_ghost_of (p, 0, 1);
-          out->any_k |= dp__async_dsss_pool_ghost_of_any_k (p, 0, 1);
         }
       if (s1.state == ASYNC_DSSS_RX_IDLE || t - t_seed > tmax_s)
         break;
@@ -1973,36 +1968,56 @@ _test_refine_passes_through (void)
    built today separates it without releasing usable tracks
    (doppler#3263). The test asserts the defect is STILL THERE, so it goes
    red the day a rule closes it: then restore the claim (receiver 1 idle,
-   exactly one release) and close the issue. The ghost rule's own pin, on
-   a pool whose seed stays at k = 2, is _test_ghost_is_released. */
+   exactly one release) and close the issue. "Held" is receiver 1's tenure
+   unbroken (_shipped_ghost_held): no release of any kind, still tracking,
+   on A's carrier; seed 2 runs beside it as the failing case. The ghost
+   rule's own pin, on a pool whose seed stays at k = 2, is
+   _test_ghost_is_released. */
+/* Receiver 1's tenure unbroken to the end of a shipped-pool k = 2 scene:
+   no release of any kind (so a release the search re-seeded in the same
+   control step still counts as broken), still tracking, and on A's own
+   carrier (within half a lattice step). Prints the scene's line. */
 static int
-_test_shipped_pool_leaves_one_on_a (void)
+_shipped_ghost_held (const uint8_t *code, uint32_t seed, int *held)
 {
-  uint8_t code[1023];
-  dp_dsss_gold_1023 (code);
-  const double lost_s = 2.0; /* the declared default */
-  _g415_t      z;
-  DP_REQUIRE (_g415_scene (code, 5, 60.0, 2, lost_s, DP_S415_LOCK_S, true, &z)
+  _g415_t z;
+  DP_REQUIRE (_g415_scene (code, seed, 60.0, 2, 2.0, DP_S415_LOCK_S, true, &z)
               == 0);
   dp_async_dsss_pool_state_t *p = z.p;
-  printf ("k = 2 scene, shipped pool, %.0f s: carrier %.1f Hz off A's, %ld "
-          "tracking steps (%ld code up, %ld symbol up, %ld both down), "
-          "released ghost %llu duplicate %llu lost %llu\n",
-          DP_S415_LOCK_S, z.df_end, z.n, z.code_up, z.sym_up, z.both_down,
-          (unsigned long long)p->released_ghost,
+  printf ("k = 2 scene, shipped pool, seed %u, %.0f s: carrier %.1f Hz off "
+          "A's, %ld tracking steps (%ld code up, %ld symbol up, %ld both "
+          "down), released ghost %llu duplicate %llu lost %llu\n",
+          seed, DP_S415_LOCK_S, z.df_end, z.n, z.code_up, z.sym_up,
+          z.both_down, (unsigned long long)p->released_ghost,
           (unsigned long long)p->released_duplicate,
           (unsigned long long)p->released_lost);
   DP_REQUIRE_MSG (z.tracked, "the seed reached tracking");
   DP_REQUIRE (dp_async_dsss_pool_status (p, 0).state
               == ASYNC_DSSS_RX_TRACKING);
-  const int one_on_a
-      = dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_IDLE
-        && p->released_ghost + p->released_duplicate + p->released_lost == 1;
-  DP_CHECK_MSG (!one_on_a && fabs (z.df_end) < 0.5 * p->lattice_hz,
-                "XFAIL (strict) doppler#3263: the shipped pool still holds a "
-                "k = 0 ghost on A to the allocation's end; if this is red, a "
-                "rule closed it -- restore the claim and close the issue");
+  *held = p->released_ghost + p->released_duplicate + p->released_lost == 0
+          && dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_TRACKING
+          && fabs (z.df_end) < 0.5 * p->lattice_hz;
   dp_async_dsss_pool_destroy (p);
+  return 0;
+}
+
+static int
+_test_shipped_pool_leaves_one_on_a (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  int held5, held2;
+  DP_REQUIRE (_shipped_ghost_held (code, 5, &held5) == 0);
+  DP_CHECK_MSG (held5,
+                "XFAIL (strict) doppler#3263: the shipped pool still holds a "
+                "k = 0 ghost on A, its tenure unbroken, to the allocation's "
+                "end; if this is red, a rule closed it -- restore the claim "
+                "and close the issue");
+  /* The failing case: seed 2, which the loss release frees inside the
+     allocation, must read not held. */
+  DP_REQUIRE (_shipped_ghost_held (code, 2, &held2) == 0);
+  DP_CHECK_MSG (!held2, "control: a ghost the loss release frees is not "
+                        "read as held");
   return 0;
 }
 

@@ -3483,15 +3483,16 @@ live emitter's and can capture one crossing slowly enough (the record's
 §12.19). Held, the receiver dead-reckons from where its emitter left it,
 at the rate its code loop held, and a genuine return within about 0.6 chip
 of the replica lands on it, lights a flag, and the loops run again on it.
-How long a dropout that covers is set by the held rate's error, which is
-the trial's own and fixed through the hold: at the 415.1-B-1 point, 10 dB,
-it spans -3.0 to +1.9 chips/s over 40 trials, so a held receiver rides
-back onto its replica after every 0.1 s dropout, 38 of 40 at 0.2 s, 31 of
-40 at 0.5 s and 17 of 40 at 1 s; at 2 s the release (2.0 s, both flags
-down) takes 32 of 40 first (`longdrop-6b54f4a54`, `read_ld.py`). The
-spread is about one phase-word step of code rate either way (fs sf / 2^32
-= 2.62 chips/s), the width a truncating rate conversion leaves the loop's
-integrator free to sit in (doppler#3249);
+That is a feature for fades; no fade duration is required of it. What it
+covers today is set by the held rate's error, which is the trial's own and
+fixed through the hold. At the 415.1-B-1 point, 10 dB, that error spans
+-3.0 to +1.9 chips/s over 40 trials. A held receiver rides back onto its
+replica after every 0.1 s dropout, 38 of 40 at 0.2 s, 31 of 40 at 0.5 s
+and 17 of 40 at 1 s; at 2 s the release (2.0 s, both flags down) takes 32
+of 40 first (`longdrop-6b54f4a54`, `read_ld.py`, a characterization that
+gates nothing). The spread is about one phase-word step of code rate either
+way (fs sf / 2^32 = 2.62 chips/s), the width a truncating rate conversion
+leaves the loop's integrator free to sit in (doppler#3249);
 a neighbor passing through lights the code flag for the crossing, steers
 for the blip, and is dropped on re-entry, because the hold point is marked
 with both flags up. Holding on **one** flag down fails:

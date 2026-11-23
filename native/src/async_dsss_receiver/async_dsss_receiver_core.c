@@ -1807,7 +1807,7 @@ dp_async_dsss_receiver_create (
 
   /* The fine hand-over, designed at the design point: the code's share of
      sign-changing boundaries (the replica's loss), the seed's error bound
-     (the seed's row and the truth each inside +/-doppler_uncertainty), the
+     (below: the right emitter's seed error, capped by the span), the
      code error the search's grid leaves (half a search sample), a refine
      block's length, the receiver's pfa and ASYNC_DSSS_RX_FINE_P_HO. Off
      where the design refuses (M other than 2, a bound no divisor of
@@ -1818,11 +1818,23 @@ dp_async_dsss_receiver_create (
       flips += (code[i] & 1u) != (code[(i + 1) % code_len] & 1u);
     const double block_s = (double)refine_n_fft
                            / ((double)refine_samples_per_symbol * symbol_rate);
+    /* The seed's error bound, for a hit on the right emitter: the data
+       spectrum's main lobe (a dwell partly in data smears the peak to
+       anywhere inside +-symbol_rate, its first nulls) plus the search's
+       row, capped by the span's worst pair (the seed and the truth each
+       inside +-doppler_uncertainty), which bounds any peak. Not the span
+       alone: a wide span asked for a K no divisor of refine_segments
+       covers, and the fine hand-over went off where the coarse seed is
+       worst (docs/design/async-dsss-receiver.md, "The seed's error
+       bound"). A seed further off than this aliases by K / (M T); the
+       tone check passes it, and the carrier loop never locks. */
+    double row = 0.0;
+    (void)dp_correlator_get_doppler_res_hz (obj->acq, &row);
+    const double e_seed = fmin (2.0 * doppler_uncertainty, symbol_rate + row);
     obj->fine_on
         = dp_async_dsss_receiver_fine_design (
               cn0_dbhz, chip_rate, code_len, (double)flips / (double)code_len,
-              symbol_rate, m, obj->refine_segments, 2.0 * doppler_uncertainty,
-              doppler_rate,
+              symbol_rate, m, obj->refine_segments, e_seed, doppler_rate,
               0.5 / (spc * (obj->srch_rs ? obj->srch_ratio : 1.0)), block_s,
               pfa, ASYNC_DSSS_RX_FINE_P_HO, refine_max_n_blocks, &obj->fine)
           == DP_OK;

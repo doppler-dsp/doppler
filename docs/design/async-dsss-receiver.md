@@ -2804,10 +2804,25 @@ The receiver hands over this estimate: `dp_async_dsss_receiver_fine_design()` de
     - Run 415's rows read more than that: `seed_code_chip` has a median of 0.11 to 0.15 and a worst of 0.40, and the tracking `Dll`'s first error after the hand-over (`ho_code_chip`) is as high as 0.39. That excess is not explained here.
     - The refine `Dll`'s own error during the dwell is in no row.
 - `e` is the seed's error in Hz.
-    - Its design bound is 3,000 Hz: the seed's row and the truth each lie within the ±1,500 Hz span (`doppler_uncertainty`).
+    - Its design bound is `min(2 · doppler_uncertainty, Rs + row)`: 3,022 Hz at both carriers here (below, "The seed's error bound").
     - Run 415's worst seed errors are 371, 936, 1,235 and 1,498 Hz at the four cells.
 
-**K, by rule.** `K` is the smallest divisor of `refine_segments` with `K/(2MT)` above the seed's design bound. At M = 2 that needs `K > 4T · 3,000 Hz` = 3.82 at 2.2 GHz and 3.00 at 2.8 GHz, so `K = 5` at both. Four does not divide 10, and at 2.8 GHz it would only equal the bound. `K = 1` is shown beside it.
+**The seed's error bound.** The bound the design covers is the right emitter's seed error, `min(2 · doppler_uncertainty, Rs + row)`.
+
+- **The span's worst pair** (the seed and the truth each inside `±doppler_uncertainty`) bounds any peak the search returns. It is kept as the cap. It is not a bound on the mechanism: a wide span asks for a `K` no divisor of `refine_segments` covers, and the fine hand-over goes off exactly where the coarse seed is worst.
+- **The right emitter's seed lands inside the data spectrum's main lobe.** A dwell partly in data smears the peak (§2.3) to anywhere inside `±Rs`, the first nulls, and the search's row adds its resolution. Step D's 720 draws (`async-dsss-receiver-measurements/d-6fc84cc80/`, `seed_err_hz`) read:
+
+| carrier | row     | lattice `1/(2T)` | median abs | p90    | p99      | max      | past 3 rows | nearest lattice multiple |
+| ------- | ------- | ---------------- | ---------- | ------ | -------- | -------- | ----------- | ------------------------ |
+| 2.2 GHz | 21.8 Hz | 1,571 Hz         | 9.2 Hz     | 607 Hz | 1,219 Hz | 1,260 Hz | 114 of 360  | 0: 336, ±1: 24           |
+| 2.8 GHz | 22.2 Hz | 2,000 Hz         | 9.0 Hz     | 573 Hz | 1,004 Hz | 1,252 Hz | 74 of 360   | 0: 356, ±1: 4            |
+
+- **Not Doppler images.** The errors past three rows form a continuum at 0.4 to 0.8 of a lattice step, not on the lattice: the ±1 counts are their rounding, not Doppler images. The largest is 0.42 of `Rs + row`. `Rs / 2` is not taken: the rows reach 0.84 of it.
+- **At this point it changes nothing:** 3,022 Hz designs `K = 5` and 39 / 43 blocks, as the span's 3,000 Hz did (`_test_fine_seed_bound`).
+- **Where the span would turn it off:** a 5 Mcps, 1,023-chip search one period deep (row 4,888 Hz) told a 20 ppm span at 2.5 GHz (±60 kHz). The span asks for `K > 98` sums a period, no divisor of `refine_segments` (11) covers it, and the receiver falls back. At 40 dB-Hz two of four seeds were handed over 1,124 and 273 Hz off by the fallback and never locked inside 20 s. At `Rs + row` (7,588 Hz) the design is `K = 11`, 44 blocks (`_test_fine_seed_bound`; the row `_test_clock_offset_decodes_inside_the_allocation` is its use).
+- **A seed further off than the bound** (a wrong peak: a lattice image or another emitter's) aliases by `K / (M T)`. The tone check passes an aliased tone, the carrier loop never locks there, and only a loss release (`lost_confirm_s > 0`) frees the receiver. The standalone receiver's default, 0, never releases it, and neither did today's fallback at such a seed. The guard that would refuse it, comparing the fine estimate with CarrierAcquisition's within `K / (2 M T)`, is not built ([#3262](https://github.com/doppler-dsp/doppler/issues/3262)).
+
+**K, by rule.** `K` is the smallest divisor of `refine_segments` with `K/(2MT)` above the seed's design bound. At M = 2 that needs `K > 4T · 3,022 Hz` = 3.85 at 2.2 GHz and 3.02 at 2.8 GHz, so `K = 5` at both. Four does not divide 10, and at 2.8 GHz it would only equal the bound. `K = 1` is shown beside it.
 
 Losses at `ε` 0.13 with the replica's 0.39 dB. The roll-off is `sinc²(e·T/K)` on `g`, and the squaring loss is `1 + 1/(2g)` at the reduced `g`. They add to give the squared sum's SNR against a clean sum's `γ/(4K)`.
 

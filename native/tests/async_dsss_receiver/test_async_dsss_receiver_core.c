@@ -2075,36 +2075,50 @@ _test_fine_design (void)
  * often (at this pfa, not on one draw: the threshold's own pin is
  * _test_fine_design's thr_db). */
 static int
-_fine_run (int signal, double *ho_hz, int *src)
+_fine_run (int signal, int sequential, double *ho_hz, int *src,
+           size_t *fired_at, double *t_track, size_t *fine_blocks)
 {
   const size_t sf = 1023, spc = 3;
   const double chip = 3.2e6, fs = chip * (double)spc, sym = 3000.0;
   const double cn0 = 50.0, truth = 500.0, seed_hz = 1700.0;
+  /* Sequential: the receiver is built for a weaker signal than it is fed
+     (a long fine dwell), so the estimator fires well inside that dwell;
+     the stream is long enough to hold it. */
+  const double design = sequential ? 41.0 : cn0;
   uint8_t      code[1023];
   dp_dsss_gold_1023 (code);
   float _Complex *x;
   size_t          n;
   double         *data;
-  dp_dsss_capture (code, sf, spc, fs, fs / sym, truth, cn0, 2400, 0, 77u, &x,
-                   &n, &data);
+  dp_dsss_capture (code, sf, spc, fs, fs / sym, truth, cn0,
+                   sequential ? 9000 : 2400, 0, 77u, &x, &n, &data);
   if (!signal)
     {
       memset (x, 0, n * sizeof *x);
       dp_dsss_add_awgn (x, n, fs, cn0, 78u);
     }
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, sf, chip, sym, fs, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
+      code, sf, chip, sym, fs, 2, design, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, sequential != 0, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
   /* K is the geometry's: here refine_segments is 9 and K 9. */
   DP_REQUIRE (rx != NULL && rx->fine_on && rx->fine.k > 1);
-  DP_REQUIRE (dp_async_dsss_receiver_seed (rx, 0.0, seed_hz, cn0) == DP_OK);
+  DP_REQUIRE (dp_async_dsss_receiver_seed (rx, 0.0, seed_hz, design) == DP_OK);
   float _Complex *out = malloc (n * sizeof *out);
   const size_t    te  = sf * spc;
-  for (size_t pos = 0; pos + te <= n && rx->state != ASYNC_DSSS_RX_TRACKING;
-       pos += te)
-    (void)dp_async_dsss_receiver_steps (rx, x + pos, te, out, n);
-  *src   = dp_async_dsss_receiver_get_handover_source (rx);
-  *ho_hz = rx->doppler_hz_est;
+  size_t          pos = 0;
+  *fired_at           = 0;
+  *fine_blocks        = rx->fine.blocks;
+  for (; pos + te <= n && rx->state != ASYNC_DSSS_RX_TRACKING; pos += te)
+    {
+      (void)dp_async_dsss_receiver_steps (rx, x + pos, te, out, n);
+      /* The block CarrierAcquisition fired on, read while refining (the
+         hand-over rebuilds the chain). */
+      if (!*fired_at && rx->state == ASYNC_DSSS_RX_REFINING && rx->ca->ready)
+        *fired_at = rx->ca->n_blocks;
+    }
+  *t_track = rx->state == ASYNC_DSSS_RX_TRACKING ? (double)pos / fs : NAN;
+  *src     = dp_async_dsss_receiver_get_handover_source (rx);
+  *ho_hz   = rx->doppler_hz_est;
   printf ("  fine hand-over, %s: ho_src %d, handed over at %.2f Hz (truth "
           "%.0f), fine %.2f Hz at snr_db %.1f over %zu sums, %zu blocks\n",
           signal ? "signal" : "noise", *src, *ho_hz, truth,
@@ -2273,13 +2287,44 @@ _test_fine_seed_bound (void)
 static int
 _test_fine_hands_over (void)
 {
-  double hz;
+  double hz, tt;
   int    src;
-  DP_CHECK (_fine_run (1, &hz, &src) == 1);
+  size_t fired, fb;
+  DP_CHECK (_fine_run (1, 0, &hz, &src, &fired, &tt, &fb) == 1);
   DP_CHECK (src == ASYNC_DSSS_RX_HO_FINE);
   DP_CHECK (fabs (hz - 500.0) < 2.0);
-  DP_CHECK (_fine_run (0, &hz, &src) == 1);
+  DP_CHECK (_fine_run (0, 0, &hz, &src, &fired, &tt, &fb) == 1);
   DP_CHECK (src != ASYNC_DSSS_RX_HO_FINE);
+  return 0;
+}
+
+/* A sequential refine whose CarrierAcquisition fires before the fine dwell
+ * still leaves refining, on the fine estimate, once the dwell is in. The
+ * estimator stops counting blocks once it is ready
+ * (dp_carrier_acq_steps() returns early), so a decision that waited on its
+ * block count for the fine dwell never came: the receiver sat in refining
+ * for good, with no release clock there. The fixture is _fine_run's at 50
+ * dB-Hz, sequential: the estimator fires well inside the fine dwell
+ * (required, so the case is the one named), and the receiver must track
+ * on the fine estimate. The receiver is built at 41 dB-Hz and fed 50, so
+ * the fine dwell is long and the estimator fires early. Red before the fix
+ * (doppler review C1): still refining at the stream's end. */
+static int
+_test_sequential_refine_waits_out_the_fine_dwell (void)
+{
+  double    hz, tt;
+  int       src;
+  size_t    fired, fb;
+  const int tracking = _fine_run (1, 1, &hz, &src, &fired, &tt, &fb);
+  printf ("  sequential refine: the estimator fired at block %zu of the "
+          "fine dwell's %zu; tracking %d at %.3f s, ho_src %d at %.2f Hz\n",
+          fired, fb, tracking, tt, src, hz);
+  DP_REQUIRE_MSG (fired > 0 && fired < fb,
+                  "the sequential estimator fired inside the fine dwell");
+  DP_CHECK_MSG (tracking, "a sequential refine that fired early still "
+                          "leaves refining");
+  DP_CHECK (src == ASYNC_DSSS_RX_HO_FINE);
+  DP_CHECK (fabs (hz - 500.0) < 2.0);
   return 0;
 }
 
@@ -2304,6 +2349,58 @@ _car_twin (double cn0)
   return dp_async_dsss_receiver_create (
       CODE7, 7, 1.0e6, 35714.29, 3.0e6, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
       4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
+}
+
+/* A refused blob changes nothing: decode, check whole, then commit. The
+ * source has run (its search, refine chain and estimator have moved from a
+ * fresh receiver's) and its carrier is one create() did not build (bn
+ * halved, through carrier_nda's own setter), so set_state() refuses it on
+ * the carrier check. The refused receiver must still be its fresh twin,
+ * byte for byte: its blob equals an untouched twin's. Red before the fix
+ * (doppler review C2): the search, the frozen carrier, the refine Dll, its
+ * resampler and CarrierAcquisition were restored from the blob before the
+ * carrier check refused it. */
+static int
+_test_a_refused_blob_changes_nothing (void)
+{
+  dp_async_dsss_receiver_state_t *a = _car_twin (38.77);
+  dp_async_dsss_receiver_state_t *b = _car_twin (38.77);
+  dp_async_dsss_receiver_state_t *c = _car_twin (38.77);
+  DP_REQUIRE (a && b && c);
+  {
+    /* Move the source off a fresh receiver: a stream of the code's chips
+       until it refines, so the search and the refine chain have both
+       run. */
+    const size_t    n = (size_t)(0.05 * 3.0e6);
+    float _Complex *x = calloc (n, sizeof *x);
+    float _Complex out[64];
+    DP_REQUIRE (x != NULL);
+    for (size_t i = 0; i < n; i++)
+      x[i] = (float _Complex) (CODE7[(i / 3) % 7] ? -1.0f : 1.0f);
+    (void)dp_async_dsss_receiver_steps (a, x, n, out, 64);
+    free (x);
+  }
+  DP_REQUIRE (dp_carrier_nda_set_bn (&a->car, 0.5 * a->bn_carrier) == DP_OK);
+  const size_t sz = dp_async_dsss_receiver_state_bytes (a);
+  DP_REQUIRE (sz == dp_async_dsss_receiver_state_bytes (b));
+  unsigned char *blob = malloc (sz), *bb = malloc (sz), *cb = malloc (sz);
+  DP_REQUIRE (blob && bb && cb);
+  dp_async_dsss_receiver_get_state (a, blob);
+  dp_async_dsss_receiver_get_state (b, bb);
+  DP_REQUIRE_MSG (memcmp (blob, bb, sz) != 0,
+                  "the source's blob differs from a fresh twin's");
+  DP_CHECK (dp_async_dsss_receiver_set_state (b, blob) == DP_ERR_INVALID);
+  dp_async_dsss_receiver_get_state (b, bb);
+  dp_async_dsss_receiver_get_state (c, cb);
+  DP_CHECK_MSG (memcmp (bb, cb, sz) == 0,
+                "a refused blob leaves the receiver as it was");
+  free (blob);
+  free (bb);
+  free (cb);
+  dp_async_dsss_receiver_destroy (a);
+  dp_async_dsss_receiver_destroy (b);
+  dp_async_dsss_receiver_destroy (c);
+  return 0;
 }
 
 static int
@@ -6775,10 +6872,12 @@ main (void)
   (void)_test_reacquire_is_symbol_lock_alone ();
   DP_CHECK (_test_coast_runs_on_the_integrator () == 0);
   DP_CHECK (_test_carrier_config_is_a_reject_key () == 0);
+  DP_CHECK (_test_a_refused_blob_changes_nothing () == 0);
   DP_CHECK (_test_fine_design () == 0);
   DP_CHECK (_test_fine_seed_bound () == 0);
   DP_CHECK (_test_near_far_levels () == 0);
   DP_CHECK (_test_fine_hands_over () == 0);
+  DP_CHECK (_test_sequential_refine_waits_out_the_fine_dwell () == 0);
   (void)_test_reacquire_clock_restarts_on_lock ();
   (void)_test_configure_chain_raw_keeps_the_carrier ();
   (void)_test_configure_chain_raw_keeps_the_phase ();

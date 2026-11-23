@@ -2095,77 +2095,6 @@ _fine_run (int signal, double *ho_hz, int *src)
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, sf, chip, sym, fs, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4,
       14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
-  /* The seed's error bound the fine hand-over is designed to (create():
-   * min(2 doppler_uncertainty, symbol_rate + the search's row); the design
-   * page's "The seed's error bound"). At the 415.1-B-1 point it changes
-   * nothing: the span's 3,000 Hz and Rs + row's 3,022 Hz both design K 5,
-   * 39 blocks at 2.2 GHz and 43 at 2.8 (at R_env). At a 5 Mcps, 1023-chip
-   * search one period deep (row 4,888 Hz) told a 20 ppm span at 2.5 GHz
-   * (+-60 kHz), the span asked for K > 98 sums a period, no divisor of
-   * refine_segments (11) covered it, and the fine hand-over was off; at
-   * Rs + row it designs K 11 and 44 blocks. That configuration's blob, the
-   * largest fine ring any fixture holds, round-trips with a partly filled
-   * ring, and a twin built at the certified point refuses it on size.
-   * Sabotage: the span alone as the bound -> item 4's design refuses and
-   * fine_on reads 0, red. */
-  static int _test_fine_seed_bound (void)
-  {
-    uint8_t g[1023];
-    dp_dsss_gold_1023 (g);
-    dp_async_dsss_receiver_state_t *lo = dp_s415_rx (g, DP_S415_FC_LO, true);
-    dp_async_dsss_receiver_state_t *hi = dp_s415_rx (g, DP_S415_FC_HI, true);
-    DP_REQUIRE (lo && hi);
-    DP_CHECK (lo->fine_on && lo->fine.k == 5 && lo->fine.blocks == 39);
-    DP_CHECK (hi->fine_on && hi->fine.k == 5 && hi->fine.blocks == 43);
-
-    uint8_t  code[1023];
-    uint32_t cst = 13;
-    for (size_t i = 0; i < 1023; i++)
-      code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
-    const double span = 1.2 * 20e-6 * 2.5e9; /* the 20 ppm row's */
-    dp_async_dsss_receiver_state_t *a = dp_async_dsss_receiver_create (
-        code, 1023, 5.0e6, 2700.0, 1.0e7, 2, 40.0, 1e-2, 0.9, span, 4, 8, 0,
-        0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false, 0.0, 0.0, true);
-    dp_async_dsss_receiver_state_t *b = dp_async_dsss_receiver_create (
-        code, 1023, 5.0e6, 2700.0, 1.0e7, 2, 40.0, 1e-2, 0.9, span, 4, 8, 0,
-        0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false, 0.0, 0.0, true);
-    DP_REQUIRE (a && b);
-    printf ("  seed bound: 415 point K %d / %zu and %d / %zu blocks; 5 Mcps, "
-            "+-%.0f Hz: K %d, %zu blocks, fine_cap %zu\n",
-            lo->fine.k, lo->fine.blocks, hi->fine.k, hi->fine.blocks, span,
-            a->fine.k, a->fine.blocks, a->fine_cap);
-    DP_CHECK (a->fine_on && a->fine.k == 11 && a->fine.blocks == 44);
-    /* Mid-refine, the ring partly filled: seeded, then fed a dwell's half. */
-    DP_REQUIRE (dp_async_dsss_receiver_seed (a, 0.0, 0.0, 40.0) == DP_OK);
-    {
-      const size_t    n = (size_t)(0.1 * 1.0e7);
-      float _Complex *x = calloc (n, sizeof *x);
-      float _Complex out[64];
-      DP_REQUIRE (x != NULL);
-      for (size_t i = 0; i < n; i++)
-        x[i] = (float _Complex) (code[(i / 2) % 1023] ? -1.0f : 1.0f);
-      (void)dp_async_dsss_receiver_steps (a, x, n, out, 64);
-      free (x);
-    }
-    DP_CHECK (a->state == ASYNC_DSSS_RX_REFINING && a->fine_n > 0
-              && a->fine_n < a->fine_cap);
-    DP_STATE_ROUNDTRIP_TEST (dp_async_dsss_receiver, a, b);
-    {
-      const size_t cb   = dp_async_dsss_receiver_state_bytes (a);
-      void        *blob = malloc (cb);
-      DP_REQUIRE (blob != NULL);
-      dp_async_dsss_receiver_get_state (a, blob);
-      DP_CHECK (dp_async_dsss_receiver_state_bytes (lo) != cb);
-      DP_CHECK (dp_async_dsss_receiver_set_state (lo, blob) == DP_ERR_INVALID);
-      free (blob);
-    }
-    dp_async_dsss_receiver_destroy (a);
-    dp_async_dsss_receiver_destroy (b);
-    dp_async_dsss_receiver_destroy (lo);
-    dp_async_dsss_receiver_destroy (hi);
-    return 0;
-  }
-
   /* K is the geometry's: here refine_segments is 9 and K 9. */
   DP_REQUIRE (rx != NULL && rx->fine_on && rx->fine.k > 1);
   DP_REQUIRE (dp_async_dsss_receiver_seed (rx, 0.0, seed_hz, cn0) == DP_OK);
@@ -2187,6 +2116,78 @@ _fine_run (int signal, double *ho_hz, int *src)
   free (data);
   dp_async_dsss_receiver_destroy (rx);
   return tracking;
+}
+
+/* The seed's error bound the fine hand-over is designed to (create():
+ * min(2 doppler_uncertainty, symbol_rate + the search's row); the design
+ * page's "The seed's error bound"). At the 415.1-B-1 point it changes
+ * nothing: the span's 3,000 Hz and Rs + row's 3,022 Hz both design K 5,
+ * 39 blocks at 2.2 GHz and 43 at 2.8 (at R_env). At a 5 Mcps, 1023-chip
+ * search one period deep (row 4,888 Hz) told a 20 ppm span at 2.5 GHz
+ * (+-60 kHz), the span asked for K > 98 sums a period, no divisor of
+ * refine_segments (11) covered it, and the fine hand-over was off; at
+ * Rs + row it designs K 11 and 44 blocks. That configuration's blob, the
+ * largest fine ring any fixture holds, round-trips with a partly filled
+ * ring, and a twin built at the certified point refuses it on size.
+ * Sabotage: the span alone as the bound -> item 4's design refuses and
+ * fine_on reads 0, red. */
+static int
+_test_fine_seed_bound (void)
+{
+  uint8_t g[1023];
+  dp_dsss_gold_1023 (g);
+  dp_async_dsss_receiver_state_t *lo = dp_s415_rx (g, DP_S415_FC_LO, true);
+  dp_async_dsss_receiver_state_t *hi = dp_s415_rx (g, DP_S415_FC_HI, true);
+  DP_REQUIRE (lo && hi);
+  DP_CHECK (lo->fine_on && lo->fine.k == 5 && lo->fine.blocks == 39);
+  DP_CHECK (hi->fine_on && hi->fine.k == 5 && hi->fine.blocks == 43);
+
+  uint8_t  code[1023];
+  uint32_t cst = 13;
+  for (size_t i = 0; i < 1023; i++)
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
+  const double span = 1.2 * 20e-6 * 2.5e9; /* the 20 ppm row's */
+  dp_async_dsss_receiver_state_t *a = dp_async_dsss_receiver_create (
+      code, 1023, 5.0e6, 2700.0, 1.0e7, 2, 40.0, 1e-2, 0.9, span, 4, 8, 0, 0.5,
+      4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false, 0.0, 0.0, true);
+  dp_async_dsss_receiver_state_t *b = dp_async_dsss_receiver_create (
+      code, 1023, 5.0e6, 2700.0, 1.0e7, 2, 40.0, 1e-2, 0.9, span, 4, 8, 0, 0.5,
+      4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false, 0.0, 0.0, true);
+  DP_REQUIRE (a && b);
+  printf ("  seed bound: 415 point K %d / %zu and %d / %zu blocks; 5 Mcps, "
+          "+-%.0f Hz: K %d, %zu blocks, fine_cap %zu\n",
+          lo->fine.k, lo->fine.blocks, hi->fine.k, hi->fine.blocks, span,
+          a->fine.k, a->fine.blocks, a->fine_cap);
+  DP_CHECK (a->fine_on && a->fine.k == 11 && a->fine.blocks == 44);
+  /* Mid-refine, the ring partly filled: seeded, then fed a dwell's half. */
+  DP_REQUIRE (dp_async_dsss_receiver_seed (a, 0.0, 0.0, 40.0) == DP_OK);
+  {
+    const size_t    n = (size_t)(0.1 * 1.0e7);
+    float _Complex *x = calloc (n, sizeof *x);
+    float _Complex out[64];
+    DP_REQUIRE (x != NULL);
+    for (size_t i = 0; i < n; i++)
+      x[i] = (float _Complex) (code[(i / 2) % 1023] ? -1.0f : 1.0f);
+    (void)dp_async_dsss_receiver_steps (a, x, n, out, 64);
+    free (x);
+  }
+  DP_CHECK (a->state == ASYNC_DSSS_RX_REFINING && a->fine_n > 0
+            && a->fine_n < a->fine_cap);
+  DP_STATE_ROUNDTRIP_TEST (dp_async_dsss_receiver, a, b);
+  {
+    const size_t cb   = dp_async_dsss_receiver_state_bytes (a);
+    void        *blob = malloc (cb);
+    DP_REQUIRE (blob != NULL);
+    dp_async_dsss_receiver_get_state (a, blob);
+    DP_CHECK (dp_async_dsss_receiver_state_bytes (lo) != cb);
+    DP_CHECK (dp_async_dsss_receiver_set_state (lo, blob) == DP_ERR_INVALID);
+    free (blob);
+  }
+  dp_async_dsss_receiver_destroy (a);
+  dp_async_dsss_receiver_destroy (b);
+  dp_async_dsss_receiver_destroy (lo);
+  dp_async_dsss_receiver_destroy (hi);
+  return 0;
 }
 
 static int

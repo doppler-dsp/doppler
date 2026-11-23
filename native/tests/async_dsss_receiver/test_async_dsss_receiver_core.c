@@ -6141,21 +6141,24 @@ _test_no_refine_needs_a_deep_search (void)
 /* The hand-over with no refine on a Doppler ramp, at the 415.1-B-1
  * specification point (async-dsss-receiver.md §1, §4.4): the CCSDS Gold
  * code at 2.8 GHz x 31/21216 chips a second, 3,000 sym/s, 11 MSa/s in, 4 dB
- * Es/N0, +/-1,500 Hz, a 400 Hz/s rate bound and a 275-symbol code-only
- * window, so the search runs 140 deep. The emitter is the 415.1 scene
- * (dp_air_test.h: the shipped synth with its window, the front end's
- * converter to 11 MSa/s, a DopplerChannel at the carrier) on a +400 Hz/s
- * ramp from -1,000 and -500 Hz, plus the shipped AWGN; the truth at the
- * hand-over is the channel's own offset there.
+ * Es/N0, +/-1,500 Hz, the residual's rate R_env as the rate bound
+ * (dp_s415_r_env(), 11 Hz/s, async-dsss-receiver.md §1.8) and a 275-symbol
+ * code-only window. At R_env the drift depth f_epoch / sqrt(2 R_env) is
+ * far past the window, so the window's half binds: 275/3000 s is 366 whole
+ * epochs at 3,999.3 a second, (366 + 1)/2 = 183, and the FFT-smooth floor
+ * takes 180. The emitter is the 415.1 scene (dp_air_test.h: the shipped
+ * synth with its window, the front end's converter to 11 MSa/s, a
+ * DopplerChannel at the carrier) on a ramp at R_env from -1,000 and -500
+ * Hz, plus the shipped AWGN; the truth at the hand-over is the channel's
+ * own offset there.
  *
  * What the header claims for refine false, and nothing about the loops
  * after it: the receiver goes searching -> tracking without refining, and
  * the Doppler it hands over is the truth at the hand-over sample within
- * half a search row plus the block's half-dwell age at the rate bound
- * (14.3 + 7.0 Hz here; the largest of 60 draws, seeds 1 to 30 from each
- * start, was 13.6 Hz when this was written). Whether the loops then lock
- * is a rate, measured
- * both ways in validate_async_dsss_receiver_lock's RAMP rows.
+ * half a search row plus the block's half-dwell age at the rate bound,
+ * both printed. Whether the loops then lock
+ * is a rate, measured both ways in validate_async_dsss_receiver_lock's RAMP
+ * rows.
  *
  * Sabotage: a seed() that refines whatever the knob says -> both rows red
  * (it reads refining, and hands over the refine's estimate). */
@@ -6166,7 +6169,7 @@ _ramp_handover (double f0, uint32_t seed, double *err_hz, double *bound_hz,
 {
   const double     fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
   const double     cn0  = dp_s415_cn0 (DP_S415_FLOOR_DB);
-  const double     rate = DP_S415_RATE_HZ_S;
+  const double     rate = dp_s415_r_env ();
   uint8_t          code[1023];
   dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
   DP_REQUIRE (g && dp_gold_generate (g, 1023, code, 1023) == 1023);
@@ -6183,7 +6186,8 @@ _ramp_handover (double f0, uint32_t seed, double *err_hz, double *bound_hz,
       rx && x && out
       && dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 7919u + seed, RAMP_CHUNK));
   const size_t D = rx->acq->search->coherent_bins;
-  DP_REQUIRE (D == 140);
+  /* The code-only window's half binds at R_env (the derivation above). */
+  DP_REQUIRE (D == 180);
   /* Half a row, and the half-dwell age at the rate bound. */
   *bound_hz       = 0.5 * rx->acq->search->doppler_res_hz
                     + rate * 0.5 * (double)D * 1023.0 / chip;

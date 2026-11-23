@@ -23,7 +23,8 @@
  * hand-over took (get_handover_source()). The rate with its Wilson 95%
  * interval against pfa.
  *
- * HAND-OVER. The emitter on the air, static or on a +/-400 Hz/s ramp (the
+ * HAND-OVER. The emitter on the air, static or on a +/-R_env ramp
+ * (dp_s415_r_env(), the residual's rate the receiver meets; the
  * sign by seed), at the floor (4 dB) and 7 dB. Each dwell is seeded on the
  * truth's code phase at that sample, as the receiver's code NCO would read
  * it (half a receive sample before the continuous phase, the dwell-start
@@ -246,7 +247,7 @@ handover_rows (const uint8_t *code, double fc, double esn0, double rate,
     {
       printf ("    %.1f GHz %4.1f dB %s: %zu dwells (fine %zu, data %zu, seed "
               "%zu)\n",
-              fc / 1e9, esn0, rate == 0.0 ? "static" : "+/-400 Hz/s", n,
+              fc / 1e9, esn0, rate == 0.0 ? "static" : "+/-R_env", n,
               sb[ASYNC_DSSS_RX_HO_FINE], sb[ASYNC_DSSS_RX_HO_DATA],
               sb[ASYNC_DSSS_RX_HO_SEED]);
       err_col ("handed over", eb, n);
@@ -274,7 +275,7 @@ main (int argc, char **argv)
   dp_dsss_gold_1023 (code);
   static const double fcs[2]   = { DP_S415_FC_LO, DP_S415_FC_HI };
   static const double esn0s[2] = { 4.0, 7.0 };
-  static const double rates[2] = { 0.0, DP_S415_RATE_HZ_S };
+  const double        rates[2] = { 0.0, dp_s415_r_env () };
   if (!emit)
     printf ("refine: 415.1-B-1, 11 MSa/s, 3000 sym/s; refine_sequential "
             "false (one test an estimator); C/N0 at the antenna\n");

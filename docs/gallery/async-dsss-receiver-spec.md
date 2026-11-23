@@ -10,7 +10,9 @@ One [`dsss.AsyncDsssReceiver`][doppler.dsss.AsyncDsssReceiver] demodulates the
 CCSDS 415.1-B-1 forward link: BPSK at 3,000 symbols a second, spread by a
 1,023-chip Gold code whose chip rate is the carrier times 31/21216, the data
 asynchronous to the code. It takes 11 MSa/s and searches a Doppler within
-±1,500 Hz that moves by up to 400 Hz/s. On a moving platform the Doppler
+±1,500 Hz that moves at up to 11 Hz/s, the residual the link's ephemeris
+pre-compensation leaves ([the design page's §1.8](../design/async-dsss-receiver.md)).
+On a moving platform the Doppler
 shifts the carrier and stretches the chip clock by the same factor, v/c. Told
 the RF carrier (`carrier_freq_hz`), the receiver feeds the carrier offset it
 tracks to its code loop as the matching code-rate offset, so the code loop
@@ -32,8 +34,8 @@ design is in [the async DSSS receiver design](../design/async-dsss-receiver.md).
 ## What the demo runs
 
 Two carriers, the band's ends: 2.2 GHz (3.215 Mcps) and 2.8 GHz (4.091 Mcps).
-At each, four noise draws of a 2.5 s capture whose Doppler ramps at 400 Hz/s
-from −500 Hz through zero to +500 Hz. The emitter is
+At each, four noise draws of a 2.5 s capture whose Doppler ramps at
+11 Hz/s from −13.75 Hz through zero to +13.75 Hz. The emitter is
 [`wfm.Synth`][doppler.wfm.Synth] in continuous DSSS mode at two samples a chip,
 [`resample.RateConverter`][doppler.resample.RateConverter] takes it to
 11 MSa/s, and [`impairment.DopplerChannel`](doppler-channel.md) applies the

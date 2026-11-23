@@ -4,7 +4,9 @@
 The link: BPSK at 3,000 symbols a second, spread by a 1,023-chip Gold code
 whose chip rate is the carrier times 31/21216, the data asynchronous to the
 code. The receiver takes 11 MSa/s, searches a Doppler within +/-1,500 Hz that
-moves by up to 400 Hz/s, refines it, tracks, and emits symbols. Told the RF
+moves at up to R_env, 11 Hz/s (the residual the link's ephemeris
+pre-compensation leaves, the design page's §1.8), refines it, tracks, and
+emits symbols. Told the RF
 carrier (``carrier_freq_hz``), it feeds the carrier offset its carrier loop
 tracks to the code loop as the matching code-rate offset, so the code loop
 follows the chip clock the Doppler stretches.
@@ -39,7 +41,10 @@ FS = 11e6  # the receiver's sample rate
 CODE_ONLY_SYM = 275  # each frame opens with this many data-free symbols
 FRAME_SYM = 1000  # symbols a frame
 DOPPLER_UNCERTAINTY_HZ = 1500.0  # one-sided: within +/-1,500 Hz
-DOPPLER_RATE_HZ_S = 400.0  # the fastest the Doppler changes
+#: The fastest the Doppler changes: R_env, the residual's rate (the design
+#: page's §1.8; the 415.1-B-1 fixture's dp_s415_r_env(), which
+#: test_c_example_pairs.py holds this equal to).
+DOPPLER_RATE_HZ_S = 11.0
 #: Es/N0 at the receiver input: 6 dB above the link's 4 dB floor, so the
 #: despread symbols show as two clusters. A demonstration, not a validator.
 ESN0_DB = 10.0
@@ -54,8 +59,8 @@ N_SYM = int(DURATION_S * SYM_RATE)
 LEAD_IN = 20 * PUSH + 737  # noise alone first; not a whole number of pushes
 DRAWS = range(1, 5)  # one noise seed per draw
 #: The Doppler at the signal's first sample; it ramps at DOPPLER_RATE_HZ_S
-#: through zero at START_HZ / -DOPPLER_RATE_HZ_S = 1.25 s, to +500 Hz.
-START_HZ = -500.0
+#: through zero at START_HZ / -DOPPLER_RATE_HZ_S = 1.25 s, to +13.75 Hz.
+START_HZ = -13.75
 
 #: The two carriers, the band's ends, as (carrier Hz; chip rate, the carrier
 #: times 31/21216; the rate converter's ratio, FS over the emitter's two
@@ -69,15 +74,15 @@ REGIMES = {
         2.2e9,
         3214555.052790347,
         1.7109677419354838,
-        -0.22727272727272727,
-        0.18181818181818182,
+        -0.0062499999999999995,
+        0.005,
     ),
     "2.8 GHz": (
         2.8e9,
         4091251.8853695323,
         1.344331797235023,
-        -0.17857142857142858,
-        0.14285714285714285,
+        -0.004910714285714286,
+        0.003928571428571429,
     ),
 }
 for _fc, _chip, _ratio, _ppm, _ppm_s in REGIMES.values():

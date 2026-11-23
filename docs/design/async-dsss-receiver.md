@@ -188,7 +188,7 @@ sequence and the randomizer. A frame of 64 to 8,192 bits lasts 21 ms to
 **The gap is twice what the search needs.** The need is the search model's,
 read from the receiver's own search sizing at the worst corner: the 2.2 GHz
 end, a design C/N0 of 36.34 dB-Hz (the 4 dB floor, 38.77 dB-Hz, less the
-edge's 2.43 dB of loss beyond the band average), 400 Hz/s, Pd 0.999 at the
+edge's 2.43 dB of loss beyond the band average), R_env (11 Hz/s, §1.8), Pd 0.999 at the
 as-built `pfa` of 1e-3, and the whole dwell inside the gap wherever it
 starts, a gap of at least 2·K·D − 1 epochs
 ([#3082](https://github.com/doppler-dsp/doppler/issues/3082)):
@@ -202,12 +202,14 @@ and the gap's length is open (§1.7). The search does not hold its dwell
 `K·D` inside a gap (#3082).
 
 **72 is the model's need, not the depth the search runs.** Given this gap
-the engine takes the deepest block §2.1's rule allows, which here is the
-400 Hz/s drift bound: `coherent_bins` reads 108 at 2.2 GHz and 140 at
-2.8 GHz, with one look (`n_noncoh` 1), a dwell of 34.4 and 35.0 ms. A whole
-block of that depth lands inside the gap wherever it starts once the gap
-holds 2·D − 1 code periods, 215 and 279; the 275-symbol gap holds 287 and
-365 whole ones. So the gap holds one whole block at the depth run, and is
+the engine takes the deepest block §2.1's rule allows. At the residual's
+rate R_env (11 Hz/s, §1.8, `dp_s415_r_env()`), the drift bound
+`f_epoch/√(2·R_env)` is far past the window, so the window's half binds:
+`coherent_bins` reads 144 at 2.2 GHz and 180 at 2.8 GHz (⌊(287 + 1)/2⌋ and
+⌊(366 + 1)/2⌋, 7-smooth), with one look (`n_noncoh` 1), a dwell of 45.8 and
+45.0 ms. A whole block of that depth lands inside the gap wherever it
+starts once the gap holds 2·D − 1 code periods, 287 and 359; the 275-symbol
+gap holds 287 and 365 whole ones. So the gap holds one whole block at the depth run, and is
 twice the need only at the model's depth.
 
 **It is built from shipped tools.** Each frame is one `FrameDesc`: the
@@ -522,7 +524,7 @@ engine never adds looks: it sizes on the burst and reports `underpowered`.
 `doppler_rate`.** It is the smaller of `⌊(code_only_epochs + 1)/2⌋`, so a
 whole block always fits inside the pure-code window, and
 `f_epoch/√(2·doppler_rate)`, which is `f_epoch/√1000` at 500 Hz/s and
-`f_epoch/√800` at the 415.1-B-1 point's 400 Hz/s, so the
+`f_epoch/√22` at the 415.1-B-1 point's residual rate R_env (11 Hz/s), so the
 drift over one block stays inside half a slow-time bin, rounded down to a
 7-smooth length (`dp_fft_smooth_floor()`): `D` is a slow-time FFT length,
 and a prime factor of 13 or more costs the FFT its slow path, so 94 epochs
@@ -625,16 +627,17 @@ inside one 170-symbol window that `D = 1`, needing 256 looks, cannot decide
 there (`test_async_dsss_receiver_core.c`,
 `_test_depth_finds_what_one_epoch_misses`).
 
-**At the 415.1-B-1 point** the 275-symbol gap and 400 Hz/s give
-`coherent_bins` 108 at 2.2 GHz and 140 at 2.8 GHz (the drift bound's 111
-and 141, 7-smooth), one look, and one frequency window, since ±1,500 Hz is
-inside one epoch's span. A row is 29.1 and 28.6 Hz, and the surface the
-peak is picked on is interpolated to twice that density
+**At the 415.1-B-1 point** the 275-symbol gap and the residual's rate R_env
+(11 Hz/s, §1.8: the receiver is told the rate it meets, `doppler_rate`,
+and the raw pass's 400 Hz/s only selects which passes are in scope) give
+`coherent_bins` 144 at 2.2 GHz and 180 at 2.8 GHz (the window's half, the
+drift bound far past it), one look, and one frequency window, since
+±1,500 Hz is inside one epoch's span. A row is 21.8 and 22.2 Hz, and the
+surface the peak is picked on is interpolated to twice that density
 (`DP_CORRELATOR_DOPPLER_INTERP`). A block's Doppler is its mean over the
-block, so at the block's end it is half a dwell old, about 17 ms: 0.2 Hz
-at the use case's 11 Hz/s (§1.8). That is what a hit hands on: within half
-a row, 14.5 Hz, against the carrier loop's pull-in of 63 to 80 Hz at its
-built `bn` of 0.04.
+block, so at the block's end it is half a dwell old, about 23 ms: 0.25 Hz
+at R_env. That is what a hit hands on: within half a row, 11.1 Hz. The
+refine then hands the carrier loop its fine estimate.
 
 **The engine's windowing ships.** Its roll of one epoch's spectrum across
 frequency windows, the alias check a pick near a window's edge gets
@@ -2347,7 +2350,7 @@ At the specification point the floor is Es/N0 4 dB, C/N0 38.77 dB-Hz. The code p
 | 8    | +40.4 Hz        | settled, 34 errors     |
 
 ```
-- The fourth is `validate_async_dsss_receiver_pullin --check`'s "the live carrier holds a 400 Hz/s ramp at 10 dB" (2.8 GHz), on `integ/async-rx` at `5e9b56301`. It asserts tracking at a rate the owner's ruling 4 says the loops are not sized for (11 Hz/s governs; 400 Hz/s only selects the passes in scope). At the floor's bandwidth, 0.0094 at 2.8 GHz, an order-2 loop lags that ramp past the check's limit.
+- The fourth is `validate_async_dsss_receiver_pullin --check`'s "the live carrier holds a 400 Hz/s ramp at 10 dB" (2.8 GHz), on `integ/async-rx` at `5e9b56301`. It asserts tracking at a rate the owner's ruling 4 says the loops are not sized for (11 Hz/s governs; 400 Hz/s only selects the passes in scope). At the floor's bandwidth, 0.0094 at 2.8 GHz, an order-2 loop lags that ramp past the check's limit. It is no longer gated: the check prints it as an out-of-use-case stress, with the receiver configured for R_env (`dp_s415_r_env()`).
 ```
 
 - **What left the known set with it:** the #3134 pin in the same `--check` now holds. The cn0_dbhz ruling puts the code lock at the floor's look count, and the pin printed, at `5e9b56301`: "code lock, 2.8 GHz 10 dB static seed 5: the receiver's own (n = 20) changes 0 times over the data; at n = 4, 0 (#3134)".
@@ -2765,12 +2768,12 @@ Built at `77547aa86`, step 1 of the build order.
 
 **The four checks D3 turned red, against this.**
 
-| check                                                                                                           | its window                                                                                          | verdict                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | the line that shows it                             |
-| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| (i) `_test_awgn_esn0_floor` `ber_at[1] < 0.05`, 3.069 Mcps, 5 dB (`:764`)                                       | 1,500 symbols, 0.56 s (`:770`), scored on the back half by `_best_ber` with no lock                 | **too short to read, by construction.** The window starts 0.28 s after the first symbol, against a 20 s allocation, at a rule bn whose pull-in from outside the edge takes seconds (run 415). It says nothing either way about the receiver at that point                                                                                                                                                                                                                    | its reading, 0.44, is chance                       |
-| (ii) `_test_handover_under_clock_offset`, "locks and decodes on every seed" (`:586`)                            | 2,700 symbols, 1 s (`:605`), the symbol flag at the end and `_best_ber` on the back half            | **too short to read.** That point's hand-overs run 2 to 6 times the 60 Hz bound (#982), far outside the edge, so their pull-in is the non-deterministic path. 1 s holds none of it                                                                                                                                                                                                                                                                                           | `decoded == 8` fails                               |
-| (iii) `validate_async_dsss_receiver_ber --check`, "no burst slips" (2.8 GHz, 7 dB)                              | a 6 s burst, from the later of the 1 s budget and the symbol flag; the pre-despread loop in neither | **decided by the window: green at `77547aa86`.** Seed 4, which slipped under the old window, opens at symbol 3,593 (1.2 s) and scores 14,598 symbols with 27 errors, unslipped; all 7 bursts settle. Under the old window it was handed over at −69.6 Hz, about 4 times the 7 dB edge (17.9 Hz), and slipped with 13,948 errors                                                                                                                                              | D3's table of `d9041d731`'s eight `--check` bursts |
-| (iv) `validate_async_dsss_receiver_pullin --check`, "the live carrier holds a 400 Hz/s ramp at 10 dB" (`:2698`) | a 3 s draw (`PI_RAMP_CHECK_S`, `:232`); asserts the end state                                       | **not a window of this kind.** It asserts tracking at a rate the owner ruled outside the loops' sizing (11 Hz/s governs). D3's wording "an order-2 loop lags that ramp past the check's limit" is not borne out by the loop's own ramp error, `2π R T²/(ω_n T)²` (`:1642`): 0.79° at 11 Hz/s is 29° at 400 Hz/s, inside the fold. So the failure is the pull-in under the ramp, not a steady lag. No line from the failing run is committed. D3's wording is to be corrected | `--check`'s assertion; no committed reading        |
+| check                                                                                                           | its window                                                                                          | verdict                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | the line that shows it                                                                       |
+| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| (i) `_test_awgn_esn0_floor` `ber_at[1] < 0.05`, 3.069 Mcps, 5 dB (`:764`)                                       | 1,500 symbols, 0.56 s (`:770`), scored on the back half by `_best_ber` with no lock                 | **too short to read, by construction.** The window starts 0.28 s after the first symbol, against a 20 s allocation, at a rule bn whose pull-in from outside the edge takes seconds (run 415). It says nothing either way about the receiver at that point                                                                                                                                                                                                                    | its reading, 0.44, is chance                                                                 |
+| (ii) `_test_handover_under_clock_offset`, "locks and decodes on every seed" (`:586`)                            | 2,700 symbols, 1 s (`:605`), the symbol flag at the end and `_best_ber` on the back half            | **too short to read.** That point's hand-overs run 2 to 6 times the 60 Hz bound (#982), far outside the edge, so their pull-in is the non-deterministic path. 1 s holds none of it                                                                                                                                                                                                                                                                                           | `decoded == 8` fails                                                                         |
+| (iii) `validate_async_dsss_receiver_ber --check`, "no burst slips" (2.8 GHz, 7 dB)                              | a 6 s burst, from the later of the 1 s budget and the symbol flag; the pre-despread loop in neither | **decided by the window: green at `77547aa86`.** Seed 4, which slipped under the old window, opens at symbol 3,593 (1.2 s) and scores 14,598 symbols with 27 errors, unslipped; all 7 bursts settle. Under the old window it was handed over at −69.6 Hz, about 4 times the 7 dB edge (17.9 Hz), and slipped with 13,948 errors                                                                                                                                              | D3's table of `d9041d731`'s eight `--check` bursts                                           |
+| (iv) `validate_async_dsss_receiver_pullin --check`, "the live carrier holds a 400 Hz/s ramp at 10 dB" (`:2698`) | a 3 s draw (`PI_RAMP_CHECK_S`, `:232`); asserts the end state                                       | **not a window of this kind.** It asserts tracking at a rate the owner ruled outside the loops' sizing (11 Hz/s governs). D3's wording "an order-2 loop lags that ramp past the check's limit" is not borne out by the loop's own ramp error, `2π R T²/(ω_n T)²` (`:1642`): 0.79° at 11 Hz/s is 29° at 400 Hz/s, inside the fold. So the failure is the pull-in under the ramp, not a steady lag. No line from the failing run is committed. D3's wording is to be corrected | printed by `--check`, not gated (the receiver is configured for R_env); no committed reading |
 
 So (i) and (ii) cannot read the receiver at all with a window that short, (iii) is green under the window at `77547aa86`, and (iv) is a check outside the use case. None of the four is shown on this page to be a receiver that fails inside a 20 s allocation.
 

@@ -71,9 +71,11 @@
  * specification has no row for it, and the figure waits on the owner
  * (doppler#3157). They are measured and printed, each row citing that.
  *
- * RAMP. The hand-over at the point, 2.8 GHz, 4 dB Es/N0, +/-1,500 Hz, a
- * 400 Hz/s rate bound, so the search runs 140 deep. The emitter is the
- * point's on the scene, on a +400 Hz/s ramp from -1,000 and from -500 Hz,
+ * RAMP. The hand-over at the point, 2.8 GHz, 4 dB Es/N0, +/-1,500 Hz, the
+ * residual's rate R_env as the rate bound (dp_s415_r_env(), 11 Hz/s), so
+ * the search runs 180 deep (the code-only window's half binds). The
+ * emitter is the point's on the scene, on a ramp at +R_env from -1,000
+ * and from -500 Hz,
  * plus the shipped awgn. Each draw (its own data and noise) runs twice,
  * refine true (as built) and refine false (the search's Doppler is the
  * hand-over), RAMP_S each: RAMP_TRIALS draws from each start in the sweep;
@@ -717,14 +719,14 @@ typedef struct
   int    code_end;   /* code lock up at RAMP_S                             */
 } ramp_t;
 
-/* One draw at the 415.1-B-1 point, 2.8 GHz, from `f0` Hz at +400 Hz/s. */
+/* One draw at the 415.1-B-1 point, 2.8 GHz, from `f0` Hz at +R_env. */
 static int
 run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
           int to_handover, double *bound_hz, ramp_t *r)
 {
   const double fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
   const double cn0                   = dp_s415_cn0 (DP_S415_FLOOR_DB);
-  const double rate                  = DP_S415_RATE_HZ_S;
+  const double rate                  = dp_s415_r_env ();
   dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, refine);
   /* The emitter on the air (native/tests/dp_air_test.h): the shipped synth
      with its window, the front end's converter, a Doppler channel on the
@@ -738,7 +740,10 @@ run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
       rx && x && out
       && dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 7919u + seed, RAMP_CHUNK));
   const size_t D = rx->acq->search->coherent_bins;
-  DP_REQUIRE (D == 140);
+  /* At R_env the code-only window's half binds: 366 epochs, (366 + 1)/2 =
+     183, 180 on the FFT-smooth floor (test_async_dsss_receiver_core.c's
+     _ramp_handover derives it). */
+  DP_REQUIRE (D == 180);
   /* The header's bound for refine false: half a row, and the half-dwell
      age at the rate bound. */
   *bound_hz         = 0.5 * rx->acq->search->doppler_res_hz
@@ -806,7 +811,7 @@ ramp_rows (const uint8_t *code, int check, int emit)
     printf ("# ramp\nf0_hz,seed,refine,ho_err_hz,lock_0_5s,lock_2s,"
             "on_2s,code_2s\n");
   else
-    printf ("ramp: 415.1-B-1 at 2.8 GHz, +400 Hz/s, refine true and false on "
+    printf ("ramp: 415.1-B-1 at 2.8 GHz, +R_env, refine true and false on "
             "the same draws\n");
   for (size_t f = 0; f < 2; f++)
     for (uint32_t s = 1; s <= trials; s++, n++)

@@ -380,9 +380,13 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
           /* No sync word: a stretch of truth is the marker, which is what
              every unspread receiver test does today and is precisely the
              baseline the named set exists to compare against. */
-          mk.sym    = NULL;
-          mk.n      = DP_BER_SYNC_SYMS;
-          mk.t0     = settle + (size_t)DP_BER_LAG_SPAN;
+          mk.sym = NULL;
+          mk.n   = DP_BER_SYNC_SYMS;
+          mk.t0  = dp_ber_marker_place (truth, nsym, c->m,
+                                        settle + (size_t)DP_BER_LAG_SPAN, 0,
+                                        DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
+          if (mk.t0 == SIZE_MAX)
+            mk.t0 = nsym; /* none: past the end, refused below */
           mk.period = 0;
           mk.reps   = 0;
         }
@@ -523,10 +527,9 @@ rx_frame_default_cfg (rx_frame_cfg_t *c, dp_frame_name_t frame)
   c->fc    = 0.0;
   /* An offset INSIDE the loop's acquisition bound, so the carrier loop has
      real work to do. The bound carries the `m` -- the NDA discriminator is an
-     M-th power, so it is `bn_carrier / m` per symbol. At the BPSK this file
-     measures, `0.5 * bn / sps` happened to be exactly that, so this is the
-     same number it always was; written through the helper because the
-     coincidence is only true at m = 2 and nothing here said so (doppler#843).
+     M-th power -- and since #3224 a 4: `bn_carrier / (4 m)` per symbol, the
+     corrected loop's prompt-lock window (doppler#843 put it behind the
+     helper).
    */
   c->bn_timing  = 0.01;
   c->bn_carrier = 0.005;

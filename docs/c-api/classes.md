@@ -6,6 +6,7 @@
 
 * [**agc\_tlm\_t**](structagc__tlm__t.md)
 * [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md)
+* [**async\_dsss\_receiver\_fine\_t**](structasync__dsss__receiver__fine__t.md)
 * [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md)
 
 
@@ -20,6 +21,7 @@
 
 ## c
 
+* [**carrier\_acq\_tlm\_t**](structcarrier__acq__tlm__t.md)
 * [**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md)
 * [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md)
 * [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md)
@@ -103,6 +105,7 @@
 * [**dp\_interp\_table\_state\_t**](structdp__interp__table__state__t.md)
 * [**dp\_iq16\_t**](structdp__iq16__t.md)
 * [**dp\_lo\_state\_t**](structdp__lo__state__t.md)
+* [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md)
 * [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md)
 * [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md)
 * [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md)

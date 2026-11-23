@@ -126,3 +126,73 @@ def test_shade_names_one_probe(tmp_path: Path) -> None:
         plot_capture.main([str(cap), "--time", "--shade", "car.nco"])
     with pytest.raises(SystemExit, match="no probe matching"):
         plot_capture.main([str(cap), "--time", "--shade", "stim.off"])
+
+
+def test_scale_multiplies_and_names_the_unit() -> None:
+    """``--scale`` is a factor and a unit, both the caller's. Failing case:
+    a spec read without its factor (or its unit) gives 1 (or no unit)."""
+    assert plot_capture._scale_spec("car.freq=11e6:Hz") == (
+        "car.freq",
+        11e6,
+        "Hz",
+    )
+    assert plot_capture._scale_spec("x=2")[1:] == (2.0, "")
+
+
+def test_running_mean_is_trailing_over_n_records() -> None:
+    """The trailing mean over the last N records, the first N - 1 over what
+    there is. Failing case: a centred window would give 1.0, 2.0, 4.0 ...
+    and a mean over everything so far 0.0, 1.0, 2.0, 3.0."""
+    assert plot_capture._running_mean([0.0, 2.0, 4.0, 6.0], 2) == [
+        0.0,
+        1.0,
+        3.0,
+        5.0,
+    ]
+    assert plot_capture._running_mean([3.0], 5) == [3.0]
+
+
+def test_the_new_options_draw_from_the_capture(tmp_path: Path) -> None:
+    """End to end: a scaled, averaged panel with a vertical line, a reference
+    line and a caption read from a file writes a figure."""
+    cap = _capture(tmp_path)
+    cap_txt = tmp_path / "caption.txt"
+    cap_txt.write_text("2.8 GHz 4 dB, guideline arm, seed 1")
+    out = tmp_path / "pass.png"
+    assert (
+        plot_capture.main(
+            [
+                str(cap),
+                "rx.car.nco",
+                "--time",
+                "--scale",
+                "rx.car.nco=1000:Hz",
+                "--mean",
+                "rx.car.nco=3",
+                "--vline",
+                "0.5:t_pull",
+                "--line",
+                "rx.car.nco=4000:up 4000",
+                "--caption-file",
+                str(cap_txt),
+                "-o",
+                str(out),
+            ]
+        )
+        == 0
+    )
+    assert out.stat().st_size > 0
+
+
+def test_one_caption_source_and_a_count_of_records(tmp_path: Path) -> None:
+    """Two caption sources are refused, not one silently preferred; a
+    missing caption file and a mean over zero records are refused."""
+    cap = _capture(tmp_path)
+    with pytest.raises(SystemExit, match="give one"):
+        plot_capture.main(
+            [str(cap), "--caption", "a", "--caption-file", "b.txt"]
+        )
+    with pytest.raises(SystemExit, match="no such caption file"):
+        plot_capture.main([str(cap), "--caption-file", str(tmp_path / "x")])
+    with pytest.raises(SystemExit, match="count of records"):
+        plot_capture.main([str(cap), "--mean", "rx.car.nco=0"])

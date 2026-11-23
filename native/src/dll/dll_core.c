@@ -80,11 +80,13 @@ draw_offset (dp_dll_state_t *s)
 static void
 lock_clear (dp_dll_state_t *s)
 {
-  s->noise_ema  = 0.0;
-  s->lock_sum   = 0.0;
-  s->lock_count = 0;
-  s->lock_nz    = 0;
-  s->lock_stat  = 0.0;
+  s->noise_ema       = 0.0;
+  s->lock_sum        = 0.0;
+  s->lock_count      = 0;
+  s->lock_nz         = 0;
+  s->lock_stat       = 0.0;
+  s->look_prompt_amp = 0.0;
+  s->look_offset_pwr = 0.0;
   dp_lockdet_reset (&s->lock);
 }
 
@@ -113,6 +115,7 @@ seed (dp_dll_state_t *s)
   s->have_prev_epoch    = 0;
   s->out_level          = 0.0;
   s->out_level_n        = 0;
+  s->win_p              = 0.0f;
   s->rng = 0x2545F491u ^ (uint32_t)s->sf; /* deterministic seed */
   draw_offset (s);
   /* Clear the lock detector's running state; keep its config (threshold/
@@ -157,6 +160,9 @@ lock_look (dp_dll_state_t *s, float _Complex prompt, float _Complex offset)
   double pp = (double)crealf (prompt) * (double)crealf (prompt)
               + (double)cimagf (prompt) * (double)cimagf (prompt);
   s->lock_sum += pp;
+  /* The look's two terms, for the statistic's decomposition (#3134). */
+  s->look_prompt_amp = sqrt (pp);
+  s->look_offset_pwr = po;
   if (++s->lock_count >= s->n_looks)
     {
       double denom = s->noise_ema > DLL_EPS ? s->noise_ema : DLL_EPS;
@@ -250,6 +256,16 @@ aid_look (dp_dll_state_t *s, float _Complex part, float _Complex noise,
   lock_look (s, sp, so);
   float me = cabsf (se), ml = cabsf (sl), mp = cabsf (sp);
   dll_steer (s, (double)me * me, (double)ml * ml, (double)mp * mp);
+  if (s->tlm.steer_ctx) /* the per-steer set (dp_dll_set_steer_telemetry) */
+    {
+      const double pe = s->lf.kp * s->last_error;
+      dp_tlm_emit (s->tlm.steer_ctx, s->tlm.id_s_e, s->last_error);
+      dp_tlm_emit (s->tlm.steer_ctx, s->tlm.id_s_prop, pe);
+      dp_tlm_emit (s->tlm.steer_ctx, s->tlm.id_s_integ, s->lf.integ);
+      dp_tlm_emit (s->tlm.steer_ctx, s->tlm.id_s_ctrl,
+                   s->inv_upd * (s->ctrl_i * s->lf.integ + s->ctrl_p * pe));
+      dp_tlm_emit (s->tlm.steer_ctx, s->tlm.id_s_aid, s->rate_aid);
+    }
 }
 
 /* Composition faces of the lock detector (dll_core.h): thin extern
@@ -402,6 +418,7 @@ dp_dll_init (dp_dll_state_t *s, const uint8_t *code, size_t code_len,
   memset (&s->held_lf, 0, sizeof s->held_lf);
   s->code      = code; /* borrowed */
   s->owns_code = 0;
+  s->rtab      = NULL; /* no allocation here: the taps read the code */
   /* dp_dll_init always runs with segments == 1 (configure_geometry's
    * set_segments default; there is no by-value counterpart to
    * dp_dll_create()'s segments parameter), so the segments>1 chunk/lookback
@@ -476,6 +493,28 @@ free_segment_buffers (dp_dll_state_t *s)
   s->last_backward_p = s->last_e = s->last_l = NULL;
 }
 
+/* The replica's grid values as a table (dp_dll_state_t::rtab): entry i is
+ * the sign of chip i / 2, and entry 2 sf repeats entry 0, which is the wrap
+ * dll_replica_word() tests for. Built once, where the code and sf are set:
+ * dp_dll_create() is the only writer of either that allocates (configure_
+ * geometry() sets sf only from create and init, and init borrows the code
+ * and builds nothing). */
+static float *
+build_rtab (const uint8_t *code, size_t sf)
+{
+  size_t n;
+  float *t = dp_size_mul (sf, 2, &n) && dp_size_add (n, 1, &n)
+                 ? dp_mallocn (n, sizeof *t)
+                 : NULL;
+  if (t)
+    {
+      for (size_t i = 0; i < 2 * sf; i++)
+        t[i] = dll_chip_sign (code[i >> 1]);
+      t[2 * sf] = t[0];
+    }
+  return t;
+}
+
 dp_dll_state_t *
 dp_dll_create (const uint8_t *code, size_t code_len, double sps,
                double init_chip, double bn, double zeta, double spacing,
@@ -507,6 +546,9 @@ dp_dll_create (const uint8_t *code, size_t code_len, double sps,
     }
   obj->code      = copy;
   obj->owns_code = 1;
+  /* A table that could not be allocated is no table: the taps read the
+     code, to the same values (dp_dll_init()'s case). */
+  obj->rtab = build_rtab (copy, obj->sf);
   seed (obj);
   return obj;
 }
@@ -518,6 +560,7 @@ dp_dll_destroy (dp_dll_state_t *state)
     return;
   if (state->owns_code)
     free ((void *)state->code);
+  free (state->rtab);
   free_segment_buffers (state);
   free_aid_buffers (state);
   free (state);
@@ -563,10 +606,11 @@ dp_dll_set_telemetry (dp_dll_state_t *state, dp_tlm_t *tlm, const char *prefix,
       state->tlm.ctx = NULL;
       return DP_OK;
     }
-  const char              *p      = prefix ? prefix : "code";
-  static const char *const sfx[5] = { "e", "rate", "lock", "locked", "nco" };
-  char                     name[5][DP_TLM_NAME_MAX];
-  for (size_t i = 0; i < 5; i++) /* all names before any registration */
+  const char              *p = prefix ? prefix : "code";
+  static const char *const sfx[7]
+      = { "e", "rate", "lock", "locked", "nco", "prompt_amp", "offset_pwr" };
+  char name[7][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 7; i++) /* all names before any registration */
     if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
       return DP_ERR_INVALID; /* overlong prefix: nothing registered */
   int id_e      = dp_tlm_probe (tlm, name[0], decim);
@@ -574,14 +618,45 @@ dp_dll_set_telemetry (dp_dll_state_t *state, dp_tlm_t *tlm, const char *prefix,
   int id_lock   = dp_tlm_probe (tlm, name[2], decim);
   int id_locked = dp_tlm_probe (tlm, name[3], decim);
   int id_nco    = dp_tlm_probe (tlm, name[4], decim);
-  if (id_e < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0 || id_nco < 0)
+  int id_pamp   = dp_tlm_probe (tlm, name[5], decim);
+  int id_opwr   = dp_tlm_probe (tlm, name[6], decim);
+  if (id_e < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0 || id_nco < 0
+      || id_pamp < 0 || id_opwr < 0)
     return DP_ERR_INVALID; /* table full: attach fails whole */
+  state->tlm.id_pamp   = id_pamp;
+  state->tlm.id_opwr   = id_opwr;
   state->tlm.id_nco    = id_nco;
   state->tlm.id_e      = id_e;
   state->tlm.id_rate   = id_rate;
   state->tlm.id_lock   = id_lock;
   state->tlm.id_locked = id_locked;
   state->tlm.ctx       = tlm; /* set last: emit sites gate on ctx */
+  return DP_OK;
+}
+
+int
+dp_dll_set_steer_telemetry (dp_dll_state_t *state, dp_tlm_t *tlm,
+                            const char *prefix, uint32_t decim)
+{
+  state->tlm.steer_ctx = NULL;
+  if (!tlm)
+    return DP_OK;
+  const char              *p      = prefix ? prefix : "code.steer";
+  static const char *const sfx[5] = { "e", "prop", "integ", "ctrl", "aid" };
+  char                     name[5][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 5; i++) /* all names before any registration */
+    if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
+      return DP_ERR_INVALID;
+  int id[5];
+  for (size_t i = 0; i < 5; i++)
+    if ((id[i] = dp_tlm_probe (tlm, name[i], decim)) < 0)
+      return DP_ERR_INVALID; /* table full: the set stays detached */
+  state->tlm.id_s_e     = id[0];
+  state->tlm.id_s_prop  = id[1];
+  state->tlm.id_s_integ = id[2];
+  state->tlm.id_s_ctrl  = id[3];
+  state->tlm.id_s_aid   = id[4];
+  state->tlm.steer_ctx  = tlm; /* set last: the emit site gates on it */
   return DP_OK;
 }
 
@@ -596,6 +671,8 @@ dp_dll_tlm_flush (const dp_dll_state_t *s)
      phase word, so over inv_tsamps it is periods per nominal period. */
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_nco,
                nco_word_to_norm (s->code_nco.phase_inc) / s->inv_tsamps);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_pamp, s->look_prompt_amp);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_opwr, s->look_offset_pwr);
 }
 
 /* Serializable state — whole-struct snapshot (loop_filter child and the
@@ -637,12 +714,14 @@ dp_dll_get_state (const dp_dll_state_t *s, void *blob)
   dp_dll_state_t tmp = *s;
   tmp.code           = NULL;
   tmp.owns_code      = 0;
+  tmp.rtab           = NULL;
   tmp.chunk_p = tmp.chunk_e = tmp.chunk_l = tmp.sums = NULL;
   tmp.last_backward_p = tmp.last_e = tmp.last_l = NULL;
   tmp.aid_ring_p = tmp.aid_ring_o = NULL;
   tmp.aid_ring_e = tmp.aid_ring_l = NULL;
   tmp.aid_power                   = NULL;
   memset (&tmp.tlm, 0, sizeof tmp.tlm);
+  tmp.win_p = 0.0f; /* scratch: dp_dll_get_window_sum() */
   dp_w_bytes (&_w, &tmp, sizeof tmp);
   if (s->segments > 1)
     {
@@ -785,6 +864,7 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
      next epoch boundary. */
   t.code            = s->code;
   t.owns_code       = s->owns_code;
+  t.rtab            = s->rtab;
   t.tlm             = s->tlm;
   t.chunk_p         = s->chunk_p;
   t.chunk_e         = s->chunk_e;
@@ -891,6 +971,110 @@ dp_dll_steps_max_out (dp_dll_state_t *state)
  * cached correlator/code-phase hot state; measured ~20% slower detached
  * on the symsync loops). Same mechanism as symsync_step_ted's literal
  * TED. */
+/* ── The block correlate ─────────────────────────────────────────────────
+ * Most samples close nothing: no partial ends on them and the code does not
+ * wrap. For a run of those, dll_lock_accumulate() and dll_accumulate() come
+ * down to four taps and a phase add, and dll_block() does exactly that on
+ * local copies of the phase word and the four sums, written back once.
+ *
+ * Why it pays: the per-sample helpers update s->acc_* and the NCO phase
+ * through the state pointer, and the code is a uint8_t table, which C lets
+ * alias anything -- so the compiler stored and reloaded every sum and the
+ * phase on every sample. Locals cannot alias the code. The operations and
+ * their order are the per-sample path's, so the result is the same bits,
+ * and every sample that does close something still takes that path. */
+
+/* dll_replica_word() from dp_dll_state_t::rtab: the same two grid values and
+   the same interpolation, without the wrap test or the chip-to-sign step. */
+static JM_FORCEINLINE float
+dll_replica_tab (const float *t, uint32_t grid_n, uint32_t w)
+{
+  uint32_t     frac;
+  const size_t i  = nco_word_to_grid (w, grid_n, &frac);
+  const float  mu = nco_frac_to_weight (frac);
+  return t[i] + mu * (t[i + 1] - t[i]);
+}
+
+/* How many of the next `left` samples close nothing: each one's post-advance
+   phase word stays below `limit`, the wrap or, before an epoch's last
+   partial, four words under the word that partial closes at (the margin
+   keeps dll_steps_impl's double compare, chip_pos against the partial's
+   chip, false for every sample taken). Nothing while a put is pending
+   either way (wrap_await, wrap_pending): those samples take the per-sample
+   path's own handling. */
+static JM_FORCEINLINE size_t
+dll_block_len (const dp_dll_state_t *s, size_t left)
+{
+  if (s->wrap_await || s->wrap_pending || s->seg_idx >= s->segments)
+    return 0;
+  uint64_t limit = (uint64_t)1 << 32;
+  if (s->seg_idx + 1 < s->segments)
+    {
+      /* The partial's close as a word: rounded to within one, which the
+         margin covers. Before the last partial it is inside the period. */
+      const uint64_t t = nco_norm_phase_to_word (
+          (double)(s->seg_idx + 1) * s->seg_chips / (double)s->sf);
+      limit = t > 4u ? t - 4u : 0u;
+    }
+  const uint64_t inc = s->code_nco.phase_inc, ph = s->code_nco.phase;
+  /* A phase that does not advance has no block length to divide for. */
+  if (inc == 0 || limit <= ph + inc)
+    return 0;
+  const uint64_t k = (limit - 1 - ph) / inc;
+  return k < left ? (size_t)k : left;
+}
+
+/* The taps of dll_lock_accumulate() then dll_accumulate(), in that order,
+   for `k` samples; `t` is the table or NULL. Inlined at each of
+   dll_block()'s two calls, so each gets its own constant. */
+static JM_FORCEINLINE void
+dll_block_run (dp_dll_state_t *s, const float _Complex *x, size_t k,
+               const float *t)
+{
+  const uint32_t grid_n = (uint32_t)(2u * s->sf);
+  const uint32_t inc = s->code_nco.phase_inc, half = inc >> 1;
+  const uint32_t org = s->tap_grid, sp = s->tap_spacing, off = s->tap_off;
+  uint32_t       ph = s->code_nco.phase;
+  float _Complex ap = s->acc_p, ae = s->acc_e, al = s->acc_l, ao = s->acc_o;
+#define DLL_REP(w)                                                            \
+  (t ? dll_replica_tab (t, grid_n, (w)) : dll_replica_word (s, (w)))
+  for (size_t j = 0; j < k; j++)
+    {
+      const float _Complex d = x[j];
+      const uint32_t p       = ph + half - org; /* dll_tap_base() */
+      ao += d * DLL_REP (p + off);
+      ap += d * DLL_REP (p);
+      ae += d * DLL_REP (p + sp);
+      al += d * DLL_REP (p - sp);
+      ph += inc;
+    }
+#undef DLL_REP
+  s->acc_p          = ap;
+  s->acc_e          = ae;
+  s->acc_l          = al;
+  s->acc_o          = ao;
+  s->code_nco.phase = ph;
+  /* dll_accumulate()'s chip_pos, from the last sample's post-advance
+     phase: the only one anything reads. */
+  s->chip_pos = nco_word_to_norm (ph) * (double)s->sf;
+}
+
+/* Take a block at x[*n] if there is one of two samples or more; advance *n
+   to its last sample and return 1, or return 0 for the per-sample path. */
+static JM_FORCEINLINE int
+dll_block (dp_dll_state_t *s, const float _Complex *x, size_t x_len, size_t *n)
+{
+  const size_t k = dll_block_len (s, x_len - *n);
+  if (k < 2)
+    return 0;
+  if (s->rtab)
+    dll_block_run (s, x + *n, k, s->rtab);
+  else
+    dll_block_run (s, x + *n, k, NULL);
+  *n += k - 1;
+  return 1;
+}
+
 static JM_FORCEINLINE size_t
 dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                 float _Complex *out, size_t max_out, int tlm_on)
@@ -903,6 +1087,8 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
       double tsamps = (double)state->sf * state->sps;
       for (size_t n = 0; n < x_len; n++)
         {
+          if (dll_block (state, x, x_len, &n))
+            continue;
           /* Off-peak (noise) tap on the same pre-advance phase as the
              prompt; accumulates over the same epoch. */
           dll_lock_accumulate (state, x[n]);
@@ -933,6 +1119,9 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
             continue;
           float _Complex prompt = state->acc_p / (float)tsamps;
           float _Complex noise  = state->acc_o / (float)tsamps;
+          /* One segment: the whole period is the only window, so the
+             look-back's winner is this epoch's own raw prompt sum. */
+          state->win_p = state->acc_p;
           dll_update (state);
           lock_look (state, prompt, noise);
           if (emitted < max_out)
@@ -974,6 +1163,8 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
   double tsamps = (double)state->sf * state->sps;
   for (size_t n = 0; n < x_len; n++)
     {
+      if (dll_block (state, x, x_len, &n))
+        continue;
       dll_lock_accumulate (state, x[n]);
       int wrapped = dll_accumulate (state, x[n]);
       if (state->wrap_await)
@@ -1063,8 +1254,9 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                  Step 4 (Python: `max_window = correlations.argmax()`):
                  plain argmax over ALL w candidates below -- no margin or
                  hysteresis, matching the reference exactly. */
-              double best_abs  = cabsf (state->sums[w - 1]) / tsamps;
-              size_t best_widx = 0; /* 0 = natural (unshifted) window */
+              double best_abs         = cabsf (state->sums[w - 1]) / tsamps;
+              size_t best_widx        = 0; /* 0 = natural (unshifted) window */
+              float _Complex best_sum = state->sums[w - 1];
               if (state->have_prev_epoch)
                 for (size_t k = 0; k + 1 < w; k++)
                   {
@@ -1074,11 +1266,13 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                     if (p > best_abs)
                       {
                         best_abs = p;
+                        best_sum = combined;
                         /* chunks borrowed from the previous epoch's tail;
                            Python's own window_index/step_size. */
                         best_widx = w - 1 - k;
                       }
                   }
+              state->win_p = best_sum;
               /* Step 5 (Python: `get_window(early, last_early,
                  window_index)`/`get_window(late, ...)`, then
                  `early_power`/`late_power`): reconstruct E/L over the
@@ -1484,18 +1678,39 @@ dp_dll_configure_lock_raw (dp_dll_state_t *state, double up_thresh,
   state->lock_alpha = alpha;
   /* Re-tuning clears the in-flight statistic and drops the lock so the next
      decision uses only looks gathered under the new config. */
-  state->lock_sum   = 0.0;
-  state->lock_count = 0;
-  state->lock_nz    = 0;
-  state->noise_ema  = 0.0;
-  state->lock_stat  = 0.0;
+  state->lock_sum        = 0.0;
+  state->lock_count      = 0;
+  state->lock_nz         = 0;
+  state->noise_ema       = 0.0;
+  state->lock_stat       = 0.0;
+  state->look_prompt_amp = 0.0;
+  state->look_offset_pwr = 0.0;
   dp_lockdet_reset (&state->lock);
+}
+
+float _Complex dp_dll_get_window_sum (const dp_dll_state_t *state)
+{
+  return state->win_p;
 }
 
 int
 dp_dll_get_locked (const dp_dll_state_t *state)
 {
   return state->lock.locked;
+}
+
+dp_lockdet_rule_t
+dp_dll_get_lock_rule (const dp_dll_state_t *state)
+{
+  return dp_lockdet_rule (&state->lock);
+}
+
+double
+dp_dll_get_code_phase_ahead (const dp_dll_state_t *state, size_t ahead)
+{
+  const uint32_t ph
+      = state->code_nco.phase + (uint32_t)ahead * state->code_nco.phase_inc;
+  return nco_word_to_norm (ph) * (double)state->sf;
 }
 
 double
@@ -1508,4 +1723,16 @@ double
 dp_dll_get_noise_est (const dp_dll_state_t *state)
 {
   return state->noise_ema;
+}
+
+double
+dp_dll_get_window_noise (const dp_dll_state_t *state)
+{
+  /* The look's partials: aid_len under the symbol-period aid (segmented
+     only; one segment looks once an epoch), else one. */
+  const double looks = state->segments > 1 && state->sym_period > 0.0
+                           ? (double)state->aid_len
+                           : 1.0;
+  return state->noise_ema * (double)state->sf * state->sps * state->seg_norm
+         / looks;
 }

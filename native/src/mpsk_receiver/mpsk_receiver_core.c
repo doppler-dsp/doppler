@@ -823,6 +823,18 @@ dp_mpsk_receiver_get_sync_lock_drop_thresh (
   return state->l.timing.lock.down_thresh;
 }
 
+dp_lockdet_rule_t
+dp_mpsk_receiver_get_lock_rule (const dp_mpsk_receiver_state_t *state)
+{
+  return dp_lockdet_rule (&state->l.car_lock);
+}
+
+dp_lockdet_rule_t
+dp_mpsk_receiver_get_sync_lock_rule (const dp_mpsk_receiver_state_t *state)
+{
+  return dp_lockdet_rule (&state->l.timing.lock);
+}
+
 size_t
 dp_mpsk_receiver_get_num_phases (const dp_mpsk_receiver_state_t *state)
 {

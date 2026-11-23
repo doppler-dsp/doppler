@@ -1,0 +1,10 @@
+head 7ff5febd1 dirty=0 start 12:45:46
+design rc=0 12:45:50
+rules rc=0 12:48:02
+done
+commands (swiftgo-ai9465, ~/bench-work/implementer/b, make build at the head):
+  design.txt: validate_async_dsss_receiver_pullin --design --emit
+  rule.csv:   validate_async_dsss_receiver_pullin --emit --dynamics pass --draws 1 --secs 20,
+              its `# rule` section verbatim (rules are fixed per cell at build;
+              the run's one-draw rows and histograms are not kept)
+both exits 0; stderr empty for both

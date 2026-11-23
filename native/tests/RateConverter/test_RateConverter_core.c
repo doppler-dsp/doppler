@@ -1992,6 +1992,63 @@ count_lag_measured (double rate, int compensate, int matched, size_t n,
   return worst;
 }
 
+/* dp_RateConverter_get_group_delay() against the delay a tone actually
+ * sees. A complex tone at f cycles per input sample comes out as
+ * exp(j 2 pi f (k / rate - D)), so the output's own phase gives D, and a
+ * passband gain error cannot move it (a ramp's level would). At the two
+ * 415.1-B-1 front-end ratios -- 11 MSa/s from twice 4.0913 and twice
+ * 3.2147 Mcps, both resampler-only plans -- and a decimating resampler; a
+ * plan with a halfband stage refuses (NaN), as any plan but one resampler
+ * stage does. Sabotage: the delay read in output samples (2.8-3.9 samples
+ * off), or zero, misses; the refusal dropped reads a number at 0.25. */
+static int
+test_group_delay_is_the_signal_delay (void)
+{
+  const double rates[]
+      = { 11.0e6 / (2.0 * 4.0913e6), 11.0e6 / (2.0 * 3.2147e6), 0.83 };
+  const double    f = 0.005; /* cycles per input sample, deep in band */
+  const size_t    n = 40000;
+  float _Complex *x = malloc (n * sizeof *x);
+  float _Complex *y = malloc (3 * n * sizeof *y);
+  DP_REQUIRE (x != NULL && y != NULL);
+  for (size_t i = 0; i < n; i++)
+    x[i] = cexpf ((float)(2.0 * M_PI * f * (double)i) * I);
+  for (size_t r = 0; r < sizeof rates / sizeof *rates; r++)
+    {
+      dp_RateConverter_state_t *rc = dp_RateConverter_create (rates[r], 0);
+      DP_REQUIRE (rc != NULL);
+      const double D = dp_RateConverter_get_group_delay (rc);
+      DP_CHECK (isfinite (D) && D > 0.0);
+      const size_t m     = dp_RateConverter_execute (rc, x, n, y, 3 * n);
+      double       worst = 0.0;
+      for (size_t k = m / 4; k < 3 * m / 4; k++)
+        {
+          /* The measured delay, unwrapped against the predicted one: the
+             tone's phase fixes it modulo 1/f = 200 samples. */
+          const double ph   = carg ((double _Complex)y[k]) / (2.0 * M_PI);
+          const double want = f * ((double)k / rates[r] - D);
+          double       d    = ph - want;
+          d -= round (d);
+          if (fabs (d / f) > worst)
+            worst = fabs (d / f);
+        }
+      printf ("  group delay at rate %.4f: %.3f input samples, worst "
+              "measured miss %.4f\n",
+              rates[r], D, worst);
+      DP_CHECK (worst < 0.01);
+      dp_RateConverter_destroy (rc);
+    }
+  {
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.25, 0);
+    DP_REQUIRE (rc != NULL);
+    DP_CHECK (isnan (dp_RateConverter_get_group_delay (rc)));
+    dp_RateConverter_destroy (rc);
+  }
+  free (x);
+  free (y);
+  return 0;
+}
+
 /* dp_RateConverter_get_count_lag() against the count, at every call size:
  * fed one sample a call, the worst of `m * rate - outputs` over every m,
  * in outputs, must be at most the computed lag (times the rate) and within
@@ -2056,6 +2113,7 @@ main (void)
   test_invalid_rate ();
   test_huge_block_refused ();
   DP_CHECK (test_count_lag_matches_the_count () == 0);
+  DP_CHECK (test_group_delay_is_the_signal_delay () == 0);
   test_set_rate_refusal_changes_nothing ();
   test_set_rate_rollback_on_a_failed_build ();
   test_bank_shape_value_without_a_bank ();

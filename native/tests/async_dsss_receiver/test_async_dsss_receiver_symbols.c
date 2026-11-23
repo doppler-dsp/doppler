@@ -41,6 +41,7 @@ const jm_any_fn jm_bound_symbols_async_dsss_receiver[] = {
     (jm_any_fn)dp_async_dsss_receiver_get_n_exclusions,
     (jm_any_fn)dp_async_dsss_receiver_get_threads,
     (jm_any_fn)dp_async_dsss_receiver_get_coherent_bins,
+    (jm_any_fn)dp_async_dsss_receiver_get_carrier_lock_n_noncoh,
     (jm_any_fn)dp_async_dsss_receiver_configure_lock_raw,
     (jm_any_fn)dp_async_dsss_receiver_configure_chain_raw,
     (jm_any_fn)dp_async_dsss_receiver_get_tracking,

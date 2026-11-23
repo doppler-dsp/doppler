@@ -72,9 +72,25 @@
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/acc_trace/acc_trace_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * @brief Telemetry attachment: a borrowed context and this object's probe
+ *        ids. NULL ctx (the default) means detached: every probe site is
+ *        one predicted-not-taken branch per tested block. Not part of the
+ *        state blob, and kept across reset() and set_state().
+ */
+typedef struct {
+    dp_tlm_t *ctx;      /**< NULL = detached.                           */
+    int32_t   id_stat;  /**< "<prefix>.stat"  -- the test statistic.    */
+    int32_t   id_thr;   /**< "<prefix>.thr"   -- the threshold it met.  */
+    int32_t   id_hz;    /**< "<prefix>.hz"    -- the peak's frequency.  */
+    int32_t   id_n;     /**< "<prefix>.n"     -- blocks folded.         */
+    int32_t   id_ready; /**< "<prefix>.ready" -- the decision, 0/1.     */
+} carrier_acq_tlm_t;
 
 /**
  * @brief CarrierAcquisition state: owned PSD and detector children,
@@ -119,6 +135,7 @@ typedef struct {
                             *  (see dp_carrier_acq_create()'s own doc).     */
     size_t nfft;          /**< PSD / template length, bins (config,
                                from the PSD core at create()).        */
+    carrier_acq_tlm_t tlm; /**< Telemetry attachment; not in the blob. */
 } dp_carrier_acq_state_t;
 
 /**
@@ -267,6 +284,67 @@ void dp_carrier_acq_reset(dp_carrier_acq_state_t *state);
  */
 void dp_carrier_acq_steps(dp_carrier_acq_state_t *state, const float _Complex *x,
                        size_t x_len);
+
+/**
+ * @brief Attach (or detach) a telemetry context and register the
+ * estimator's probes on it.
+ *
+ * Five probes, emitted once per TESTED block -- every block in
+ * sequential mode, once at dwell_target otherwise -- and thinned by
+ * decim:
+ * - "<prefix>.stat": the test statistic the decision compares, the
+ *   correlator's peak over its noise estimate (dimensionless);
+ * - "<prefix>.thr": the threshold it was compared against at this
+ *   block count (the ratio a detection must exceed; it falls as blocks
+ *   accrue);
+ * - "<prefix>.hz": the frequency of the correlation peak, Hz, refined
+ *   to a sub-bin as the decision's residual_hz is -- so on the block
+ *   that decides, it IS residual_hz;
+ * - "<prefix>.n": blocks folded so far (n_blocks);
+ * - "<prefix>.ready": the decision, 0 or 1.
+ *
+ * A dwell that reaches its give-up cap without deciding shows as a last
+ * record with ".ready" 0 at ".n" equal to the cap. Setup path, never
+ * hot; the context is borrowed and must outlive the attachment (SPSC
+ * rules in dp_tlm/dp_tlm_core.h). Passing NULL detaches.
+ *
+ * @param state  Must be non-NULL.
+ * @param tlm    Telemetry context to attach, or NULL to detach.
+ * @param prefix Probe-name prefix; NULL means "ca".
+ * @param decim  Emit every decim-th tested block; >= 1.
+ * @return DP_OK, or DP_ERR_INVALID on decim 0, a prefix too long for a
+ *         probe's name, or a probe table without room for all five (the
+ *         attach fails whole; the object stays as it was).
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.acquire import CarrierAcquisition
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> ca = CarrierAcquisition(
+ * ...     sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
+ * ...     psd_template=np.array([], dtype=np.float32))
+ * >>> ca.set_telemetry(tlm, "ca")
+ * >>> sorted(tlm.probe_names)
+ * ['ca.hz', 'ca.n', 'ca.ready', 'ca.stat', 'ca.thr']
+ * >>> rng = np.random.default_rng(12345)
+ * >>> bits = np.where(rng.integers(0, 2, 4000), 1.0, -1.0)
+ * >>> data = np.repeat(bits, 8)
+ * >>> t = np.arange(len(data))
+ * >>> ca.steps((data * np.exp(2j * np.pi * 123.0 * t / 8000.0)).astype(
+ * ...     np.complex64))
+ * >>> recs = tlm.read()        # five records per tested block
+ * >>> len(recs) % 5
+ * 0
+ * >>> name = {i: n for n, i in tlm.probe_names.items()}
+ * >>> last = {name[int(r["probe"])]: float(r["value"]) for r in recs[-5:]}
+ * >>> last["ca.ready"], round(last["ca.hz"]), last["ca.stat"] > last["ca.thr"]
+ * (1.0, 123, True)
+ *
+ * @endcode
+ */
+int dp_carrier_acq_set_telemetry(dp_carrier_acq_state_t *state,
+                                 dp_tlm_t *tlm, const char *prefix,
+                                 uint32_t decim);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Composition: psd + detector children (self-contained sub-blobs) + own

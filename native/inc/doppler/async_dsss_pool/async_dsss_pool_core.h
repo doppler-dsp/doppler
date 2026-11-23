@@ -16,21 +16,25 @@
  *    only while some receiver is idle: with every receiver holding there
  *    is nobody to hand a detection to, so it stops, and a fresh search
  *    starts on the period one is free.
- * 2. **Then the receivers, in parallel.** The same period goes to every
+ * 2. **Then the receivers, in parallel.** The same periods go to every
  *    receiver, one per task on the `dp_parallel` workers when at least two
  *    hold a signal (idle ones cost nothing, so they run inline). A receiver
  *    touches only its own state, so the result does not depend on the
  *    thread count: one thread and N give the same bytes.
- * 3. **Then the controller, serially, at every code period of the
- *    stream.** A receiver is fed exactly one code period (`code_len *
- *    sample_rate / chip_rate` samples, its floor when that is not whole)
- *    per call, on the grid of the pool's sample count from create or
- *    reset; push() keeps what is left past the last whole period and feeds
- *    it with the next push. Every call and every controller step is then a
+ * 3. **Then the controller, serially, once a group of
+ *    ASYNC_DSSS_POOL_PERIODS_PER_JOIN code periods.** A receiver is fed
+ *    exactly one code period (`code_len * sample_rate / chip_rate` samples,
+ *    its floor when that is not whole) per call, the search and the
+ *    receivers a group of those periods at a time, the workers joined once
+ *    a group, on the grid of the pool's sample count from create or reset;
+ *    push() keeps what is left past the last whole group and feeds it with
+ *    the next push. Every call and every controller step is then a
  *    position in the stream, not a call boundary, so any blocking of one
  *    stream gives the same receivers, the same releases and the same
- *    symbols. The cost is latency: up to one code period of a push waits
- *    for the next. It reads every receiver's status() and:
+ *    symbols. The cost is latency: up to one group of a push waits for the
+ *    next, and a release or a seed comes up to a group's periods less one
+ *    after the period that called for it. It reads every receiver's
+ *    status() and:
  *    - **releases the lost.** A receiver in the lost state (its release
  *      rule fired: the emitter left, or the seed never locked) is reset to
  *      idle. With `reacquire` the receiver does this itself and is never
@@ -39,8 +43,10 @@
  *      (refining or tracking) within one chip of each other's code phase,
  *      circularly, hold the same signal. The one that keeps it is the one
  *      tracking over the one refining, then the one in its state longer
- *      (status().state_samples: the first to lock), then the higher C/N0
- *      estimate, then the lower index. The other is reset to idle.
+ *      (status().state_samples: the first to lock), then the higher
+ *      status().cn0_dbhz_est -- the C/N0 the search estimated at its seed,
+ *      not a live one: the receiver keeps none while tracking -- then the
+ *      lower index. The other is reset to idle.
  *    - **releases ghosts.** A receiver can take a strong emitter's
  *      Doppler-offset sidelobe, hundreds of chips from the emitter's own
  *      phase, where the duplicate key cannot see it: it despreads the
@@ -49,7 +55,9 @@
  *      @ref ASYNC_DSSS_POOL_GHOST_WINDOW_S of whole code periods, both
  *      receivers tracking throughout:
  *      - its carrier moves in lockstep with a stronger holder's (a higher
- *        status().cn0_dbhz_est), a whole nonzero number k of lattice
+ *        status().cn0_dbhz_est: stronger at its seed, as the search
+ *        estimated it, since no receiver keeps a running estimate), a
+ *        whole nonzero number k of lattice
  *        steps away: the carrier delta's mean is within
  *        @ref ASYNC_DSSS_POOL_GHOST_EPS_HZ of k times chip_rate /
  *        (2 code_len), and its standard deviation below
@@ -62,7 +70,12 @@
  *        sidelobe is not the code's triangle.
  *      Neither alone will do: a distinct emitter can co-move with another
  *      on the lattice (but holds code lock), and a true track near the
- *      floor loses code lock (but its carrier is its own).
+ *      floor loses code lock (but its carrier is its own). A ghost on its
+ *      parent's own carrier (k = 0) is not this rule's: a true emitter
+ *      sharing a stronger one's carrier looks the same
+ *      (docs/design/async-dsss-receiver.md §8). It leaves by the loss
+ *      release when both its lock flags are down, and is held while it
+ *      decodes its parent's data (its symbol lock up).
  *      dp_async_dsss_pool_ghost_of() is the test. The ghost is reset to
  *      idle; the search's sidelobe rule then keeps it off that cell, but
  *      for noise lifting it past the gate.
@@ -75,7 +88,7 @@
  *      (dp_async_dsss_receiver_set_exclusions()), so it never names a
  *      signal already held, and its pick count is the receivers still
  *      idle. Both take effect at its next dwell.
- * 3. **Reports.** status() is a receiver's status now, symbols() the
+ * 4. **Reports.** status() is a receiver's status now, symbols() the
  *    symbols it emitted during the last push(); both are as of the last
  *    whole period fed, since the controller runs right after it, so a
  *    released receiver never reads lost.
@@ -129,6 +142,8 @@
 #include "doppler/carrier_acq/carrier_acq_core.h"
 #include "doppler/resamp/resamp_core.h"
 #include "doppler/hbdecim/hbdecim_core.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
+#include "doppler/ppe/ppe_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -150,7 +165,11 @@ extern "C"
  * (v0.48.0 - v0.73.0), and v0.74.0 shipped this pool as v2. Each version
  * of a magic names one layout, so this pool steps past every number the
  * magic has carried (#2569; scripts/check_state_versions.py). */
-#define ASYNC_DSSS_POOL_STATE_VERSION 7u /* v7: its receivers' blobs carry
+#define ASYNC_DSSS_POOL_STATE_VERSION 8u /* v8: the carry is a group of
+                                              periods, and its receivers'
+                                              blobs carry the exclusions'
+                                              and picks' samples (ADRX
+                                              v18); v7: its receivers' blobs carry
                                               the refine hand-over ring
                                               (ADRX v17, #2974); v6: the
                                               receivers' search child is
@@ -161,6 +180,20 @@ extern "C"
   /** The ghost rule's window, s: the trailing span both its tests read
    *  (doppler#2529). */
 #define ASYNC_DSSS_POOL_GHOST_WINDOW_S 0.2
+  /** Code periods the receivers step between joins: push() feeds the search
+   *  and every receiver M periods at a time, on a grid of M periods counted
+   *  from create or reset, each receiver call still one period, and the
+   *  controller runs once at the end of each M (async-dsss-receiver.md §5).
+   *  Joining once a period cost about 18 of the pool's 60 ns a sample at the
+   *  415.1-B-1 point (nine receivers tracking, the search running), so
+   *  fewer joins is the pool's main cost lever. At 16: `make bench-ab
+   *  A=967275d78` (its commit, 3b41f5dd1), the push row at 415.1 with
+   *  K = 9 and 16 threads: 54 to 43.5 ns a sample at 2.2 GHz and 66 to 43.2 at 2.8 GHz, on
+   *  one host (the dev box), with a CONFIRM run and no row slower in both.
+   *  The size is that measurement's, not derived (doppler#2778). */
+#ifndef ASYNC_DSSS_POOL_PERIODS_PER_JOIN
+#define ASYNC_DSSS_POOL_PERIODS_PER_JOIN 16u
+#endif
   /** How near the lattice the mean carrier delta must sit, Hz. */
 #define ASYNC_DSSS_POOL_GHOST_EPS_HZ 10.0
   /** The stillness limit: the carrier delta's standard deviation over the
@@ -198,13 +231,15 @@ extern "C"
                            input's own (dp_async_dsss_receiver_steps()). */
     size_t         *n_sym;   /**< Symbols each receiver emitted, last push. */
     const float _Complex *feed_x; /**< The block push() is stepping.    */
-    size_t                feed_n; /**< Samples in feed_x: one code
-                                         period while push() steps. */
-    size_t   period;             /**< Samples a code period: the controller
-                                      runs every period of `samples`.   */
+    size_t                feed_n; /**< Samples in feed_x: one group
+                                         while push() steps.        */
+    size_t   period;             /**< Samples a code period: one receiver
+                                      call.                             */
+    size_t   group;              /**< Samples a join: period times
+                                      ASYNC_DSSS_POOL_PERIODS_PER_JOIN. */
     float _Complex *carry;       /**< The pushed samples past the last whole
-                                      period, not yet fed: period long. */
-    size_t          carry_len;   /**< How many; < period.               */
+                                      group, not yet fed: group long.   */
+    size_t          carry_len;   /**< How many; < group.                */
     size_t   n_receivers;        /**< Receivers, fixed at create.         */
     uint64_t samples;            /**< Input samples pushed since create or
                                       reset: the pool's shared clock.   */
@@ -251,7 +286,7 @@ extern "C"
    * @param pfa          Search false-alarm probability.
    * @param pd           Search detection probability.
    * @param doppler_uncertainty  Doppler search half-range, Hz.
-   * @param segments     Dll segments per symbol.
+   * @param segments     Dll segments per code period.
    * @param sps          Demodulator samples per symbol.
    * @param differential Differential detection (nonzero) or coherent.
    * @param refine_max_error_db  Refine stage's allowed loss, dB.
@@ -277,6 +312,11 @@ extern "C"
    *                     stages inline and its once-a-block ones fanned
    *                     when a block is more than one epoch
    *                     (async-dsss-receiver.md §5).
+   * @param refine       The receivers' own refine: false hands a seed
+   *                     straight to tracking, and is refused, as the
+   *                     receiver refuses it, when the search's depth is
+   *                     under 25 (dp_async_dsss_receiver_create()). Default
+   *                     true.
    * @return A new pool, every receiver idle; NULL on an invalid
    *         argument, or one any receiver refuses.
    * @note Caller must call dp_async_dsss_pool_destroy() when done.
@@ -307,7 +347,7 @@ extern "C"
       size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s, bool reacquire, double code_only_s,
-      double doppler_rate, int threads);
+      double doppler_rate, int threads, bool refine);
 
   /**
    * @brief Destroy a pool and every receiver.
@@ -361,7 +401,7 @@ extern "C"
 
   /** @brief Restore the state, whole or not at all. `DP_ERR_INVALID` on
    *  a blob of another object or version, another receiver count, a carry
-   *  of a period or more, a ghost history control() cannot leave (a length
+   *  of a group (ASYNC_DSSS_POOL_PERIODS_PER_JOIN periods) or more, a ghost history control() cannot leave (a length
    *  past the window, a flag other than 0 or 1, a nonzero entry outside a
    *  ring's span, or a history on a receiver not tracking), or a receiver
    *  blob its receiver refuses; a
@@ -389,13 +429,14 @@ extern "C"
 
   /**
    * @brief Step every receiver on one block, running the controller at
-   *        every code period it crosses.
+   *        every group of code periods it completes.
    *
-   * Hands every whole code period it completes to every receiver (header
-   * step 1), keeps each one's symbols for symbols(), and after each period
-   * releases the lost, resolves duplicates, releases ghosts, seeds the idle
-   * receivers and sets the search's levers (step 3). The samples past the
-   * last whole period are kept for
+   * Hands every whole group of ASYNC_DSSS_POOL_PERIODS_PER_JOIN code
+   * periods it completes to the search and every receiver, one period a
+   * call (header steps 1 and 2), keeps each one's symbols for symbols(),
+   * and after each group releases the lost, resolves duplicates, releases
+   * ghosts, seeds the idle receivers and sets the search's levers (step
+   * 3). The samples past the last whole group are kept for
    * the next push. Accepts any block size, and state carries across calls:
    * the result is a function of the stream, not of its blocking.
    *
@@ -493,7 +534,7 @@ extern "C"
   /**
    * @brief Set the workers push() steps the receivers on.
    *
-   * The receivers' results do not change with it (header step 1); only
+   * The receivers' results do not change with it (header step 2); only
    * the time a push takes does. A mutator's value, so it travels in the
    * state blob (#2022).
    *
@@ -565,7 +606,7 @@ extern "C"
   /**
    * @brief Whether receiver @p j tracks a Doppler-offset sidelobe of
    *        receiver @p i's signal, by the controller's ghost rule (header
-   *        step 2) over the history it holds now.
+   *        step 3) over the history it holds now.
    *
    * Both tests over the last @ref ASYNC_DSSS_POOL_GHOST_WINDOW_S of
    * controller steps: @p j's carrier minus @p i's has a mean within
@@ -586,9 +627,16 @@ extern "C"
                                    size_t i, size_t j);
 
   /**
-   * @brief Borrow receiver @p receiver, for C-only configuration: its lock
-   *        and chain settings (dp_async_dsss_receiver_configure_lock_raw(),
-   *        dp_async_dsss_receiver_configure_chain_raw()).
+   * @brief Borrow receiver @p receiver, for C-only configuration: its chain
+   *        settings (dp_async_dsss_receiver_configure_chain_raw()), which
+   *        every chain it builds keeps.
+   *
+   * dp_async_dsss_receiver_configure_lock_raw() retunes only the Dll the
+   * receiver holds at the call: every seed and hand-over builds a fresh
+   * track chain with the derived lock sizing, so a lock set through the
+   * borrow on an idle receiver never reaches a tracking chain, and one set
+   * while tracking lasts until the next release. Call it on a tracking
+   * receiver, as its own header says, and again after each hand-over.
    *
    * Not for telemetry: dp_async_dsss_pool_set_telemetry() is the one
    * route that keeps a context to one producer. A borrowed receiver is

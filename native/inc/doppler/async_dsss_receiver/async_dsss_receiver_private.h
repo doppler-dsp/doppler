@@ -74,12 +74,18 @@ int dp_async_dsss_receiver_set_search_only (
     dp_async_dsss_receiver_state_t *state, size_t n_picks);
 
 /**
- * @brief Take a search-only receiver's waiting picks, strongest first,
- *        and clear them.
+ * @brief Take a search-only receiver's waiting picks, in the order their
+ *        dwells found them (each dwell's strongest first), and clear them.
+ *
+ * A pick waits until taken. Taken calls after the one that found it, its
+ * phase is carried to the sample after the last one fed, dilated with a
+ * carrier, as a hit is carried to its hand-off; and a signal a later dwell
+ * picks again (within the exclusions' one chip) replaces its waiting pick
+ * with the fresher estimate, so the list holds each signal once.
  *
  * @param state         Must be non-NULL.
  * @param chip_phase    Out: each pick's code phase at the sample after
- *                      the call that found it, chips; at least @p max.
+ *                      the last one fed, chips; at least @p max.
  * @param doppler_hz    Out: its Doppler estimate, Hz.
  * @param cn0_dbhz      Out: its C/N0 estimate, dB-Hz.
  * @param max           Capacity of each array.
@@ -108,6 +114,20 @@ dp__adsss_same_code_phase (double a, double b, double code_len)
     d = code_len - d;
   return d <= DP_CORRELATOR_SAME_PHASE_CHIPS;
 }
+
+/**
+ * @brief Whether the refine has decided: its carrier estimator is ready
+ *        (and, with the fine hand-over on, the fine dwell is in), or it has
+ *        given up at its block cap. The one predicate the receiver's own
+ *        steps() and its period loop ask, exported for a test that stops a
+ *        stream at that point (a checkpoint taken there) rather than keep a
+ *        copy that drifts. No caller is promised it.
+ *
+ * @param state  Must be non-NULL, refining or not.
+ * @return 1 when decided, else 0.
+ */
+int dp__async_dsss_receiver_refine_decided (
+    const dp_async_dsss_receiver_state_t *state);
 
 #ifdef __cplusplus
 }

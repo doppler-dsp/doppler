@@ -38,14 +38,17 @@ _Composed receiver state._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**acq**](#variable-acq)  <br> |
 |  bool | [**align\_pending**](#variable-align_pending)  <br> |
+|  double | [**bn\_carrier**](#variable-bn_carrier)  <br> |
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**ca**](#variable-ca)  <br> |
-|  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car**](#variable-car)  <br> |
+|  [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) | [**car**](#variable-car)  <br> |
+|  uint32\_t | [**car\_blk**](#variable-car_blk)  <br> |
 |  float \_Complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
 |  size\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
 |  int | [**car\_coasting**](#variable-car_coasting)  <br> |
 |  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car\_frozen**](#variable-car_frozen)  <br> |
-|  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car\_held**](#variable-car_held)  <br> |
+|  double | [**car\_gamma**](#variable-car_gamma)  <br> |
+|  [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) | [**car\_held**](#variable-car_held)  <br> |
 |  float \_Complex \* | [**car\_wiped\_buf**](#variable-car_wiped_buf)  <br> |
 |  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
@@ -59,7 +62,17 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
 |  double | [**excl**](#variable-excl)  <br> |
+|  uint64\_t | [**excl\_at**](#variable-excl_at)  <br> |
+|  [**async\_dsss\_receiver\_fine\_t**](structasync__dsss__receiver__fine__t.md) | [**fine**](#variable-fine)  <br> |
+|  float \_Complex \* | [**fine\_buf**](#variable-fine_buf)  <br> |
+|  size\_t | [**fine\_cap**](#variable-fine_cap)  <br> |
+|  double | [**fine\_hz**](#variable-fine_hz)  <br> |
+|  size\_t | [**fine\_n**](#variable-fine_n)  <br> |
+|  int | [**fine\_on**](#variable-fine_on)  <br> |
+|  [**dp\_ppe\_state\_t**](structdp__ppe__state__t.md) \* | [**fine\_ppe**](#variable-fine_ppe)  <br> |
+|  double | [**fine\_snr\_db**](#variable-fine_snr_db)  <br> |
 |  int | [**had\_lock**](#variable-had_lock)  <br> |
+|  int | [**ho\_src**](#variable-ho_src)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
@@ -72,6 +85,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**n\_picks**](#variable-n_picks)  <br> |
 |  double | [**pd**](#variable-pd)  <br> |
 |  double | [**pfa**](#variable-pfa)  <br> |
+|  uint64\_t | [**pick\_at**](#variable-pick_at)  <br> |
 |  double | [**pick\_cn0**](#variable-pick_cn0)  <br> |
 |  double | [**pick\_doppler**](#variable-pick_doppler)  <br> |
 |  double | [**pick\_phase**](#variable-pick_phase)  <br> |
@@ -80,6 +94,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**rank**](#variable-rank)  <br> |
 |  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
 |  bool | [**reacquire**](#variable-reacquire)  <br> |
+|  bool | [**refine**](#variable-refine)  <br> |
 |  double | [**refine\_design\_margin\_db**](#variable-refine_design_margin_db)  <br> |
 |  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**refine\_dll**](#variable-refine_dll)  <br> |
 |  float \_Complex \* | [**refine\_dll\_out\_buf**](#variable-refine_dll_out_buf)  <br> |
@@ -124,13 +139,26 @@ _Composed receiver state._ [More...](#detailed-description)
 |  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**tlm**](#variable-tlm)  <br> |
+|  int32\_t | [**tlm\_cn0**](#variable-tlm_cn0)  <br> |
+|  int32\_t | [**tlm\_coast**](#variable-tlm_coast)  <br> |
 |  uint32\_t | [**tlm\_decim**](#variable-tlm_decim)  <br> |
+|  int32\_t | [**tlm\_fine\_hz**](#variable-tlm_fine_hz)  <br> |
+|  int32\_t | [**tlm\_fine\_n**](#variable-tlm_fine_n)  <br> |
+|  int32\_t | [**tlm\_fine\_snr**](#variable-tlm_fine_snr)  <br> |
+|  int32\_t | [**tlm\_had\_lock**](#variable-tlm_had_lock)  <br> |
 |  int32\_t | [**tlm\_handover**](#variable-tlm_handover)  <br> |
+|  int32\_t | [**tlm\_ho\_src**](#variable-tlm_ho_src)  <br> |
+|  int32\_t | [**tlm\_hold**](#variable-tlm_hold)  <br> |
+|  int32\_t | [**tlm\_phase\_car**](#variable-tlm_phase_car)  <br> |
+|  int32\_t | [**tlm\_phase\_code**](#variable-tlm_phase_code)  <br> |
 |  char | [**tlm\_prefix**](#variable-tlm_prefix)  <br> |
 |  int32\_t | [**tlm\_refused**](#variable-tlm_refused)  <br> |
+|  int32\_t | [**tlm\_release**](#variable-tlm_release)  <br> |
 |  int32\_t | [**tlm\_state**](#variable-tlm_state)  <br> |
+|  int32\_t | [**tlm\_sym\_den**](#variable-tlm_sym_den)  <br> |
 |  int32\_t | [**tlm\_sym\_lock**](#variable-tlm_sym_lock)  <br> |
 |  int32\_t | [**tlm\_sym\_locked**](#variable-tlm_sym_locked)  <br> |
+|  int32\_t | [**tlm\_sym\_num**](#variable-tlm_sym_num)  <br> |
 |  float \_Complex \* | [**track\_dll\_out\_buf**](#variable-track_dll_out_buf)  <br> |
 |  size\_t | [**track\_dll\_out\_cap**](#variable-track_dll_out_cap)  <br> |
 |  float \_Complex \* | [**track\_rc\_out\_buf**](#variable-track_rc_out_buf)  <br> |
@@ -227,6 +255,23 @@ Running: the searcher was reset and discards search samples to the next multiple
 
 
 
+### variable bn\_carrier 
+
+```C++
+double dp_async_dsss_receiver_state_t::bn_carrier;
+```
+
+
+
+Config: the pre-despread carrier loop's bandwidth, [**dp\_async\_dsss\_receiver\_carrier\_bn()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_bn) at cn0\_dbhz, set by create() and restored by it (not in the blob: cn0\_dbhz has no mutator). 
+
+
+        
+
+<hr>
+
+
+
 ### variable both\_down\_samples 
 
 ```C++
@@ -266,13 +311,30 @@ Owned CarrierAcquisition refining the Doppler.
 ### variable car 
 
 ```C++
-dp_costas_state_t dp_async_dsss_receiver_state_t::car;
+dp_carrier_nda_state_t dp_async_dsss_receiver_state_t::car;
 ```
 
 
 
 Track stage: pre-despread carrier loop (loop 1), by value. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable car\_blk 
+
+```C++
+uint32_t dp_async_dsss_receiver_state_t::car_blk;
+```
+
+
+
+Config: the carrier block lock's length, updates, det\_ratio\_block\_len() at car\_gamma and the loop's jitter (0: no block reaches Pd, the EMA decides). Set and restored by create(). 
 
 
         
@@ -350,10 +412,27 @@ Refine-stage carrier wipe, frozen at the seed's coarse Doppler (never updated).
 
 
 
+### variable car\_gamma 
+
+```C++
+double dp_async_dsss_receiver_state_t::car_gamma;
+```
+
+
+
+Config: the carrier loop's update SNR at cn0\_dbhz, linear (C/N0 over a code period): the unit denominator's clamp and the block lock's sizing read it. Set and restored by create(). 
+
+
+        
+
+<hr>
+
+
+
 ### variable car\_held 
 
 ```C++
-dp_costas_state_t dp_async_dsss_receiver_state_t::car_held;
+dp_carrier_nda_state_t dp_async_dsss_receiver_state_t::car_held;
 ```
 
 
@@ -598,6 +677,168 @@ those phases, chips, in [0, code\_len), the status() convention.
 
 
 
+### variable excl\_at 
+
+```C++
+uint64_t dp_async_dsss_receiver_state_t::excl_at;
+```
+
+
+
+samples\_in when they were set: the sample they name, which a dwell decided later carries them from. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine 
+
+```C++
+async_dsss_receiver_fine_t dp_async_dsss_receiver_state_t::fine;
+```
+
+
+
+the design at create. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_buf 
+
+```C++
+float _Complex* dp_async_dsss_receiver_state_t::fine_buf;
+```
+
+
+
+Owned: the squared sums. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_cap 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::fine_cap;
+```
+
+
+
+sums the dwell can produce. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_hz 
+
+```C++
+double dp_async_dsss_receiver_state_t::fine_hz;
+```
+
+
+
+the last fine estimate, Hz (NAN: none). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_n 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::fine_n;
+```
+
+
+
+sums so far this refine. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_on 
+
+```C++
+int dp_async_dsss_receiver_state_t::fine_on;
+```
+
+
+
+0 where the design refuses. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_ppe 
+
+```C++
+dp_ppe_state_t* dp_async_dsss_receiver_state_t::fine_ppe;
+```
+
+
+
+Owned, sized fine\_cap. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_snr\_db 
+
+```C++
+double dp_async_dsss_receiver_state_t::fine_snr_db;
+```
+
+
+
+its snr\_db. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable had\_lock 
 
 ```C++
@@ -607,6 +848,24 @@ int dp_async_dsss_receiver_state_t::had_lock;
 
 
 Running: both lock flags have been up since the hand-over. After that both down holds both loops (dp\_dll\_set\_coast, the carrier's own hold) so a departed emitter's receiver cannot free-run onto a neighbour's code (#1271). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable ho\_src 
+
+```C++
+int dp_async_dsss_receiver_state_t::ho_src;
+```
+
+
+
+ASYNC\_DSSS\_RX\_HO\_\*: which estimate the live chain was built from, NONE again at every seed. In the blob, so a resumed receiver reports the hand-over it made. 
  
 
 
@@ -830,6 +1089,23 @@ Also CarrierAcquisition's own pfa.
 
 
 
+### variable pick\_at 
+
+```C++
+uint64_t dp_async_dsss_receiver_state_t::pick_at[ASYNC_DSSS_RX_MAX_PEAKS];
+```
+
+
+
+its phase's sample, samples\_in at the end of that call: take\_picks() carries the phase from there. 
+
+
+        
+
+<hr>
+
+
+
 ### variable pick\_cn0 
 
 ```C++
@@ -963,6 +1239,23 @@ bool dp_async_dsss_receiver_state_t::reacquire;
 
 
 Config: release on symbol lock alone and reset to searching, never lost (see [**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create)). 
+
+
+        
+
+<hr>
+
+
+
+### variable refine 
+
+```C++
+bool dp_async_dsss_receiver_state_t::refine;
+```
+
+
+
+Config: a seed refines its Doppler before tracking; false hands the seed straight to tracking (see [**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create)). 
 
 
         
@@ -1755,6 +2048,42 @@ NULL = detached.
 
 
 
+### variable tlm\_cn0 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_cn0;
+```
+
+
+
+"&lt;prefix&gt;.cn0" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_coast 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_coast;
+```
+
+
+
+"&lt;prefix&gt;.coast" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable tlm\_decim 
 
 ```C++
@@ -1773,6 +2102,78 @@ The attach's decimation.
 
 
 
+### variable tlm\_fine\_hz 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_fine_hz;
+```
+
+
+
+"&lt;prefix&gt;.ref\_fine.hz" id. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_fine\_n 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_fine_n;
+```
+
+
+
+"&lt;prefix&gt;.ref\_fine.n" id. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_fine\_snr 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_fine_snr;
+```
+
+
+
+"&lt;prefix&gt;.ref\_fine.snr\_db" id. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_had\_lock 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_had_lock;
+```
+
+
+
+"&lt;prefix&gt;.had\_lock" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable tlm\_handover 
 
 ```C++
@@ -1782,6 +2183,77 @@ int32_t dp_async_dsss_receiver_state_t::tlm_handover;
 
 
 "&lt;prefix&gt;.handover\_hz" id, -1 detached. 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_ho\_src 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_ho_src;
+```
+
+
+
+"&lt;prefix&gt;.ho\_src" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_hold 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_hold;
+```
+
+
+
+"&lt;prefix&gt;.hold" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_phase\_car 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_phase_car;
+```
+
+
+
+"&lt;prefix&gt;.phase.car" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_phase\_code 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_phase_code;
+```
+
+
+
+"&lt;prefix&gt;.phase.code" id, -1 detached. 
 
 
         
@@ -1826,6 +2298,24 @@ int32_t dp_async_dsss_receiver_state_t::tlm_refused;
 
 
 
+### variable tlm\_release 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_release;
+```
+
+
+
+"&lt;prefix&gt;.release" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable tlm\_state 
 
 ```C++
@@ -1835,6 +2325,24 @@ int32_t dp_async_dsss_receiver_state_t::tlm_state;
 
 
 "&lt;prefix&gt;.state" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_sym\_den 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_sym_den;
+```
+
+
+
+"&lt;prefix&gt;.sym.den" id, -1 detached. 
  
 
 
@@ -1871,6 +2379,24 @@ int32_t dp_async_dsss_receiver_state_t::tlm_sym_locked;
 
 
 "&lt;prefix&gt;.sym.locked" id, -1 detached. 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_sym\_num 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_sym_num;
+```
+
+
+
+"&lt;prefix&gt;.sym.num" id, -1 detached. 
+ 
 
 
         

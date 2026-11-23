@@ -9,6 +9,14 @@
 target_link_libraries(bench_async_dsss_receiver_core PRIVATE awgn_core
                                                              wfm_synth_core)
 
+# awgn_core and wfm_synth_core: the hand-over tests' specification-point
+# emitter is the library's continuous DSSS synth with its code-only window,
+# taken to the input rate and through a DopplerChannel, plus the shipped
+# noise (_test_no_refine_hands_over_the_search_doppler). The test's alone,
+# as above.
+target_link_libraries(test_async_dsss_receiver_core PRIVATE awgn_core
+                                                            wfm_synth_core)
+
 # An attach that cannot allocate is DP_ERR_MEMORY and changes nothing
 # (#2846). The test compiles async_dsss_receiver_core.c INTO itself, so its
 # link line is the core's dependency list without async_dsss_receiver_core,
@@ -30,7 +38,8 @@ target_link_libraries(test_adr_telemetry_oom PRIVATE
     wfm_dsp_core gold_core snr_core ber_core correlator_core fft2d_core
     fft_core detection_core dp_tlm_core cvt_core carrier_acq_core psd_core
     spectral_core acc_trace_core correlator_core dll_core
-    loop_filter_core lockdet_core costas_core state_filter_core lo_core
+    loop_filter_core lockdet_core costas_core carrier_nda_core boxcar_core ppe_core
+    state_filter_core lo_core
     RateConverter_core
     resamp_core hbdecim_core cic_core fir_core resample_core agc_core
     mpsk_receiver_core ddc_core hbdecim_r2c_core ddcr_core ratesync_core
@@ -41,3 +50,10 @@ target_include_directories(test_adr_telemetry_oom PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc/doppler/async_dsss_receiver
     ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_adr_telemetry_oom COMMAND test_adr_telemetry_oom)
+
+# native/tests on the bench's include path: its 415.1-B-1 rows run the
+# receiver on the use-case scene, native/tests/dp_air_test.h, the one
+# builder the tests and validators measure on, so the bench times the
+# receiver on the stimulus it is certified on rather than a private copy.
+target_include_directories(bench_async_dsss_receiver_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)

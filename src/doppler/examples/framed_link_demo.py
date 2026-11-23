@@ -83,7 +83,12 @@ def receive(m, iq):
         pulse="rrc",
         rrc_beta=0.35,
         rrc_span=8,
-        bn_carrier=0.005,
+        # 0.0002 cycles/sample is 0.0016 a symbol; at QPSK that is u =
+        # df*M/bn = 0.32 here, inside the loop's prompt-lock window, so the
+        # frequency has settled when lock declares. At the 0.005 this used
+        # (u = 1.28, fine while the loop ran 1.67 times wider than
+        # bn_carrier said, #3224) lock could declare mid-pull-in.
+        bn_carrier=0.02,
         bn_timing=0.01,
         lock_thresh=0.65,
     )

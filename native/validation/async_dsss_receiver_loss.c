@@ -129,6 +129,16 @@ stage_loss (const stage_t *s, double es)
   return es - dp_ber_esn0_db_for_ser (2, s->err / s->sym);
 }
 
+/* A stage's loss at one end of its error rate's 99% interval (dp_ber_ci):
+   `hi` 0 at the fewest errors (the least loss), 1 at the most. */
+static double
+stage_loss_at (const stage_t *s, double es, int hi)
+{
+  const dp_ber_ci_t ci
+      = dp_ber_ci ((unsigned long)s->err, (unsigned long)s->sym, 0.99);
+  return es - dp_ber_esn0_db_for_ser (2, hi ? ci.hi : ci.lo);
+}
+
 static double
 stage_iq_db (const stage_t *s)
 {
@@ -313,19 +323,23 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
       MPSK_RX_AGC_BW_RATIO);
   dp_async_dsss_receiver_state_t *rx = whole ? make_rx (code, cn0) : NULL;
 
-  size_t         pcap = dp_dll_steps_max_out (dll) + SEGMENTS;
+  /* A block is one code period, which closes at most two epochs (two
+     when the boundary sits on the block's edge), SEGMENTS dumps each; one
+     slot more, so a call that filled it would have dropped dumps
+     (dp_dll_steps() drops past max_out silently, #3282; #3281). */
+  size_t         pcap = 2 * SEGMENTS + 1;
   float complex *prt  = dp_xmalloc (pcap * sizeof *prt);
   size_t         qcap = (size_t)((double)N / TE * SEGMENTS * rate) + 64;
-  float complex *q    = calloc (qcap, sizeof *q);
+  float complex *q    = dp_xcalloc (qcap, sizeof *q);
   size_t         nq = 0, np = 0, k1d = 0, k0 = 0;
   float complex *sig   = dp_xmalloc (TE * sizeof *sig);
   float complex *nz    = dp_xmalloc (TE * sizeof *nz);
   float complex *w     = dp_xmalloc (TE * sizeof *w);
   size_t         y3cap = n_sym + 64, n3 = 0;
-  float complex *y3    = calloc (y3cap, sizeof *y3);
+  float complex *y3    = dp_xcalloc (y3cap, sizeof *y3);
   size_t         y4cap = n_sym + TE, n4 = 0, first4 = SIZE_MAX;
-  float complex *y4  = whole ? calloc (y4cap, sizeof *y4) : NULL;
-  unsigned char *lk4 = whole ? calloc (y4cap, 1) : NULL;
+  float complex *y4  = whole ? dp_xcalloc (y4cap, sizeof *y4) : NULL;
+  unsigned char *lk4 = whole ? dp_xcalloc (y4cap, 1) : NULL;
   double complex ph = 1.0, rot = cexp (-I * 2.0 * M_PI * car / FS);
 
   for (size_t b = 0; b < n_blk; b++)
@@ -366,6 +380,7 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
         }
       /* S1d: the shipped Dll's partials, the j-th spanning S1's j-th. */
       size_t got = dp_dll_steps (dll, w, TE, prt, pcap);
+      DP_CHECK_MSG (got < pcap, "no block's call filled the Dll's capacity");
       for (size_t j = 0; j < got; j++, np++)
         {
           double len = (double)TE / SEGMENTS;
@@ -396,7 +411,7 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
   for (size_t ki = 0; ki < nk; ki++)
     score (&pt->s1[ki], y1[ki], d, LO_SYM, hi);
   score (&pt->s1d, y1d, d, LO_SYM, hi);
-  double complex *y2  = calloc (n_sym, sizeof *y2);
+  double complex *y2  = dp_xcalloc (n_sym, sizeof *y2);
   double          off = rc_offset (y2, E, n_sym, d, q, nq, rate);
   rc_dump (y2, E, n_sym, q, nq, rate, off);
   score (&pt->s2, y2, d, LO_SYM, hi);
@@ -409,8 +424,11 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
     int    ok     = 0;
     size_t settle = dp_ber_settle (mr->l.timing.bn, mr->l.bn_carrier, NULL,
                                    all, n3, &ok);
+    size_t at = dp_ber_marker_place (bits, n_bits, 2, settle + DP_BER_LAG_SPAN,
+                                     DP_BER_SYNC_SYMS, DP_BER_LAG_SPAN,
+                                     DP_BER_SYNC_PFA, 1);
     dp_ber_marker_t mk
-        = { NULL, DP_BER_SYNC_SYMS, settle + DP_BER_LAG_SPAN, 0, 0 };
+        = { NULL, DP_BER_SYNC_SYMS, at == SIZE_MAX ? n_bits : at, 0, 0 };
     dp_ber_sync_t sy = dp_ber_sync (y3, n3, bits, n_bits, &mk, 2,
                                     DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
     if (ok && sy.ok)
@@ -433,12 +451,18 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
       size_t settle = dp_ber_settle (rx->rx->l.timing.bn, rx->rx->l.bn_carrier,
                                      NULL, lk4, n4, &ok);
       size_t base   = symbol_at (first4 == SIZE_MAX ? 0 : first4 * TE);
-      dp_ber_marker_t mk
-          = { NULL, DP_BER_SYNC_SYMS, settle + DP_BER_LAG_SPAN, 0, 0 };
+      size_t at     = dp_ber_marker_place (
+          bits + base, n_bits - base, 2, settle + DP_BER_LAG_SPAN,
+          DP_BER_SYNC_SYMS, DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
+      dp_ber_marker_t mk = { NULL, DP_BER_SYNC_SYMS,
+                             at == SIZE_MAX ? n_bits - base : at, 0, 0 };
       dp_ber_sync_t sy = dp_ber_sync (y4, n4, bits + base, n_bits - base, &mk,
                                       2, DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
       if (ok && sy.ok)
-        for (size_t i = mk.t0 + mk.n - sy.lag; i < n4; i++)
+        /* The same window as S3's: past the settling, short of the
+           tail cut (hi, on the payload's own symbol index). */
+        for (size_t i = mk.t0 + mk.n - sy.lag;
+             i < n4 && base + i + sy.lag < hi; i++)
           {
             float complex z
                 = y4[i]
@@ -531,8 +555,10 @@ main (int argc, char **argv)
       stage_print ("S3  + MpskReceiver", &pt->s3, es);
       if (!check)
         {
-          stage_print ("S4  whole receiver", &pt->s4, es);
-          printf ("  S4: %zu of %u bursts did not settle (not scored)\n",
+          /* Measured, not asserted (the file comment's S4). */
+          stage_print ("S4  whole receiver (not asserted)", &pt->s4, es);
+          printf ("  S4: %zu of %u bursts did not settle (not scored; not "
+                  "asserted)\n",
                   pt->s4_unsettled, nb);
         }
 
@@ -549,10 +575,8 @@ main (int argc, char **argv)
         {
           /* The bound's loss at each end of S0's interval: the fewest errors
              read the least loss. */
-          const dp_ber_ci_t ci = dp_ber_ci ((unsigned long)pt->s0.err,
-                                            (unsigned long)pt->s0.sym, 0.99);
-          const double      l0_lo = es - dp_ber_esn0_db_for_ser (2, ci.lo);
-          const double      l0_hi = es - dp_ber_esn0_db_for_ser (2, ci.hi);
+          const double l0_lo = stage_loss_at (&pt->s0, es, 0);
+          const double l0_hi = stage_loss_at (&pt->s0, es, 1);
           DP_CHECK_MSG (l0_lo <= S0_ABS_DB && l0_hi >= -S0_ABS_DB,
                         "the ideal despread reads the BPSK bound");
         }
@@ -575,9 +599,11 @@ main (int argc, char **argv)
       DP_CHECK_MSG (pt->s3_unaligned == 0,
                     "the demodulator's output aligns to truth on every "
                     "burst");
+      /* No slack constant: the finer cut's loss at the fewest errors its
+         99% interval allows is under the coarser's at the most. */
       for (size_t i = 0; i + 1 < nk; i++)
-        DP_CHECK_MSG (stage_loss (&pt->s1[i + 1], es)
-                          <= stage_loss (&pt->s1[i], es) + 0.05,
+        DP_CHECK_MSG (stage_loss_at (&pt->s1[i + 1], es, 0)
+                          <= stage_loss_at (&pt->s1[i], es, 1),
                       "a finer cut never costs more");
     }
 

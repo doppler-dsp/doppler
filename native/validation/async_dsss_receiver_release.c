@@ -107,7 +107,7 @@
 #define FS (CHIP_RATE * (double)SPC)
 #define SYM_RATE 2700.0
 
-#define SETTLE_BLOCKS 200 /* both flags on for this many blocks first  */
+#define SETTLE_BLOCKS 200 /* tracking with symbol lock up this long first */
 #define MAX_LOCK_S 6.0    /* give up on a trial that never settles      */
 #define POST_S 1.5        /* watch this long after a fade or a step     */
 #define OFF_WATCH_S                                                           \
@@ -194,7 +194,7 @@ make_rx (const uint8_t *code, double cn0_dbhz)
   return dp_async_dsss_receiver_create (
       code, SF, CHIP_RATE, SYM_RATE, CHIP_RATE * (double)SPC, 2, cn0_dbhz,
       1e-2, 0.9, 500.0, 4, 8, 0, 100.0, 4, 14.0, 32, 8, false, 100000, 0.0,
-      0.0, false, 0.0, 0.0);
+      0.0, false, 0.0, 0.0, true);
 }
 
 static int

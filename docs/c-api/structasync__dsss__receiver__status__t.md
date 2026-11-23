@@ -38,6 +38,7 @@ _One consistent picture of what the receiver is doing, by value._ [More...](#det
 | ---: | :--- |
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  double | [**car\_last\_error**](#variable-car_last_error)  <br> |
+|  uint64\_t | [**carrier\_lock\_n\_noncoh**](#variable-carrier_lock_n_noncoh)  <br> |
 |  double | [**chip\_phase**](#variable-chip_phase)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  int | [**code\_locked**](#variable-code_locked)  <br> |
@@ -132,7 +133,24 @@ double async_dsss_receiver_status_t::car_last_error;
 
 
 
-Pre-despread Costas residual, rad. 
+Pre-despread loop's residual, rad (slope 1). 
+
+
+        
+
+<hr>
+
+
+
+### variable carrier\_lock\_n\_noncoh 
+
+```C++
+uint64_t async_dsss_receiver_status_t::carrier_lock_n_noncoh;
+```
+
+
+
+The carrier lock's non-coherent count, the updates one decision sums ([**dp\_async\_dsss\_receiver\_get\_carrier\_lock\_n\_noncoh()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_carrier_lock_n_noncoh)): fixed at create. 
  
 
 

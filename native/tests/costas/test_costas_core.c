@@ -96,6 +96,25 @@ main (void)
       return 1;
     /* gains derive from the embedded loop_filter (bn,zeta,t=1) */
     DP_CHECK (c->lf.kp > 0.0 && c->lf.ki > 0.0);
+    /* The phase predicted n samples ahead is the phase the NCO has after
+       wiping n samples, in its own arithmetic: exactly, between updates
+       (16 samples a symbol, so 11 wipe no update). */
+    {
+      const double ahead = dp_costas_get_nco_phase_ahead (c, 11);
+      DP_CHECK (dp_costas_get_nco_phase_ahead (c, 0)
+                == (double)c->nco.phase / 4294967296.0);
+      for (int i = 0; i < 11; i++)
+        (void)costas_wipeoff (c, 1.0f);
+      DP_CHECK (dp_costas_get_nco_phase_ahead (c, 0) == ahead);
+      DP_CHECK (ahead != (double)0.0);
+    }
+    /* The lock rule reads back what configure_lock set. */
+    {
+      dp_costas_configure_lock (c, 0.81, 0.62, 5, 9);
+      dp_lockdet_rule_t r = dp_costas_get_lock_rule (c);
+      DP_CHECK (r.up_thresh == 0.81 && r.down_thresh == 0.62);
+      DP_CHECK (r.n_up == 5 && r.n_down == 9);
+    }
     /* seeded NCO frequency == requested residual */
     DP_CHECK (fabs (dp_costas_get_norm_freq (c) - 0.01) < 1e-12);
 

@@ -161,6 +161,9 @@ double dp_costas_get_bn(const dp_costas_state_t *state);
 int dp_costas_set_bn(dp_costas_state_t *state, double val);
 double dp_costas_get_norm_freq(const dp_costas_state_t *state);
 double dp_costas_get_nco_freq(const dp_costas_state_t *state);
+
+double dp_costas_get_nco_phase_ahead(const dp_costas_state_t *state,
+                                     size_t ahead);
 void dp_costas_set_norm_freq(dp_costas_state_t *state, double val);
 double dp_costas_get_lock_metric(const dp_costas_state_t *state);
 double dp_costas_get_last_error(const dp_costas_state_t *state);
@@ -180,6 +183,8 @@ void dp_costas_configure_lock(dp_costas_state_t *state, double up_thresh,
                            uint32_t n_down);
 
 int dp_costas_get_locked(const dp_costas_state_t *state);
+
+dp_lockdet_rule_t dp_costas_get_lock_rule(const dp_costas_state_t *state);
 
 int dp_costas_set_telemetry(dp_costas_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
 #ifdef __cplusplus

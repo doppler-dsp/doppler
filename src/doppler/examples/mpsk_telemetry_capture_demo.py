@@ -58,13 +58,15 @@ BLOCK = 256  # the step of our own loop — and the capture's whole contract
 BN_CARRIER = 0.02
 
 # The carrier offset, seeded AT the loop's acquisition bound and not past it.
-# The bound is `bn_carrier / m` cycles per SYMBOL (the m because the NDA
-# discriminator is an M-th power), so it is stated in those units and
+# The bound is `bn_carrier / (4 m)` cycles per SYMBOL (the m because the NDA
+# discriminator is an M-th power, the 4 because #3224 made bn the loop's real
+# bandwidth: bn_carrier / m was the window of a loop 1.67 times wider), so it
+# is stated in those units and
 # converted to the cycles per sample the stimulus advances in exactly once.
 # This demo used to seed 0.0015 cyc/sample against a QPSK bound of 0.005
 # cyc/symbol — 2.4x outside it, where acquisition is a coin flip rather than
 # a demonstration (doppler#843).
-OFFSET_SYM = BN_CARRIER / 2  # cycles per symbol, at the bound
+OFFSET_SYM = BN_CARRIER / 8  # cycles per symbol, at the bound (M = 2)
 OFFSET = OFFSET_SYM * RS / FS  # cycles per sample, for the stimulus
 
 # The stimulus is built by `wfmgen`'s composer, not by numpy. Source

@@ -315,10 +315,16 @@ dsss_rx_scratch (float _Complex **buf, size_t *cap, size_t need)
 }
 
 /* Carrier-wipe -> despread -> resample -> demod a block through the
- * already-built chain. Scratch sized generously (dll's own
- * "emitted <= x_len" bound, then the RateConverter's own configured
- * ratio) rather than relying on a *_max_out() call that would need to
- * know x_len in advance, and kept in the state between calls. */
+ * already-built chain. The Dll's scratch holds the most this call can
+ * emit: the carry and x_len make `periods` whole code periods, which close
+ * at most periods + 1 epochs (a period's samples can hold two epoch ends
+ * when the boundary sits on its edge), each `segments` partials. It is not
+ * x_len: a few samples that complete a carried period emit a period's
+ * partials, and dp_dll_steps() drops what does not fit silently (#3282;
+ * the refine path's instance, #3281). The bound is written here until the
+ * Dll states its own (dp_dll_steps_max_out(), #3282). The converter's
+ * scratch follows from the partials. Both are kept in the state between
+ * calls. */
 static size_t
 dsss_rx_track_chain (dp_dsss_receiver_state_t *s, const float _Complex *x,
                      size_t x_len, float _Complex *out, size_t max_out)
@@ -326,9 +332,11 @@ dsss_rx_track_chain (dp_dsss_receiver_state_t *s, const float _Complex *x,
   if (x_len == 0)
     return 0;
 
+  const size_t    periods = (s->car_carry_len + x_len) / s->tsamps;
+  const size_t    dll_cap = s->segments * (periods + 1);
   float _Complex *dll_out
-      = dsss_rx_scratch (&s->trk_dll_buf, &s->trk_dll_cap, x_len);
-  size_t n_dll = dsss_rx_track_carrier_dll (s, x, x_len, dll_out, x_len);
+      = dsss_rx_scratch (&s->trk_dll_buf, &s->trk_dll_cap, dll_cap);
+  size_t n_dll = dsss_rx_track_carrier_dll (s, x, x_len, dll_out, dll_cap);
 
   size_t          rc_cap = (size_t)((double)n_dll * s->rc->rate) + 64;
   float _Complex *rc_out

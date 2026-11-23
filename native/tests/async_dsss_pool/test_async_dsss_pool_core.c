@@ -6,12 +6,16 @@
  */
 #include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
+#include "doppler/async_dsss_pool/async_dsss_pool_private.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
+#include "doppler/awgn/awgn_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
+#include "dp_air_test.h"
 #include "dp_chunk_inv.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
+#include "dp_s415_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -34,6 +38,10 @@
 #define CI_CONFIRM_S 0.02
 #define CI_B_OFF (300000u)
 
+/* One push the controller acts on: a group of code periods at 2 samples a
+   chip (ASYNC_DSSS_POOL_PERIODS_PER_JOIN), the receivers' grid. */
+#define POOL_GROUP ((size_t)2046 * ASYNC_DSSS_POOL_PERIODS_PER_JOIN)
+
 static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 
 /* A pool on the Gold-1023 design point; the receiver tests' _slow_rx()
@@ -45,7 +53,7 @@ _pool_span (const uint8_t *code, size_t n, double lost_confirm_s, int threads,
   return dp_async_dsss_pool_create (
       code, 1023, n, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0,
       1e-3, 0.9, span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
-      lost_confirm_s, false, 0.0, 0.0, threads);
+      lost_confirm_s, false, 0.0, 0.0, threads, true);
 }
 
 static dp_async_dsss_pool_state_t *
@@ -112,7 +120,7 @@ _test_create_domain (void)
   DP_CHECK (dp_async_dsss_pool_create (
                 NULL, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2,
                 47.0, 1e-3, 0.9, 500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
-                100000, 0.0, 0.0, false, 0.0, 0.0, 1)
+                100000, 0.0, 0.0, false, 0.0, 0.0, 1, true)
             == NULL);
   dp_async_dsss_pool_state_t *p
       = _pool (code, ASYNC_DSSS_POOL_MAX_RECEIVERS, 0.0, 0);
@@ -121,10 +129,10 @@ _test_create_domain (void)
   dp_async_dsss_pool_destroy (p);
   /* A search over several Doppler tiles (+/-5 kHz, tiles 3 kHz apart),
      inside a pool. */
-  p = dp_async_dsss_pool_create (code, 1023, 2, POOL_CR, POOL_RS,
-                                 POOL_CR * (double)POOL_SPC, 2, 60.0, 1e-3,
-                                 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8,
-                                 false, 100000, 0.0, 0.0, false, 0.0, 0.0, 0);
+  p = dp_async_dsss_pool_create (
+      code, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 60.0,
+      1e-3, 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
+      false, 0.0, 0.0, 0, true);
   DP_REQUIRE (p != NULL && p->rx[0]->acq->search->window_bins > 1);
   for (size_t i = 0; i < p->n_receivers; i++)
     DP_CHECK (dp_async_dsss_receiver_get_threads (p->rx[i]) == 1);
@@ -164,7 +172,7 @@ _test_create_domain (void)
       dp_async_dsss_pool_state_t *q = dp_async_dsss_pool_create (
           code, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 60.0,
           1e-3, 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
-          0.0, false, 0.0, 0.0, 2);
+          0.0, false, 0.0, 0.0, 2, true);
       DP_REQUIRE (q != NULL);
       DP_REQUIRE (dp_async_dsss_pool_set_state (q, blob) == DP_OK);
       DP_CHECK (dp_async_dsss_receiver_get_threads (q->search) == 2);
@@ -263,10 +271,10 @@ _test_fractional_period_phase (double ratio)
   const double                fs = POOL_FS * ratio;
   dp_async_dsss_pool_state_t *p  = dp_async_dsss_pool_create (
       code, 1023, 3, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, 500.0, 4, 8, 0,
-      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, 1);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, 1, true);
   dp_async_dsss_receiver_state_t *q = dp_async_dsss_receiver_create (
       code, 1023, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, 500.0, 4, 8, 0,
-      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
   DP_REQUIRE (p && q);
   (void)dp_async_dsss_receiver_set_search_only (q, 2);
   const size_t blk   = (size_t)ceil (1023.0 * POOL_SPC * ratio);
@@ -389,10 +397,13 @@ _zone_run (const uint8_t *code, double ratio, double span, int deep,
   size_t          na, nb;
   double         *da, *db;
   const size_t    w = deep ? 450u : 0u, f = deep ? 500u : 0u;
-  /* The deep runs at the design level (47 dB-Hz): even there a deep block
-     lifts the emitters' own lags (their slow-time sidelobes) over the gate
-     on enough rows to fill today's list, which the run asserts. */
-  const double cn0 = deep ? 47.0 : 50.0;
+  /* Both depths at 50 dB-Hz. The deep runs need it: there a deep coherent
+     dwell lifts the emitters' own lags (their slow-time sidelobes) over the
+     gate on enough rows to fill the list, which the run asserts as its
+     premise. Measured (swiftgo, 0373a01d5): at 47 dB-Hz the list fills on
+     none of the four deep runs, at 50 on all four, and the zone identity
+     holds 8 of 8 at both. */
+  const double cn0 = 50.0;
   dp_dsss_windowed_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 200.0, cn0,
                             deep ? 600 : 300, 1000, 11, w, f, &a, &na, &da);
   dp_dsss_windowed_capture (code, 1023, POOL_SPC, POOL_FS, tsym, -300.0, 120.0,
@@ -418,10 +429,10 @@ _zone_run (const uint8_t *code, double ratio, double span, int deep,
   const double co = deep ? 450.0 / POOL_RS : 0.0, dr = deep ? 500.0 : 0.0;
   dp_async_dsss_pool_state_t *pn = dp_async_dsss_pool_create (
       code, 1023, 3, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, span, 4, 8, 0,
-      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, co, dr, 1);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, co, dr, 1, true);
   dp_async_dsss_pool_state_t *po = dp_async_dsss_pool_create (
       code, 1023, 3, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, span, 4, 8, 0,
-      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, co, dr, 1);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, co, dr, 1, true);
   DP_REQUIRE (pn && po);
   DP_REQUIRE (_zone_today (po) == 0);
   const size_t blk  = (size_t)ceil (1023.0 * POOL_SPC * ratio);
@@ -546,7 +557,7 @@ _test_zone_lists_the_weaker (void)
       r[k] = dp_async_dsss_receiver_create (
           code, 1023, POOL_CR, POOL_RS, POOL_FS, 2, 47.0, 1e-3, 0.9, 5000.0, 4,
           8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false,
-          450.0 / POOL_RS, 500.0);
+          450.0 / POOL_RS, 500.0, true);
       DP_REQUIRE (r[k] != NULL);
       (void)dp_async_dsss_receiver_set_search_only (r[k], 4);
     }
@@ -651,7 +662,7 @@ _pair_first_two (const uint8_t *code, size_t b_pre, double half_df,
       r[k] = dp_async_dsss_receiver_create (
           code, 1023, POOL_CR, POOL_RS, POOL_FS, 2, 47.0, 1e-3, 0.9,
           half_df + 5e3, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, fc, 0.0,
-          false, 450.0 / POOL_RS, 500.0);
+          false, 450.0 / POOL_RS, 500.0, true);
       DP_REQUIRE (r[k] != NULL);
       (void)dp_async_dsss_receiver_set_search_only (r[k], 2);
     }
@@ -859,7 +870,7 @@ _test_zone_seeds_no_ghost (void)
         dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
             code, 1023, 3, POOL_CR, POOL_RS, POOL_FS, 2, 47.0, 1e-3, 0.9,
             5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
-            false, deep ? 450.0 / POOL_RS : 0.0, deep ? 500.0 : 0.0, 1);
+            false, deep ? 450.0 / POOL_RS : 0.0, deep ? 500.0 : 0.0, 1, true);
         DP_REQUIRE (p != NULL);
         const size_t blk    = 1023 * POOL_SPC;
         int          others = 0;
@@ -938,7 +949,11 @@ _test_search_runs_once (void)
         }
     }
   DP_REQUIRE_MSG (both_at > 0, "both emitters held");
-  DP_CHECK (periods > both_at + 20); /* a long run past it */
+  /* A long run past it: at least two controller steps (it runs once a
+     group of ASYNC_DSSS_POOL_PERIODS_PER_JOIN periods), so the search
+     would have been fed again at least once more if the rule did not stop
+     it. */
+  DP_CHECK (periods >= both_at + 2 * (size_t)ASYNC_DSSS_POOL_PERIODS_PER_JOIN);
   for (size_t i = 0; i < 2; i++)
     DP_CHECK (dp_correlator_position (p->rx[i]->acq) == 0);
   DP_CHECK_MSG (p->search_periods == count_then,
@@ -962,7 +977,7 @@ _test_duplicates_keep_the_first (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  float _Complex z[2046] = { 0 };
+  static float _Complex z[POOL_GROUP];
   /* rung: 0 = longer in its state, 1 = higher C/N0, 2 = lower index. */
   for (int rung = 0; rung < 3; rung++)
     {
@@ -978,7 +993,7 @@ _test_duplicates_keep_the_first (void)
              index and the lower C/N0. */
           DP_REQUIRE (dp_async_dsss_receiver_seed (r1, 100.0, 0.0, 45.0)
                       == DP_OK);
-          (void)dp_async_dsss_pool_push (p, z, 2046);
+          (void)dp_async_dsss_pool_push (p, z, POOL_GROUP);
           DP_REQUIRE (dp_async_dsss_pool_status (p, 1).state
                       == ASYNC_DSSS_RX_REFINING);
           DP_REQUIRE (dp_async_dsss_receiver_seed (r0, 100.5, 0.0, 60.0)
@@ -995,7 +1010,7 @@ _test_duplicates_keep_the_first (void)
           expect_keeper = rung == 1 ? 1 : 0;
         }
       const uint64_t before = p->released_duplicate;
-      (void)dp_async_dsss_pool_push (p, z, 2046);
+      (void)dp_async_dsss_pool_push (p, z, POOL_GROUP);
       DP_CHECK (p->released_duplicate == before + 1);
       const size_t loser = 1 - expect_keeper;
       DP_CHECK_MSG (dp_async_dsss_pool_status (p, expect_keeper).state
@@ -1020,7 +1035,7 @@ _test_duplicate_zone_is_one_chip_circular (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  float _Complex z[2046] = { 0 };
+  static float _Complex z[POOL_GROUP];
   static const struct
   {
     double a, b;
@@ -1036,7 +1051,7 @@ _test_duplicate_zone_is_one_chip_circular (void)
                   == DP_OK);
       /* status() advances a refining receiver's phase by the samples
          since its seed, alike for both, so their distance holds. */
-      const size_t held = dp_async_dsss_pool_push (p, z, 2046);
+      const size_t held = dp_async_dsss_pool_push (p, z, POOL_GROUP);
       DP_CHECK_MSG (held == (rows[k].dup ? 1u : 2u),
                     rows[k].dup ? "one signal held twice" : "two signals");
       DP_CHECK (p->released_duplicate == (uint64_t)rows[k].dup);
@@ -1061,17 +1076,12 @@ _test_lost_is_released (void)
   double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, fs / sym_rate, 0.0, cn0, 400, pre, 7,
                    &x, &n, &data);
-  float _Complex *off = malloc (tail_n * sizeof *off);
-  {
-    const double sigma = 1.0 / sqrt (pow (10.0, cn0 / 10.0) / fs);
-    uint32_t     st    = 99;
-    for (size_t i = 0; i < tail_n; i++)
-      off[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
-  }
+  float _Complex *off = calloc (tail_n, sizeof *off);
+  dp_dsss_add_awgn (off, tail_n, fs, cn0, 99u); /* the shipped noise, #689 */
   dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
       CODE7, 7, 1, 1.0e6, sym_rate, 4.0 * 1.0e6, 2, cn0, 1e-2, 0.9, 500.0, 4,
       8, 0, 0.5, 4, 14.0, 32, 8, false, 100000, 0.0, confirm_s, false, 0.0,
-      0.0, 1);
+      0.0, 1, true);
   DP_REQUIRE (p != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[0], 0.0, 0.0, cn0) == DP_OK);
   const size_t te = sf * spc;
@@ -1084,7 +1094,7 @@ _test_lost_is_released (void)
     {
       (void)dp_async_dsss_pool_push (
           p, off + pos, tail_n - pos < 1024 ? tail_n - pos : 1024);
-      /* The controller runs right after every whole period, and status()
+      /* The controller runs right after every whole group, and status()
          is as of the last one, so lost is never what it reads. */
       DP_CHECK (dp_async_dsss_pool_status (p, 0).state != ASYNC_DSSS_RX_LOST);
       searched_again = p->released_lost > 0;
@@ -1168,13 +1178,15 @@ _test_state_round_trip (void)
   /* Mid-period, so the blob carries a part-filled carry, with the release
      on and B leaving after the split. */
   const size_t half = 250000 + 777;
-  DP_REQUIRE (half % (1023 * POOL_SPC) != 0 && half < CI_B_OFF);
+  DP_REQUIRE (half % (1023 * POOL_SPC * ASYNC_DSSS_POOL_PERIODS_PER_JOIN) != 0
+              && half < CI_B_OFF);
   dp_async_dsss_pool_state_t *a = _pool (code, 3, CI_CONFIRM_S, 2);
   dp_async_dsss_pool_state_t *b = _pool (code, 3, CI_CONFIRM_S, 1);
   dp_async_dsss_pool_state_t *c = _pool (code, 2, CI_CONFIRM_S, 1);
   DP_REQUIRE (a && b && c);
   (void)dp_async_dsss_pool_push (a, x, half);
-  DP_REQUIRE (a->carry_len == half % (1023 * POOL_SPC));
+  DP_REQUIRE (a->carry_len
+              == half % (1023 * POOL_SPC * ASYNC_DSSS_POOL_PERIODS_PER_JOIN));
   const size_t   bytes = dp_async_dsss_pool_state_bytes (a);
   unsigned char *blob  = malloc (bytes);
   dp_async_dsss_pool_get_state (a, blob);
@@ -1249,7 +1261,7 @@ _test_refused_restore_changes_nothing (void)
      header, extra, carry, and receivers 0 and 1. */
   const size_t cells = src->n_receivers * src->ghost_window;
   const size_t rx2   = sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 10
-                       + src->period * sizeof (float _Complex)
+                       + src->group * sizeof (float _Complex)
                        + src->n_receivers * sizeof (uint64_t)
                        + cells * (sizeof (double) + 1)
                        + 2 * dp_async_dsss_receiver_state_bytes (src->rx[0]);
@@ -1318,6 +1330,36 @@ _test_telemetry_one_producer (void)
   return 0;
 }
 
+/* A pool reset with a part-filled carry gives a blob set_state() takes:
+   get_state() writes the whole carry and set_state() refuses a nonzero
+   tail past carry_len, so a reset that left the old samples behind would
+   give a blob no pool restores, one that is not a function of the state.
+   Sabotage: drop the carry's memset from reset() -> red. */
+static int
+_test_reset_clears_the_carry (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t                      n;
+  float _Complex             *x = _two_emitters (code, &n);
+  dp_async_dsss_pool_state_t *p = _pool (code, 3, 0.0, 1);
+  dp_async_dsss_pool_state_t *q = _pool (code, 3, 0.0, 1);
+  DP_REQUIRE (p && q && x && n > POOL_GROUP);
+  (void)dp_async_dsss_pool_push (p, x, POOL_GROUP / 2 + 17);
+  DP_REQUIRE (p->carry_len == POOL_GROUP / 2 + 17);
+  dp_async_dsss_pool_reset (p);
+  const size_t   bytes = dp_async_dsss_pool_state_bytes (p);
+  unsigned char *a     = malloc (bytes);
+  DP_REQUIRE (a && bytes == dp_async_dsss_pool_state_bytes (q));
+  dp_async_dsss_pool_get_state (p, a);
+  DP_CHECK (dp_async_dsss_pool_set_state (q, a) == DP_OK);
+  free (a);
+  dp_async_dsss_pool_destroy (p);
+  dp_async_dsss_pool_destroy (q);
+  free (x);
+  return 0;
+}
+
 /* reset() hands back every receiver idle and the search with no
    exclusions, and the clock and counts at 0; set_threads refuses a
    negative count unchanged. Sabotage: leave the search's exclusions -> a
@@ -1327,15 +1369,15 @@ _test_reset_and_threads (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  float _Complex z[2046]        = { 0 };
+  static float _Complex z[POOL_GROUP];
   dp_async_dsss_pool_state_t *p = _pool (code, 3, 0.0, 1);
   DP_REQUIRE (p != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[0], 10.0, 0.0, 45.0)
               == DP_OK);
   DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[1], 10.2, 0.0, 45.0)
               == DP_OK);
-  (void)dp_async_dsss_pool_push (p, z, 2046);
-  DP_REQUIRE (p->released_duplicate == 1 && p->samples == 2046);
+  (void)dp_async_dsss_pool_push (p, z, POOL_GROUP);
+  DP_REQUIRE (p->released_duplicate == 1 && p->samples == POOL_GROUP);
   DP_REQUIRE (dp_async_dsss_receiver_get_n_exclusions (p->search) == 1);
   dp_async_dsss_pool_reset (p);
   DP_CHECK (p->samples == 0 && p->released_duplicate == 0
@@ -1356,11 +1398,12 @@ _test_reset_and_threads (void)
   return 0;
 }
 
-/* Chunk invariance (dp_chunk_inv.h): the controller acts at code-period
-   positions of the stream, so how the stream is cut into pushes changes
-   nothing. One spec per holder, each comparing that receiver's symbols,
-   on the two-emitter stream through the hand-offs, the duplicate checks
-   and tracking (the third receiver searches throughout and emits none:
+/* Chunk invariance (dp_chunk_inv.h): the controller acts at group
+   positions of the stream (ASYNC_DSSS_POOL_PERIODS_PER_JOIN code periods,
+   on the grid counted from create), so how the stream is cut into pushes
+   changes nothing. One spec per holder, each comparing that receiver's
+   symbols, on the two-emitter stream through the hand-offs, the duplicate
+   checks and tracking (the third receiver searches throughout and emits none:
    its share is the holders' exclusions, which the symbols reflect). Sabotage:
    run the controller once per push instead of on the grid -> the partitions
    disagree. */
@@ -1525,93 +1568,199 @@ _ghost_pool (const uint8_t *code)
   return dp_async_dsss_pool_create (
       code, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0,
       1e-3, 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
-      false, 0.0, 0.0, 1);
+      false, 0.0, 0.0, 1, true);
 }
 
-/* A real ghost is released. A alone at 70 dB-Hz, 1500 Hz, with data;
-   receiver 0 takes it from the search. A probe built like the receivers,
-   listing 16 peaks a dwell, names A's sidelobes, and receiver 1 is seeded
-   on the first one more than a chip from A (chip 413, a tile off): the
-   seed the search makes when noise lifts a sidelobe past its gate. It
-   tracks A's carrier a lattice step away without code lock, and is
-   released one window after it starts tracking; A is kept. Sabotage:
-   drop the ghost pass -> receiver 1 holds to the end; compare the C/N0
-   the other way -> the parent never qualifies and nothing is released;
-   skip hist_clear on the release -> the reset receiver's ring outlives
-   its track and the state round trip below refuses it. */
+/* The ghost scenes at the 415.1-B-1 point (async-dsss-receiver.md §8): 11
+   MSa/s in at 2.8 GHz, 4.0913 Mcps, so 2.69 samples a chip -- never a whole
+   number -- 3000 sym/s, the 275-symbol code-only window of every
+   1000-symbol frame, rendered by the shipped generator at two samples a
+   chip, the shipped RateConverter to 11 MSa/s, the shipped DopplerChannel
+   and AWGN. A alone at 60 dB-Hz on a static carrier; a pool of two at the
+   spec configuration (design 4 dB Es/N0, the code-only window and 400 Hz/s
+   bounding the search), its loss release at `lost_s` (0: never). Once
+   receiver 0 tracks A with code lock, receiver 1 is seeded on A's code
+   sidelobe G415_SIDE chips away, `k` lattice steps off A's carrier, with
+   the C/N0 the search would report for that peak (A's times the sidelobe's
+   level): the seed the search makes when noise lifts a sidelobe past its
+   gate. Pushed until receiver 1 is released or `tmax_s` after the seed. */
+#define G415_PUSH 4096u
+#define G415_FC DP_S415_FC_HI
+typedef struct
+{
+  dp_async_dsss_pool_state_t *p;
+  double                      df_end;  /* receiver 1's carrier minus 0's */
+  int                         tracked; /* receiver 1 reached tracking     */
+  long n, code_up, sym_up, both_down;  /* its tracking steps and flags   */
+} _g415_t;
+
+/* The sidelobe the ghost scenes seed on: 167 chips from the code's peak,
+   the offset the pool's own search took on A's sidelobe at 70 dB-Hz at this
+   point (async-dsss-receiver.md §8). Its circular autocorrelation, of the
+   peak's 1023: a Gold code's sidelobes take two magnitudes, 63 and 65,
+   about -24 dB, and 167 is at the in-phase one. */
+#define G415_SIDE 167u
+static long
+_autocorr (const uint8_t *code, size_t t)
+{
+  long r = 0;
+  for (size_t i = 0; i < 1023; i++)
+    r += (code[i] == code[(i + t) % 1023]) ? 1 : -1;
+  return r;
+}
+
+static dp_async_dsss_pool_state_t *
+_g415_pool (const uint8_t *code, double lost_s, bool refine)
+{
+  return dp_s415_pool_refine (code, G415_FC, 2, lost_s, 1, refine);
+}
+
+static int
+_g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
+             double lost_s, double tmax_s, bool refine, _g415_t *out)
+{
+  const double f0 = 700.0;
+  const long   r  = _autocorr (code, G415_SIDE);
+  DP_REQUIRE_MSG (r == 63, "167 chips is a peak-level in-phase sidelobe");
+  const size_t                side  = G415_SIDE;
+  const double                level = 20.0 * log10 ((double)r / 1023.0);
+  dp_async_dsss_pool_state_t *p     = _g415_pool (code, lost_s, refine);
+  DP_REQUIRE (p != NULL);
+  /* A on the air at the 415.1 point (dp_air_test.h): the shipped synth,
+     the front end's fixed-ratio converter, a Doppler channel 700 Hz off,
+     and the shipped noise at A's own C/N0. */
+  dp_air_emitter_t e
+      = dp_s415_emitter (code, G415_FC, f0, 0.0, cn0, 0.0, 100u + seed);
+  /* Each push completes the pool's current group (group minus its carry),
+     so the controller runs at the end of every push and a release is seen
+     before any later period records into the rings: hist_clear is the only
+     thing that can have emptied one. */
+  const size_t    push = p->group;
+  dp_air_t        air;
+  float _Complex *ns = malloc (push * sizeof *ns);
+  DP_REQUIRE (
+      ns != NULL
+      && dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 7919u + seed, push));
+  const double lattice = p->lattice_hz;
+  size_t       pos     = 0;
+  double       t_seed  = -1.0;
+  out->tracked         = 0;
+  out->df_end          = NAN;
+  out->n = out->code_up = out->sym_up = out->both_down = 0;
+  for (;;)
+    {
+      const size_t want = push - p->carry_len;
+      DP_REQUIRE (dp_air_next (&air, ns, want));
+      (void)dp_async_dsss_pool_push (p, ns, want);
+      DP_REQUIRE (p->carry_len == 0);
+      pos += want;
+      const double                       t  = (double)pos / DP_S415_FS;
+      const async_dsss_receiver_status_t s0 = dp_async_dsss_pool_status (p, 0);
+      const async_dsss_receiver_status_t s1 = dp_async_dsss_pool_status (p, 1);
+      if (t_seed < 0.0)
+        {
+          if (t >= 0.5 && s0.state == ASYNC_DSSS_RX_TRACKING && s0.code_locked
+              && s1.state == ASYNC_DSSS_RX_IDLE)
+            {
+              DP_REQUIRE (dp_async_dsss_receiver_seed (
+                              p->rx[1],
+                              fmod (s0.chip_phase + (double)side, 1023.0),
+                              f0 + k * lattice, cn0 + level)
+                          == DP_OK);
+              t_seed = t;
+            }
+          DP_REQUIRE_MSG (t < 3.0, "receiver 0 tracks A with code lock");
+          continue;
+        }
+      if (s1.state == ASYNC_DSSS_RX_TRACKING)
+        {
+          out->tracked = 1;
+          out->df_end  = s1.doppler_hz - s0.doppler_hz;
+          out->n++;
+          out->code_up += s1.code_locked != 0;
+          out->sym_up += s1.locked != 0;
+          out->both_down += !s1.code_locked && !s1.locked;
+        }
+      if (s1.state == ASYNC_DSSS_RX_IDLE || t - t_seed > tmax_s)
+        break;
+    }
+  free (ns);
+  dp_air_free (&air);
+  out->p = p;
+  return 0;
+}
+
+/* The ghost rule at 415.1 (§8): a sidelobe ghost two lattice steps off A's
+   carrier, its code lock low, is released by the ghost rule (the loss
+   release off, so nothing else can); A is kept, and the released
+   receiver's ring is emptied, which the state checks below rest on. A
+   ghost on A's own carrier (k = 0) is NOT taken by the ghost rule -- a
+   co-located true emitter looks the same to it (§8, doppler#2551). With A
+   at 55 dB-Hz it holds neither flag and the loss release frees it
+   (lost_confirm_s 0.5 s). The 60 dB-Hz k = 0 case under the shipped
+   refine is _test_shipped_pool_leaves_one_on_a: the fine hand-over
+   carries the k = 2 seed to A's carrier, where it is held (the strict
+   xfail on doppler#3263).
+   Sabotage: drop the ghost pass -> the k = 2 ghost holds to the end; let
+   the carrier test take k = 0 -> the 55 dB-Hz one leaves as a ghost; drop the
+   pool's reset of a lost receiver -> the 55 dB-Hz one is never freed. Not
+   pinned here: hist_clear on the ghost release. The search reseeds the
+   freed receiver in the same control step, and the next group's record
+   (not tracking) clears the ring first, so dropping it changes nothing
+   this scene can see. */
 static int
 _test_ghost_is_released (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  const size_t    te = 1023 * POOL_SPC;
-  float _Complex *x;
-  size_t          n;
-  double         *data;
-  dp_dsss_capture (code, 1023, POOL_SPC, POOL_FS, POOL_FS / POOL_RS, 1500.0,
-                   70.0, 1000, 0, 4, &x, &n, &data);
-  dp_async_dsss_pool_state_t     *p  = _ghost_pool (code);
-  dp_async_dsss_receiver_state_t *pr = dp_async_dsss_receiver_create (
-      code, 1023, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0, 1e-3,
-      0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
-      false, 0.0, 0.0);
-  DP_REQUIRE (p && pr);
-  (void)dp_async_dsss_receiver_set_threads (pr, 1);
-  DP_REQUIRE (dp_correlator_set_max_peaks (pr->acq, 16, NULL) == DP_OK);
-  int    seeded = 0, tracked = 0;
-  double ghost_ph = 0.0;
-  for (size_t b = 0; b + te <= n && !p->released_ghost; b += te)
-    {
-      (void)dp_async_dsss_pool_push (p, x + b, te);
-      tracked |= p->hist_len[1] > 0;
-      if (seeded)
-        continue;
-      dp_correlator_hit_t h[16];
-      const size_t        k = dp_correlator_push (pr->acq, x + b, te, h, 16);
-      if (k < 2 || h[0].samples_consumed != b + te)
-        continue;
-      dp_correlator_handoff_t h0, hi;
-      dp_correlator_build_handoff (pr->acq, &h[0], 1023, &h0);
-      for (size_t i = 1; i < k && !seeded; i++)
-        {
-          dp_correlator_build_handoff (pr->acq, &h[i], 1023, &hi);
-          if (_chip_dist (hi.chip_phase, h0.chip_phase, 1023.0) > 1.0)
-            {
-              DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[1], hi.chip_phase,
-                                                       hi.doppler_hz_est,
-                                                       hi.cn0_dbhz_est)
-                          == DP_OK);
-              seeded   = 1;
-              ghost_ph = hi.chip_phase;
-            }
-        }
-    }
-  DP_REQUIRE_MSG (seeded, "the probe listed a sidelobe");
-  DP_CHECK (_chip_dist (ghost_ph, dp_async_dsss_pool_status (p, 0).chip_phase,
-                        1023.0)
-            > 100.0);
-  DP_CHECK_MSG (tracked, "the ghost reached tracking");
+  {
+    /* (2b) A weaker parent (55 dB-Hz): the k = 0 seed holds neither flag,
+       and the loss release frees it. */
+    _g415_t z;
+    DP_REQUIRE (_g415_scene (code, 1, 55.0, 0, 0.5, 4.0, true, &z) == 0);
+    dp_async_dsss_pool_state_t *p = z.p;
+    DP_REQUIRE_MSG (z.tracked && z.n > 0 && z.both_down == z.n,
+                    "a k = 0 ghost with both flags down");
+    DP_CHECK_MSG (p->released_ghost == 0 && p->released_lost == 1,
+                  "the loss release frees it");
+    dp_async_dsss_pool_destroy (p);
+  }
+  /* The refine is OFF here, and only that keeps the seed on its lattice
+     image: the shipped pool refines, and its fine hand-over takes this
+     seed to A's own carrier (_test_shipped_pool_leaves_one_on_a,
+     doppler#3263). This is the ghost rule's pin, not the shipped
+     configuration. */
+  _g415_t z;
+  DP_REQUIRE (_g415_scene (code, 2, 60.0, 2, 0.0, 4.0, false, &z) == 0);
+  dp_async_dsss_pool_state_t *p = z.p;
+  DP_CHECK_MSG (z.tracked, "the ghost reached tracking");
+  printf ("k = 2 ghost: carrier %.1f Hz off A's (lattice %.1f Hz)\n", z.df_end,
+          p->lattice_hz);
   DP_CHECK_MSG (p->released_ghost == 1, "the ghost was released");
   DP_CHECK (p->released_duplicate == 0);
+  DP_CHECK (p->released_lost == 0);
   DP_CHECK (dp_async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_TRACKING);
   DP_CHECK (dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_IDLE);
   DP_CHECK (p->hist_len[1] == 0);
+  DP_REQUIRE_MSG (p->hist_len[0] == p->ghost_window,
+                  "receiver 0's ring is full: the forgeries below rest on it");
   /* And a pool that has released one round-trips. */
-  dp_async_dsss_pool_state_t *q = _ghost_pool (code);
+  dp_async_dsss_pool_state_t *q = _g415_pool (code, 0.0, false);
   DP_REQUIRE (q != NULL);
   DP_STATE_ROUNDTRIP_TEST (dp_async_dsss_pool, p, q);
   /* Its blob holds only what control() leaves: receiver 0's full ring and
      receiver 1's empty one. Each forgery below breaks one rule set_state
      checks, and is refused. Sabotage: drop any one check -> its row
      restores. Layout: header, the 10 extra fields (hist_pos the eighth,
-     then the search's two), the carry, then the lengths, the carrier
-     rings and the code-lock rings. */
+     then the search's two), the carry (a group:
+     ASYNC_DSSS_POOL_PERIODS_PER_JOIN periods, not one), then the lengths, the
+     carrier rings and the code-lock rings. */
   {
     const size_t w     = p->ghost_window,
                  bytes = dp_async_dsss_pool_state_bytes (p);
     const size_t o_pos = sizeof (dp_state_hdr_t) + 7 * sizeof (uint64_t);
     const size_t o_len
-        = o_pos + 3 * sizeof (uint64_t) + p->period * sizeof (float _Complex);
+        = o_pos + 3 * sizeof (uint64_t) + p->group * sizeof (float _Complex);
     const size_t   o_car = o_len + 2 * sizeof (uint64_t);
     const size_t   o_cl  = o_car + 2 * w * sizeof (double);
     unsigned char *blob = malloc (bytes), *forged = malloc (bytes);
@@ -1647,9 +1796,6 @@ _test_ghost_is_released (void)
   }
   dp_async_dsss_pool_destroy (q);
   dp_async_dsss_pool_destroy (p);
-  dp_async_dsss_receiver_destroy (pr);
-  free (x);
-  free (data);
   return 0;
 }
 
@@ -1724,8 +1870,18 @@ _distinct_pair (const uint8_t *code, double cn0_b, double df_b, size_t delay)
 /* Neither test alone releases: each guards a true track the other would
    take. A co-moving emitter one lattice step from A (55 dB-Hz) passes the
    carrier test and is kept by its code lock; a weaker one on its own
-   carrier (50 dB-Hz, just handed off, its code lock still low) passes the
-   code-lock test and is kept by its carrier. Sabotage: drop the code-lock
+   carrier (46 dB-Hz, just handed off, its code lock still low) passes the
+   code-lock test and is kept by its carrier. The controller reads the
+   rings once a group (ASYNC_DSSS_POOL_PERIODS_PER_JOIN periods), so this
+   probe asks at 1/16 of the steps a per-period controller did, and the
+   weak one must still be low at one of them: at 16 periods a group it is
+   on 10 of 10 noise draws up to 46 dB-Hz and 9 of 10 at 47 (10 of 10 to
+   51 at one period a step), so it sits at 46, the highest with no draw
+   missing (it was 50 at one period a step). Measured on identical streams, M =
+   1 against 16: the weak one is kept on all 90 draws from 44 to 52 dB-Hz in
+   both, and a real ghost (_test_ghost_is_released's scene, parents at 60, 65
+   and 70 dB-Hz, 10 draws each) is released on the same counts (8, 9, 8 of 10),
+   a median 3 to 8 ms later at 16. Sabotage: drop the code-lock
    test -> the co-moving emitter is released; drop the carrier test -> the
    weak one is. */
 static int
@@ -1737,7 +1893,7 @@ _test_ghost_needs_both_tests (void)
   DP_CHECK_MSG (comove.kept, "a co-moving emitter is kept");
   DP_CHECK_MSG (comove.carrier_alone, "the carrier test alone would fire");
   DP_CHECK (!comove.lock_alone);
-  const _pair_t weak = _distinct_pair (code, 50.0, -437.0, 2 * 198);
+  const _pair_t weak = _distinct_pair (code, 46.0, -437.0, 2 * 198);
   DP_CHECK_MSG (weak.kept, "a weak emitter on its own carrier is kept");
   DP_CHECK_MSG (weak.lock_alone, "the code-lock test alone would fire");
   DP_CHECK (!weak.carrier_alone);
@@ -1749,8 +1905,8 @@ _test_ghost_needs_both_tests (void)
    -> PSD -> AccTrace. A version-2 trace held the mean, which version 3
    reads as a sum. The pool restores whole or nothing, so the refusal
    leaves it exactly as advanced, though its own fields and receiver 0's
-   children decode first. One trace per receiver and one in the search, so
-   four hits. */
+   children decode first. One trace in each of the three receivers and in
+   the search-only one (the refine's estimator), so four hits. */
 static int
 _test_nested_trace_version_refused (void)
 {
@@ -1769,17 +1925,121 @@ _test_nested_trace_version_refused (void)
   return 0;
 }
 
+/* The pool hands `refine` to every receiver it builds, the search's
+ * included, and so refuses what the receiver refuses: refine false under a
+ * search ASYNC_DSSS_RX_NO_REFINE_MIN_BINS deep. CODE7 at 1 Mchip/s and 3
+ * samples a chip: no code-only window is D = 1, and 2 ms is D = 140.
+ *
+ * Sabotages: the pool passing true whatever it is given -> the D = 1 row
+ * builds and the receivers read refine true, red; passing false -> the
+ * refine-true rows red. */
+static int
+_test_refine_passes_through (void)
+{
+  static const double windows[] = { 0.0, 0.002 };
+  for (size_t w = 0; w < 2; w++)
+    for (int refine = 0; refine <= 1; refine++)
+      {
+        dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
+            CODE7, 7, 3, 1.0e6, 35714.29, 3.0e6, 2, 58.0, 1e-2, 0.9, 500.0, 4,
+            8, 0, 0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false,
+            windows[w], 0.0, 1, refine);
+        const int deep = windows[w] > 0.0;
+        DP_CHECK ((p != NULL) == (refine || deep));
+        if (!p)
+          continue;
+        DP_CHECK (p->search->refine == (bool)refine);
+        for (size_t i = 0; i < p->n_receivers; i++)
+          DP_CHECK (p->rx[i]->refine == (bool)refine);
+        dp_async_dsss_pool_destroy (p);
+      }
+  return 0;
+}
+
+/* The k = 2 scene under the shipped pool, a STRICT XFAIL (doppler#3263):
+   the release rules as shipped (lost_confirm_s at
+   objects/async_dsss_pool.toml's default, 2.0 s; the duplicate and ghost
+   rules always on), run to the lock allocation (DP_S415_LOCK_S) at 2.8
+   GHz. The fine hand-over takes the seed two lattice steps off A to A's
+   own carrier, where the ghost rule leaves it (a k = 0 ghost and a
+   co-located true emitter look the same to it, §8, doppler#2551), and the
+   ghost, on a -24 dB sidelobe of a 60 dB-Hz A, keeps a flag up often
+   enough that the loss release never fires: the pool ends the allocation
+   with two receivers on A. Seed 5 is one the record holds
+   (run-cen-0373a01d5's ghosts_forced.csv, the validator's FORCED arm on
+   this same scene: 4 of 20 held at k = 2, seed 2 freed by the loss release
+   inside the allocation; run as seed 2 this test is red, its failing
+   case). That is the declared near-far limit; no rule
+   built today separates it without releasing usable tracks
+   (doppler#3263). The test asserts the defect is STILL THERE, so it goes
+   red the day a rule closes it: then restore the claim (receiver 1 idle,
+   exactly one release) and close the issue. "Held" is receiver 1's tenure
+   unbroken (_shipped_ghost_held): no release of any kind, still tracking,
+   on A's carrier; seed 2 runs beside it as the failing case. The ghost
+   rule's own pin, on a pool whose seed stays at k = 2, is
+   _test_ghost_is_released. */
+/* Receiver 1's tenure unbroken to the end of a shipped-pool k = 2 scene:
+   no release of any kind (so a release the search re-seeded in the same
+   control step still counts as broken), still tracking, and on A's own
+   carrier (within half a lattice step). Prints the scene's line. */
+static int
+_shipped_ghost_held (const uint8_t *code, uint32_t seed, int *held)
+{
+  _g415_t z;
+  DP_REQUIRE (_g415_scene (code, seed, 60.0, 2, 2.0, DP_S415_LOCK_S, true, &z)
+              == 0);
+  dp_async_dsss_pool_state_t *p = z.p;
+  printf ("k = 2 scene, shipped pool, seed %u, %.0f s: carrier %.1f Hz off "
+          "A's, %ld tracking steps (%ld code up, %ld symbol up, %ld both "
+          "down), released ghost %llu duplicate %llu lost %llu\n",
+          seed, DP_S415_LOCK_S, z.df_end, z.n, z.code_up, z.sym_up,
+          z.both_down, (unsigned long long)p->released_ghost,
+          (unsigned long long)p->released_duplicate,
+          (unsigned long long)p->released_lost);
+  DP_REQUIRE_MSG (z.tracked, "the seed reached tracking");
+  DP_REQUIRE (dp_async_dsss_pool_status (p, 0).state
+              == ASYNC_DSSS_RX_TRACKING);
+  *held = p->released_ghost + p->released_duplicate + p->released_lost == 0
+          && dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_TRACKING
+          && fabs (z.df_end) < 0.5 * p->lattice_hz;
+  dp_async_dsss_pool_destroy (p);
+  return 0;
+}
+
+static int
+_test_shipped_pool_leaves_one_on_a (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  int held5, held2;
+  DP_REQUIRE (_shipped_ghost_held (code, 5, &held5) == 0);
+  DP_CHECK_MSG (held5,
+                "XFAIL (strict) doppler#3263: the shipped pool still holds a "
+                "k = 0 ghost on A, its tenure unbroken, to the allocation's "
+                "end; if this is red, a rule closed it -- restore the claim "
+                "and close the issue");
+  /* The failing case: seed 2, which the loss release frees inside the
+     allocation, must read not held. */
+  DP_REQUIRE (_shipped_ghost_held (code, 2, &held2) == 0);
+  DP_CHECK_MSG (!held2, "control: a ghost the loss release frees is not "
+                        "read as held");
+  return 0;
+}
+
 int
 main (void)
 {
   DP_CHECK (_test_create_domain () == 0);
+  DP_CHECK (_test_refine_passes_through () == 0);
   DP_CHECK (_test_ghost_test_edges () == 0);
   DP_CHECK (_test_ghost_is_released () == 0);
+  DP_CHECK (_test_shipped_pool_leaves_one_on_a () == 0);
   DP_CHECK (_test_ghost_needs_both_tests () == 0);
   DP_CHECK (_test_search_runs_once () == 0);
   DP_CHECK (_test_duplicates_keep_the_first () == 0);
   DP_CHECK (_test_duplicate_zone_is_one_chip_circular () == 0);
   DP_CHECK (_test_reset_and_threads () == 0);
+  DP_CHECK (_test_reset_clears_the_carry () == 0);
   DP_CHECK (_test_telemetry_one_producer () == 0);
   DP_CHECK (_test_lost_is_released () == 0);
   DP_CHECK (_test_two_emitters_two_holders () == 0);

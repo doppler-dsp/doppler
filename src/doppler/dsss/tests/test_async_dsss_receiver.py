@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 
 from doppler.dsss import (
+    AsyncDsssPool,
     AsyncDsssReceiver,
     ReceiverStatus,
 )
@@ -216,6 +217,58 @@ def test_reacquire_needs_a_release_interval():
     with pytest.raises(ValueError, match=msg):  # rounds to zero samples
         _new_receiver(70.0, lost_confirm_s=1e-9, reacquire=True)
     _new_receiver(70.0, lost_confirm_s=0.02, reacquire=True)
+
+
+def test_an_unsizable_carrier_lock_is_refused():
+    # A design C/N0 at which no carrier-lock count up to 10^7 updates
+    # detects at Pd 0.99 is refused, in the receiver and in the pool,
+    # with the message naming the fix; a sized one reads its count.
+    code = np.asarray(Gold().generate(SF)).astype(np.uint8)
+    kw = {"chip_rate": CHIP_RATE, "symbol_rate": SYM_RATE, "sample_rate": FS}
+    msg = "carrier lock cannot be sized"
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssReceiver(code, cn0_dbhz=0.0, **kw)
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssPool(code, n_receivers=2, threads=1, cn0_dbhz=0.0, **kw)
+    rx = AsyncDsssReceiver(code, cn0_dbhz=40.0, **kw)
+    assert rx.carrier_lock_n_noncoh >= 2
+    assert rx.status().carrier_lock_n_noncoh == rx.carrier_lock_n_noncoh
+
+
+def test_refine_false_needs_a_deep_search():
+    # refine=False hands a seed straight to tracking, which holds only on
+    # a search at least 1 / bn code periods deep: one epoch deep is
+    # refused, in the receiver and in the pool it builds them for.
+    code = np.asarray(Gold().generate(SF)).astype(np.uint8)
+    kw = {"chip_rate": CHIP_RATE, "symbol_rate": SYM_RATE, "sample_rate": FS}
+    msg = "refine false needs a search at least 1 / bn code periods deep"
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssReceiver(code, refine=False, **kw)
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssPool(code, n_receivers=2, threads=1, refine=False, **kw)
+    rx = AsyncDsssReceiver(code, code_only_s=0.1, refine=False, **kw)
+    assert rx.coherent_bins >= 25
+    rx.seed(chip_phase=512.25, doppler_hz_est=-150.0, cn0_dbhz_est=48.0)
+    assert (rx.tracking, rx.refining, rx.doppler_hz) == (1, 0, -150.0)
+    AsyncDsssPool(
+        code, n_receivers=2, threads=1, code_only_s=0.1, refine=False, **kw
+    )
+
+
+def test_symbol_of_at_least_a_code_period():
+    # The carrier loop forms its error on the code-period window, which is
+    # free of data transitions only while a symbol spans a code period: a
+    # shorter symbol is refused, in the receiver and the pool.
+    code = np.asarray(Gold().generate(SF)).astype(np.uint8)
+    kw = {"chip_rate": CHIP_RATE, "sample_rate": FS}
+    AsyncDsssReceiver(code, symbol_rate=SYM_RATE, **kw)
+    AsyncDsssPool(code, n_receivers=2, threads=1, symbol_rate=SYM_RATE, **kw)
+    short = 2.0 * CHIP_RATE / SF  # two symbols a code period
+    msg = "a symbol of at least a code period"
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssReceiver(code, symbol_rate=short, **kw)
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssPool(code, n_receivers=2, threads=1, symbol_rate=short, **kw)
 
 
 def test_lifecycle_walks_every_state():

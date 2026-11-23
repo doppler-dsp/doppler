@@ -85,6 +85,8 @@ _DLL state._ [More...](#detailed-description)
 |  size\_t | [**lock\_nz**](#variable-lock_nz)  <br> |
 |  double | [**lock\_stat**](#variable-lock_stat)  <br> |
 |  double | [**lock\_sum**](#variable-lock_sum)  <br> |
+|  double | [**look\_offset\_pwr**](#variable-look_offset_pwr)  <br> |
+|  double | [**look\_prompt\_amp**](#variable-look_prompt_amp)  <br> |
 |  size\_t | [**n\_looks**](#variable-n_looks)  <br> |
 |  double | [**noise\_ema**](#variable-noise_ema)  <br> |
 |  double | [**noise\_guard**](#variable-noise_guard)  <br> |
@@ -96,6 +98,7 @@ _DLL state._ [More...](#detailed-description)
 |  double | [**rate\_i**](#variable-rate_i)  <br> |
 |  double | [**rate\_p**](#variable-rate_p)  <br> |
 |  uint32\_t | [**rng**](#variable-rng)  <br> |
+|  float \* | [**rtab**](#variable-rtab)  <br> |
 |  double | [**seed\_chip**](#variable-seed_chip)  <br> |
 |  double | [**seg\_chips**](#variable-seg_chips)  <br> |
 |  size\_t | [**seg\_idx**](#variable-seg_idx)  <br> |
@@ -110,6 +113,7 @@ _DLL state._ [More...](#detailed-description)
 |  uint32\_t | [**tap\_off**](#variable-tap_off)  <br> |
 |  uint32\_t | [**tap\_spacing**](#variable-tap_spacing)  <br> |
 |  [**dll\_tlm\_t**](structdll__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
+|  float \_Complex | [**win\_p**](#variable-win_p)  <br> |
 |  int | [**wrap\_await**](#variable-wrap_await)  <br> |
 |  int | [**wrap\_pending**](#variable-wrap_pending)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
@@ -1040,6 +1044,42 @@ running sum\|P\_k\|^2 over the current window.
 
 
 
+### variable look\_offset\_pwr 
+
+```C++
+double dp_dll_state_t::look_offset_pwr;
+```
+
+
+
+the last look's offset-tap power \|O\|^2. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable look\_prompt\_amp 
+
+```C++
+double dp_dll_state_t::look_prompt_amp;
+```
+
+
+
+the last look's prompt magnitude \|P\|. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable n\_looks 
 
 ```C++
@@ -1226,6 +1266,23 @@ uint32_t dp_dll_state_t::rng;
 
 xorshift32 state for the random offset. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable rtab 
+
+```C++
+float* dp_dll_state_t::rtab;
+```
+
+
+
+The replica's +-1 values on its half-chip grid, 2 sf + 1 floats: entry i is the sign of chip i / 2 and entry 2 sf repeats entry 0, so a tap reads its two grid points without the wrap test or the chip-to-sign step [**dll\_replica\_word()**](dll__core_8h.md#function-dll_replica_word) takes. Owned: [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create) builds it from the code when it can (a failed allocation leaves NULL), and [**dp\_dll\_destroy()**](dll__core_8h.md#function-dp_dll_destroy) frees it. NULL means none: [**dp\_dll\_init()**](dll__core_8h.md#function-dp_dll_init) allocates nothing, and its taps go through [**dll\_replica\_word()**](dll__core_8h.md#function-dll_replica_word), to the same values. Derived from `code`, so zeroed in blobs and kept across set\_state like it. 
 
 
         
@@ -1473,6 +1530,24 @@ dll_tlm_t dp_dll_state_t::tlm;
 
 
 live telemetry attachment; zeroed in blobs 
+
+
+        
+
+<hr>
+
+
+
+### variable win\_p 
+
+```C++
+float _Complex dp_dll_state_t::win_p;
+```
+
+
+
+Scratch: the prompt's coherent sum over the code-period window the last epoch's look-back picked (find\_max\_power's winner), with or without the symbol-period aid; [**dp\_dll\_get\_window\_sum()**](dll__core_8h.md#function-dp_dll_get_window_sum). Written and read within one steps() call, so not state: zero in the blob. 
+ 
 
 
         

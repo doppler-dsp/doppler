@@ -10,3 +10,4 @@
 doppler/correlator/correlator_private.h  # private: the correlator's detection layer, shared by its flavors and the acquisition engine; its inline bodies use the C99 complex library (`creal`)
 doppler/dp_interrupt_pyadopt.h  # Python-only: a CPython-extension helper for a hand-written binding; it includes Python.h
 doppler/wfm/wfm_private.h  # private: internals shared by the wfm composer, the Plan and the synth; `restrict` in an inline helper, which C++ does not have
+doppler/async_dsss_pool/async_dsss_pool_private.h  # private: the pool's group join, shared by its core, its test and the ghost validator; it includes costas/costas_core.h, whose inline body calls lo_step(), which is C-only

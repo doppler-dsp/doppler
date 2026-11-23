@@ -1033,6 +1033,167 @@ def det_threshold_f(pfa: float, n: int) -> float:
 
     """
 
+def det_ratio_threshold(pfa: float, n: int) -> float:
+    """The threshold on a block's ratio of sums `R = sum(I^2 - Q^2) /
+    sum(I^2 + Q^2)` at a false-alarm rate, exact on noise.
+
+    On noise alone (I, Q independent zero-mean Gaussians of one variance)
+    `(R + 1)/2` is exactly `Beta(n/2, n/2)`: the block's own total power is
+    the noise reference, so no noise estimate enters. `R > r` is `X/Y > (1
+    + r)/(1 - r)` with `X = sum(I^2)` and `Y = sum(Q^2)` chi-square on `n`
+    degrees each, so `r = (g - 1)/(g + 1)` with `g = det_threshold_f(pfa,
+    n)`. It is the lock statistic of an NDA BPSK carrier loop (I and Q of a
+    squared-out phase) and of a symbol lock on the same form.
+
+    Parameters
+    ----------
+    pfa : float
+        The false-alarm rate a block, in (0, 1).
+    n : int
+        Terms in the block (>= 1).
+
+    Returns
+    -------
+    float
+        The threshold on R, in (-1, 1): positive for pfa under 1/2 (the F
+        point is above 1), 0 at 1/2, negative above it; NaN on invalid
+        input. A lock wants pfa well under 1/2.
+
+    Examples
+    --------
+    >>> from doppler.detection import det_ratio_threshold
+    >>> round(det_ratio_threshold(1e-3, 31), 3)
+    0.518
+    >>> round(det_ratio_threshold(1e-3, 34), 3)
+    0.498
+
+    """
+
+def det_ratio_pd(n: int, pfa: float, gamma: float, phase_var: float) -> float:
+    """The probability that a block's ratio of sums exceeds its threshold
+    under signal, exact for a Gaussian phase jitter.
+
+    Each term is `z = A d e^{j theta} + noise`, `|d| = 1`, the noise
+    complex Gaussian; gamma is `A^2 / E|noise|^2` and phase_var the jitter
+    `E[theta^2]`, Gaussian and independent from term to term. With `r` the
+    threshold det_ratio_threshold() gives for (n, pfa), `R > r` is `W =
+    sum((1 - r) I^2 - (1 + r) Q^2) > 0`, a sum of independent terms. Its
+    characteristic function is one term's to the power n, and the
+    probability is its inversion (Gil-Pelaez): a quadrature over the jitter
+    at +/-8 sigma and Simpson's rule on the frequency axis, in real
+    arithmetic. At gamma 0 it is the false-alarm rate, pfa.
+
+    The frequency step is scaled to the integrand's oscillation, `w = |E W|
+    / sd(W)` a unit of the scaled axis (about `sqrt(n gamma / 2)`), at 32
+    points a period and never under 1,500 panel pairs. Two regions:
+
+    - **w up to about 9.8e3** (at most 10^6 panel pairs; at n 2, gamma up
+      to about 10^7.95): the quadrature's value, exact to its rounding.
+      Near the top of this region one call takes about 0.13 s, so
+      det_ratio_block_len()'s few dozen calls take seconds there, against
+      microseconds at a lock's design point.
+    - **Past it**: the limit, 1 when `E W > 0` and 0 when it is below, not
+      exact but bounded. Chebyshev on W puts the other side's probability
+      under `Var W / (E W)^2 = 1 / w^2`; the cap is set where `w` reaches
+      about 9.8e3 (32 points a period over the axis's 40 sd at 10^6 panel
+      pairs), so the bound is 1.04e-8 at the boundary and smaller beyond,
+      and the two regions meet within it (test_detection_core.c). `E W <
+      0`, the 0 side, occurs at any gamma once `exp(-2 phase_var) < r (1 +
+      1/gamma)` (a term's mean is `A^2 exp(-2 phase_var) - r (A^2 + 2)`).
+      Returning 0 there is correct by the same Chebyshev bound: `P(W > 0)
+      <= 1 / w^2`, at most 1.04e-8 in this region. (Over n 2 to 10^7, gamma
+      10^-3 to 10^12 and phase_var 10^-4 to 30 rad^2 the largest `w` on
+      that side is 4.4, searched with this function's own mean and
+      variance: `|E W|` is then at most about `r` times the terms' spread,
+      and `r` shrinks as `1/sqrt(n)`.)
+
+    A Gaussian for the ratio (the delta method) is optimistic in the lower
+    tail, where a detection probability near 1 is read: at `gamma` 2.397
+    and 4.40 deg it gives 0.992 at n = 31, where this gives 0.982, and the
+    measurement 0.982 (test_detection_core.c's ratio section).
+
+    Parameters
+    ----------
+    n : int
+        Terms in the block (>= 1).
+    pfa : float
+        The false-alarm rate the threshold is for, in (0, 1).
+    gamma : float
+        Signal-to-noise ratio a term, linear, >= 0.
+    phase_var : float
+        Phase jitter, rad^2, >= 0.
+
+    Returns
+    -------
+    float
+        The detection probability; NaN on invalid input.
+
+    Examples
+    --------
+    >>> import math
+    >>> from doppler.detection import det_ratio_pd
+    >>> s2 = math.radians(4.40) ** 2
+    >>> round(det_ratio_pd(31, 1e-3, 2.397, s2), 3)
+    0.982
+    >>> round(det_ratio_pd(34, 1e-3, 2.397, s2), 3)
+    0.992
+    >>> round(det_ratio_pd(31, 1e-3, 0.0, 0.0), 6)  # noise alone: the pfa
+    0.001
+
+    """
+
+def det_ratio_block_len(
+    gamma: float,
+    phase_var: float,
+    pfa: float,
+    pd: float,
+    max_n: int,
+) -> int:
+    """The least block whose ratio of sums detects with probability pd at
+    its exact threshold for pfa.
+
+    Sizes a block lock on R from the operating point: the smallest `n` with
+    det_ratio_pd(n, pfa, gamma, phase_var) >= pd, searched by doubling and
+    then bisection (the probability rises with `n`). Both sides are exact
+    for the model, so the block's decisions have the stated rates, and
+    blocks are disjoint, so verify counts on them count independent
+    decisions. At the 415.1-B-1 floor's window sums (`gamma` 2.397 and
+    1.884) it is 33 at 2.2 GHz and 43 at 2.8 GHz at 1/200 rad^2 (4.05 deg,
+    the unit form at the async receiver's rule bn), and 34 and 43 at 4.40
+    and 4.50 deg; the receiver sizes at its loop's delivered bandwidth
+    (dp_async_dsss_receiver_carrier_phase_var(), 5.295 and 5.219e-3 rad^2),
+    34 and 43.
+
+    Parameters
+    ----------
+    gamma : float
+        Signal-to-noise ratio a term, linear, > 0.
+    phase_var : float
+        Phase jitter, rad^2, >= 0.
+    pfa : float
+        The false-alarm rate a block, in (0, 1).
+    pd : float
+        The detection probability a block, in (0, 1).
+    max_n : int
+        The longest block to consider (>= 2).
+
+    Returns
+    -------
+    int
+        The block length, 2 to max_n; 0 for an argument out of range, or
+        when no block that long reaches pd.
+
+    Examples
+    --------
+    >>> import math
+    >>> from doppler.detection import det_ratio_block_len
+    >>> det_ratio_block_len(2.397, math.radians(4.40) ** 2, 1e-3, 0.99, 10**7)
+    34
+    >>> det_ratio_block_len(1.884, math.radians(4.50) ** 2, 1e-3, 0.99, 10**7)
+    43
+
+    """
+
 def det_pd_noncoherent(
     snr: float,
     n_coh: int,

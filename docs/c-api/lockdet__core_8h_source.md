@@ -38,6 +38,25 @@ extern "C"
     return s->locked == 0 || s->locked == 1;
   }
 
+  typedef struct
+  {
+    double   up_thresh;   
+    double   down_thresh; 
+    uint32_t n_up;        
+    uint32_t n_down;      
+  } dp_lockdet_rule_t;
+
+  JM_FORCEINLINE dp_lockdet_rule_t
+  dp_lockdet_rule (const dp_lockdet_state_t *s)
+  {
+    dp_lockdet_rule_t r;
+    r.up_thresh   = s->up_thresh;
+    r.down_thresh = s->down_thresh;
+    r.n_up        = s->n_up;
+    r.n_down      = s->n_down;
+    return r;
+  }
+
   void dp_lockdet_init(dp_lockdet_state_t *state, double up_thresh,
                     double down_thresh, uint32_t n_up, uint32_t n_down);
 

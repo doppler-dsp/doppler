@@ -527,6 +527,69 @@ add_test(NAME validate_async_dsss_receiver_lock_telemetry
          COMMAND validate_async_dsss_receiver_lock --telemetry
                  ${CMAKE_CURRENT_BINARY_DIR} --check)
 
+# From the hand-over to a link that holds, at the 415.1-B-1 point: the use
+# case's grid on the use-case scene (native/tests/dp_air_test.h), 60 s draws.
+# The spot check runs the contract's cells (2.8 GHz, 10 dB, static, both
+# carrier windows, one 20 s draw each) and gates that each link works --
+# sustained lock, no change of either flag over the data, not a false lock --
+# aligns without a slip, and errs under the bound 3 dB lower; the 4 and 5 dB
+# floor is printed with its intervals and not claimed.
+add_executable(validate_async_dsss_receiver_pullin
+               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_receiver_pullin.c)
+target_include_directories(validate_async_dsss_receiver_pullin
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_async_dsss_receiver_pullin
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_async_dsss_receiver_pullin
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_async_dsss_receiver_pullin
+         COMMAND validate_async_dsss_receiver_pullin --check)
+# `--telemetry DIR --draw ...`: one draw's capture, the receiver's probes
+# with the scene's truth beside them and the lock rules, the report's
+# figures' source. A short window of a 2 s draw, so the capture path and
+# the probes it reads cannot rot; `--check` removes the passing capture.
+add_test(NAME validate_async_dsss_receiver_pullin_telemetry
+         COMMAND validate_async_dsss_receiver_pullin --telemetry
+                 ${CMAKE_CURRENT_BINARY_DIR} --draw 2.8,10,0,1 --secs 2
+                 --from 1 --to 1.2 --check)
+
+# The pool's ghosts at the 415.1-B-1 point: a forced sidelobe ghost at k
+# lattice steps (released at k = 2, never at k = 0), a distinct emitter on a
+# stronger one's carrier (never released; and how often the rule with
+# k = 0 admitted would have), and the ghosts the pool takes on its own. The
+# spot check: 2.8 GHz, k = 0 and 2, B at 38.8 and 50 dB-Hz, one draw each.
+add_executable(validate_async_dsss_pool_ghosts
+               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_pool_ghosts.c)
+target_include_directories(validate_async_dsss_pool_ghosts
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_async_dsss_pool_ghosts
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_async_dsss_pool_ghosts
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_async_dsss_pool_ghosts
+         COMMAND validate_async_dsss_pool_ghosts --check)
+
+# The refine at the 415.1-B-1 point: its per-dwell false-alarm rate on
+# noise against the design (one test an estimator, refine_sequential
+# false: pfa each, 2 pfa the hand-over taking either), and the hand-over
+# error of what it hands over and of each estimator on the same dwell. The
+# spot check: 2.8 GHz, 300 noise dwells and the static 7 dB grid at one
+# noise seed; gated that no dwell sticks and no rate is shown over its
+# design.
+add_executable(validate_async_dsss_receiver_refine
+               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_receiver_refine.c)
+target_include_directories(validate_async_dsss_receiver_refine
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_async_dsss_receiver_refine
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_async_dsss_receiver_refine
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_async_dsss_receiver_refine
+         COMMAND validate_async_dsss_receiver_refine --check)
+
 # How far below a stronger emitter a weaker one is still taken, the weak
 # one at the specification's floor and the strong one up to 20 dB above it,
 # one epoch deep and on the deep frame (docs/design/async-dsss-receiver.md

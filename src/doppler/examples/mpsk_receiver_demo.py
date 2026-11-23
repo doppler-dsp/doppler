@@ -49,13 +49,16 @@ iq = np.asarray(
 # steers the shared LO whether or not anything has declared lock.
 # bn_carrier is normalised to the SYMBOL rate, not the sample rate, and
 # carrier PULL-IN range scales with it: acquiring a 0.0015 cyc/sample offset
-# from a cold start (init_norm_freq defaults to 0) needs ~0.02 here.
+# (0.012 cycles a symbol) from a cold start (init_norm_freq defaults to 0)
+# needs ~0.04 here, where it sits at u = df*M/bn = 1.2 and settles within
+# about 5/bn. (It was 0.02 while the loop ran 1.67 times wider than
+# bn_carrier said, #3224.)
 rx = MpskReceiver(
     m=4,
     sps=8,
     m_out=4,
     pulse="iandd",
-    bn_carrier=0.02,
+    bn_carrier=0.04,
     bn_timing=0.01,
     # The lock statistic is normalised: ~1.0 at lock for every M, so this is a
     # plain fraction of what a locked constellation reads. It used to be scaled
@@ -202,7 +205,7 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
     # acquisition transient (the cloud) is visible before lock.
     sps = 8
     foff = 0.0015
-    bn_c, bn_t = 0.02, 0.01
+    bn_c, bn_t = 0.04, 0.01
     tx, idx = _signal(4, sps, foff=foff, esn0_db=20, nsym=4000, seed=1)
     rx = MpskReceiver(
         m=4,

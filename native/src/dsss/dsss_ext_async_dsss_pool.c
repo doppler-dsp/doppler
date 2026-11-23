@@ -72,6 +72,7 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
                                              "code_only_s",
                                              "doppler_rate",
                                              "threads",
+                                             "refine",
                                              NULL };
   PyObject          *code_obj            = NULL;
   PyObject          *n_receivers_obj     = NULL;
@@ -106,16 +107,17 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
   double             code_only_s                   = 0.0;
   double             doppler_rate                  = 0.0;
   int                threads                       = 0;
+  int                refine_raw                    = true;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|OdddiddddOOidOdOOpOddpddi", kwlist, &code_obj,
+          args, kwds, "O|OdddiddddOOidOdOOpOddpddip", kwlist, &code_obj,
           &n_receivers_obj, &chip_rate, &symbol_rate, &sample_rate, &m,
           &cn0_dbhz, &pfa, &pd, &doppler_uncertainty, &segments_obj, &sps_obj,
           &differential, &refine_max_error_db, &refine_samples_per_symbol_obj,
           &refine_design_margin_db, &refine_n_fft_obj, &refine_zero_pad_obj,
           &refine_sequential_raw, &refine_max_n_blocks_obj, &carrier_freq_hz,
           &lost_confirm_s, &reacquire_raw, &code_only_s, &doppler_rate,
-          &threads))
+          &threads, &refine_raw))
     return -1;
   if (n_receivers_obj != NULL)
     {
@@ -265,6 +267,7 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
     }
   size_t         refine_max_n_blocks = (size_t)refine_max_n_blocks_raw;
   bool           reacquire           = (int)reacquire_raw;
+  bool           refine              = (int)refine_raw;
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
@@ -278,23 +281,29 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
       doppler_uncertainty, segments, sps, differential, refine_max_error_db,
       refine_samples_per_symbol, refine_design_margin_db, refine_n_fft,
       refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-      lost_confirm_s, reacquire, code_only_s, doppler_rate, threads);
+      lost_confirm_s, reacquire, code_only_s, doppler_rate, threads, refine);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "AsyncDsssPool: invalid parameter (need 1 <= "
-                       "n_receivers <= 16, threads >= 0, and every parameter "
-                       "AsyncDsssReceiver takes: a code of at least 2 chips, "
-                       "a finite chip_rate > 0, a finite symbol_rate > 0 and "
-                       "<= chip_rate, sample_rate >= chip_rate, m in "
-                       "{2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 "
-                       "or finite and above sample_rate / 2, lost_confirm_s "
-                       ">= 0 (and at least one input sample with reacquire), "
-                       "refine_samples_per_symbol >= 1, refine_n_fft >= 1, "
-                       "refine_zero_pad >= 1; and for the searcher a finite "
-                       "cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite "
-                       "doppler_uncertainty >= 0)");
+                       "AsyncDsssPool: refused: either the receivers' "
+                       "carrier lock cannot be sized at this cn0_dbhz (no "
+                       "count up to 10^7 updates detects at Pd 0.99 against "
+                       "Pfa 1e-3): raise cn0_dbhz; or a parameter is invalid "
+                       "(need 1 <= n_receivers <= 16, threads >= 0, and "
+                       "every parameter AsyncDsssReceiver takes: a code of "
+                       "at least 2 chips, a finite chip_rate > 0, a finite "
+                       "symbol_rate > 0 and <= chip_rate, sample_rate >= "
+                       "chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, "
+                       "carrier_freq_hz 0 or finite and above sample_rate / "
+                       "2, lost_confirm_s >= 0 (and at least one input "
+                       "sample with reacquire), refine_samples_per_symbol >= "
+                       "1, refine_n_fft >= 1, refine_zero_pad >= 1; and for "
+                       "the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd "
+                       "< 1, a finite doppler_uncertainty >= 0; refine false "
+                       "needs a search at least 1 / bn code periods deep, bn "
+                       "the carrier loop's (about 101 / 135 at the 415.1-B-1 "
+                       "floor); a symbol of at least a code period)");
       return -1;
     }
   return 0;
@@ -361,7 +370,7 @@ static PyStructSequence_Field AsyncDsssPoolObj_status_fields[] = {
   { "locked", "Health flag: the symbol-lock detector." },
   { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
   { "lock_threshold", "`locked` declares strictly above this." },
-  { "car_last_error", "Pre-despread Costas residual, rad." },
+  { "car_last_error", "Pre-despread loop's residual, rad (slope 1)." },
   { "mpsk_last_error", "Post-despread carrier residual, rad." },
   { "state_samples", "Input samples since `state` was entered." },
   { "both_down_samples",
@@ -371,6 +380,9 @@ static PyStructSequence_Field AsyncDsssPoolObj_status_fields[] = {
   { "refused_hits",
     "Searching hits refused as seeds by the seed domain (a Doppler at or past "
     "fs/2), since create or reset. The search went on over each one's tail." },
+  { "carrier_lock_n_noncoh",
+    "The carrier lock's non-coherent count, the updates one decision sums "
+    "(dp_async_dsss_receiver_get_carrier_lock_n_noncoh()): fixed at create." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc AsyncDsssPoolObj_status_desc
@@ -379,7 +391,7 @@ static PyStructSequence_Desc AsyncDsssPoolObj_status_desc
         "controller's step: state (1 refining, 2 tracking, 3 idle, 4 lost; a "
         "pooled receiver never searches), the live estimates, both lock "
         "flags, and the two clocks in input samples.",
-        AsyncDsssPoolObj_status_fields, 14 };
+        AsyncDsssPoolObj_status_fields, 15 };
 static PyTypeObject *AsyncDsssPoolObj_status_type = NULL;
 
 static PyObject *
@@ -455,6 +467,10 @@ AsyncDsssPoolObj_status (AsyncDsssPoolObject *self, PyObject *args,
   PyStructSequence_SET_ITEM (
       _o, 13,
       PyLong_FromUnsignedLongLong ((unsigned long long)_r.refused_hits));
+  PyStructSequence_SET_ITEM (
+      _o, 14,
+      PyLong_FromUnsignedLongLong (
+          (unsigned long long)_r.carrier_lock_n_noncoh));
   return _o;
 }
 
@@ -983,15 +999,16 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "push(x) -> int\n"
     "\n"
     "Step every receiver on one block, running the controller at every\n"
-    "code period it crosses.\n"
+    "group of code periods it completes.\n"
     "\n"
-    "Hands every whole code period it completes to every receiver (header\n"
-    "step 1), keeps each one's symbols for symbols(), and after each period\n"
-    "releases the lost, resolves duplicates, releases ghosts, seeds the idle\n"
-    "receivers and sets the search's levers (step 3). The samples past the\n"
-    "last whole period are kept for the next push. Accepts any block size,\n"
-    "and state carries across calls: the result is a function of the stream,\n"
-    "not of its blocking.\n"
+    "Hands every whole group of ASYNC_DSSS_POOL_PERIODS_PER_JOIN code\n"
+    "periods it completes to the search and every receiver, one period a\n"
+    "call (header steps 1 and 2), keeps each one's symbols for symbols(),\n"
+    "and after each group releases the lost, resolves duplicates, releases\n"
+    "ghosts, seeds the idle receivers and sets the search's levers (step 3).\n"
+    "The samples past the last whole group are kept for the next push.\n"
+    "Accepts any block size, and state carries across calls: the result is a\n"
+    "function of the stream, not of its blocking.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1020,7 +1037,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "status(receiver) -> PoolReceiverStatus record (state, doppler_hz, "
     "chip_phase, code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
     "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
-    "both_down_samples, refused_hits)\n"
+    "both_down_samples, refused_hits, carrier_lock_n_noncoh)\n"
     "\n"
     "Receiver receiver's status, now.\n"
     "\n"
@@ -1126,7 +1143,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "\n"
     "Set the workers push() steps the receivers on.\n"
     "\n"
-    "The receivers' results do not change with it (header step 1); only the\n"
+    "The receivers' results do not change with it (header step 2); only the\n"
     "time a push takes does. A mutator's value, so it travels in the state\n"
     "blob (#2022).\n"
     "\n"
@@ -1332,7 +1349,7 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "doppler_uncertainty : float, default 100.0\n"
     "    Doppler search half-range, Hz.\n"
     "segments : int, default 4\n"
-    "    Dll segments per symbol.\n"
+    "    Dll segments per code period.\n"
     "sps : int, default 8\n"
     "    Demodulator samples per symbol.\n"
     "differential : int, default 0\n"
@@ -1371,26 +1388,38 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "    the same request, at most one worker a Doppler tile, with its\n"
     "    once-an-epoch stages inline and its once-a-block ones fanned when a\n"
     "    block is more than one epoch (async-dsss-receiver.md §5).\n"
+    "refine : bool, default True\n"
+    "    The receivers' own refine: false hands a seed straight to tracking, "
+    "and\n"
+    "    is refused, as the receiver refuses it, when the search's depth is\n"
+    "    under 25 (dp_async_dsss_receiver_create()). Default true.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    If construction fails. The exception message is ``AsyncDsssPool:\n"
-    "    invalid parameter (need 1 <= n_receivers <= 16, threads >= 0, and "
-    "every\n"
-    "    parameter AsyncDsssReceiver takes: a code of at least 2 chips, a "
-    "finite\n"
-    "    chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, "
-    "sample_rate\n"
-    "    >= chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz "
-    "0\n"
-    "    or finite and above sample_rate / 2, lost_confirm_s >= 0 (and at "
-    "least\n"
-    "    one input sample with reacquire), refine_samples_per_symbol >= 1,\n"
-    "    refine_n_fft >= 1, refine_zero_pad >= 1; and for the searcher a "
-    "finite\n"
-    "    cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=\n"
-    "    0)``.\n"
+    "    refused: either the receivers' carrier lock cannot be sized at this\n"
+    "    cn0_dbhz (no count up to 10^7 updates detects at Pd 0.99 against "
+    "Pfa\n"
+    "    1e-3): raise cn0_dbhz; or a parameter is invalid (need 1 <= "
+    "n_receivers\n"
+    "    <= 16, threads >= 0, and every parameter AsyncDsssReceiver takes: a\n"
+    "    code of at least 2 chips, a finite chip_rate > 0, a finite "
+    "symbol_rate\n"
+    "    > 0 and <= chip_rate, sample_rate >= chip_rate, m in {2,4,8}, "
+    "segments\n"
+    "    >= 1, sps >= 2, carrier_freq_hz 0 or finite and above sample_rate / "
+    "2,\n"
+    "    lost_confirm_s >= 0 (and at least one input sample with reacquire),\n"
+    "    refine_samples_per_symbol >= 1, refine_n_fft >= 1, refine_zero_pad "
+    ">=\n"
+    "    1; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, "
+    "a\n"
+    "    finite doppler_uncertainty >= 0; refine false needs a search at "
+    "least 1\n"
+    "    / bn code periods deep, bn the carrier loop's (about 101 / 135 at "
+    "the\n"
+    "    415.1-B-1 floor); a symbol of at least a code period)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

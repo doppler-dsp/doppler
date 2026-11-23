@@ -16,6 +16,8 @@
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/carrier_acq/carrier_acq_core.h"
 #include "doppler/cic/cic_core.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
+#include "doppler/ppe/ppe_core.h"
 #include "doppler/costas/costas_core.h"
 #include "doppler/dll/dll_core.h"
 #include "doppler/dp_state.h"
@@ -35,6 +37,8 @@
 #include "doppler/ber/ber_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/state_filter/state_filter_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -42,8 +46,52 @@ extern "C"
 #endif
 
 #define ASYNC_DSSS_RX_BN_CARRIER 0.04
-#define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(chip_rate, code_len)                  \
-  (ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))
+#define ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB 20.0
+#define ASYNC_DSSS_RX_CAR_DEN_ALPHA (1.0 / 256.0)
+#define ASYNC_DSSS_RX_CAR_LOCK_PFA 1e-3
+#define ASYNC_DSSS_RX_CAR_LOCK_PD 0.99
+#define ASYNC_DSSS_RX_CAR_LOOP_DELAY(segments)                                \
+  (2.0 - 1.0 / (double)(segments))
+#define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(bn, chip_rate, code_len)              \
+  ((bn) * (chip_rate) / (2.0 * (double)(code_len)))
+#define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn)                                  \
+  ((size_t)ceil (1.0 / (bn) - 1e-9))
+
+  double dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
+                                            size_t code_len);
+
+  double dp_async_dsss_receiver_carrier_phase_var (double cn0_dbhz,
+                                                   double chip_rate,
+                                                   size_t code_len,
+                                                   size_t segments);
+
+  uint32_t dp_async_dsss_receiver_carrier_lock_n_noncoh (double cn0_dbhz,
+                                                         double chip_rate,
+                                                         size_t code_len,
+                                                         size_t segments);
+
+  typedef struct
+  {
+    int    k;        
+    double g;        
+    double gamma_sq; 
+    size_t blocks;   
+    size_t n_s;      
+    double rho;      
+    double p_w;      
+    double p_miss;   
+    double thr_db;   
+    double sd_hz;    
+    double chirp_loss_db; 
+    double max_rate; 
+    size_t n_rate;   
+  } async_dsss_receiver_fine_t;
+
+  int dp_async_dsss_receiver_fine_design (
+      double cn0_dbhz, double chip_rate, size_t code_len, double p_flip,
+      double symbol_rate, int m, size_t refine_segments, double e_hz,
+      double rate_hz_s, double eps_chip, double block_s, double pfa,
+      double p_ho, size_t max_blocks, async_dsss_receiver_fine_t *out);
 #define ASYNC_DSSS_RX_DLL_BN 0.002
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
   /* The damping of both Dlls this receiver builds, the tracker and the
@@ -87,6 +135,12 @@ extern "C"
 #define ASYNC_DSSS_RX_LOCK_N_UP 30u
 #define ASYNC_DSSS_RX_LOCK_N_DOWN 15u
 
+#define ASYNC_DSSS_RX_HO_NONE 0
+#define ASYNC_DSSS_RX_HO_SEED 1
+#define ASYNC_DSSS_RX_HO_DATA 2
+#define ASYNC_DSSS_RX_HO_FINE 3
+#define ASYNC_DSSS_RX_FINE_P_HO 0.99
+
 /* SSOT: enum=async_dsss_rx_state */
 typedef enum
 {
@@ -118,11 +172,12 @@ typedef enum
     size_t         refine_dll_out_cap;  
     float _Complex *refine_rc_out_buf;  
     size_t         refine_rc_out_cap;   
-    /* Track stage: DsssReceiver's own composition. dp_costas_init()'s tsamps is
-     * one whole code period, and the pre-despread carrier loop updates once
-     * per period from a non-data-aided (squaring) combine of that period's
-     * coherent-I&D partials (see adr_track_period() in the .c file). */
-    dp_costas_state_t         car; 
+    /* Track stage. The pre-despread carrier loop is carrier_nda at M = 2,
+     * updated once a code period (its update period is the period's
+     * samples) on the Dll's despread window sum, with the unit
+     * denominator fed the Dll's window noise and the ratio-of-sums block
+     * lock (see adr_build_track_chain() and adr_track_period()). */
+    dp_carrier_nda_state_t    car; 
     dp_dll_state_t           *dll; 
     dp_RateConverter_state_t *rc;  
     dp_mpsk_receiver_state_t *rx;  
@@ -157,6 +212,9 @@ typedef enum
     int    n;        
     double chip_rate;    
     double symbol_rate;  
+    double bn_carrier; 
+    double car_gamma; 
+    uint32_t car_blk; 
     double cn0_dbhz; 
     double pfa;      
     double pd;       
@@ -175,6 +233,7 @@ typedef enum
     double   lost_confirm_s;       
     uint64_t lost_confirm_samples; 
     bool     reacquire;            
+    bool     refine;               
     uint64_t state_samples;        
     double   code_only_s;  
     double   doppler_rate; 
@@ -206,17 +265,20 @@ typedef enum
     size_t   rank;   
     size_t   n_excl; 
     double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; 
+    uint64_t excl_at; 
     bool     pooled;     
     size_t   pick_want;  
     size_t   n_picks;    
     double   pick_phase[ASYNC_DSSS_RX_MAX_PEAKS]; 
     double   pick_doppler[ASYNC_DSSS_RX_MAX_PEAKS]; 
     double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     
+    uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; 
     uint64_t refused_hits;         
+    int      ho_src;               
     uint64_t both_down_samples;    
     int      had_lock;             
     int      car_coasting;         
-    dp_costas_state_t car_held;       
+    dp_carrier_nda_state_t car_held;  
     double   seed_chip_phase;     
     double   seed_doppler_hz_est; 
     double   doppler_hz_est;      
@@ -240,9 +302,33 @@ typedef enum
     uint32_t  tlm_decim;                   
     int32_t   tlm_sym_lock;   
     int32_t   tlm_sym_locked; 
+    int32_t   tlm_sym_num;    
+    int32_t   tlm_sym_den;    
     int32_t   tlm_state;      
     int32_t   tlm_handover;   
     int32_t   tlm_refused;    
+    int32_t   tlm_fine_hz;    
+    int32_t   tlm_fine_snr;   
+    int32_t   tlm_fine_n;     
+    /* The fine hand-over (dp_async_dsss_receiver_fine_design()). Config,
+       set and restored by create(): fine_on, fine, fine_cap, fine_ppe.
+       Running, in the blob: fine_n and fine_buf. */
+    int                        fine_on;  
+    async_dsss_receiver_fine_t fine;     
+    dp_ppe_state_t            *fine_ppe; 
+    float _Complex            *fine_buf; 
+    size_t                     fine_cap; 
+    size_t                     fine_n;   
+    double fine_hz;     
+    double fine_snr_db; 
+    int32_t   tlm_phase_car;  
+    int32_t   tlm_phase_code; 
+    int32_t   tlm_cn0;        
+    int32_t   tlm_ho_src;     
+    int32_t   tlm_had_lock;   
+    int32_t   tlm_coast;      
+    int32_t   tlm_hold;       
+    int32_t   tlm_release;    
     /* The hand-over starts the live chain at the refine's estimate, and
      * the refine decides up to its chain's lag past it, so the start can
      * lie in input an earlier call already passed (#2974). The last
@@ -273,7 +359,7 @@ typedef enum
       size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s, bool reacquire, double code_only_s,
-      double doppler_rate);
+      double doppler_rate, bool refine);
 
   void dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state);
 
@@ -313,6 +399,7 @@ typedef enum
     uint64_t state_samples; 
     uint64_t both_down_samples; 
     uint64_t refused_hits;      
+    uint64_t carrier_lock_n_noncoh; 
   } async_dsss_receiver_status_t;
 
   async_dsss_receiver_status_t dp_async_dsss_receiver_status (
@@ -347,6 +434,9 @@ typedef enum
       const dp_async_dsss_receiver_state_t *state);
 
   size_t dp_async_dsss_receiver_get_coherent_bins (
+      const dp_async_dsss_receiver_state_t *state);
+
+  size_t dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
       const dp_async_dsss_receiver_state_t *state);
 
   void dp_async_dsss_receiver_configure_lock_raw (
@@ -395,6 +485,20 @@ typedef enum
   double dp_async_dsss_receiver_get_lock_threshold (
       const dp_async_dsss_receiver_state_t *state);
 
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_sym_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_car_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_code_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_demod_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_demod_sync_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+
+  int dp_async_dsss_receiver_get_handover_source (
+      const dp_async_dsss_receiver_state_t *state);
+
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car_frozen + refine_dll + refine_rc + ca + car +
    * car_held + dll + rc + rx, a fixed shape; segments/sps/n/
@@ -440,10 +544,14 @@ typedef enum
     double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     
     uint64_t refine_hist_cap; 
     uint64_t refine_hist_len; 
+    uint64_t excl_at; 
+    uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; 
+    uint64_t ho_src; 
+    uint64_t fine_n; 
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 18u /* v18: no threads, the search's own blob carries set_threads()'s request (#3055); v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 23u /* v23: the fine hand-over's buffer and count (ho_src 3); v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

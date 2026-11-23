@@ -43,6 +43,7 @@ const jm_any_fn jm_bound_symbols_dll[] = {
     (jm_any_fn)dp_dll_get_segments,
     (jm_any_fn)dp_dll_configure_lock,
     (jm_any_fn)dp_dll_configure_lock_raw,
+    (jm_any_fn)dp_dll_set_steer_telemetry,
     (jm_any_fn)dp_dll_get_locked,
     (jm_any_fn)dp_dll_get_lock_stat,
     (jm_any_fn)dp_dll_get_noise_est,

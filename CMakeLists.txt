@@ -556,8 +556,6 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:wfm_synth_core>)
 add_subdirectory(native/src/pn)
 add_subdirectory(native/src/mpsk_receiver)
 add_subdirectory(native/src/carrier_nda)
-target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:carrier_nda_core>)
-target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:carrier_nda_core>)
 add_subdirectory(native/src/carrier_mpsk)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:carrier_mpsk_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:carrier_mpsk_core>)
@@ -573,8 +571,6 @@ add_subdirectory(native/src/state_filter_kalman)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:state_filter_kalman_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:state_filter_kalman_core>)
 add_subdirectory(native/src/state_filter)
-target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:state_filter_core>)
-target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:state_filter_core>)
 add_subdirectory(native/src/loop_filter)
 add_subdirectory(native/src/dp_event_log)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:wfm_writer_core>)
@@ -642,6 +638,10 @@ add_subdirectory(native/src/async_dsss_pool)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:async_dsss_pool_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:async_dsss_pool_core>)
 add_subdirectory(native/src/async_dsss_receiver)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:carrier_nda_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:carrier_nda_core>)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:state_filter_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:state_filter_core>)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:doppler_channel_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:doppler_channel_core>)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:async_dsss_receiver_core>)
@@ -962,7 +962,8 @@ add_executable(test_tlm_bound_real native/tests/test_tlm_bound_real.c)
 target_link_libraries(
   test_tlm_bound_real
   PRIVATE dp_tlm_capture_core dp_tlm_core carrier_nda_core lo_core
-          loop_filter_core boxcar_core agc_core lockdet_core Threads::Threads ${DP_MATH_LIBRARY})
+          loop_filter_core boxcar_core agc_core lockdet_core detection_core
+          Threads::Threads ${DP_MATH_LIBRARY})
 target_include_directories(test_tlm_bound_real
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_tlm_bound_real COMMAND test_tlm_bound_real)
@@ -1201,22 +1202,30 @@ target_include_directories(test_dp_mf
 target_compile_options(test_dp_mf PRIVATE -O2)
 add_test(NAME test_dp_mf COMMAND test_dp_mf)
 
-# native/tests/dp_dsss_test.h carries a KNOWN DEFECT in its own docstring
-# (doppler#689): the noise is scaled for the wrong complex-Gaussian
-# convention, so every capture is 3.01 dB quieter than it claims. It is
-# deliberately unfixed -- correcting it makes an async BER sweep go
-# non-monotonic, which is a receiver investigation rather than a constant --
-# and until now it was held in place by prose alone. The self-test makes it a
-# CHARACTERIZATION: the 3.01 dB is measured and asserted, so the magnitude is
-# a fact, the level cannot drift further unnoticed, and a one-character "fix"
-# turns the test red ON PURPOSE rather than quietly re-tuning two BER sweeps.
+# native/tests/dp_dsss_test.h's captures take their noise from the shipped
+# awgn (doppler#689: a hand sigma/sqrt(2) on dp_cgauss had every capture
+# 3.01 dB quieter than its label). The self-test asserts the label's power,
+# so a per-rail reading turns it red.
 add_executable(test_dp_dsss native/tests/test_dp_dsss.c)
-target_link_libraries(test_dp_dsss PRIVATE ${DP_MATH_LIBRARY})
+target_link_libraries(test_dp_dsss PRIVATE awgn_core ${DP_MATH_LIBRARY})
 target_include_directories(test_dp_dsss
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 target_compile_options(test_dp_dsss PRIVATE -O2)
 add_test(NAME test_dp_dsss COMMAND test_dp_dsss)
+
+# native/tests/dp_air_test.h is the receiver's use-case scene: emitters on
+# the air at any input rate (the 415.1-B-1 point's 11 MSa/s against a chip
+# rate it is not a multiple of), built from the shipped synth, RateConverter,
+# DopplerChannel and awgn, with the truth a measurement subtracts. Its
+# self-test pins the level and the truth against those objects' own output.
+add_executable(test_dp_air native/tests/test_dp_air.c)
+target_link_libraries(test_dp_air PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+target_include_directories(test_dp_air
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_air PRIVATE -O2)
+add_test(NAME test_dp_air COMMAND test_dp_air)
 
 # native/tests/dp_state_test.h is 12 lines and 31 test files call it -- the
 # highest leverage per line in the family, and the only evidence most

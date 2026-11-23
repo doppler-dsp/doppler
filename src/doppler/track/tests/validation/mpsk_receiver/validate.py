@@ -931,7 +931,12 @@ def characterise(R, write):
 
     ungated = []
     for m, esn0, seed in ((2, 20.0, 21), (4, 20.0, 3), (8, 24.0, 5)):
-        foff = freq_offset_inside_bw(0.02, m, 1.0)
+        # Four times the prompt-lock bound, `bn_carrier / m`: an offset the
+        # loop's own frequency jitter cannot mask, so "acquired toward it"
+        # has a sign to read. At the bound itself (#3224 made it four times
+        # smaller) the jitter is the offset's size and the fraction's sign
+        # is the noise's. The corrected loop settles from here within 5/bn.
+        foff = freq_offset_inside_bw(0.02, m, 4.0)
         x, _lab = _signal(m, esn0, freq_offset=foff, seed=seed)
         rxu = MpskReceiver(
             m=m, sps=SPS, m_out=8, bn_carrier=0.02, bn_timing=0.01

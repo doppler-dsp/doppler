@@ -43,6 +43,9 @@ dp__adsss_same_code_phase (double a, double b, double code_len)
   return d <= DP_CORRELATOR_SAME_PHASE_CHIPS;
 }
 
+int dp__async_dsss_receiver_refine_decided (
+    const dp_async_dsss_receiver_state_t *state);
+
 #ifdef __cplusplus
 }
 #endif

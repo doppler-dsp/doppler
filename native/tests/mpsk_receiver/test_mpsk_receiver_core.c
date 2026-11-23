@@ -261,6 +261,22 @@ main (void)
 
   /* 1. Lifecycle / validation / getters / reset reproducibility */
   {
+    /* The two whole rules: their levels are the threshold getters' and
+       their counts are the header's (8 up, 32 down on the carrier). */
+    {
+      dp_mpsk_receiver_state_t *r = RX (4, SPS, M_OUT, 0, 0.01, 0.5, 0.0);
+      DP_REQUIRE (r != NULL);
+      dp_lockdet_rule_t c = dp_mpsk_receiver_get_lock_rule (r);
+      DP_CHECK (c.up_thresh == dp_mpsk_receiver_get_lock_thresh (r));
+      DP_CHECK (c.down_thresh == dp_mpsk_receiver_get_lock_drop_thresh (r));
+      DP_CHECK (c.n_up == 8 && c.n_down == 32);
+      dp_lockdet_rule_t t = dp_mpsk_receiver_get_sync_lock_rule (r);
+      DP_CHECK (t.up_thresh == dp_mpsk_receiver_get_sync_lock_thresh (r));
+      DP_CHECK (t.down_thresh
+                == dp_mpsk_receiver_get_sync_lock_drop_thresh (r));
+      DP_CHECK (t.n_up >= 1 && t.n_down >= 1);
+      dp_mpsk_receiver_destroy (r);
+    }
     /* invalid args -> NULL */
     DP_CHECK (RX (3, SPS, M_OUT, 0, 0.01, 0.5, 0.0) == NULL); /* bad m  */
     DP_CHECK (RX (4, SPS, 3, 0, 0.01, 0.5, 0.0) == NULL);     /* m_out odd  */
@@ -650,8 +666,12 @@ main (void)
      why the estimate is sampled either side of the lock edge rather than at
      block boundaries. */
   {
-    const double bn   = 0.01;
-    const double foff = dp_test_freq_offset_inside_bw (bn, 4, 1.0) / SPS;
+    const double bn = 0.01;
+    /* Four times the prompt-lock bound (#3224 made it bn/(4m)): the checks
+       below are relative to the offset, and at the bound itself the loop's
+       own frequency jitter is the offset's size. The corrected loop settles
+       from here (u = 1) within 5/bn. */
+    const double foff = dp_test_freq_offset_inside_bw (bn, 4, 4.0) / SPS;
     dp_mpsk_receiver_state_t *rx
         = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, bn, 0.65, 0.0);
     make_mpsk (tx, idx, 4, foff, 30.0, 33u);
@@ -2207,7 +2227,11 @@ main (void)
                     cnt++;
                   }
               }
-            got[real] = cnt ? fabs (s1 / (double)cnt) : -1.0;
+            /* The lag in carrier phase: the discriminator reads the
+               M-th power's, slope 2 at every M, and the law is the loop's
+               (whose gain is 1 since #3224 divided that slope out). */
+            got[real] = cnt ? fabs (s1 / (double)cnt) / CARRIER_NDA_DISC_SLOPE
+                            : -1.0;
             dp_mpsk_receiver_destroy (rx);
           }
         printf ("  lo_sps ramp r=%.0e: law %.4f rad, complex %.4f, "

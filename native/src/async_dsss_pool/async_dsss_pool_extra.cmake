@@ -6,3 +6,17 @@
 # so their headers stay out of the pool's public one.
 target_link_libraries(bench_async_dsss_pool_core PRIVATE awgn_core gold_core
                                                          wfm_synth_core)
+
+# awgn_core and wfm_synth_core: the ghost tests' 415.1-B-1 emitter is the
+# use-case scene, native/tests/dp_air_test.h (the shipped synth with its
+# code-only window, the front end's converter to 11 MSa/s, a DopplerChannel,
+# the shipped noise; _test_ghost_is_released). The test's alone, as above.
+target_link_libraries(test_async_dsss_pool_core PRIVATE awgn_core
+                                                        wfm_synth_core)
+
+# native/tests on the bench's include path: its on-air rows run the pool on
+# the use-case scene, native/tests/dp_air_test.h, the one builder the tests
+# and validators measure on, so the bench times the pool on the stimulus it
+# is certified on rather than a private copy.
+target_include_directories(bench_async_dsss_pool_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)

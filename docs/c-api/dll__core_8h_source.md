@@ -40,6 +40,17 @@ typedef struct {
     int32_t id_lock;   
     int32_t id_locked; 
     int32_t id_nco;    
+    int32_t id_pamp;   
+    int32_t id_opwr;   
+    /* The per-steer set (dp_dll_set_steer_telemetry()), its own context:
+       emitted at each steer of the symbol-period aid, beside the epoch
+       set above. NULL = detached. */
+    dp_tlm_t *steer_ctx; 
+    int32_t id_s_e;      
+    int32_t id_s_prop;   
+    int32_t id_s_integ;  
+    int32_t id_s_ctrl;   
+    int32_t id_s_aid;    
 } dll_tlm_t;
 
 typedef struct {
@@ -109,6 +120,7 @@ typedef struct {
     int have_prev_epoch;     
     uint32_t out_level_n;    
     double   out_level;      
+    float _Complex win_p;    
     /* ── lock detector (always on): offset-tap CFAR noise ref + N-look test  */
     float _Complex acc_o;     
     double off_chips;        
@@ -130,6 +142,8 @@ typedef struct {
     size_t n_looks;          
     double lock_stat;        
     size_t lock_nz;          
+    double look_prompt_amp;  
+    double look_offset_pwr;  
     dp_lockdet_state_t lock;    
     /* ── symbol-timing aid (segments>1 only; period 0 = off).
      *    The same max-power search the per-epoch look-back runs, lifted to
@@ -158,6 +172,7 @@ typedef struct {
     float _Complex *aid_ring_l; 
     double        *aid_power;  
     int owns_code;           
+    float *rtab;
     dll_tlm_t tlm;           
 } dp_dll_state_t;
 
@@ -323,6 +338,9 @@ size_t dp_dll_get_symbol_window(const dp_dll_state_t *state);
 int dp_dll_set_lock_verify(dp_dll_state_t *state, uint32_t n_up, uint32_t n_down);
 double dp_dll_get_code_phase(const dp_dll_state_t *state);
 
+double dp_dll_get_code_phase_ahead(const dp_dll_state_t *state,
+                                   size_t ahead);
+
 void dp_dll_set_code_phase(dp_dll_state_t *state, double chips);
 double dp_dll_get_code_rate(const dp_dll_state_t *state);
 
@@ -338,11 +356,20 @@ void dp_dll_configure_lock_raw(dp_dll_state_t *state, double up_thresh,
                             double down_thresh, size_t n_looks, double alpha,
                             uint32_t n_up, uint32_t n_down);
 
+float _Complex dp_dll_get_window_sum(const dp_dll_state_t *state);
+
+int dp_dll_set_steer_telemetry(dp_dll_state_t *state, dp_tlm_t *tlm,
+                               const char *prefix, uint32_t decim);
+
 int dp_dll_get_locked(const dp_dll_state_t *state);
+
+dp_lockdet_rule_t dp_dll_get_lock_rule(const dp_dll_state_t *state);
 
 double dp_dll_get_lock_stat(const dp_dll_state_t *state);
 
 double dp_dll_get_noise_est(const dp_dll_state_t *state);
+
+double dp_dll_get_window_noise(const dp_dll_state_t *state);
 
 void dp_dll_tlm_flush(const dp_dll_state_t *s);
 
@@ -355,7 +382,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 17u /* v17: the conversion's carried remainder, inc_resid, so a command under one phase-word step still moves the increment (#3249); v16: the one-segment gain table is unit gain, so an older blob would resume the loop sf times too wide (#3234); v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 20u /* v20: the last look's |P| and |O|^2, look_prompt_amp/look_offset_pwr (#3134); v19: rtab, a heap pointer, zero in the blob; v18: win_p, scratch, zero in the blob; v17: the conversion's carried remainder, inc_resid, so a command under one phase-word step still moves the increment (#3249); v16: the one-segment gain table is unit gain, so an older blob would resume the loop sf times too wide (#3234); v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

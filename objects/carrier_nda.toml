@@ -17,6 +17,8 @@ depends_on = [
   { name = "boxcar", link = true },
   { name = "lockdet", link = true },
   { name = "dp_tlm", link = true },
+  # The block lock's exact threshold, dp_det_threshold_f (set_block_lock).
+  { name = "detection", link = true },
 ]
 fragment = "generated"
 
@@ -62,7 +64,8 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 # Telemetry attach (jm gh-432; mirrors objects/symsync.toml): registers
 # "<prefix>.lock" / "<prefix>.e" / "<prefix>.freq" / "<prefix>.locked"
-# (the last is the verify-counted lockdet decision, 0/1). This is a
+# (the verify-counted lockdet decision, 0/1) / "<prefix>.nco" (the full NCO
+# command). This is a
 # sample-rate loop — the probes emit once per input sample; decim is the
 # throttle. None detaches; the int status binds -> None with ValueError on
 # failure.
@@ -87,6 +90,44 @@ params = [
   { name = "down_thresh", type = "double" },
   { name = "n_up", type = "uint32_t" },
   { name = "n_down", type = "uint32_t" },
+]
+
+# The composer's three options (carrier_nda_core.h, "Options for a composer
+# that updates once a block"). Each refuses, changing nothing, and the
+# binding raises ValueError on the refusal.
+[[carrier_nda.methods]]
+name = "set_update_period"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "CarrierNda: the update period must be finite and >= 1"
+params = [{ name = "t_upd", type = "double" }]
+
+[[carrier_nda.methods]]
+name = "set_denominator"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "CarrierNda: the denominator needs alpha in (0, 1] and a finite gamma_d >= 0, and any form but the limiter (alpha 1, gamma_d 0) needs m = 2"
+params = [
+  { name = "alpha", type = "double", default = "1.0" },
+  { name = "gamma_d", type = "double", default = "0.0" },
+]
+
+[[carrier_nda.methods]]
+name = "set_block_lock"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "CarrierNda: the block lock needs m = 2, len 0 or >= 2 and pfa in (0, 1)"
+params = [
+  { name = "len", type = "uint32_t" },
+  { name = "pfa", type = "double", default = "1e-3" },
+  { name = "n_up", type = "uint32_t", default = "2" },
+  { name = "n_down", type = "uint32_t", default = "3" },
 ]
 
 [[carrier_nda.methods]]
@@ -121,6 +162,10 @@ writable = true
 # non-zero return (just-makeit#2182, doppler#1987).
 error = "ValueError"
 error_message = "CarrierNda: bn is outside the loop filter's domain (need bn >= 0, finite, whose loop gains come out finite)"
+
+[[carrier_nda.properties]]
+name = "block_thresh"
+type = "double"
 
 [[carrier_nda.properties]]
 name = "m"

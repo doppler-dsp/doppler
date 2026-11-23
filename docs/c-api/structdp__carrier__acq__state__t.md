@@ -53,6 +53,7 @@ _CarrierAcquisition state: owned PSD and detector children, scratch, config and 
 |  double | [**s\_t2**](#variable-s_t2)  <br> |
 |  double | [**sample\_rate\_hz**](#variable-sample_rate_hz)  <br> |
 |  bool | [**sequential**](#variable-sequential)  <br> |
+|  [**carrier\_acq\_tlm\_t**](structcarrier__acq__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 
 
 
@@ -405,6 +406,23 @@ bool dp_carrier_acq_state_t::sequential;
 
 Config: true tests after every block, false tests once at dwell\_target. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable tlm 
+
+```C++
+carrier_acq_tlm_t dp_carrier_acq_state_t::tlm;
+```
+
+
+
+Telemetry attachment; not in the blob. 
 
 
         

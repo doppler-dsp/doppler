@@ -163,6 +163,14 @@ repos:
         language: system
         pass_filenames: false
 
+      # A receiver's error-rate window opens at its observed lock, not on an
+      # analytic budget alone; the remaining callers only shrink (#3231).
+      - id: budget-windows
+        name: no error-rate window opens on a budget alone
+        entry: make -s lint-budget-windows
+        language: system
+        pass_filenames: false
+
       # A finding is cited by key or claim, never by number (#2059): the
       # number is assigned by position and re-points when one is dropped,
       # and a cited key must be one some validate.py still records.

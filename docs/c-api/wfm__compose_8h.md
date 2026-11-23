@@ -127,6 +127,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  void | [**dp\_wfm\_render\_steps**](#function-dp_wfm_render_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull exactly_ `n` _samples from_`r` _, through its channel if any._ |
 |  int | [**dp\_wfm\_resolve\_noise**](#function-dp_wfm_resolve_noise) ([**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n) <br>_Resolve a segment list's noise model in place (Phase 4b)._  |
 |  const char \* | [**dp\_wfm\_scene\_error**](#function-dp_wfm_scene_error) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous) <br>_Why a scene cannot be composed, or NULL: the one validator._  |
+|  double | [**dp\_wfm\_segment\_fs**](#function-dp_wfm_segment_fs) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* seg, double fs) <br>_The rate a segment renders at: the_ `get_fn` _behind a Segment's_`fs` _, so a segment whose ofdm sources set its rate reads it._ |
 |  int | [**dp\_wfm\_segment\_sets\_length**](#function-dp_wfm_segment_sets_length) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* seg) <br>_Whether a segment's sources SET its on-time, so its_ `num_samples` _is derived and a count given beside them refused._ |
 |  int | [**dp\_wfm\_segment\_snr\_and\_level**](#function-dp_wfm_segment_snr_and_level) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* g) <br>_The source in a segment that sets both_ `snr` _and a_`level` _where only one is allowed, or -1 when there is none._ |
 |  double | [**dp\_wfm\_snr\_over\_fs**](#function-dp_wfm_snr_over_fs) (int snr\_mode, int type, int sps, size\_t sf, double sym\_span, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
@@ -151,6 +152,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  const char \* | [**dp\_wfm\_source\_error**](#function-dp_wfm_source_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source can be built; else why not, as a sentence._  |
 |  size\_t | [**dp\_wfm\_source\_fill\_bits**](#function-dp_wfm_source_fill_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint8\_t \* out, size\_t max) <br>_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`fill` _._ |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
+|  double | [**dp\_wfm\_source\_fs**](#function-dp_wfm_source_fs) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_The rate an ofdm source renders at: its bandwidth when_ `fs` _is at a face's default, else_`fs` _. The_`fs_get_fn` _behind a Synth's_`fs` _, and the per-source rule_[_**dp\_wfm\_source\_ofdm\_defaults()**_](wfm__compose_8h.md#function-dp_wfm_source_ofdm_defaults) _and_[_**dp\_wfm\_segment\_fs()**_](wfm__compose_8h.md#function-dp_wfm_segment_fs) _apply._ |
 |  int | [**dp\_wfm\_source\_has\_frame**](#function-dp_wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
 |  int | [**dp\_wfm\_source\_mac**](#function-dp_wfm_source_mac) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_The MAC mode an ofdm source renders with:_ `auto` _reads_`fcs` _(dp\_wlan\_mac\_resolve()). The_`get_fn` _behind a Synth's_`mac` _._ |
 |  size\_t | [**dp\_wfm\_source\_mac\_header\_bits**](#function-dp_wfm_source_mac_header_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint8\_t \* out, size\_t max) <br>_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`mac_header` _._ |
@@ -2153,6 +2155,55 @@ a static sentence naming the fault and its fix, or NULL.
 
 
 
+### function dp\_wfm\_segment\_fs 
+
+_The rate a segment renders at: the_ `get_fn` _behind a Segment's_`fs` _, so a segment whose ofdm sources set its rate reads it._
+```C++
+double dp_wfm_segment_fs (
+    const wfm_segment_t * seg,
+    double fs
+) 
+```
+
+
+
+Every source is asked with [**dp\_wfm\_source\_fs()**](wfm__compose_8h.md#function-dp_wfm_source_fs) at `fs`, so their order never changes the answer: the rate the ofdm sources at a default name, when they agree, else `fs`. Sources that name differing rates read `fs`, and the composer refuses the segment naming both (the read never claims a rate the segment cannot render at).
+
+
+
+
+**Parameters:**
+
+
+* `seg` The segment; its sources are read, its own `fs` is not. 
+* `fs` The segment's stored sample rate, Hz. 
+
+
+
+**Returns:**
+
+The rate the segment renders at, Hz.
+
+
+
+```C++
+#include <doppler/wfm/wfm_defaults.h>   // WFM_SOURCE_DEFAULTS
+
+wfm_source_t  s = WFM_SOURCE_DEFAULTS;
+s.type          = WFM_SYNTH_FRAMES;    // ofdm, 20 MHz
+wfm_segment_t g = { .sources = &s, .n_sources = 1 };
+printf ("%g\n", dp_wfm_segment_fs (&g, 1.0));    // 2e+07
+printf ("%g\n", dp_wfm_segment_fs (&g, 40e6));   // 4e+07
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_segment\_sets\_length 
 
 _Whether a segment's sources SET its on-time, so its_ `num_samples` _is derived and a count given beside them refused._
@@ -3238,6 +3289,56 @@ NULL if there is nothing wrong, else a static message.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_fs 
+
+_The rate an ofdm source renders at: its bandwidth when_ `fs` _is at a face's default, else_`fs` _. The_`fs_get_fn` _behind a Synth's_`fs` _, and the per-source rule_[_**dp\_wfm\_source\_ofdm\_defaults()**_](wfm__compose_8h.md#function-dp_wfm_source_ofdm_defaults) _and_[_**dp\_wfm\_segment\_fs()**_](wfm__compose_8h.md#function-dp_wfm_segment_fs) _apply._
+```C++
+double dp_wfm_source_fs (
+    const wfm_source_t * src,
+    double fs
+) 
+```
+
+
+
+Both defaults, [**WFM\_SEGMENT\_FS\_DEFAULT**](wfm__compose_8h.md#define-wfm_segment_fs_default) (1.0) and [**WFM\_SYNTH\_FS\_DEFAULT**](wfm__synth__core_8h.md#define-wfm_synth_fs_default) (1e6), read as unset whichever face stored the value, because every read is handed the stored rate. Neither is a legal ofdm rate (1.0 / 5e6 and 1e6 / 5e6 are below M = 1), so no rate a source rendered at reads differently. A source of any other type, or ofdm at any other rate, reads `fs`. The rate needs no pair, so a live half pair reads it too.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` The stored sample rate, Hz. 
+
+
+
+**Returns:**
+
+The rate the source renders at, Hz.
+
+
+
+```C++
+#include <doppler/wfm/wfm_defaults.h>   // WFM_SOURCE_DEFAULTS
+
+wfm_source_t s = WFM_SOURCE_DEFAULTS;
+s.type         = WFM_SYNTH_FRAMES;      // ofdm
+printf ("%g\n", dp_wfm_source_fs (&s, 1e6));   // 2e+07
+printf ("%g\n", dp_wfm_source_fs (&s, 40e6));  // 4e+07
+s.bandwidth = 10e6;
+printf ("%g\n", dp_wfm_source_fs (&s, 1.0));   // 1e+07
+```
+ 
 
 
         

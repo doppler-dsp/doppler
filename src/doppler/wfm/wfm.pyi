@@ -306,11 +306,11 @@ class _SynthEngine:
         burst with set_dsss_chips(), after construction.
         One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``,
         ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
-    fs : float, default 1000000.0
+    fs : float, default WFM_SYNTH_FS_DEFAULT
         Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz
         against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. For
         type ofdm an fs at this default is read as unset and becomes the
-        bandwidth.
+        bandwidth, which `fs` then reads back.
     freq : float, default 0.0
         Carrier frequency offset in Hz (−fs/2 … fs/2). A complex LO is created
         only when freq != 0. For a chirp this is the start frequency f_start
@@ -361,7 +361,7 @@ class _SynthEngine:
     def __init__(
         self,
         type: Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"] = "tone",
-        fs: float = 1000000.0,
+        fs: float = ...,
         freq: float = 0.0,
         snr: float = 100.0,
         snr_mode: Literal["auto", "fs", "ebno", "esno"] = "auto",

@@ -93,6 +93,12 @@ int dp_wfm_source_mac(const wfm_source_t *, double);
  * returning the count (out NULL, max 0 sizes; get_fn, gh-2718). */
 size_t dp_wfm_source_mac_header_bits(const wfm_source_t *, double, uint8_t *, size_t);
 
+/* Read the source's fs from its stored rate (fs_get_fn, gh-2747). */
+double dp_wfm_source_fs(const wfm_source_t *, double);
+
+/* Read segment field `fs` at rate fs (get_fn, gh-2710). */
+double dp_wfm_segment_fs(const wfm_segment_t *, double);
+
 #ifdef __cplusplus
 }
 #endif

@@ -255,6 +255,10 @@ int dp_wfm_source_code_rate(const wfm_source_t *src, double fs);
 
 int dp_wfm_source_mac(const wfm_source_t *src, double fs);
 
+double dp_wfm_source_fs(const wfm_source_t *src, double fs);
+
+double dp_wfm_segment_fs(const wfm_segment_t *seg, double fs);
+
 size_t dp_wfm_source_acq_code_bits(const wfm_source_t *src, double fs,
                                    uint8_t *out, size_t max);
 size_t dp_wfm_source_data_code_bits(const wfm_source_t *src, double fs,

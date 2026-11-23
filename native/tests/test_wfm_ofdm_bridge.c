@@ -1381,6 +1381,53 @@ test_no_bandwidth_makes_a_default_fs_legal (void)
   return 0;
 }
 
+/* The rate an ofdm source and its segment READ, which is the rate they
+   render at: both defaults read as the bandwidth, any other fs as given,
+   and a tone keeps its own. The segment asks every source in any order,
+   and reads its given fs when two ofdm sources name differing rates (the
+   composer refuses that segment). Rejects a read of the stored default,
+   which is what a Synth and a Segment read before the read-backs. */
+static int
+test_the_read_back_fs_is_the_rate_rendered_at (void)
+{
+  static const double defaults[]
+      = { WFM_SEGMENT_FS_DEFAULT, WFM_SYNTH_FS_DEFAULT };
+  wfm_source_t o = source (), t = WFM_SOURCE_DEFAULTS;
+  for (size_t d = 0; d < 2; d++)
+    {
+      DP_CHECK (dp_wfm_source_fs (&o, defaults[d]) == 20e6);
+      DP_CHECK (dp_wfm_source_fs (&t, defaults[d]) == defaults[d]);
+    }
+  DP_CHECK (dp_wfm_source_fs (&o, 40e6) == 40e6);
+  wfm_source_t h  = o; /* half a pair: the rate needs none */
+  h.wlan          = 0;
+  h.constellation = 0;
+  h.code_rate     = WLAN_CODE_AUTO;
+  DP_CHECK (dp_wfm_source_fs (&h, 1.0) == 20e6);
+  wfm_source_t n = o;
+  n.bandwidth    = 10e6;
+  n.wlan         = 0;
+  DP_CHECK (dp_wfm_source_fs (&n, 1e6) == 10e6);
+
+  /* a segment: every order of [tone, ofdm] reads the bandwidth */
+  wfm_source_t  pair[2] = { t, o };
+  wfm_segment_t g       = WFM_SEGMENT_DEFAULTS;
+  g.sources             = pair;
+  g.n_sources           = 2;
+  DP_CHECK (dp_wfm_segment_fs (&g, 1.0) == 20e6);
+  pair[0] = o;
+  pair[1] = t;
+  DP_CHECK (dp_wfm_segment_fs (&g, 1.0) == 20e6);
+  DP_CHECK (dp_wfm_segment_fs (&g, 40e6) == 40e6);
+  /* two that disagree read the fs given, and the composer refuses them */
+  pair[1] = n;
+  DP_CHECK (dp_wfm_segment_fs (&g, 1.0) == 1.0);
+  DP_CHECK (dp_wfm_scene_error (&g, 1, 0, 0) != NULL);
+  g.n_sources = 0;
+  DP_CHECK (dp_wfm_segment_fs (&g, 1.0) == 1.0);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1406,6 +1453,7 @@ main (void)
   rc |= test_the_defaults_read_back_resolved_and_resolve_once ();
   rc |= test_a_blob_of_the_old_defaults_is_refused ();
   rc |= test_no_bandwidth_makes_a_default_fs_legal ();
+  rc |= test_the_read_back_fs_is_the_rate_rendered_at ();
   if (rc)
     return 1;
   DP_TEST_END ("wfm_ofdm_bridge");

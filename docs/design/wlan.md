@@ -733,7 +733,7 @@ difference: every 6 Mb/s record reads as 36 Mb/s, one-field records at 9,
 12 and 24 Mb/s are refused, and every `mac` none record gains the FCS.
 
 **A live object's half pair reads as written.** Until a setter keeps the
-pair whole (just-makeit#2747), a `Synth` given one half reads that half as
+pair whole (just-makeit#2753, #3287), a `Synth` given one half reads that half as
 written and the other as the default's: `constellation = "bpsk"` reads
 (bpsk, 3/4), never `auto`. Such a source is refused when it builds, and so
 is a pair it reads that Table 17-6 lacks, as (qam16, 5/6), with "no SIGNAL
@@ -745,6 +745,13 @@ or 9 Mb/s there; it is not `wlan`, so it is not refused.
 **Every ofdm source in a segment is asked**, so the order of its sources
 never changes its rate; a segment at a default `fs` whose ofdm sources
 differ in bandwidth has no one rate and is refused.
+
+**`fs` reads the rate rendered at.** A `Synth`'s `fs` reads through
+`dp_wfm_source_fs` and a `Segment`'s through `dp_wfm_segment_fs`, the rules
+the composer renders by, so `Synth(type="ofdm").fs` and
+`Segment(type="ofdm").fs` read 20e6. What is stored, set and handed to the
+build stays as given. A segment whose sources disagree reads the 1.0 it was
+given, the rate it would have, and is refused when it composes.
 
 **The fs rule is safe because neither default is a rate ofdm can render at.**
 1.0 and 1e6 are no whole multiple of 20, 10 or 5 MHz, so ofdm refused both

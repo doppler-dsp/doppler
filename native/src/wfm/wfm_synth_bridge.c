@@ -1296,17 +1296,29 @@ dp_wfm_source_ofdm_defaults (const wfm_source_t *src, double fs,
   if (!has_data (src))
     out->data
         = (wfm_seq_t){ .kind = WFM_SEQ_PN, .len = 768u, .reg_bits = 15u };
-  /* An fs at a face's default is read as unset: the segment's 1.0 and the
-     Synth's 1e6. Neither is a whole multiple of any bandwidth ofdm takes
-     (20e6, 10e6, 5e6: 1.0 / 5e6 = 2e-7 and 1e6 / 5e6 = 0.2, both below
-     M = 1), so ofdm refused both, and no source that rendered before reads
-     differently. The safety rests on that, so test_wfm_ofdm_bridge.c's
-     test_no_bandwidth_makes_a_default_fs_legal asks the validator, for
-     every bandwidth that would make either default a legal fs, that it is
-     refused: a new bandwidth that made one legal turns it red. */
-  if (fs_out && (fs == WFM_SEGMENT_FS_DEFAULT || fs == WFM_SYNTH_FS_DEFAULT))
-    *fs_out = dp_wfm_source_bandwidth (src);
+  if (fs_out)
+    *fs_out = dp_wfm_source_fs (src, fs);
   return NULL;
+}
+
+/* An fs at a face's default is read as unset: the segment's 1.0 and the
+   Synth's 1e6. Neither is a whole multiple of any bandwidth ofdm takes
+   (20e6, 10e6, 5e6: 1.0 / 5e6 = 2e-7 and 1e6 / 5e6 = 0.2, both below
+   M = 1), so ofdm refused both, and no source that rendered before reads
+   differently. The safety rests on that, so test_wfm_ofdm_bridge.c's
+   test_no_bandwidth_makes_a_default_fs_legal asks the validator, for
+   every bandwidth that would make either default a legal fs, that it is
+   refused: a new bandwidth that made one legal turns it red. Both
+   defaults are asked on every face, because a read hands each getter the
+   STORED fs, whichever face stored it. The rate needs no pair, so a live
+   half pair reads its rate too. */
+double
+dp_wfm_source_fs (const wfm_source_t *src, double fs)
+{
+  if (src->type == WFM_SYNTH_FRAMES
+      && (fs == WFM_SEGMENT_FS_DEFAULT || fs == WFM_SYNTH_FS_DEFAULT))
+    return dp_wfm_source_bandwidth (src);
+  return fs;
 }
 
 /* The pair an ofdm source reads back as: the resolved one, or, for a pair

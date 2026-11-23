@@ -294,11 +294,11 @@ class Synth:
         np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). The PHY
         appends the frame's octets (the data source) and the FCS. Refused with
         mac none or fcs, and without it for mac data.
-    fs : float, default 1000000.0
+    fs : float, default WFM_SYNTH_FS_DEFAULT
         Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz
         against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. For
         type ofdm an fs at this default is read as unset and becomes the
-        bandwidth.
+        bandwidth, which `fs` then reads back.
     """
 
     def __init__(
@@ -788,8 +788,9 @@ class Segment:
         the default 1.0 every frequency is normalised (cycles per sample);
         state it whenever a scene is in real Hz. A segment with a type=ofdm
         source reads the default 1.0 as unset and takes that source's bandwidth
-        (20e6 unless given), which a record then holds; ofdm sources that
-        differ in bandwidth leave it no one rate and are refused.
+        (20e6 unless given), which it then reads back and a record holds; ofdm
+        sources that differ in bandwidth leave it no one rate, read back the
+        1.0 given and are refused.
     num_samples : int | tuple[int, int], default 0
         Segment on-time in samples, before the trailing gap: 0 derives it from
         the sources, or 1024 when they set none. A finite data source sets its

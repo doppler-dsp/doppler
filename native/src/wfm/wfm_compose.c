@@ -777,55 +777,84 @@ resolved_num_samples (const wfm_segment_t *g)
   return burst ? burst : WFM_NUM_SAMPLES_PLAIN;
 }
 
+/* The rate a segment renders at, by asking every source (so their order
+   never changes it): each ofdm source at a default fs names its bandwidth
+   (dp_wfm_source_fs), and the segment takes the one they agree on, else
+   its own fs. 0 when two named rates differ, with *a / *b the first two
+   sources that disagree and *fa / *fb their rates; 1 otherwise. */
+static int
+segment_rate (const wfm_segment_t *g, double *rate, size_t *a, size_t *b,
+              double *fa, double *fb)
+{
+  int named = 0;
+  *rate     = g->fs;
+  for (size_t k = 0; k < g->n_sources; k++)
+    {
+      const double fs = dp_wfm_source_fs (&g->sources[k], g->fs);
+      if (fs == g->fs)
+        continue;
+      if (named && fs != *rate)
+        {
+          *b  = k;
+          *fa = *rate;
+          *fb = fs;
+          return 0;
+        }
+      if (!named)
+        *a = k;
+      *rate = fs;
+      named = 1;
+    }
+  return 1;
+}
+
+double
+dp_wfm_segment_fs (const wfm_segment_t *seg, double fs)
+{
+  /* jm hands the segment's stored fs both as the argument and in the copy;
+     the copy is what is asked, so a caller passing another rate asks that */
+  wfm_segment_t g = *seg;
+  g.fs            = fs;
+  double rate, fa, fb;
+  size_t a, b;
+  return segment_rate (&g, &rate, &a, &b, &fa, &fb) ? rate : fs;
+}
+
 /* A copy of a scene with every ofdm source's zero-config defaults filled in
-   and each segment at the rate its first source renders at
-   (dp_wfm_source_ofdm_defaults, the one place they are decided). The
+   and each segment at the rate its sources agree on (segment_rate; the
+   defaults are decided by dp_wfm_source_ofdm_defaults, the one place). The
    segment array and each source array are fresh; what they point at is the
    caller's, so free them with resolved_scene_free and nothing else. NULL,
-   with *why, when a source's rate does not resolve. Resolving a resolved
-   scene changes nothing. */
+   with *why, when a source's rate does not resolve or a segment's sources
+   name differing rates. Resolving a resolved scene changes nothing. */
 static wfm_segment_t *
 resolved_scene (const wfm_segment_t *segs, size_t n_segs, const char **why)
 {
   wfm_segment_t *rs = dp_xcalloc (n_segs ? n_segs : 1, sizeof *rs);
   for (size_t i = 0; i < n_segs; i++)
     {
-      rs[i]          = segs[i];
-      const size_t n = segs[i].n_sources;
-      rs[i].sources  = dp_xcalloc (n ? n : 1, sizeof (wfm_source_t));
-      /* Every source is asked, so the order of a segment's sources never
-         changes its rate: each ofdm source at a default fs names its
-         bandwidth, and two that differ leave the segment no one rate. */
-      int         named = 0;
-      size_t      first = 0;
-      const char *bad   = NULL;
+      rs[i]           = segs[i];
+      const size_t n  = segs[i].n_sources;
+      rs[i].sources   = dp_xcalloc (n ? n : 1, sizeof (wfm_source_t));
+      const char *bad = NULL;
       for (size_t k = 0; k < n && !bad; k++)
+        bad = dp_wfm_source_ofdm_defaults (&segs[i].sources[k], segs[i].fs,
+                                           &rs[i].sources[k], NULL);
+      double rate, fa, fb;
+      size_t a, b;
+      if (!bad && !segment_rate (&segs[i], &rate, &a, &b, &fa, &fb))
         {
-          double fs = segs[i].fs;
-          bad = dp_wfm_source_ofdm_defaults (&segs[i].sources[k], segs[i].fs,
-                                             &rs[i].sources[k], &fs);
-          if (bad || fs == segs[i].fs)
-            continue;
-          if (named && fs != rs[i].fs)
-            {
-              /* The sources and their bandwidths, in a thread-local buffer
-                 as wfm_json.c's refusals with numbers are: no static
-                 sentence can hold them, and nothing is allocated on the
-                 error path. */
-              static _Thread_local char msg[256];
-              (void)snprintf (msg, sizeof msg,
-                              "segment %zu: its ofdm sources %zu (%g MHz) "
-                              "and %zu (%g MHz) differ in bandwidth, so at "
-                              "the default fs it has no one rate: give the "
-                              "segment's fs",
-                              i, first, rs[i].fs / 1e6, k, fs / 1e6);
-              bad = msg;
-              break;
-            }
-          if (!named)
-            first = k;
-          rs[i].fs = fs;
-          named    = 1;
+          /* The sources and their bandwidths, in a thread-local buffer as
+             wfm_json.c's refusals with numbers are: no static sentence can
+             hold them, and nothing is allocated on the error path. */
+          static _Thread_local char msg[256];
+          (void)snprintf (msg, sizeof msg,
+                          "segment %zu: its ofdm sources %zu (%g MHz) "
+                          "and %zu (%g MHz) differ in bandwidth, so at "
+                          "the default fs it has no one rate: give the "
+                          "segment's fs",
+                          i, a, fa / 1e6, b, fb / 1e6);
+          bad = msg;
         }
       if (bad)
         {
@@ -835,6 +864,7 @@ resolved_scene (const wfm_segment_t *segs, size_t n_segs, const char **why)
           *why = bad;
           return NULL;
         }
+      rs[i].fs = rate;
     }
   return rs;
 }

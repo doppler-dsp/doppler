@@ -256,11 +256,11 @@ def test_a_live_half_pair_reads_as_written():
 
 
 def _synth_fs_default() -> float:
-    """``WFM_SYNTH_FS_DEFAULT``, held equal to the manifest's literal.
+    """``WFM_SYNTH_FS_DEFAULT``, the constant the manifest names.
 
-    The bridge's rule reads the C name; the Synth's constructor takes the
-    manifest's ``default`` (jm's source fs reads no ``default_raw``,
-    just-makeit#2747). Rejects the two drifting apart.
+    The Synth's constructor takes it by ``default_raw`` (just-makeit
+    0.136.0, gh-2747) and the ofdm rule reads it, so the two are one
+    constant. Rejects the manifest going back to a literal beside it.
     """
     hdr = (ROOT / "native/inc/doppler/wfm_synth/wfm_synth_core.h").read_text(
         encoding="utf-8"
@@ -272,23 +272,46 @@ def _synth_fs_default() -> float:
         (ROOT / "objects/wfm_synth.toml").read_text(encoding="utf-8")
     )
     fs = next(p for p in man["wfm_synth"]["init_params"] if p["name"] == "fs")
-    assert float(fs["default"]) == named
+    assert fs["default_raw"] == "WFM_SYNTH_FS_DEFAULT" and "default" not in fs
     return named
 
 
 def test_an_fs_at_a_default_is_the_bandwidth():
-    """For ofdm an fs at the face's default is read as unset.
+    """For ofdm an fs at a face's default is read as unset, on every face.
 
-    Rejects the rule reaching any other fs: 2.0 and 1.5e6 are still
-    refused. The consequence, pinned: an explicit fs at a default is read
-    the same way, and the record shows the bandwidth.
+    The faces: a Synth's ``fs``, a Segment's ``fs``, a Composer's segment,
+    its record, and the CLI's record (``wfmgen_flag_matrix.json``'s
+    ``ofdm_zero_config`` row, fs 20000000, held by ctest's
+    ``wfmgen_flag_matrix``).
+    Rejects a read of the stored default: before just-makeit 0.136.0 a
+    Synth read 1e6 and a Segment 1.0 while both rendered at 20e6. Rejects
+    the rule reaching any other fs: 2.0 and 1.5e6 are still refused, a tone
+    and an ofdm source at a given rate read as given, and a segment whose
+    sources disagree reads the 1.0 it was given.
     """
     synth_default = _synth_fs_default()
     assert Synth().fs == synth_default
+    assert Synth(type="tone", fs=1.0).fs == 1.0
     for fs in (1.0, synth_default):
+        assert Synth(type="ofdm", fs=fs).fs == 20e6
+        assert Synth(type="ofdm", fs=fs, bandwidth=10e6).fs == 10e6
+        assert Segment(type="ofdm", fs=fs).fs == 20e6
         c = Composer([Segment(type="ofdm", fs=fs)])
         assert json.loads(c.to_json())["segments"][0]["fs"] == 20e6
         assert c.segments[0].fs == 20e6
+    assert Synth(type="ofdm").fs == 20e6
+    assert Segment(type="ofdm").fs == 20e6
+    assert Synth(type="ofdm", fs=40e6).fs == 40e6
+    assert Segment(type="ofdm", fs=40e6).fs == 40e6
+    # the rate needs no pair: a live half pair reads it too
+    s = Synth(type="ofdm")
+    s.constellation = "bpsk"
+    assert s.fs == 20e6
+    # every source is asked, in any order; a disagreement reads as given
+    for order in (("tone", "ofdm"), ("ofdm", "tone")):
+        assert Segment.sum(*(Synth(type=t) for t in order)).fs == 20e6
+    two = Segment.sum(Synth(type="ofdm"), Synth(type="ofdm", bandwidth=10e6))
+    assert two.fs == 1.0
     a = Synth(type="ofdm", scrambler_init=5).steps(500)
     b = Synth(type="ofdm", scrambler_init=5, fs=20e6).steps(500)
     np.testing.assert_array_equal(a, b)

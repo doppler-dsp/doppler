@@ -1074,7 +1074,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   unsigned long long gap_raw               = 0;
   double             bandwidth             = 20e6;
   PyObject          *mac_header            = NULL;
-  double             fs                    = 1000000.0;
+  double             fs                    = WFM_SYNTH_FS_DEFAULT;
   PyObject          *_kw                   = kwds;
   int                _kw_owned             = 0;
   if (kwds)
@@ -3256,7 +3256,7 @@ static PyObject *
 Synth_get_fs (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyFloat_FromDouble (self->fs);
+  return PyFloat_FromDouble (dp_wfm_source_fs (&self->src, self->fs));
 }
 static int
 Synth_set_fs (SynthObject *self, PyObject *value, void *closure)
@@ -3581,7 +3581,7 @@ static PyGetSetDef Synth_getset[] = {
     "Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz "
     "against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. For "
     "type ofdm an fs at this default is read as unset and becomes the "
-    "bandwidth.\n",
+    "bandwidth, which `fs` then reads back.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -4305,12 +4305,12 @@ static PyTypeObject SynthType = {
       "    appends the frame's octets (the data source) and the FCS. Refused "
       "with\n"
       "    mac none or fcs, and without it for mac data.\n"
-      "fs : float, default 1000000.0\n"
+      "fs : float, default WFM_SYNTH_FS_DEFAULT\n"
       "    Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz\n"
       "    against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. "
       "For\n"
       "    type ofdm an fs at this default is read as unset and becomes the\n"
-      "    bandwidth.\n"),
+      "    bandwidth, which `fs` then reads back.\n"),
 };
 
 /* Factory shared body: inject {type: <name>} into kwds, call the type. */
@@ -5163,7 +5163,27 @@ static PyObject *
 Segment_get_fs (SegmentObject *self, void *closure)
 {
   (void)closure;
-  return PyFloat_FromDouble (self->fs);
+  wfm_segment_t _seg;
+  memset (&_seg, 0, sizeof _seg);
+  _seg.fs               = self->fs;
+  _seg.num_samples      = self->num_samples;
+  _seg.off_samples      = self->off_samples;
+  _seg.repeats          = self->repeats;
+  _seg.delay_samples    = self->delay_samples;
+  _seg.gap_noise        = self->gap_noise;
+  _seg.ranged           = self->ranged;
+  _seg.num_samples_hi   = self->num_samples_hi;
+  _seg.off_samples_hi   = self->off_samples_hi;
+  _seg.delay_samples_hi = self->delay_samples_hi;
+  size_t        _ns;
+  wfm_source_t *_srcs = _Segment_sources_c (self->sources, &_ns);
+  if (!_srcs)
+    return NULL;
+  _seg.sources   = _srcs;
+  _seg.n_sources = _ns;
+  double _gv     = dp_wfm_segment_fs (&_seg, self->fs);
+  free (_srcs);
+  return PyFloat_FromDouble (_gv);
 }
 static int
 Segment_set_fs (SegmentObject *self, PyObject *value, void *closure)
@@ -6139,8 +6159,9 @@ static PyGetSetDef Segment_getset[] = {
     "default 1.0 every frequency is normalised (cycles per sample); state it "
     "whenever a scene is in real Hz. A segment with a type=ofdm source reads "
     "the default 1.0 as unset and takes that source's bandwidth (20e6 unless "
-    "given), which a record then holds; ofdm sources that differ in bandwidth "
-    "leave it no one rate and are refused.\n",
+    "given), which it then reads back and a record holds; ofdm sources that "
+    "differ in bandwidth leave it no one rate, read back the 1.0 given and "
+    "are refused.\n",
     NULL },
   { "num_samples", (getter)Segment_get_num_samples,
     (setter)Segment_set_num_samples,
@@ -6938,8 +6959,11 @@ static PyTypeObject SegmentType = {
       "type=ofdm\n"
       "    source reads the default 1.0 as unset and takes that source's "
       "bandwidth\n"
-      "    (20e6 unless given), which a record then holds; ofdm sources that\n"
-      "    differ in bandwidth leave it no one rate and are refused.\n"
+      "    (20e6 unless given), which it then reads back and a record holds; "
+      "ofdm\n"
+      "    sources that differ in bandwidth leave it no one rate, read back "
+      "the\n"
+      "    1.0 given and are refused.\n"
       "num_samples : int | tuple[int, int], default 0\n"
       "    Segment on-time in samples, before the trailing gap: 0 derives it "
       "from\n"

@@ -146,7 +146,7 @@ double wfm_segment_t::fs;
 
 
 
-Sample rate in Hz, one per segment and shared by all its sources. At the default 1.0 every frequency is normalised (cycles per sample); state it whenever a scene is in real Hz. A segment with a type=ofdm source reads the default 1.0 as unset and takes that source's bandwidth (20e6 unless given), which a record then holds; ofdm sources that differ in bandwidth leave it no one rate and are refused. 
+Sample rate in Hz, one per segment and shared by all its sources. At the default 1.0 every frequency is normalised (cycles per sample); state it whenever a scene is in real Hz. A segment with a type=ofdm source reads the default 1.0 as unset and takes that source's bandwidth (20e6 unless given), which it then reads back and a record holds; ofdm sources that differ in bandwidth leave it no one rate, read back the 1.0 given and are refused. 
 
 
         

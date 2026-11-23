@@ -128,6 +128,9 @@ link = true
 object = "wfm_synth"
 struct = "wfm_source_t"
 type_name = "Synth"
+# A Synth reads the rate it renders at: an ofdm source at a default fs
+# reads its bandwidth (dp_wfm_source_fs, gh-2747). Only the read changes.
+fs_get_fn = "dp_wfm_source_fs"
 # Fields that accept a (lo, hi) pair drawn uniformly each repeat (composer
 # epoch) — not just a scalar. The struct carries a <name>_hi companion + a
 # `ranged` bitmask (wfm_compose.h); jm emits float-or-tuple parse/getset/.pyi.
@@ -763,7 +766,9 @@ metavar = "HZ"
 help_section = "SIGNAL"
 type = "double"
 default = "1.0"
-doc = "Sample rate in Hz, one per segment and shared by all its sources. At the default 1.0 every frequency is normalised (cycles per sample); state it whenever a scene is in real Hz. A segment with a type=ofdm source reads the default 1.0 as unset and takes that source's bandwidth (20e6 unless given), which a record then holds; ofdm sources that differ in bandwidth leave it no one rate and are refused."
+# read through the segment's sources (dp_wfm_segment_fs, gh-2747)
+get_fn = "dp_wfm_segment_fs"
+doc = "Sample rate in Hz, one per segment and shared by all its sources. At the default 1.0 every frequency is normalised (cycles per sample); state it whenever a scene is in real Hz. A segment with a type=ofdm source reads the default 1.0 as unset and takes that source's bandwidth (20e6 unless given), which it then reads back and a record holds; ofdm sources that differ in bandwidth leave it no one rate, read back the 1.0 given and are refused."
 
 [[module.wfm_compose.segment.fields]]
 name = "num_samples"

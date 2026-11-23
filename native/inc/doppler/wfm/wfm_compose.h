@@ -538,8 +538,9 @@ typedef struct {
                             whenever a scene is in real Hz. A segment with a
                             type=ofdm source reads the default 1.0 as unset and
                             takes that source's bandwidth (20e6 unless given),
-                            which a record then holds; ofdm sources that differ
-                            in bandwidth leave it no one rate and are refused. */
+                            which it then reads back and a record holds; ofdm
+                            sources that differ in bandwidth leave it no one
+                            rate, read back the 1.0 given and are refused. */
     size_t num_samples;  /**< Segment on-time in samples, before the
                               trailing gap: 0 derives it from the sources,
                               or 1024 when they set none. A finite data
@@ -1166,6 +1167,62 @@ int dp_wfm_source_code_rate(const wfm_source_t *src, double fs);
  * @return A dp_wlan_mac_t value other than #WLAN_MAC_AUTO.
  */
 int dp_wfm_source_mac(const wfm_source_t *src, double fs);
+
+/**
+ * @brief The rate an ofdm source renders at: its bandwidth when @p fs is at
+ *        a face's default, else @p fs. The `fs_get_fn` behind a Synth's
+ *        `fs`, and the per-source rule dp_wfm_source_ofdm_defaults() and
+ *        dp_wfm_segment_fs() apply.
+ *
+ * Both defaults, #WFM_SEGMENT_FS_DEFAULT (1.0) and #WFM_SYNTH_FS_DEFAULT
+ * (1e6), read as unset whichever face stored the value, because every read
+ * is handed the stored rate. Neither is a legal ofdm rate (1.0 / 5e6 and
+ * 1e6 / 5e6 are below M = 1), so no rate a source rendered at reads
+ * differently. A source of any other type, or ofdm at any other rate,
+ * reads @p fs. The rate needs no pair, so a live half pair reads it too.
+ *
+ * @param src  The source.
+ * @param fs   The stored sample rate, Hz.
+ * @return The rate the source renders at, Hz.
+ *
+ * @code
+ * #include <doppler/wfm/wfm_defaults.h>   // WFM_SOURCE_DEFAULTS
+ *
+ * wfm_source_t s = WFM_SOURCE_DEFAULTS;
+ * s.type         = WFM_SYNTH_FRAMES;      // ofdm
+ * printf ("%g\n", dp_wfm_source_fs (&s, 1e6));   // 2e+07
+ * printf ("%g\n", dp_wfm_source_fs (&s, 40e6));  // 4e+07
+ * s.bandwidth = 10e6;
+ * printf ("%g\n", dp_wfm_source_fs (&s, 1.0));   // 1e+07
+ * @endcode
+ */
+double dp_wfm_source_fs(const wfm_source_t *src, double fs);
+
+/**
+ * @brief The rate a segment renders at: the `get_fn` behind a Segment's
+ *        `fs`, so a segment whose ofdm sources set its rate reads it.
+ *
+ * Every source is asked with dp_wfm_source_fs() at @p fs, so their order
+ * never changes the answer: the rate the ofdm sources at a default name,
+ * when they agree, else @p fs. Sources that name differing rates read
+ * @p fs, and the composer refuses the segment naming both (the read never
+ * claims a rate the segment cannot render at).
+ *
+ * @param seg  The segment; its sources are read, its own `fs` is not.
+ * @param fs   The segment's stored sample rate, Hz.
+ * @return The rate the segment renders at, Hz.
+ *
+ * @code
+ * #include <doppler/wfm/wfm_defaults.h>   // WFM_SOURCE_DEFAULTS
+ *
+ * wfm_source_t  s = WFM_SOURCE_DEFAULTS;
+ * s.type          = WFM_SYNTH_FRAMES;    // ofdm, 20 MHz
+ * wfm_segment_t g = { .sources = &s, .n_sources = 1 };
+ * printf ("%g\n", dp_wfm_segment_fs (&g, 1.0));    // 2e+07
+ * printf ("%g\n", dp_wfm_segment_fs (&g, 40e6));   // 4e+07
+ * @endcode
+ */
+double dp_wfm_segment_fs(const wfm_segment_t *seg, double fs);
 
 /**
  * @brief The bits a source's sequence field reads as: a literal's own, or the

@@ -19,6 +19,7 @@ import re
 
 import pytest
 
+from doppler.tests._repo import repo_root
 from doppler.wfm import Segment, Synth
 
 #: (class, parameter) -> why it still disagrees. Shrink-only. ``window``'s
@@ -33,9 +34,25 @@ EXEMPT: dict[tuple[str, str], str] = {
     ("Segment", "window"): _WINDOW,
 }
 
+ROOT = repo_root(__file__)
+
+
+def _header_define(rel: str, name: str) -> float:
+    """The value a C header's ``#define NAME value`` gives, read, not
+    restated, so the constant and this table cannot drift apart."""
+    text = (ROOT / rel).read_text(encoding="utf-8")
+    return float(re.search(rf"#define {name} (\S+)", text).group(1))
+
+
 #: A default the docstring names by its C constant (jm renders a manifest
-#: default that names one as ``default NAME``), and the value it has.
-CONSTANTS = {"WFM_WINDOW_UNSET": 2**64 - 1}
+#: ``default_raw``, or a default that names one, as ``default NAME``), and
+#: the value it has.
+CONSTANTS = {
+    "WFM_WINDOW_UNSET": 2**64 - 1,
+    "WFM_SYNTH_FS_DEFAULT": _header_define(
+        "native/inc/doppler/wfm_synth/wfm_synth_core.h", "WFM_SYNTH_FS_DEFAULT"
+    ),
+}
 
 _LINE = re.compile(r"^(\w+) : [^\n,]+, default ([^\n]+)$", re.M)
 

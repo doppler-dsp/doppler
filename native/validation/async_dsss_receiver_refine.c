@@ -275,7 +275,11 @@ handover_rows (const uint8_t *code, double fc, double esn0, double rate,
    _test_fallback_is_chunk_invariant): a refine that decides further past
    its estimate than refine_hist_cap starts the live chain at the first
    whole period at or past D - cap. Reached when D > cap and the chain
-   started exactly there. The sweep: CODE7 at 1 Mcps, seeded at phase 0 /
+   started exactly there. The sweep is refine_sequential false (the
+   default) only: with it true an estimator that fires early leaves the
+   start behind the ring, and the fallback is that mode's ordinary
+   hand-over (test_async_dsss_receiver_core.c's
+   _test_sequential_handover_on_a_ramp). CODE7 at 1 Mcps, seeded at phase 0 /
    0 Hz, fed complex unit noise (dp_cgauss, seeds 0x2974 + i) in one call,
    8 sample rates x 5 symbol rates x 3 refine_max_error_db x 11 seeds,
    1,320 geometries. With the refine Dll's output sized for two epochs

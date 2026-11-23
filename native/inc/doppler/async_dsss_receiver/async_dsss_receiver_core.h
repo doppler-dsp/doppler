@@ -40,9 +40,13 @@
  *     (`refine_hist_cap`, from dp_RateConverter_get_count_lag()), and the
  *     start is read from it when it is behind the call. A start the input
  *     has not reached yet is waited for, the receiver still refining. A
- *     refine that decides further past than the ring holds (a refine Dll
- *     drifting on noise; no signal geometry measured) starts at the first
- *     such point the ring still holds, still the same at any chunking. The
+ *     start older than the ring holds starts the live chain at the first
+ *     whole period the ring still holds, the same at any chunking. With
+ *     `refine_sequential` that is the ordinary hand-over: an estimator that
+ *     fires early leaves its block count short of the fine dwell, so the
+ *     start it estimates lies behind the ring. Without it no geometry
+ *     measured reaches it (0 of 1,089 noise geometries,
+ *     docs/design/async-dsss-receiver-measurements/fallback-454049484/). The
  *     ring is held for the receiver's lifetime -- up to ~38 KiB (Gold-1023
  *     at 2 samples a chip) -- and carried in every blob, a pool member's
  *     included.
@@ -1264,13 +1268,14 @@ typedef enum
   /**
    * @brief The output capacity steps() needs beyond the input's.
    *
-   * Returns 0, which is NOT a bound. A call that completes a code
-   * period carried over from earlier calls emits all of that
-   * period's symbols (code_len times symbol_rate over chip_rate of
-   * them), even if it brings one sample. At more than one symbol per
-   * period a call can therefore emit more symbols than its `x_len`,
-   * and those past `max_out` are dropped (see
-   * dp_async_dsss_receiver_steps()). A true bound is #2469.
+   * Returns 0, which is NOT a bound. A call runs more samples than its
+   * `x_len` through the tracking chain at a hand-over: the hand-over
+   * ring's tail (up to refine_hist_cap samples) or the search history's,
+   * through a fresh chain. Their symbols can outnumber `x_len`, and those
+   * past `max_out` are dropped (see dp_async_dsss_receiver_steps()). A
+   * call that completes a carried code period adds at most one symbol:
+   * create() refuses a symbol shorter than a code period. A true bound is
+   * #2469.
    *
    * @param state  Must be non-NULL.
    * @return 0.

@@ -6791,55 +6791,99 @@ _test_steps_never_writes_past_max_out (void)
   return 0;
 }
 
-/* The fallback, for a refine that decides further past its estimate than
- * the ring holds. No signal geometry measured does (the ring's smallest
- * margin is 44 samples); a refine Dll drifting on noise can, in 30 of 1320
- * noise geometries measured. One is this: seeded, fed noise, at 4 samples a
- * chip, 10000 sym/s, refine_max_error_db 2, the refine decides further past
- * its estimate than its 170-sample ring holds (532 samples in the sweep).
- * The live chain then starts at the first whole period (28 samples here)
- * at or past D - cap (22540, D 22708), the
- * oldest sample held at every chunking, and the output is invariant across
- * chunkings. The premise is a DP_REQUIRE on the one-shot: its live chain
- * started exactly there (samples_in - state_samples, tracking since the
- * hand-over), D read from the refine's own period count. Sabotage: fall
- * back to the oldest sample this call's ring holds (before -
- * refine_hist_len) instead of D - cap -> the chunkings differ. */
+/* The fallback, the sequential refine's ordinary hand-over: a start older
+ * than the hand-over ring holds starts the live chain at the first whole
+ * period at or past D - cap, the oldest sample held at every chunking.
+ * With refine_sequential an estimator that fires early leaves its block
+ * count short of the fine dwell, so the start it estimates lies behind the
+ * ring. The scene is _test_sequential_handover_on_a_ramp's (2.8 GHz, a
+ * 50 dB-Hz emitter on +R_env, a receiver built at 41 dB-Hz, sequential),
+ * seeded at the truth on the first sample of the stream, 260 pushes of
+ * 4,096 (it tracks after 244 fed a push at a time). Fed a push at a time,
+ * as _test_sequential_handover_on_a_ramp feeds it, the hand-over takes the
+ * fallback: with it removed that run refuses its start and never tracks.
+ * The premise, a DP_REQUIRE: one call over the stream tracks and emits.
+ * The claim: the output is the same at every chunking dp_chunk_invariance()
+ * makes, the push size among them. (Without the sequential refine no geometry
+ * measured reaches the fallback:
+ * async-dsss-receiver-measurements/fallback-454049484/, 0 of 1,089 noise
+ * geometries.) Sabotage: fall back to the oldest sample this call's ring holds
+ * (before - refine_hist_len) instead of D - cap -> the chunkings differ. */
+typedef struct
+{
+  double chip_phase, doppler_hz;
+} seq_seed_t;
+
+static void *
+_seq_create (void *arg)
+{
+  const seq_seed_t *sd = arg;
+  uint8_t           code[1023];
+  dp_dsss_gold_1023 (code);
+  const double                    fc = DP_S415_FC_HI;
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      code, DP_S415_SF, dp_s415_chip_rate (fc), DP_S415_SYM, DP_S415_FS, 2,
+      41.0, 1e-3, 0.9, DP_S415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, true,
+      100000, fc, 0.0, false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
+      dp_s415_r_env (), true);
+  if (rx
+      && dp_async_dsss_receiver_seed (rx, sd->chip_phase, sd->doppler_hz, 41.0)
+             != DP_OK)
+    {
+      dp_async_dsss_receiver_destroy (rx);
+      return NULL;
+    }
+  return rx;
+}
+
 static int
 _test_fallback_is_chunk_invariant (void)
 {
-  const size_t    n   = 60000;
-  float _Complex *x   = malloc (n * sizeof *x);
-  uint32_t        rng = 0x2974u;
-  DP_REQUIRE (x != NULL);
-  for (size_t i = 0; i < n; i++)
-    x[i] = dp_cgauss (&rng);
-  chunking_geom_t g = { 4.0e6, 10000.0, 2.0, 1 };
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double     fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
+  const double     rate = dp_s415_r_env (), cn0 = 50.0;
+  dp_air_emitter_t e = dp_s415_emitter (code, fc, -400.0, rate, cn0, 0.0, 41u);
+  const size_t     push = 4096, n = 260 * push;
+  dp_air_t         air;
+  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 4242u, push));
+  /* The scene's first chip is past sample 0: one push is dropped, and the
+     stream starts at the truth there, which seeds the receiver. */
+  float _Complex *x = malloc (n * sizeof *x);
+  DP_REQUIRE (x != NULL && dp_air_next (&air, x, push));
+  const dp_air_truth_t t0 = dp_air_truth (&air, 0, air.n_out);
+  DP_REQUIRE (!isnan (t0.code_chips));
+  seq_seed_t sd
+      = { fmod (t0.code_chips - 0.5 * chip / DP_S415_FS + (double)DP_S415_SF,
+                (double)DP_S415_SF),
+          t0.car_hz };
+  for (size_t k = 0; k < n / push; k++)
+    DP_REQUIRE (dp_air_next (&air, x + k * push, push));
+  dp_air_free (&air);
 
   float _Complex                 *a;
-  dp_async_dsss_receiver_state_t *one = _chunking_create (&g);
+  dp_async_dsss_receiver_state_t *one = _seq_create (&sd);
   DP_REQUIRE (one != NULL);
   const size_t n_a = _stream (one, x, n, n, &a);
+  printf ("  fallback, sequential: one call over %zu samples, state %d, %zu "
+          "symbols\n",
+          n, one->state, n_a);
   DP_REQUIRE (dp_async_dsss_receiver_get_tracking (one) == 1 && n_a > 0);
-  const uint64_t d     = one->refine_periods * one->tsamps;
-  const uint64_t cap   = one->refine_hist_cap;
-  const uint64_t start = one->samples_in - one->state_samples;
-  DP_REQUIRE (one->tsamps == 28 && d > cap);
-  DP_REQUIRE (start == (d - cap + 27) / 28 * 28);
+  const size_t te = one->tsamps;
   free (a);
   dp_async_dsss_receiver_destroy (one);
 
-  static const size_t sizes[] = { 2, 3, 5, 13, 15, 29, 230, 1000, 0 };
+  static const size_t sizes[] = { 2, 3, 5, 13, 15, 29, 230, 1000, 4096, 0 };
   const dp_ci_spec_t  spec    = {
-    .name        = "AsyncDsssReceiver fallback",
-    .create      = _chunking_create,
+    .name        = "AsyncDsssReceiver fallback, sequential",
+    .create      = _seq_create,
     .destroy     = _chunking_destroy,
     .process     = _chunking_process,
-    .arg         = &g,
+    .arg         = &sd,
     .in_size     = sizeof (float _Complex),
     .out_size    = sizeof (float _Complex),
     .out_cap     = n,
-    .frame_n     = 28,
+    .frame_n     = te,
     .extra_sizes = sizes,
   };
   DP_CHECK (dp_chunk_invariance (&spec, x, n) == 0);

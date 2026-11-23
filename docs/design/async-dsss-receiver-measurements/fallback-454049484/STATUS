@@ -1,0 +1,6 @@
+head 454049484, clean tree, swiftgo-ai9465 (run at b12c7806a, the same tree a68fbc9a5 before its message was reworded)
+fixed.txt:   validate_async_dsss_receiver_refine --fallback-sweep            (the refine Dll's output sized for two epochs, #3281)
+unfixed.txt: validate_async_dsss_receiver_refine --fallback-sweep, built with that output back at refine_segments
+             (adr_build_refine_chain: dp_xmallocn (s->refine_segments, ...) and *dll_out_cap_out = s->refine_segments)
+both exit 0
+scope: refine_sequential = false only (the sweep's receivers are built with it false, the default)

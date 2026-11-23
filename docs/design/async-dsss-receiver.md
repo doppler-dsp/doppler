@@ -862,8 +862,23 @@ drift bound far past it), one look, and one frequency window, since
 surface the peak is picked on is interpolated to twice that density
 (`DP_CORRELATOR_DOPPLER_INTERP`). A block's Doppler is its mean over the
 block, so at the block's end it is half a dwell old, about 23 ms: 0.25 Hz
-at R_env. That is what a hit hands on: within half a row, 11.1 Hz. The
-refine then hands the carrier loop its fine estimate.
+at R_env. That is what a hit hands on: one of the two rows bracketing
+the truth, not always the nearer, since at a near tie noise decides. So
+it is within a row, 21.8 / 22.2 Hz, plus the age, and within half a row,
+10.9 / 11.1 Hz, only when the nearer row wins.
+`validate_async_dsss_receiver_lock`'s ramp asserts the first on every draw
+(a hand-over two rows off is its failing case) and prints how many land on
+the far row. At `f4d885343` its `--check` put one of six there, from the
+start whose truth sits 0.9 Hz from the two rows' midpoint (+10.21 and
+−12.01 Hz, one row apart). The refine then hands the carrier loop its fine
+estimate (§4.11, "The hand-over: the M-th power of the refine's partial
+dumps").
+
+**With the refine off, the far row is outside the carrier loop's edge.**
+The worst-start edge is 10.3 to 10.9 Hz (§4.11), so a hand-over on the far
+row starts the loop past it, and that draw's lock time is the loop's
+pull-in law's, not the budget's. That is the fallback's pull-in time. Its
+value is not derived on this page: it waits on the pull-in law's paper.
 
 **The engine's windowing ships.** Its roll of one epoch's spectrum across
 frequency windows, the alias check a pick near a window's edge gets
@@ -3196,8 +3211,11 @@ A pooled `AsyncDsssReceiver` has three states: **idle**, refining and
 tracking (§4). Idle is state value 3 (`ASYNC_DSSS_RX_IDLE`,
 §11.1), the value the earlier pool's cell receivers used for the same
 thing. A seed from the controller (`seed()`, §2.2's three fields) starts the
-refine at the seed's sample; a release (§10, with `reacquire`) returns the
-receiver to idle, and the controller's search picks the next signal for it.
+refine at the seed's sample; a release returns the receiver to idle, and
+the controller's search picks the next signal for it. At the manifest's
+default, `reacquire` false (`objects/async_dsss_pool.toml`), the release is
+§10's both-flags rule: the receiver enters lost and the controller frees it
+(`released_lost`).
 A standalone `AsyncDsssReceiver` keeps its own search, unchanged.
 
 - **The search covers the whole carrier range**, in dwells of D epochs back
@@ -3208,7 +3226,8 @@ A standalone `AsyncDsssReceiver` keeps its own search, unchanged.
     the whole range: the only fine frequency search, and nothing commands
     it. At the 5 Mcps point the 500 Hz/s rate allows D = 154, run at the
     7-smooth 150 (§9).
-- **Tracking ends when symbol lock is lost** (§10's rule with `reacquire`).
+- **Tracking ends on §10's rule:** both flags down for `lost_confirm_s` at
+    the manifest's default, symbol lock alone with `reacquire`.
     A signal changes only after a data-free block, so a loss there is
     normally its signal leaving, and symbol lock lets go of a signal gone
     for good well inside one data-free block. Inside a frame it is less
@@ -3540,7 +3559,7 @@ lock** (`get_locked()`) is the BPSK `cos(2φ)` statistic over the emitted
 symbols, the health of the *carrier* leg: a cycle slip or a deep fade drops
 it while the code is still being despread.
 
-**The rule is symbol lock alone**, the pool's (§6), with `reacquire`:
+**With `reacquire` the rule is symbol lock alone**:
 once symbol lock has been down without a break for longer than
 `lost_confirm_s`, the receiver resets itself to searching (idle, in a
 pool), and nobody calls `reset()`. Without `reacquire` the rule is both flags down for longer than
@@ -3604,7 +3623,10 @@ Without `reacquire` the receiver enters **lost** on §10's both-flags rule.
 In it the loops stop updating, samples are consumed and discarded, and
 `get_lost()` reports it until `reset()`. `lost_confirm_s = 0` never enters
 it. With `reacquire` the receiver releases itself back to searching and is
-never lost. The pool runs its receivers with `reacquire` (§6).
+never lost. The pool's manifest default is `reacquire` false
+(`objects/async_dsss_pool.toml`), so a pooled receiver is released through
+lost; whether that default becomes `reacquire` is the owner's
+([#3092](https://github.com/doppler-dsp/doppler/issues/3092)).
 
 ### 11.3 The status record is one consistent picture, by value
 

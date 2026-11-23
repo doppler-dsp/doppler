@@ -805,6 +805,7 @@ _test_awgn_esn0_floor (void)
   double       ber_at[5]  = { 1, 1, 1, 1, 1 };
   double       evm_at[5]  = { 0, 0, 0, 0, 0 };
   double       snr_at[5]  = { 0, 0, 0, 0, 0 };
+  size_t       win_at[5]  = { 0, 0, 0, 0, 0 }; /* symbols M2M4 read */
 
   for (size_t p = 0; p < n_pts; p++)
     {
@@ -867,6 +868,8 @@ _test_awgn_esn0_floor (void)
                 : 0.5;
       double evm = dp_test_evm_db_hard (syms + w0, n_syms - w0); /* no lag */
       double snr = dp_test_m2m4_snr_db (syms + w0, n_syms - w0); /* blind */
+      /* dp_test_m2m4_snr_db() reads the window's second half. */
+      win_at[p] = (n_syms - w0) - (n_syms - w0) / 2;
       free (fl);
       ber_at[p] = ber;
       evm_at[p] = evm;
@@ -910,7 +913,50 @@ _test_awgn_esn0_floor (void)
      constellation is tight (EVM ~ -Es/N0) with real symbol SNR; toward the
      floor both worsen. */
   DP_CHECK (evm_at[4] < -8.0); /* 10 dB locked: tight */
-  DP_CHECK (snr_at[4] > 10.0); /* 10 dB locked: real symbol SNR */
+  /* 10 dB locked: real symbol SNR. The bound tells the label from one
+     3 dB off (its failing case: a 7 dB link read at 10): their midpoint,
+     8.5 dB, which holds while M2M4's own spread at the window this row read
+     leaves that half-gap three sd wide. The spread is measured here, on
+     clean BPSK in AWGN at the same length, at 10 dB and at 7. The receiver's
+     own loss (EVM -9.5 dB at 10 dB) sits inside the half-gap; a bound of
+     10.0 counted none of it, and passed only while the captures carried
+     3 dB less noise than their label (#689). */
+  {
+    const size_t win = win_at[4];
+    DP_REQUIRE (win >= 100);
+    float _Complex *clean = malloc (win * sizeof *clean);
+    DP_REQUIRE (clean != NULL);
+    double mean[2] = { 0, 0 }, sd[2] = { 0, 0 };
+    for (int lv = 0; lv < 2; lv++)
+      {
+        const double esn0 = lv ? 7.0 : 10.0;
+        /* dp_cgauss() has E|z|^2 = 1, so sigma^2 is N0 at Es = 1. */
+        const double sig = sqrt (pow (10.0, -esn0 / 10.0));
+        double       s1 = 0.0, s2 = 0.0;
+        for (uint32_t r = 0; r < 16; r++)
+          {
+            uint32_t st = 0x2d2d2d2du + 977u * r + 31u * (uint32_t)lv;
+            for (size_t i = 0; i < win; i++)
+              {
+                const double _Complex z = dp_cgauss (&st);
+                clean[i] = (float _Complex) ((dp_bit (&st) > 0 ? 1.0 : -1.0)
+                                             + sig * z);
+              }
+            const double e = dp_snr_m2m4_db (clean, win);
+            s1 += e;
+            s2 += e * e;
+          }
+        mean[lv] = s1 / 16.0;
+        sd[lv]   = sqrt (fmax (s2 / 16.0 - mean[lv] * mean[lv], 0.0));
+      }
+    free (clean);
+    printf ("  M2M4 over %zu symbols: %.2f +- %.2f dB at 10 dB, %.2f +- "
+            "%.2f at 7 dB; the row read %.2f, the bound 8.5\n",
+            win, mean[0], sd[0], mean[1], sd[1], snr_at[4]);
+    DP_CHECK (3.0 * sd[0] < 1.5 && 3.0 * sd[1] < 1.5);
+    DP_CHECK (mean[1] < 8.5); /* the failing case is refused */
+    DP_CHECK (snr_at[4] > 8.5);
+  }
   DP_CHECK (evm_at[0]
             > evm_at[3] + 3.0); /* 4 dB EVM >= 3 dB worse than 8 dB */
   DP_CHECK (snr_at[0]

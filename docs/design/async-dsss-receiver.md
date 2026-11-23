@@ -1038,24 +1038,22 @@ code period (§3.3), so it is blind to the carrier's phase but not to a residual
 frequency: a residual `Δf` costs a window of `T` seconds `sinc²(Δf·T)` of its
 power, **−3.9 dB** at half a `1/T` bin, and a whole cycle per period nulls it
 (`native/tests/dll/test_dll_core.c` §6d). So the receiver runs its carrier loop
-upstream. Its Costas loop wipes the carrier from the input, is steered from the
-Dll's partials, once per code period on a squaring combine of that period's
-partials, and hands the same estimate to the code loop as its rate aid,
-`carrier_offset / carrier_freq`, because the motion that shifts the carrier
-dilates the code. Each emitted partial is a `TE/K`-sample integrate-and-dump, so
+upstream: `carrier_nda` at M = 2 wipes the carrier from the input once a
+sample, takes one update a code period on the coherent sum over the window
+the Dll's look-back picks, and hands the same estimate to the code loop as
+its rate aid, `carrier_offset / carrier_freq`, because the motion that
+shifts the carrier dilates the code (§4.10). Each emitted partial is a `TE/K`-sample integrate-and-dump, so
 whatever residual the carrier loop has not yet nulled barely dents the output:
 `sinc(Δφ/2)` with `Δφ = π/K` at half a bin, **−0.2 dB** at `K = 4`. That
 residual rides out to the demodulator's own carrier loop.
 
 **This is the carrier loop: correction before despreading, error formed
-after.** Its error squares each despread partial before any longer sum, so
-the coherent integration ahead of the non-linearity is one partial, a
-`K`-th of an epoch (about 256 chips at `K` = 4), not a symbol or an epoch.
-Its noise bandwidth is 0.04 of the epoch rate, 125.7 to 160.0 Hz across
-2.2 to 2.8 GHz. At the 415.1-B-1 point's 4 dB floor the loop's SNR
-measures 10.2 to 12.8 dB ([the record](async-dsss-receiver-measurements.md), §4.2), under the 14.5 dB or so where half-cycle
-flips stop
-([#3090](https://github.com/doppler-dsp/doppler/issues/3090)).
+after.** Its error is the M = 2 error `Im(w²)` on one code period's
+coherent window sum `w`, over the unit denominator: the square removes the
+data's sign with no decision. Its bandwidth is §1.3's rule, a loop SNR of
+20 dB at the floor counting the squaring loss, which at the 415.1-B-1 floor
+is about 30 Hz of loop bandwidth at both carriers (§4.10, "Its
+bandwidth").
 
 **Its one job also forbids coupling `segments` to a demodulator's `sps`.** The
 partial rate is `K·chip_rate/SF`, chosen for the code loop's own variance and
@@ -1319,17 +1317,13 @@ the chain under both.
 - **tracking** — the refined carrier is unfrozen into the live carrier loop
     (correction before despreading, error formed after) → `Dll` (§3) →
     `RateConverter` → `MpskReceiver`.
-    `costas_update()` runs once per code period on a **non-data-aided
-    (squaring)** discriminator over that period's coherent partials: a code
-    period spans about 0.9 data symbols at the 3.069 Mcps point's ratio, so a
-    transition lands inside nearly every period, and a decision-directed,
-    sign-aligned combine averages to zero. With that clean error and
-    `ASYNC_DSSS_RX_BN_CARRIER = 0.04` the loop pulls the refined seed in
-    and rides the 500 Hz/s ramp, so despreading is coherent and
-    `MpskReceiver` is left a small residual (at the 3.069 Mcps and 5 Mcps points; at the
-    415.1-B-1 point, [the record](async-dsss-receiver-measurements.md), §4.2). It is a **pure PLL**: the FLL
-    cross-product discriminator is far too noisy on this input and is not
-    exposed at all.
+    The carrier loop takes one update a code period on a **non-data-aided**
+    M = 2 error over the period's window sum, which removes the data's sign
+    with no decision. Its bandwidth is §1.3's rule at the design C/N0, no
+    wider than `ASYNC_DSSS_RX_BN_CARRIER` (0.04), and it follows the use
+    case's residual rate with a constant lag, so despreading is coherent and
+    `MpskReceiver` is left a small residual (§4.10). It is a **pure PLL**:
+    no FLL is exposed.
 - **lost** — the release verdict without `reacquire` (§10). The loops stop
     updating and samples are discarded until `reset()`. With `reacquire` a
     release returns the receiver to searching, and it never reads lost.
@@ -1394,9 +1388,9 @@ estimate measures worse than the search's ([the record](async-dsss-receiver-meas
     not `dp_dll_create()`'s 0.01 default, and its early-late spacing is
     0.5 chips, so the normalized power discriminator reads
     `2 − spacing = 1.5` units per chip of offset.
-- **Around it**: the carrier loop, a `Costas` loop whose correction is
-    applied before despreading and whose error is formed after it, wipes
-    the carrier ahead of the Dll, and `RateConverter` → `MpskReceiver`
+- **Around it**: the carrier loop, `carrier_nda` at M = 2, whose
+    correction is applied before despreading and whose error is formed after
+    it, wipes the carrier ahead of the Dll (§4.10), and `RateConverter` → `MpskReceiver`
     follow it, whose timing loop is RateSync's. The `RateConverter` bridges the partial rate
     to the demodulator's `sps` and never couples the two (§3.4): `K = 4` is
     the code loop's choice, while a downstream demodulator wants a much
@@ -1461,7 +1455,8 @@ window matters.
 
 The carrier loop forms its error, once a code period, from one coherent
 sum: the prompt over the code-period window the Dll's look-back picks
-(find_max_power's winner, `dp_dll_get_window_sum()`), squared and halved.
+(find_max_power's winner, `dp_dll_get_window_sum()`): the M = 2 error
+`Im(w²)` over the unit denominator (§4.10).
 The look-back picks that window every period, whether or not the
 symbol-period aid steers the code loop. It holds only while a symbol is at
 least a code period (`symbol_rate · code_len ≤ chip_rate`), so a window
@@ -1481,12 +1476,14 @@ sample, and the `refine_*` settings are unused.
 at the seed's own sample, from its code phase and Doppler, and the
 receiver goes from searching (or idle) to tracking. The pool passes it to
 every receiver. It holds only while half the search's Doppler row is
-inside the carrier loop's pull-in, `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`, which
-a deep coherent dwell gives (14.5 Hz against 63 to 80 Hz here, §2.3) and a
-one-epoch search does not (§4). The row is `chip_rate / (code_len · D)` and
-the pull-in `bn · chip_rate / (2 · code_len)`, so the rule is `D ≥ 1 / bn`,
-25 at the carrier loop's 0.04, at any chip rate
-(`ASYNC_DSSS_RX_NO_REFINE_MIN_BINS`). Create refuses `refine` false below
+inside the carrier loop's acquisition bound,
+`ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`, which a deep coherent dwell gives (half
+a row of 21.8 / 22.2 Hz against 15.59 / 14.89 Hz at the 415.1-B-1 floor,
+§2.3 and §4.10) and a one-epoch search does not. The row is
+`chip_rate / (code_len · D)` and the bound `bn · chip_rate / (2 · code_len)`,
+so the rule is `D ≥ 1 / bn` at any chip rate
+(`ASYNC_DSSS_RX_NO_REFINE_MIN_BINS`): `1/bn` is 100.7 and 134.4 at the
+rule's `bn`. Create refuses `refine` false below
 it, and `set_state()` refuses a blob in the refining state, a state such a
 receiver cannot reach.
 
@@ -1555,64 +1552,37 @@ The refine is one `CarrierAcquisition` estimator on the despread stream of a see
 
 ### 4.8 The carrier loop's bandwidth
 
-**The detector this section's loop SNR assumes** is `carrier_nda` at M = 2 on the window sum, with its squaring loss counted: see §4.10, "The pre-despread carrier loop" and "Its bandwidth".
+The bandwidth's rule is §1.3's: a loop SNR of 20 dB at the floor, counting
+the M = 2 detector's squaring loss, `bn = ρ · S_L / 200`. `create()` sizes
+the carrier loop by it at the design C/N0, no wider than
+`ASYNC_DSSS_RX_BN_CARRIER` (0.04). §4.10, "Its bandwidth", states the
+figures it gives, the acquisition bound and the no-slip edge.
 
-The bandwidth's rule is §1.3's: a loop SNR of 20 dB at the floor,
-`bn = ρ_floor/200`. The receiver holds the constant 0.04 until the
-use-case cells score the rule
-([#3135](https://github.com/doppler-dsp/doppler/issues/3135)). What the
-rule needs from the loop is below. The proposal it replaces, a
-minimum-rms rule sized at 400 Hz/s, is [the record](async-dsss-receiver-measurements.md), §4.8.
-
-#### The loop as coded
-
-- **Update:** once a code period, `T = code_len / chip_rate`: 333.3, 318.2
-    and 250.0 µs.
-- **Detector:** one coherent sum over the code-period window, `K = 1`
-    on a transition-free window, squared. The error is
-    `e = sin(½·arg Σ)`, unit slope at high SNR. It has a period of π and
-    folds at ±π/2.
+- **Update:** once a code period, `T = code_len / chip_rate`: 318.2 and
+    250.0 µs at 2.2 and 2.8 GHz.
+- **Detector:** `carrier_nda`'s M = 2 error over the unit denominator, its
+    slope divided out before the filter (§4.10).
 - **Filter:** dp_loop_filter at `t = 1`, `ωn·T = 8ζ·bn / (4ζ² + 1)`
-    (1.886 `bn` at ζ 0.707), with bilinear `kp` and `ki`. The NCO runs at
-    `integ` and steps its phase by `kp·e`.
-
-#### Noise: the detector's gain falls at the floor
-
-`e` is normalized, so its mean slope `g` falls below 1 as `ρ` falls.
-`g` is computed, not fitted, for `K = 1`. It comes from the phase density
-of a phasor in Gaussian noise,
-`p(φ) = e^(−ρ)/(2π)·[1 + √(πρ)·cos φ·e^(ρ cos²φ)·(1 + erf(√ρ cos φ))]`,
-as `g = d/dθ E[sin(fold(φ + θ))]`. `K = 4` has no such form, and `g(ρ/K)`
-does not reproduce it. The validator's `# design` section prints `g` for
-each cell from a Monte Carlo of the shipped detector on shipped noise.
-
-In closed loop under noise:
-
-- **Lag:** the noise-free lag over `g`, as measured.
-- **Jitter:** `σ² = (bn/ρ)·(1 + K/(2ρ))`, the squaring-loss form; it
-    holds more closely for `K = 1` than for `K = 4` ([the record](async-dsss-receiver-measurements.md), §4.8).
-
-#### The two stresses
-
+    (1.886 `bn` at ζ 0.707), with bilinear `kp` and `ki`, its command spread
+    over the update's samples.
+- **Noise:** the unit form's phase variance, `bn (1 + 1/(2γ)) / γ`, which is
+    1/200 rad² at the rule's `bn` (§4.10).
 - **Dynamic stress, from the residual's rate.** A second-order loop lags a
     ramp by `x/ki`, `x = R·T²`. At the use case's `R_env` and the rule's
-    `bn` that is the `o2_lag_at_r_env_deg` the validator's `# pass`
-    section prints.
-- **Transient stress, from the hand-over.** The seed sets the NCO and the
-    integrator at the estimate (`seed()` in `costas_core.c`), so only the
-    estimate's error steps the loop. Past the lock-in, about `0.75·bn/T`,
-    the step's peak passes the detector's fold and the loop slips while it
-    pulls in.
+    `bn` that is the `o2_lag_at_r_env_deg` column of
+    `validate_async_dsss_receiver_pullin --design`'s `# pass` section (§1.8).
+- **Transient stress, from the hand-over.** The tracking chain starts the
+    loop at the hand-over's frequency, so only the estimate's error steps
+    it: inside the no-slip edge it crosses fewer than two lock points, and
+    inside the acquisition bound it locks in about `5/bn` updates (§4.10).
 
 ### 4.9 The carrier loop's order
 
-The receiver's carrier loop is second order. `Costas` has a third-order
-mode that holds a ramp with no steady phase error
-([#3127](https://github.com/doppler-dsp/doppler/pull/3127)); the receiver
-does not use it. Under the use case's 11 Hz/s the second-order lag at the
-rule's `bn` is under a degree (§4.8), and on the cells with the code
-compensated the third order shows no consistent difference from the
-second. The study on a constant 400 Hz/s ramp is [the record](async-dsss-receiver-measurements.md), §4.9.
+The receiver's carrier loop is second order. Under the use case's
+residual rate it holds the ramp with the constant lag of §4.8, and that
+lag is the `o2_lag_at_r_env_deg` column §1.8 quotes. The study of the order
+on a constant 400 Hz/s ramp, outside the use case, is
+[the record](async-dsss-receiver-measurements.md), §4.9.
 
 ### 4.10 The tracking stage
 
@@ -2007,7 +1977,7 @@ the `fine_err med/max Hz` column).
 
 #### The hand-over: the M-th power of the refine's partial dumps
 
-The receiver hands over this estimate: `dp_async_dsss_receiver_fine_design()` derives it at create, and the refine's decision runs it. The test row below is what measures it.
+The receiver hands over this estimate: `dp_async_dsss_receiver_fine_design()` derives it at create, and the refine's decision runs it. Step D's run, below, measures it.
 
 **The owner, 2026-11-22.**
 
@@ -2044,7 +2014,7 @@ The receiver hands over this estimate: `dp_async_dsss_receiver_fine_design()` de
     - Run 415's rows read more than that: `seed_code_chip` has a median of 0.11 to 0.15 and a worst of 0.40, and the tracking `Dll`'s first error after the hand-over (`ho_code_chip`) is as high as 0.39. That excess is not explained here.
     - The refine `Dll`'s own error during the total dwell is in no row.
 - `e` is the seed's error in Hz.
-    - Its design bound is `min(2 · doppler_uncertainty, Rs + row)`: 3,022 Hz at both carriers here (below, "The seed's error bound").
+    - Its design bound is `min(2 · doppler_uncertainty, Rs + row)`. At the certified point the span's arm binds, 2 × 1,500 = 3,000 Hz, against `Rs + row` = 3,021.8 / 3,022.2 Hz (below, "The seed's error bound").
     - Run 415's worst seed errors are 371, 936, 1,235 and 1,498 Hz at the four cells.
 
 **The seed's error bound.** The bound the design covers is the right emitter's seed error, `min(2 · doppler_uncertainty, Rs + row)`.
@@ -2058,11 +2028,11 @@ The receiver hands over this estimate: `dp_async_dsss_receiver_fine_design()` de
 | 2.8 GHz | 22.2 Hz | 2,000 Hz         | 9.0 Hz     | 573 Hz | 1,004 Hz | 1,252 Hz | 74 of 360   | 0: 356, ±1: 4            |
 
 - **Not Doppler images.** The errors past three rows form a continuum at 0.4 to 0.8 of a lattice step, not on the lattice: the ±1 counts are their rounding, not Doppler images. The largest is 0.42 of `Rs + row`. `Rs / 2` is not taken: the rows reach 0.84 of it.
-- **At this point it changes nothing:** 3,022 Hz designs `K = 5` and 39 / 43 blocks, as the span's 3,000 Hz did (`_test_fine_seed_bound`).
+- **At the certified point the span's arm binds:** `e` is 3,000 Hz, and the other arm, 3,022 Hz, designs the same `K = 5` and 39 / 43 blocks (`_test_fine_seed_bound`).
 - **Where the span would turn it off:** a 5 Mcps, 1,023-chip search one period deep (row 4,888 Hz) told a 20 ppm span at 2.5 GHz (±60 kHz). The span asks for `K > 98` sums a period, no divisor of `refine_segments` (11) covers it, and the receiver falls back. At 40 dB-Hz two of four seeds were handed over 1,124 and 273 Hz off by the fallback and never locked inside 20 s. At `Rs + row` (7,588 Hz) the design is `K = 11`, 44 blocks (`_test_fine_seed_bound`; the row `_test_clock_offset_decodes_inside_the_allocation` is its use).
 - **A seed further off than the bound** (a wrong peak: a lattice image or another emitter's) aliases by `K / (M T)`. The tone check passes an aliased tone, the carrier loop never locks there, and only a loss release (`lost_confirm_s > 0`) frees the receiver. The standalone receiver's default, 0, never releases it, and neither does the fallback, `CarrierAcquisition`'s estimate or the seed, at such a seed. The guard that would refuse it, comparing the fine estimate with CarrierAcquisition's within `K / (2 M T)`, is not built ([#3262](https://github.com/doppler-dsp/doppler/issues/3262)).
 
-**K, by rule.** `K` is the smallest divisor of `refine_segments` with `K/(2MT)` above the seed's design bound. At M = 2 that needs `K > 4T · 3,022 Hz` = 3.85 at 2.2 GHz and 3.02 at 2.8 GHz, so `K = 5` at both. Four does not divide 10, and at 2.8 GHz it would only equal the bound. `K = 1` is shown beside it.
+**K, by rule.** `K` is the smallest divisor of `refine_segments` with `K/(2MT)` above the seed's design bound. At M = 2 that needs `K > 4T · 3,000 Hz` = 3.82 at 2.2 GHz and 3.00 at 2.8 GHz, so `K = 5` at both: four does not divide 10. `K = 1` is shown beside it.
 
 Losses at `ε` 0.13 with the replica's 0.39 dB. The roll-off is `sinc²(e·T/K)` on `g`, and the squaring loss is `1 + 1/(2g)` at the reduced `g`. They add to give the squared sum's SNR against a clean sum's `γ/(4K)`.
 
@@ -2130,7 +2100,7 @@ The receiver meets R_env (§1.8), so at the spec point the axis is off. The 400 
     - An exponential bin's mean dB sits 2.51 dB under the dB of its mean (Euler's constant).
     - So the threshold is `snr_db ≥ 10·log10(t) + 2.51` = 14.2 dB at 2.2 GHz and 14.3 dB at 2.8, at `pfa` 10⁻³. It is derived, not fitted.
 - **A refusal falls back** to `CarrierAcquisition`'s estimate if it fired, otherwise the seed.
-- **The spectral estimate leaves the decision.** Its value is kept as a probe beside the fine one, and the test row counts where the two disagree.
+- **The spectral estimate leaves the decision.** Its value is kept as a probe beside the fine one, and step D's rows count where the two disagree.
 - **A new source:** `ho_src` 3, the fine estimate.
 
 **The total dwell, derived.** It is the smallest whole number of refine blocks (5.33 ms each) with `P_w + P_miss ≤ 1 − P_ho`. Here `P_ho` is the ruled 0.99, and `P_miss` is the check's (non-central χ², Marcum Q). It is evaluated at the design C/N0, `e` 3,000 Hz and `ε` 0.25. The design point's columns are `_test_fine_design`'s printout; the median columns are this section's formulas at the same `N_s`.
@@ -2150,51 +2120,16 @@ At 10 dB the same total dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 
 | 0.99   | 39 (208 ms)        | 42 (224 ms) |
 | 0.999  | 47 (251 ms)        | 51 (272 ms) |
 
-- **The estimate's age.** At 11 Hz/s, `R·D/2` is 1.14 / 1.26 Hz. With the sd, the hand-over sits well inside the narrowest edge (10.3 Hz) whenever the right peak is taken. So the edge's probability is `1 − P_w − P_miss`.
+- **The estimate's age.** At 11 Hz/s, `R·D/2` is 1.14 / 1.26 Hz. With the sd, the hand-over sits well inside the no-slip edge (11.4 Hz at 2.8 GHz, the narrower; §4.10) whenever the right peak is taken. So the edge's probability is `1 − P_w − P_miss`.
 - **`CarrierAcquisition`'s test runs over the same total dwell.** Its `dwell_target` is raised to the fine one, which only makes its detection more certain.
-- **If `ε`'s bound is the rows' 0.40, not 0.25,** the total dwell is longer, and the rate rule above may turn the axis on there. Its length at β 6.85 is not printed yet. The test row measures `ε` and decides.
-- **A candidate cause of the 0.40, not established.** The refine `Dll` runs at bn 0.002, and a closed-loop reading of the `Dll` at the receiver's configuration (Gold-1023, 2 samples a chip, segments 4 and 10, the aid on and off; #3234) measures its loop about 19 times wider than that. A loop that wide has about 4.4 times the code jitter sd its bn predicts. That could be the rows' 0.40 chip against the grid's 0.25. The reading was at 3.069 Mcps; the one at 415.1-B-1's rates is owed, and the test row's code error over the total dwell decides.
+- **If `ε`'s bound is the rows' 0.40, not 0.25,** the total dwell is longer, and the rate rule above may turn the axis on there. Its length at β 6.85 is not printed yet. No committed row reads `ε` (step D's rows have no column for it), so this is open.
+- **A candidate cause of the 0.40, not established.** The refine `Dll` runs at bn 0.002, and a closed-loop reading of the `Dll` at the receiver's configuration (Gold-1023, 2 samples a chip, segments 4 and 10, the aid on and off; #3234) measures its loop about 19 times wider than that. A loop that wide has about 4.4 times the code jitter sd its bn predicts. That could be the rows' 0.40 chip against the grid's 0.25. The reading was at 3.069 Mcps; the one at 415.1-B-1's rates is owed, and a row with the refine `Dll`'s code error over the total dwell would decide; none is committed.
 
-**The test row, fixed before any run.**
+**What the run measured.** Step D's run: `validate_async_dsss_receiver_pullin --emit --dynamics pass` at `6fc84cc80` on a clean tree, 2.2 and 2.8 GHz × 4, 5 and 10 dB × 0 and ±R_env, 60 draws a cell, and `--fine-k1` on the eight draws whose seed error in run 415 was past `±1/(4T)` (listed in [the record](async-dsss-receiver-measurements.md)'s copy of the test row). Its rows, and `read_d.py`, the reader that prints every number below, are in `docs/design/async-dsss-receiver-measurements/d-6fc84cc80/`.
 
-- **The draws.** Run 415's guideline draws (seeds, `frame_off` and `f0`; 60 a cell) at 4, 5 and 10 dB on both carriers, at 0 Hz/s as run 415 ran and at R_env, 11 Hz/s (`--dynamics pass`). The 5 dB cells are there because the decision rule names 4 and 5 dB inside 20 s. Each draw records:
-
-    - the refine `Dll`'s code error over the total dwell, against the truth;
-    - the fine estimate, its `snr_db`, `ho_src`;
-    - `CarrierAcquisition`'s estimate beside it.
-
-- **Pass.** In each cell, the hand-over error is inside the averaged form's worst-start edge (10.9 / 10.3 Hz) on at least 0.99 of the draws, which on 60 draws is all of them. It is reported separately for all-data, straddling and code-only total dwells.
-
-    - The total dwell is 624 / 672 symbols (688 at 2.8 GHz and 11 Hz/s), so an all-data total dwell lies wholly in the frame's 725 data symbols.
-
-- **Predicted, from the derivation.**
-
-    - No draw outside the edge.
-    - A median abs error of 0.10 / 0.09 Hz at the floor (0.674 sd) and 0.03 to 0.05 Hz at 10 dB, at 0 Hz/s. At 11 Hz/s, add the age. 5 dB lies between; no separate number is derived for it.
-    - No refusal: `P_miss` at the rows' conditions is about 10⁻⁸.
-    - `snr_db` near `10·log10(1 + p·ρ) + 2.51`: 20.4 / 20.2 dB at the floor and 28.9 / 29.0 dB at 10 dB, at the rows' median `ε`.
-
-- **The image cases, named.** These are the 8 draws whose seed error is past `±1/(4T)`:
-
-    - 2.2/10: seeds 4, 5, 13, 46 and 50 (871 to 1,235 Hz);
-    - 2.8/10: seeds 7, 31 and 46 (1,085 to 1,498 Hz).
-
-    Each must hand over inside the edge with `ho_src` 3.
-
-- **The control that must fail.** On those 8 draws, `K = 1` (the dumps summed to the whole period) used alone is predicted to land exactly one image off: 1,571 Hz at 2.2 GHz and 2,000 Hz at 2.8, each ± the edge. If they land inside the edge, the control does not discriminate and the image claim is unproven.
-
-- **What refutes it.**
-
-    - Any draw with `ho_src` 3 outside the edge.
-    - A cell's median error more than 3 times the prediction.
-    - Any refusal at the rows' conditions.
-    - A median `snr_db` more than 1 dB under the prediction at the measured `ε`. That means the SNR model is wrong. If the measured `ε` is the cause, the total dwell is resized at it.
-
-**What the run measured.** Step D's run: `validate_async_dsss_receiver_pullin --emit --dynamics pass` at `6fc84cc80` on a clean tree, 2.2 and 2.8 GHz × 4, 5 and 10 dB × 0 and ±R_env, 60 draws a cell, and `--fine-k1` on the named draws. Its rows, and `read_d.py`, the reader that prints every number below, are in `docs/design/async-dsss-receiver-measurements/d-6fc84cc80/`.
-
-- **The hand-over.** `ho_src` 3 on all 720 draws, no refusal. The median `|fine_err|` at 0 Hz/s is 0.10 / 0.06 Hz at the floor (2.2 / 2.8 GHz) and 0.04 / 0.02 Hz at 10 dB, as predicted. At ±11 Hz/s it is 1.10 to 1.27 Hz, the age. The worst of the 720 is 1.68 Hz, against a 10.3 Hz edge.
+- **The hand-over.** `ho_src` 3 on all 720 draws, no refusal. The median `|fine_err|` at 0 Hz/s is 0.10 / 0.06 Hz at the floor (2.2 / 2.8 GHz) and 0.04 / 0.02 Hz at 10 dB, the derivation's 0.10 / 0.09 Hz and 0.03 to 0.05 Hz. At ±11 Hz/s it is 1.10 to 1.27 Hz, the age. The worst of the 720 is 1.68 Hz, against the no-slip edge, 11.9 / 11.4 Hz (§4.10).
 - **The check's `snr_db`** reads above the prediction: medians 21.6 / 21.9 dB at the floor and 30.2 / 30.8 dB at 10 dB, against 20.4 / 20.2 and 28.9 / 29.0. So the SNR model is conservative by 1.1 to 1.8 dB. The refine `Dll`'s code error over the total dwell (`ε`) is in no column, so which loss is over-counted is not read.
-- **The image control discriminates at 2.2 GHz only.** The deeper search moved the seeds, and 2 of the 8 named draws seed past `±1/(4T)` this run: 2.2 GHz seeds 13 and 5 (+1,031 / −1,037 Hz). There `K = 1` hands over +1,571.06 / −1,571.18 Hz, one image off, and `K = 5` hands over −0.01 / +0.04 Hz. **The 2.8 GHz image claim is untested**: no 2.8 GHz draw seeded past 1,000 Hz. A row that forces the seed's offset past it is owed.
+- **The image control discriminates at 2.2 GHz only.** The deeper search moved the seeds, and 2 of those 8 draws seed past `±1/(4T)` this run: 2.2 GHz seeds 13 and 5 (+1,031 / −1,037 Hz). There `K = 1` hands over +1,571.06 / −1,571.18 Hz, one image off, and `K = 5` hands over −0.01 / +0.04 Hz. **The 2.8 GHz image claim is untested**: no 2.8 GHz draw seeded past 1,000 Hz. A row that forces the seed's offset past it is owed.
 - **Lock inside 20 s:** every draw of every cell. The worst is 3.49 s at the floor; the medians are 0.70 / 0.76 s at 4 dB, 0.57 to 0.66 s at 5 dB and 0.41 to 0.54 s at 10 dB.
 - **The first detection** (`seed_t_s`) at 10 dB is 0.092 / 0.090 s on every draw: two total dwells after arrival (2 × 45.8 / 45.0 ms), the partly filled one and a whole one. At the floor the median is 0.138 / 0.135 s, three total dwells. The search's predicted Pd at the design C/N0 (`pd_predicted`, the `# search` section of `--design`) reads 1.000000 at both carriers, so the design Pd has no margin left in which a depth's gain could show. What the R_env sizing buys is the hand-over's frequency error, through the narrower row (§2.3), not detection.
 - **No phase reversal after the declared lock.** The fold crossings after it (`slips_post`) and the net π reversals (`net_rev_post`) are 0 in all 12 cells, over 33,000 s of on-code tracking after the declared lock. The crossings before it (`slips_pre`, 0 to 9 a cell) are printed, never gated, as ruled. The design reason is the loop SNR: Lindsey's first-order mean time to a slip, `π ρ′ I₀(ρ′)² / (2 B_L)`, at the ruled `ρ_L` of 20 dB, gives about 10²⁰ s at `B_L` 31.1 / 29.6 Hz. `ρ_L` already counts the squaring loss. The further `ρ′ = ρ_L / 4` is the M = 2 loop's phase process, `2φ` (a factor of M² on the phase), not the squaring loss a second time.
@@ -2445,17 +2380,12 @@ hands the carrier loop, by how far it lands from the truth (record §6.3):
 
 <!-- async-dsss-pool:design-seed:end -->
 
-The loop's acquisition bound is `bn / m`, 60 Hz at that front end, and it
-acquires every draw inside it, reliably to twice it and not at all by four
-times (`costas_pullin.c`, `async_dsss_receiver_core.h`). The whole receiver
-is more forgiving than the loop alone: slower to lock as the seed error
-grows, it still locked draws in the 200–300 Hz row. Why it reaches past the
-loop's edge is open (doppler#2409): the error is read when tracking starts,
-which need not be the residual the loop finally pulls in. That residual is
-doppler#982's; `rx.car.nco` (#2412) shows what the loop pulls in, not yet
-measured as a residual. Since tracking is symbol lock, a receiver at the
-floor that misses it lets go and is searched for again, so the refine's
-residual is a design input (doppler#2409).
+Lock is slower as the seed error grows, and the receiver still locked
+draws in the 200–300 Hz row. These runs are at the 3.069 Mcps point, on the
+carrier loop of that run (record §6.3); §4.10 and §4.11 state the loop and
+the hand-over at the 415.1-B-1 point. Since tracking is symbol lock, a
+receiver at the floor that misses it lets go and is searched for again, so
+the refine's residual is a design input (doppler#2409).
 
 ## 7. The peak list, and the pick
 

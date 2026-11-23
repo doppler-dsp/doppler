@@ -307,6 +307,43 @@ blocks_of (size_t samples)
   return (samples + PUSH - 1) / PUSH;
 }
 
+/* Settle: tracking with symbol lock up SETTLE_BLOCKS in a row, then the
+   jitter, then until the next block's cut sample (`at` into it) is
+   mid-data. Returns whether it settled there with symbol lock up; `fed`
+   counts the blocks fed. */
+static int
+lk_settle (dp_air_t *air, dp_awgn_state_t *g,
+           dp_async_dsss_receiver_state_t *rx, size_t lock_b, size_t jitter_b,
+           size_t band_b, size_t at, float complex *blk, float complex *noi,
+           float complex *syms, size_t cap, size_t *fed)
+{
+  size_t run = 0, extra = 0;
+  int    settled = 0, in_band = 0;
+  for (size_t b = 0; b < lock_b + jitter_b + band_b; b++)
+    {
+      DP_REQUIRE (dp_air_next (air, blk, PUSH));
+      dp_awgn_generate (g, PUSH, noi, PUSH);
+      for (size_t i = 0; i < PUSH; i++)
+        blk[i] += noi[i];
+      (void)dp_async_dsss_receiver_steps (rx, blk, PUSH, syms, cap);
+      (*fed)++;
+      int up = dp_async_dsss_receiver_get_tracking (rx)
+               && dp_async_dsss_receiver_get_locked (rx);
+      run    = up ? run + 1 : 0;
+      if (!settled && run >= SETTLE_BLOCKS)
+        settled = 1;
+      if (settled && extra++ >= jitter_b
+          && mid_data (dp_air_truth (air, 0, *fed * PUSH + at).symbol))
+        {
+          in_band = 1;
+          break;
+        }
+      if (!settled && b + 1 >= lock_b)
+        break;
+    }
+  return settled && in_band && dp_async_dsss_receiver_get_locked (rx);
+}
+
 static int
 run_dropout (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
              dropout_t *out)
@@ -345,36 +382,13 @@ run_dropout (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
   cap                 = cap ? cap : PUSH;
   float complex *syms = dp_xmalloc (cap * sizeof *syms);
 
-  /* Settle: tracking with symbol lock up SETTLE_BLOCKS in a row, then the
-     jitter, then until the next block's cut sample is mid-data. */
-  size_t fed = 0, run = 0, extra = 0;
-  int    settled = 0, in_band = 0;
-  for (size_t b = 0; b < lock_b + jitter_b + band_b; b++)
-    {
-      DP_REQUIRE (dp_air_next (&air, blk, PUSH));
-      dp_awgn_generate (g, PUSH, noi, PUSH);
-      for (size_t i = 0; i < PUSH; i++)
-        blk[i] += noi[i];
-      (void)dp_async_dsss_receiver_steps (rx, blk, PUSH, syms, cap);
-      fed++;
-      int up = dp_async_dsss_receiver_get_tracking (rx)
-               && dp_async_dsss_receiver_get_locked (rx);
-      run    = up ? run + 1 : 0;
-      if (!settled && run >= SETTLE_BLOCKS)
-        settled = 1;
-      if (settled && extra++ >= jitter_b
-          && mid_data (dp_air_truth (&air, 0, fed * PUSH + at).symbol))
-        {
-          in_band = 1;
-          break;
-        }
-      if (!settled && b + 1 >= lock_b)
-        break;
-    }
+  size_t     fed = 0;
+  const int  ok  = lk_settle (&air, g, rx, lock_b, jitter_b, band_b, at, blk,
+                              noi, syms, cap, &fed);
   const long cut_sym = dp_air_truth (&air, 0, fed * PUSH + at).symbol;
-  out->settled = settled && in_band && dp_async_dsss_receiver_get_locked (rx);
-  out->cut_s   = (double)(fed * PUSH + at) / DP_S415_FS;
-  out->flips   = flips_near (&air, cut_sym);
+  out->settled       = ok;
+  out->cut_s         = (double)(fed * PUSH + at) / DP_S415_FS;
+  out->flips         = flips_near (&air, cut_sym);
   if (!out->settled)
     goto done;
 
@@ -1375,20 +1389,217 @@ code_lock_rows (const uint8_t *code, int check, int emit)
   return 0;
 }
 
+/* LONG DROPOUT (visionary-architect, 2026-11-23; §10's "a genuine return
+   lands on the replica"). At the point, 10 dB, both carriers: the release
+   armed at the manifest's default (lost_confirm_s 2.0 s, no reacquire), a
+   trial settled as DROPOUT's, then its signal cut for LD_S[k] s inside the
+   frame (the noise on), then back, and watched LD_WATCH_S past the return.
+   Each length runs the trial afresh from the same seeds, so every length
+   starts from the same state on the same noise.
+
+   Printed per trial and length: the Dll's chip-phase error against the
+   truth (status().chip_phase less dp_air_truth()'s code phase, wrapped to
+   +-code_len/2) at the cut and at the sample the signal returns, their
+   difference the drift through the hold; and the outcome: REACQUIRED
+   (tracking, both flags up and within half a chip of the emitter at the
+   watch's end, never having left tracking), RELEASED (it left tracking:
+   lost), or NEITHER (tracking, but not locked on the emitter).
+
+   Predicted before the run (the hold converts its rate with truncation and
+   freezes that word, so it drops a fraction of one phase-word step, fs /
+   2^32 cycles a sample, fs sf / 2^32 = 2.62 chips/s at both carriers): the
+   drift at return is one-signed (the replica slow, behind the emitter) and
+   linear in the dropout, at a slope set by the trial's dropped fraction,
+   which is the integrator's value modulo a step: uniform over the trials
+   in [0, 2.62] chips/s. Reacquired while |drift| stays under about half a
+   chip: all at 0.1 s, nearly all at 0.2 s, about 0.4 to 0.6 at 0.5 s, 0.2
+   to 0.3 at 1 s; at 2 s the release (both flags down since about 35 ms
+   after the cut, so its 2 s expires before the return's flags can rise)
+   takes nearly all. After the hold carries its remainder (#3264), the
+   rounding term is under 1e-3 chip at any length, and what drift remains
+   is the held rate's own error and the carrier aid's coast: read, not
+   predicted. Printed, never asserted: a characterization. */
+static const double LD_S[] = { 0.1, 0.2, 0.5, 1.0, 2.0 };
+#define N_LD (sizeof LD_S / sizeof LD_S[0])
+#define LD_WATCH_S 1.0
+#define LD_LOST_S 2.0 /* the manifest's lost_confirm_s */
+#define LD_TRIALS 20u
+
+typedef struct
+{
+  int    settled, outcome; /* outcome: 0 reacquired, 1 released, 2 neither */
+  double e_cut, e_ret, e_end, carrier_hz, back_ms;
+} longdrop_t;
+
+static double
+lk_chip_err (const dp_async_dsss_receiver_state_t *rx, const dp_air_t *air,
+             size_t n)
+{
+  const double t = dp_air_truth (air, 0, n).code_chips;
+  double       d = fmod (dp_async_dsss_receiver_status (rx).chip_phase - t
+                             + 1.5 * DP_S415_SF,
+                         (double)DP_S415_SF);
+  if (d < 0.0)
+    d += DP_S415_SF;
+  return d - 0.5 * DP_S415_SF;
+}
+
+static int
+run_longdrop (const uint8_t *code, double fc, uint32_t seed, double drop_s,
+              longdrop_t *out)
+{
+  memset (out, 0, sizeof *out);
+  out->e_cut = out->e_ret = out->e_end = out->back_ms = NAN;
+  uint32_t     st     = trial_rng (seed + 300000u);
+  const double cn0    = dp_s415_cn0 (10.0);
+  const size_t lock_b = (size_t)(MAX_LOCK_S * DP_S415_FS / (double)PUSH);
+  out->carrier_hz     = (2.0 * dp_uni (&st) - 1.0) * DP_S415_SPAN_HZ;
+  const size_t frame0
+      = (size_t)(dp_uni (&st) * (double)DP_S415_FRAME_SYM) % DP_S415_FRAME_SYM;
+  const size_t jitter_b
+      = (size_t)(dp_uni (&st) * JITTER_S * DP_S415_FS / PUSH);
+  const size_t at = (size_t)(dp_uni (&st) * (double)PUSH);
+  const size_t band_b
+      = (size_t)(DP_S415_FRAME_SYM / DP_S415_SYM * DP_S415_FS / PUSH) + 1;
+  const size_t fade = (size_t)llround (drop_s * DP_S415_FS);
+  const size_t post_b
+      = blocks_of (at + fade + (size_t)(LD_WATCH_S * DP_S415_FS));
+  const size_t n_bits
+      = bits_for ((double)((lock_b + jitter_b + band_b + post_b + 2) * PUSH));
+  uint8_t *bits = draw_bits (&st, n_bits);
+  dp_air_t air;
+  DP_REQUIRE (scene_init (&air, code, fc, out->carrier_hz, cn0, 0.0, frame0,
+                          seed + 300000u, bits, n_bits));
+  dp_awgn_state_t                *g = lk_noise (seed + 300000u, cn0);
+  dp_async_dsss_receiver_state_t *rx
+      = dp_s415_rx_release (code, fc, true, LD_LOST_S);
+  if (!g || !rx)
+    return 1;
+  float complex *blk  = dp_xmalloc (PUSH * sizeof *blk);
+  float complex *noi  = dp_xmalloc (PUSH * sizeof *noi);
+  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx);
+  cap                 = cap ? cap : PUSH;
+  float complex *syms = dp_xmalloc (cap * sizeof *syms);
+  size_t         fed  = 0;
+  out->settled = lk_settle (&air, g, rx, lock_b, jitter_b, band_b, at, blk,
+                            noi, syms, cap, &fed);
+  if (out->settled)
+    {
+      const size_t base = fed * PUSH; /* the post-cut stream's sample 0 */
+      int          left = 0;
+      for (size_t b = 0; b < post_b; b++)
+        {
+          DP_REQUIRE (dp_air_next (&air, blk, PUSH));
+          dp_awgn_generate (g, PUSH, noi, PUSH);
+          for (size_t i = 0; i < PUSH; i++)
+            {
+              const size_t s   = b * PUSH + i;
+              const int    off = s >= at && s - at < fade;
+              blk[i]           = noi[i] + (off ? 0.0f : 1.0f) * blk[i];
+            }
+          /* The error at the cut and at the return: read at the end of
+             the block holding each, from the samples fed so far. */
+          (void)dp_async_dsss_receiver_steps (rx, blk, PUSH, syms, cap);
+          const size_t n = base + (b + 1) * PUSH;
+          if (isnan (out->e_cut) && (b + 1) * PUSH > at)
+            out->e_cut = lk_chip_err (rx, &air, n);
+          if (isnan (out->e_ret) && (b + 1) * PUSH > at + fade)
+            out->e_ret = lk_chip_err (rx, &air, n);
+          const async_dsss_receiver_status_t s
+              = dp_async_dsss_receiver_status (rx);
+          left |= s.state != ASYNC_DSSS_RX_TRACKING;
+          if (isnan (out->back_ms) && (b + 1) * PUSH > at + fade
+              && s.state == ASYNC_DSSS_RX_TRACKING && s.locked
+              && s.code_locked)
+            out->back_ms = ((double)((b + 1) * PUSH) - (double)(at + fade))
+                           / DP_S415_FS * 1e3;
+        }
+      const async_dsss_receiver_status_t s
+          = dp_async_dsss_receiver_status (rx);
+      out->e_end   = lk_chip_err (rx, &air, base + post_b * PUSH);
+      out->outcome = left ? 1
+                     : (s.state == ASYNC_DSSS_RX_TRACKING && s.locked
+                        && s.code_locked && fabs (out->e_end) < 0.5)
+                         ? 0
+                         : 2;
+    }
+  free (syms);
+  free (noi);
+  free (blk);
+  free (bits);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_awgn_destroy (g);
+  dp_air_free (&air);
+  return 0;
+}
+
+static int
+longdrop_rows (const uint8_t *code, int emit, unsigned shard, unsigned shards)
+{
+  static const char *name[3] = { "reacquired", "released", "neither" };
+  if (emit)
+    printf ("# longdrop\nfc_ghz,seed,drop_s,carrier_hz,settled,outcome,"
+            "e_cut_chip,e_ret_chip,drift_chip,e_end_chip,back_ms\n");
+  else
+    printf ("long dropout: 415.1-B-1, 10 dB, lost_confirm_s %.1f s, the "
+            "signal cut, the noise on; printed, not asserted\n",
+            LD_LOST_S);
+  for (size_t f = 0; f < N_FC; f++)
+    for (size_t k = 0; k < N_LD; k++)
+      {
+        size_t cnt[3] = { 0, 0, 0 }, n = 0;
+        for (uint32_t s = 1; s <= LD_TRIALS; s++)
+          {
+            if ((s - 1) % shards != shard)
+              continue;
+            longdrop_t d;
+            DP_REQUIRE (run_longdrop (code, fcs[f], s, LD_S[k], &d) == 0);
+            DP_CHECK (d.settled == 0 || d.settled == 1);
+            if (emit)
+              printf ("%.1f,%u,%.1f,%.1f,%d,%d,%.4f,%.4f,%.4f,%.4f,%.1f\n",
+                      fcs[f] / 1e9, s, LD_S[k], d.carrier_hz, d.settled,
+                      d.settled ? d.outcome : -1, d.e_cut, d.e_ret,
+                      d.e_ret - d.e_cut, d.e_end, d.back_ms);
+            if (!d.settled)
+              continue;
+            cnt[d.outcome]++;
+            n++;
+          }
+        if (!emit)
+          printf ("  %.1f GHz, %.1f s: %zu settled: %s %zu, %s %zu, %s %zu\n",
+                  fcs[f] / 1e9, LD_S[k], n, name[0], cnt[0], name[1], cnt[1],
+                  name[2], cnt[2]);
+      }
+  return 0;
+}
+
 int
 main (int argc, char **argv)
 {
-  int         check = 0, emit = 0;
+  int         check = 0, emit = 0, longdrop = 0;
+  unsigned    shard = 0, shards = 1;
   const char *tlm_dir = NULL;
   for (int i = 1; i < argc; i++)
     {
       check |= strcmp (argv[i], "--check") == 0;
       emit |= strcmp (argv[i], "--emit") == 0;
+      longdrop |= strcmp (argv[i], "--longdrop") == 0;
       if (strcmp (argv[i], "--telemetry") == 0 && i + 1 < argc)
         tlm_dir = argv[++i];
+      else if (strcmp (argv[i], "--shard") == 0 && i + 1 < argc)
+        DP_REQUIRE (sscanf (argv[++i], "%u/%u", &shard, &shards) == 2
+                    && shards > 0 && shard < shards);
     }
   uint8_t code[DP_S415_SF];
   dp_dsss_gold_1023 (code);
+  if (longdrop)
+    {
+      /* The long-dropout row alone (a characterization; not in --check). */
+      DP_REQUIRE (longdrop_rows (code, emit, shard, shards) == 0);
+      if (emit)
+        DP_TEST_EMIT_END ("validate_async_dsss_receiver_lock --longdrop");
+      DP_TEST_END ("validate_async_dsss_receiver_lock --longdrop");
+    }
   if (tlm_dir)
     {
       if (emit)

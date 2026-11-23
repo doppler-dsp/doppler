@@ -340,12 +340,24 @@ dp_s415_r_env (void)
  *  span, its gap (the code-only symbols, in seconds) and its Doppler rate.
  *  @p refine is the argument the callers vary. */
 static inline dp_async_dsss_receiver_state_t *
+dp_s415_rx_release (const uint8_t *code, double fc, bool refine,
+                    double lost_s);
+
+static inline dp_async_dsss_receiver_state_t *
 dp_s415_rx (const uint8_t *code, double fc, bool refine)
+{
+  return dp_s415_rx_release (code, fc, refine, 0.0);
+}
+
+/** As dp_s415_rx(), with the release armed: both flags down for longer
+ *  than @p lost_s enters lost (0: never, dp_s415_rx()'s). */
+static inline dp_async_dsss_receiver_state_t *
+dp_s415_rx_release (const uint8_t *code, double fc, bool refine, double lost_s)
 {
   return dp_async_dsss_receiver_create (
       code, DP_S415_SF, dp_s415_chip_rate (fc), DP_S415_SYM, DP_S415_FS, 2,
       dp_s415_cn0 (DP_S415_FLOOR_DB), 1e-3, 0.9, DP_S415_SPAN_HZ, 4, 8, 0, 0.5,
-      4, 14.0, 64, 8, false, 100000, fc, 0.0, false,
+      4, 14.0, 64, 8, false, 100000, fc, lost_s, false,
       (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM, dp_s415_r_env (), refine);
 }
 

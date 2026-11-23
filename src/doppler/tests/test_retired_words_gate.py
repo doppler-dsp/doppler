@@ -24,6 +24,7 @@ the page and line, the phrase, and the row's "use instead".
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from typing import TYPE_CHECKING
@@ -78,15 +79,23 @@ def _tree(
     }
     for rel, text in files.items():
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
-        (root / rel).write_text(text)
+        # UTF-8, not the platform's default: the vocabulary's `allowed`
+        # column is an em dash, which Windows' cp1252 writes as byte 0x97
+        (root / rel).write_text(text, encoding="utf-8")
     return root
+
+
+#: The script prints an em dash; UTF-8 on both ends, whatever the platform's
+#: default (Windows' is cp1252, a console's may be anything).
+_ENV = {**os.environ, "PYTHONIOENCODING": "utf-8"}
 
 
 def _run(root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--root", str(root)],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        env=_ENV,
         check=False,
     )
 
@@ -95,7 +104,8 @@ def test_the_repository_passes():
     r = subprocess.run(
         [sys.executable, str(SCRIPT)],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        env=_ENV,
         check=False,
     )
     assert r.returncode == 0, r.stderr
@@ -318,3 +328,27 @@ def test_a_scan_over_nothing_has_not_passed(tmp_path):
     r = _run(one_table)
     assert r.returncode == 1
     assert "a scan over nothing" in r.stderr
+
+
+def test_a_vocabulary_or_exempt_file_that_is_not_utf8_is_a_named_failure(
+    tmp_path,
+):
+    """Windows' default encoding (cp1252) writes the table's em dash as byte
+    0x97, which is not UTF-8. The rows are read as UTF-8, so such a page is
+    refused by name, with how to fix it, and not with a stack trace."""
+    root = _tree(tmp_path, {})
+    (root / "docs/design/vocabulary.md").write_bytes(VOCAB.encode("cp1252"))
+    r = _run(root)
+    assert r.returncode == 1
+    assert "docs/design/vocabulary.md is not valid UTF-8" in r.stderr
+    assert "save it as UTF-8" in r.stderr
+    assert "Traceback" not in r.stderr
+
+    exempt = _tree(tmp_path / "exempt", {})
+    (exempt / "scripts/.retired-words-exempt").write_bytes(
+        "# \u2014 a dash\n".encode("cp1252")
+    )
+    r = _run(exempt)
+    assert r.returncode == 1
+    assert ".retired-words-exempt: not valid UTF-8" in r.stderr
+    assert "Traceback" not in r.stderr

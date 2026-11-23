@@ -215,7 +215,7 @@ the engine takes the deepest coherent dwell §2.1's rule allows. At the residual
 rate R_env (11 Hz/s, §1.8, `dp_s415_r_env()`), the drift bound
 `f_epoch/√(2·R_env)` is far past the window, so the window's half binds:
 `coherent_bins` reads 144 at 2.2 GHz and 180 at 2.8 GHz (⌊(287 + 1)/2⌋ and
-⌊(366 + 1)/2⌋, 7-smooth), with one term (`n_noncoh` 1), a total dwell of 45.8 and
+⌊(366 + 1)/2⌋, 7-smooth), with a non-coherent count of 1 (`n_noncoh` 1), a total dwell of 45.8 and
 45.0 ms. A whole coherent dwell of that depth lands inside the gap wherever it
 starts once the gap holds 2·D − 1 code periods, 287 and 359; the 275-symbol
 gap holds 287 and 365 whole ones. So the gap holds one whole coherent dwell at the depth run, and is
@@ -287,7 +287,7 @@ Two things follow, from the code's formulas:
 
 **Above one symbol a code period**, a symbol rate over the epoch rate
 (3,142 to 3,999 sym/s across the band), no code-period window is free of a
-transition, and the code loop's symbol-scale term shrinks toward one
+transition, and the code loop's symbol-scale coherent dwell shrinks toward one
 partial. `steps_max_out()` would not be a bound
 there ([#2469](https://github.com/doppler-dsp/doppler/issues/2469)), and
 `create()` refuses it, because the carrier loop's code-period window (§4.4)
@@ -496,7 +496,7 @@ So the code loop's stress is the carrier loop's own frequency error, the
 hand-over's transient while the carrier pulls in, and table 4-2's
 0.01 chips/s. None of the four rows reaches the code-lock sizing (§4.10): over
 one code period the largest, 0.046 chips/s, moves the code 1.5 × 10⁻⁵ of
-a chip, so the term's derates are the replica and the placement alone.
+a chip, so the coherent dwell's derates are the replica and the placement alone.
 
 ## 2. Acquisition
 
@@ -519,11 +519,11 @@ Everything else it derives; there is no `doppler_resolution` and no
 the coherent depth `coherent_bins` times the frequency windows the engine
 rolls one epoch's spectrum across when the uncertainty is wider than one
 epoch's span ([`acq-surface.md`](acq-surface.md) §3).
-Non-coherent terms are a separate axis. On the continuous door `n_noncoh`
+The non-coherent count is a separate axis. On the continuous door `n_noncoh`
 is auto-selected to meet `pd` at `pfa` and read-only, bounded only by a
-safety valve (`DP_CORRELATOR_N_NONCOH_SAFETY_CEILING`, 256 terms) because the
+safety valve (`DP_CORRELATOR_N_NONCOH_SAFETY_CEILING`, a count of 256) because the
 semi-analytical `pd_predicted` model turns non-monotonic past it. A burst
-engine never adds terms: it sizes on the burst and reports `underpowered`.
+engine never adds to its non-coherent count: it sizes on the burst and reports `underpowered`.
 
 **Two inputs size the coherent depth `D`: `code_only_epochs` and
 `doppler_rate`.** It is the smaller of `⌊(code_only_epochs + 1)/2⌋`, so a
@@ -578,7 +578,7 @@ total dwell on the hit's own Doppler. **Neither constructor takes a
 `carrier_freq`**: the engine works in baseband Doppler Hz, and a
 baseband-only caller never has to name one. A caller that knows the carrier
 tells the engine afterwards (`dp_correlator_set_carrier_freq_hz()` /
-`set_carrier_freq_hz`), which turns on that advance and, inside a coherent
+`set_carrier_freq_hz`), which turns on that advance and, inside a
 coherent dwell of `D > 1` epochs, aligns the coherent dwell's epochs on the dilated code
 clock. `AsyncDsssReceiver` passes its own `carrier_freq_hz` on.
 
@@ -587,7 +587,7 @@ clock. `AsyncDsssReceiver` passes its own `carrier_freq_hz` on.
 **The receiver's search** is the continuous door, sized from two physical
 create parameters: `code_only_s`, the code-only window in seconds, which
 the receiver turns into `code_only_epochs = ⌊code_only_s · chip_rate / L⌋ − 1`, and `doppler_rate` in Hz/s, passed through. Both default to 0, which is
-`D = 1`: one-epoch terms over its one-sided `doppler_uncertainty`. The
+`D = 1`: one-epoch coherent dwells over its one-sided `doppler_uncertainty`. The
 depth it runs is the read-only `coherent_bins`. `n_noncoh` is sized to `pd`
 at `pfa` for its `cn0_dbhz`. The engine reports up to 16 peaks a total dwell
 (`max_peaks`); the receiver drops those within a chip of an excluded code
@@ -607,7 +607,7 @@ The receiver counts every sample fed since create; in a pool the one search
 counts the pool's samples the same way. A search restarted by `reset()`, a release, a refused hand-over or
 `configure_search_raw()` first discards input up to the next multiple of
 `D · N` samples, at most one coherent dwell (30 ms at `D = 90`), so searchers
-re-armed at different times still decide on the same coherent dwells. The count and
+re-armed at different times still sum the same coherent dwells. The count and
 the alignment owed travel in the state blob. At `D = 1` the grid is one
 code epoch.
 
@@ -628,7 +628,7 @@ of coherent gain. A coherent dwell that straddles data spreads its emitter over 
 rows, about `10·log10 D` down **at its own code phase**: a weaker copy, not
 a mislock. Pinned by `native/validation/acq_block_coherent.c`. The receiver
 runs this depth when given its window: at 32 dB-Hz, `D = 90` finds a signal
-inside one 170-symbol window that `D = 1`, needing 256 terms, cannot decide
+inside one 170-symbol window that `D = 1`, needing a non-coherent count of 256, cannot decide
 there (`test_async_dsss_receiver_core.c`,
 `_test_depth_finds_what_one_epoch_misses`).
 
@@ -636,11 +636,11 @@ there (`test_async_dsss_receiver_core.c`,
 (11 Hz/s, §1.8: the receiver is told the rate it meets, `doppler_rate`,
 and the raw pass's 400 Hz/s only selects which passes are in scope) give
 `coherent_bins` 144 at 2.2 GHz and 180 at 2.8 GHz (the window's half, the
-drift bound far past it), one term, and one frequency window, since
+drift bound far past it), a non-coherent count of 1, and one frequency window, since
 ±1,500 Hz is inside one epoch's span. A row is 21.8 and 22.2 Hz, and the
 surface the peak is picked on is interpolated to twice that density
 (`DP_CORRELATOR_DOPPLER_INTERP`). A coherent dwell's Doppler is its mean over the
-coherent dwell, so at the coherent dwell's end it is half a total dwell old, about 23 ms: 0.25 Hz
+coherent dwell, so at the coherent dwell's end it is half a coherent dwell old, about 23 ms: 0.25 Hz
 at R_env. That is what a hit hands on: one of the two rows bracketing
 the truth, not always the nearer, since at a near tie noise decides. So
 it is within a row, 21.8 / 22.2 Hz, plus the age, and within half a row,
@@ -842,20 +842,20 @@ tuning look downstream-broken.
 
 A tracking channel must always answer *am I locked?*, so the DLL carries an
 always-on lock detector built on **acquisition's** non-coherent test
-statistic — acquire and track then agree on what "detected" means. Each term
-contributes its prompt power: a partial in `segments` mode, the full-epoch
+statistic — acquire and track then agree on what "detected" means. Each coherent
+dwell contributes its prompt power: a partial in `segments` mode, the full-epoch
 prompt at `segments=1`, and the symbol window once the symbol period is
-given (§3.7). `N = n_looks` consecutive terms give
+given (§3.7). `N = n_looks` consecutive coherent dwells give
 `R = sqrt(2·Σ|P_k|² / E|O|²)`, which under H0 has
 `P(R > η) = marcum_q(N, 0, η)`, exactly the acquisition tail; a caller sizes
 `η = det_threshold_noncoherent(pfa, N)` and `N = det_n_noncoh(snr, …)` for a
 target `(Pfa, Pd)`.
 
-**The noise reference is an off-peak tap, not a second channel.** Each term
-is correlated a second time at a random whole-chip offset, re-drawn every
+**The noise reference is an off-peak tap, not a second channel.** Each coherent
+dwell is correlated a second time at a random whole-chip offset, re-drawn every
 epoch and kept `noise_guard` chips, the spacing plus two, clear of the
 prompt/early/late lobe; for a low-sidelobe code that correlation is
-signal-free, so `|O_k|²` samples the per-term noise power. **The test depth
+signal-free, so `|O_k|²` samples the per-coherent-dwell noise power. **The test depth
 and the noise-averaging length are decoupled**: `N` sets the χ²(2N)
 threshold, but the reference must average many more cells or its own
 variance inflates Pfa. `dp_dll_configure_lock()` sizes the reference's EMA
@@ -863,9 +863,9 @@ for an estimator SNR (`dp_det_ema_alpha()`); left to derive it from `N`, it
 holds the reference's spread to an eighth of the statistic's own
 `1/sqrt(N)`, floored at about 33 dB, which is `1/α = max(1024, 32·N)`
 (`native/tests/dll/test_dll_core.c` §7). It is a cumulative-mean bootstrap until
-`1/α` terms have accrued and a fixed-α EMA after, so the floor is unbiased
-from the first term rather than seed-dominated through a warm-up of `1/α`
-terms. The decision is verify-counted (`lockdet`): declared after
+`1/α` coherent dwells have accrued and a fixed-α EMA after, so the floor is unbiased
+from the first coherent dwell rather than seed-dominated through a warm-up of `1/α`
+coherent dwells. The decision is verify-counted (`lockdet`): declared after
 `det_verify_count(pfa, pfa·1e-3)` consecutive decisions over the gate, two
 at 1e-3, and dropped after two under it. On noise its realized
 per-decision rate runs above the configured `pfa` (the record's §12.15
@@ -992,14 +992,14 @@ carries it report the rate the held NCO runs at
 (`native/tests/dll/test_dll_core.c`, `coast_reports_the_held_rate`, at one and
 four segments). When the receiver holds it is §10's.
 
-### 3.7 The symbol period lifts the code lock's term to symbol scale
+### 3.7 The symbol period lifts the code lock's coherent dwell to symbol scale
 
-The partial form of §3.3 is forced by the data: a full-epoch coherent term
-collapses on a transition, so the code-lock detector's term is the
+The partial form of §3.3 is forced by the data: a full-epoch coherent dwell
+collapses on a transition, so the code-lock detector's coherent dwell is the
 quarter-epoch partial — the smallest integration the asynchronous data
 allows when nothing is known about where its transitions fall, and
 therefore the weakest. At the 3.069 Mcps geometry a symbol spans 4.44
-partials, so at the 5 dB floor one partial carries −1.5 dB per term.
+partials, so at the 5 dB floor one partial carries −1.5 dB per coherent dwell.
 
 §3.6's search already finds a transition-free window; what it does not know
 is the symbol *period*, and the receiver does —
@@ -1014,14 +1014,14 @@ sit inside one symbol under the hypothesis's quantization, capped so a slow
 data clock never asks for coherence across more carrier than the wipe-off
 holds. Each hypothesis sums its window coherently and keeps an EMA of its
 power over about 32 symbols; the one with the most power **is** the symbol
-timing, and its windows are the detector's terms. A term then integrates
+timing, and its windows are the detector's coherent dwells. One then integrates
 `L` partials coherently and never straddles a transition: three instead of
-one at the 3.069 Mcps point, 4.8 dB more per term, so `det_n_noncoh`
-sizes the detector at 17 terms for Pd 0.99 at Pfa 1e-3 at the floor, against 92 per-partial terms.
+one at the 3.069 Mcps point, 4.8 dB more per coherent dwell, so `det_n_noncoh`
+sizes the detector at a non-coherent count of 17 for Pd 0.99 at Pfa 1e-3 at the floor, against 92 one-partial coherent dwells.
 The search needs no decision and no external timing, so it costs nothing at
-cold start and follows a drifting symbol clock by itself. A term that
-overlaps the previous one is not a term and is not counted: overlapping
-terms read the same noise several times, and on noise they returned the
+cold start and follows a drifting symbol clock by itself. A coherent
+dwell that overlaps the previous one is not counted: overlapping
+coherent dwells read the same noise several times, and on noise they returned the
 code flag about once a second after a departure, restarting §10's clock
 (`native/tests/dll/test_dll_core.c` §6b′; the record's §12.15).
 
@@ -1064,7 +1064,7 @@ the chain under both.
 - **searching** — on its own, samples feed an embedded continuous
     continuous search (§2)
     over `±doppler_uncertainty`, at the coherent depth `D` its code-only
-    window sizes (§2.3; `D = 1`, one epoch a term, without one). A hit becomes
+    window sizes (§2.3; `D = 1`, a one-epoch coherent dwell, without one). A hit becomes
     a seed through `dp_correlator_build_handoff()` and `seed()`, and the
     unconsumed tail of the same call goes straight on. A hit at or past
     half the sample rate is outside the seed domain: it is refused, counted
@@ -1297,12 +1297,12 @@ receiver cannot reach.
     every "ready" from the branch names them and shows nothing else is red.
 - **The code lock holds over the data at 10 dB**
     ([#3134](https://github.com/doppler-dsp/doppler/issues/3134)). Sized at
-    a cell's own C/N0 (3 terms at 2.8 GHz, 10 dB) it changed after it
+    a cell's own C/N0 (a non-coherent count of 3 at 2.8 GHz, 10 dB) it changed after it
     sustained on 16 of 60 static draws, the other flags never. The receiver
-    sizes it at its design C/N0, the floor's (20 terms there).
+    sizes it at its design C/N0, the floor's (a count of 20 there).
     `validate_async_dsss_receiver_pullin --check`'s "#3134: the code lock
     does not change over the data once sustained" pins it on seed 5, and
-    the same draw on a lock sized at 2 terms is its failing case: it
+    the same draw on a lock sized at a count of 2 is its failing case: it
     changes 6 times.
 - **The certification report asserts 4 limits while it moves to the
     415.1 point**, pinned exactly in `test_validation_limits.py`
@@ -1622,16 +1622,16 @@ correlations a code period.
     (`DLL_AID_EMA_SYMBOLS`), and the hypothesis with the most power is the
     symbol timing. The loop steers once a symbol on the coherent early,
     prompt and late sums over the winner's window, `L = ⌊P⌋ − 1` partials,
-    and the code lock takes one term a symbol from the same window
+    and the code lock takes one coherent dwell a symbol from the same window
     (`aid_look()`). The choice is read on the window being summed, so under
-    noise a term reads the power that chose it.
+    noise a coherent dwell reads the power that chose it.
 - **The lock statistic.** `R = sqrt(2 Σ abs(P)² / E abs(O)²)` over a
-    non-coherent count of `n` terms, with `E abs(O)²` the offset tap's noise
+    non-coherent count of `n` coherent dwells, with `E abs(O)²` the offset tap's noise
     power, an EMA of weight 1/1024. Under noise `R²/2` is chi-square with
     `2n` degrees of freedom, and the threshold is
     `det_threshold_noncoherent(10⁻³, n)`.
 - **Its count, from the detection module.** `adr_build_track_chain()`
-    takes the term's coherent dwell, the aid's window in samples, and the
+    takes the coherent dwell, the aid's window in samples, and the
     per-sample SNR at the design C/N0, and asks
     `dp_det_n_noncoh(…, Pd 0.99, Pfa 10⁻³)` for the count. At the
     415.1-B-1 floor that is n = 22 at 2.2 GHz and 20 at 2.8 GHz, with
@@ -1699,13 +1699,13 @@ the data, and every flag up at the end. The rule rows of
 `validate_async_dsss_receiver_pullin --emit` print each flag's thresholds,
 counts and length (the `.rules.csv` beside each capture).
 
-| flag                | statistic, per decision                                                                                                                                | threshold, and where it comes from                                                                                            | counts (up / down)                                     | sized at the design C/N0?                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `code.locked`       | `R = sqrt(2 Σ abs(P)² / E abs(O)²)` over a non-coherent count of n = 22 / 20 terms, one a symbol, each the aid's window ("The code loop and its lock") | `det_threshold_noncoherent(10⁻³, n)`, 8.874 / 8.567: H0 at a stated Pfa                                                       | 2 / 3, `det_verify_count` at a 10⁻⁶ budget             | yes: n from `dp_det_n_noncoh()` at Pd 0.99                                                 |
-| `car.locked`        | `Σ(I² − Q²) / Σ(I² + Q²)` over `car_blk` = 33 / 43 window sums, one a code period ("The carrier lock")                                                 | the exact `Beta(car_blk/2, car_blk/2)` point at Pfa 10⁻³                                                                      | 2 / 3, the code lock's                                 | yes: `car_blk` from `dp_det_ratio_block_len()` at Pd 0.99                                  |
-| `sym.locked`        | the receiver's power-weighted EMA, weight 1/30 a symbol (`ASYNC_DSSS_RX_LOCK_DWELL`), of `(I² − Q²)/(I² + Q²)` = `cos 2φ` on the demodulator's symbols | up 0.5, down 0.3 (`ASYNC_DSSS_RX_LOCK_UP`, `ASYNC_DSSS_RX_LOCK_DOWN`): constants                                              | 30 / 15 symbols (`ASYNC_DSSS_RX_LOCK_N_UP`, `_N_DOWN`) | no: its rates are not stated ([#3253](https://github.com/doppler-dsp/doppler/issues/3253)) |
-| `demod.car.locked`  | `MpskReceiver`'s EMA, weight 0.05 a symbol (`CARRIER_NDA_LOCK_ALPHA`), of `Re((z/abs(z))²)` = `cos 2φ` of the on-time strobe                           | up 0.3 (`ASYNC_DSSS_RX_DEMOD_LOCK_THRESH`), down 0.24: constants                                                              | 8 / 32 symbols                                         | no                                                                                         |
-| `demod.sync.locked` | `RateSync`'s `2(abs(on)² − abs(mid)²)/(abs(on)² + abs(mid)²)` averaged over 133 symbols                                                                | 0.311: sized for symsync's pulse at roll-off 0.35 and Es/N0 10 dB (`ratesync_core.c`), not for this receiver's pulse or floor | 2 / 6                                                  | no                                                                                         |
+| flag                | statistic, per decision                                                                                                                                          | threshold, and where it comes from                                                                                            | counts (up / down)                                     | sized at the design C/N0?                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `code.locked`       | `R = sqrt(2 Σ abs(P)² / E abs(O)²)` over a non-coherent count of n = 22 / 20 coherent dwells, one a symbol, each the aid's window ("The code loop and its lock") | `det_threshold_noncoherent(10⁻³, n)`, 8.874 / 8.567: H0 at a stated Pfa                                                       | 2 / 3, `det_verify_count` at a 10⁻⁶ budget             | yes: n from `dp_det_n_noncoh()` at Pd 0.99                                                 |
+| `car.locked`        | `Σ(I² − Q²) / Σ(I² + Q²)` over `car_blk` = 33 / 43 window sums, one a code period ("The carrier lock")                                                           | the exact `Beta(car_blk/2, car_blk/2)` point at Pfa 10⁻³                                                                      | 2 / 3, the code lock's                                 | yes: `car_blk` from `dp_det_ratio_block_len()` at Pd 0.99                                  |
+| `sym.locked`        | the receiver's power-weighted EMA, weight 1/30 a symbol (`ASYNC_DSSS_RX_LOCK_DWELL`), of `(I² − Q²)/(I² + Q²)` = `cos 2φ` on the demodulator's symbols           | up 0.5, down 0.3 (`ASYNC_DSSS_RX_LOCK_UP`, `ASYNC_DSSS_RX_LOCK_DOWN`): constants                                              | 30 / 15 symbols (`ASYNC_DSSS_RX_LOCK_N_UP`, `_N_DOWN`) | no: its rates are not stated ([#3253](https://github.com/doppler-dsp/doppler/issues/3253)) |
+| `demod.car.locked`  | `MpskReceiver`'s EMA, weight 0.05 a symbol (`CARRIER_NDA_LOCK_ALPHA`), of `Re((z/abs(z))²)` = `cos 2φ` of the on-time strobe                                     | up 0.3 (`ASYNC_DSSS_RX_DEMOD_LOCK_THRESH`), down 0.24: constants                                                              | 8 / 32 symbols                                         | no                                                                                         |
+| `demod.sync.locked` | `RateSync`'s `2(abs(on)² − abs(mid)²)/(abs(on)² + abs(mid)²)` averaged over 133 symbols                                                                          | 0.311: sized for symsync's pulse at roll-off 0.35 and Es/N0 10 dB (`ratesync_core.c`), not for this receiver's pulse or floor | 2 / 6                                                  | no                                                                                         |
 
 The values are the 415.1-B-1 point's at 2.2 / 2.8 GHz, from the committed
 rule rows at `2bb1a6c8f` for every flag but `car.locked`, whose length is
@@ -1715,14 +1715,14 @@ rule rows at `2bb1a6c8f` for every flag but `car.locked`, whose length is
     counts on `sym.locked` and `demod.car.locked` count consecutive updates
     of an average whose memory (59 and 39 symbols) is longer than the
     counts, so they do not give the false-drop rate a count on disjoint
-    decisions would. `code.locked` and `car.locked` decide on disjoint terms.
+    decisions would. `code.locked` and `car.locked` decide on disjoint total dwells.
 - **No flag sees a carrier slip.** The symbol and demodulator statistics
     are `cos 2φ`, blind to π, the sync statistic an eye ratio, and the code
     and carrier statistics magnitudes ("Slips").
 - **The code lock false-declares above its stated rate.** On noise alone
     it declares 1.66 to 2.19 × 10⁻³ a decision against the 10⁻³ its
     threshold is set for, at both carriers and both design points; the same
-    term held at one timing hypothesis reads 0.86 to 1.22 × 10⁻³ (`# code_lock_noise`
+    statistic with its coherent dwell held at one timing hypothesis reads 0.86 to 1.22 × 10⁻³ (`# code_lock_noise`
     of `validate_async_dsss_receiver_lock`, committed at `edea9c649` in
     `src/doppler/dsss/tests/validation/async_dsss_receiver/data/sweep.txt`).
     The aid's choice reads the window being summed ("The code loop and its
@@ -1824,7 +1824,7 @@ The receiver hands over this estimate: `dp_async_dsss_receiver_fine_design()` de
 **The seed's error bound.** The bound the design covers is the right emitter's seed error, `min(2 · doppler_uncertainty, Rs + row)`.
 
 - **The span's worst pair** (the seed and the truth each inside `±doppler_uncertainty`) bounds any peak the search returns. It is kept as the cap. It is not a bound on the mechanism: a wide span asks for a `K` no divisor of `refine_segments` covers, and the fine hand-over goes off exactly where the coarse seed is worst.
-- **The right emitter's seed lands inside the data spectrum's main lobe.** A total dwell partly in data smears the peak (§2.3) to anywhere inside `±Rs`, the first nulls, and the search's row adds its resolution. Step D's 720 draws (`async-dsss-receiver-measurements/d-6fc84cc80/`, `seed_err_hz`) read:
+- **The right emitter's seed lands inside the data spectrum's main lobe.** A search coherent dwell partly in data smears the peak (§2.3) to anywhere inside `±Rs`, the first nulls, and the search's row adds its resolution. Step D's 720 draws (`async-dsss-receiver-measurements/d-6fc84cc80/`, `seed_err_hz`) read:
 
 | carrier | row     | lattice `1/(2T)` | median abs | p90    | p99      | max      | past 3 rows | nearest lattice multiple |
 | ------- | ------- | ---------------- | ---------- | ------ | -------- | -------- | ----------- | ------------------------ |
@@ -2159,10 +2159,10 @@ default, `reacquire` false (`objects/async_dsss_pool.toml`), the release is
 (`released_lost`).
 A standalone `AsyncDsssReceiver` keeps its own search, unchanged.
 
-- **The search covers the whole carrier range**, in total dwells of D epochs back
-    to back, with D at most half the data-free block. At least one total dwell
+- **The search covers the whole carrier range**, in coherent dwells of D epochs back
+    to back, with D at most half the data-free block. At least one coherent dwell
     then lands wholly inside every data-free block with no frame timing at
-    all, and a total dwell partly in data gives only a weaker, smeared peak. A
+    all, and a coherent dwell partly in data gives only a weaker, smeared peak. A
     coherent dwell of D epochs resolves the carrier to $1/(D T_E)$ across
     the whole range: the only fine frequency search, and nothing commands
     it. At the 5 Mcps point the 500 Hz/s rate allows D = 154, run at the
@@ -2587,8 +2587,8 @@ ______________________________________________________________________
 
 `AsyncDsssReceiver` carries two de-chattered lock flags, each a `lockdet`
 (`native/inc/doppler/lockdet/lockdet_core.h`: level hysteresis between a
-declare and a drop threshold, time hysteresis of consecutive terms either
-way, a NaN term counted as a miss). **Code lock** (`get_code_locked()`) is
+declare and a drop threshold, time hysteresis of consecutive decisions either
+way, a NaN decision's statistic counted as a miss). **Code lock** (`get_code_locked()`) is
 the live `Dll`'s CFAR-based, verify-counted detector — "am I despreading" —
 and, sized for the C/N0 and coherent over a symbol (§3.7), it is the
 presence flag: an emitter that leaves takes its code with it. **Symbol

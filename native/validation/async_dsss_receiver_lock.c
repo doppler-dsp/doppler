@@ -15,7 +15,7 @@
  * Operating point: the 415.1-B-1 point, dp_s415_test.h -- the Gold code at
  * F_fwd x 31/(221 x 96) chips a second, 3,000 sym/s, 11 MSa/s, the
  * 275-in-1,000 code-only window -- at both ends of the band. The receiver
- * is the point's, as built (the refine on),
+ * is the point's, with the refine on,
  * its design C/N0 the true one. Es/N0 10 dB and the 4 dB floor.
  *
  * Stimulus: the point's emitter on the scene (dp_air_test.h) -- the shipped
@@ -77,13 +77,17 @@
  * emitter is the point's on the scene, on a ramp at +R_env from -1,000
  * and from -500 Hz,
  * plus the shipped awgn. Each draw (its own data and noise) runs twice,
- * refine true (as built) and refine false (the search's Doppler is the
+ * refine true and refine false (the search's Doppler is the
  * hand-over), RAMP_S each: RAMP_TRIALS draws from each start in the sweep;
  * --check runs refine false alone, RAMP_CHECK_TRIALS draws a start, each to
  * its hand-over. Asserted in both: refine false hands over within the
- * header's bound (half a row plus the half-dwell age at the rate bound) of
- * the truth at the hand-over sample, on every draw. Printed: each arm's
- * largest hand-over error, symbol lock at 0.5 s and at 2.0 s with Wilson
+ * header's bound (one row, since the peak is one of the two rows
+ * bracketing the truth and not always the nearer, plus the half-dwell age
+ * at the rate bound) of the truth at the hand-over sample, on every draw;
+ * and the bound refuses its failing case, a hand-over two rows off.
+ * Printed: each arm's largest hand-over error, how many landed past half a
+ * row plus the age (the far row: the nearer row's probability is one less
+ * that rate), symbol lock at 0.5 s and at 2.0 s with Wilson
  * 95% intervals, the paired draws where only one arm is locked at 0.5 s,
  * and for a draw not locked at 2.0 s whether it is on its emitter and
  * whether code lock is up -- late or wrong. The lock rates move with the
@@ -719,6 +723,10 @@ typedef struct
   int    code_end;   /* code lock up at RAMP_S                             */
 } ramp_t;
 
+/* The ramp's row, Hz, and the half-dwell age at the rate bound, Hz, as
+   run_ramp() reads them from the receiver. */
+static double ramp_row_hz, ramp_age_hz;
+
 /* One draw at the 415.1-B-1 point, 2.8 GHz, from `f0` Hz at +R_env. */
 static int
 run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
@@ -744,10 +752,12 @@ run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
      183, 180 on the FFT-smooth floor (test_async_dsss_receiver_core.c's
      _ramp_handover derives it). */
   DP_REQUIRE (D == 180);
-  /* The header's bound for refine false: half a row, and the half-dwell
-     age at the rate bound. */
-  *bound_hz         = 0.5 * rx->acq->search->doppler_res_hz
-                      + rate * 0.5 * (double)D * (double)DP_S415_SF / chip;
+  /* The header's bound for refine false: one row (the peak is one of the
+     two rows bracketing the truth), and the half-dwell age at the rate
+     bound. */
+  ramp_row_hz       = rx->acq->search->doppler_res_hz;
+  ramp_age_hz       = rate * 0.5 * (double)D * (double)DP_S415_SF / chip;
+  *bound_hz         = ramp_row_hz + ramp_age_hz;
   *r                = (ramp_t){ .ho_err_hz = NAN };
   size_t fed        = 0;
   int    early_done = 0;
@@ -805,6 +815,7 @@ ramp_rows (const uint8_t *code, int check, int emit)
   const int           a0     = check ? 1 : 0;
   static const double f0s[]  = { -1000.0, -500.0 };
   size_t early[2] = { 0, 0 }, end[2] = { 0, 0 }, over[2] = { 0, 0 };
+  size_t far_row[2] = { 0, 0 }; /* past half a row plus the age */
   size_t only[2] = { 0, 0 }, late_wrong[2][3] = { { 0 } }, n = 0;
   double worst[2] = { 0.0, 0.0 }, bound = 0.0;
   if (emit)
@@ -824,6 +835,7 @@ ramp_rows (const uint8_t *code, int check, int emit)
             const double e = fabs (r[a].ho_err_hz);
             worst[a]       = isnan (e) || e > worst[a] ? e : worst[a];
             over[a] += isnan (e) || e > bound;
+            far_row[a] += isnan (e) || e > 0.5 * ramp_row_hz + ramp_age_hz;
             early[a] += (size_t)r[a].lock_early;
             end[a] += (size_t)r[a].lock_end;
             if (!r[a].lock_end) /* not locked at RAMP_S: why */
@@ -834,24 +846,30 @@ ramp_rows (const uint8_t *code, int check, int emit)
                       r[a].on_end, r[a].code_end);
           }
         if (!check && r[0].lock_early != r[1].lock_early)
-          only[r[1].lock_early]++; /* [0]: only as built, [1]: only false */
+          only[r[1].lock_early]++; /* [0]: only refine, [1]: only false */
         DP_CHECK_MSG (!isnan (r[1].ho_err_hz)
                           && fabs (r[1].ho_err_hz) <= bound,
-                      "refine false hands over within half a row plus the "
+                      "refine false hands over within a row plus the "
                       "half-dwell age of the truth");
       }
+  /* The bound's failing case: a hand-over two rows off is refused. */
+  DP_CHECK_MSG (2.0 * ramp_row_hz > bound,
+                "a hand-over two rows off is past the bound");
   if (!emit && check)
     printf ("  refine false: hand-over error largest %.1f Hz, %zu of %zu past "
-            "%.1f Hz (--check: to the hand-over; the sweep has the rates)\n",
-            worst[1], over[1], n, bound);
+            "%.1f Hz, %zu of %zu on the far row (past %.1f Hz) (--check: to "
+            "the hand-over; the sweep has the rates)\n",
+            worst[1], over[1], n, bound, far_row[1], n,
+            0.5 * ramp_row_hz + ramp_age_hz);
   else if (!emit)
     {
-      static const char *arm[2] = { "refine true (as built)", "refine false" };
+      static const char *arm[2] = { "refine true", "refine false" };
       for (int a = 0; a < 2; a++)
         {
           printf ("  %s: hand-over error largest %.1f Hz, %zu of %zu past "
                   "%.1f Hz\n",
                   arm[a], worst[a], over[a], n, bound);
+          ramp_rate ("past half a row plus the age", far_row[a], n);
           ramp_rate ("symbol lock at 0.5 s", early[a], n);
           ramp_rate ("symbol lock at 2.0 s", end[a], n);
           printf ("    not locked at 2.0 s: %zu on the emitter with code "
@@ -859,7 +877,7 @@ ramp_rows (const uint8_t *code, int check, int emit)
                   late_wrong[a][0], late_wrong[a][1], late_wrong[a][2],
                   RAMP_ON_HZ);
         }
-      printf ("  paired at 0.5 s: only refine false %zu, only as built "
+      printf ("  paired at 0.5 s: only refine false %zu, only refine true "
               "%zu\n",
               only[1], only[0]);
     }

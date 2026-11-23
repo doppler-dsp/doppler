@@ -2782,18 +2782,19 @@ class SymbolSync:
         2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2): a per-look mean
         (mean_lock_detect, from rolloff and the minimum operating Es/N0) drives
         the classic N = variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 / threshold =
-        Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation, implemented directly
-        from a formula supplied by a doppler user (not re-derived against a
-        primary source), with "variance" set from a direct measurement of
-        lock_signal's real per-look variance under noise (~1.343,
-        5,000,000-sample Monte Carlo) rather than the placeholder "8" this API
-        originally shipped with -- see symsync_core.c's
-        SYMSYNC_LOCK_STAT_VARIANCE comment for the full derivation (a
-        factor-of-2 correction for the erfcinv-vs-Q^-1 convention applies on
-        top of the measured variance; the two hypotheses were empirically
-        compared before picking one). Empirically validated at the default
-        operating point (avgs=133, threshold=0.311): 429 false declares over
-        500,000 independent noise-only blocks against a nominal pfa=1e-3
+        Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation, computed by the
+        detection module (dp_det_dwell_gauss() for avgs,
+        dp_det_threshold_gauss() for the threshold) from a formula supplied by
+        a doppler user (not re-derived against a primary source), with
+        "variance" set from a direct measurement of lock_signal's real per-look
+        variance under noise (~1.343, 5,000,000-sample Monte Carlo) rather than
+        the placeholder "8" this API originally shipped with -- see
+        symsync_core.c's SYMSYNC_LOCK_STAT_VARIANCE comment for the full
+        derivation (a factor-of-2 correction for the erfcinv-vs-Q^-1 convention
+        applies on top of the measured variance; the two hypotheses were
+        empirically compared before picking one). Empirically validated at the
+        default operating point (avgs=133, threshold=0.311): 429 false declares
+        over 500,000 independent noise-only blocks against a nominal pfa=1e-3
         (8.58e-4, correctly sized with safe margin, not accidentally
         oversized); 2000/2000 true declares at the esno_min design SNR against
         a nominal pd=0.9 -- see native/validation/symsync_lock.c for the

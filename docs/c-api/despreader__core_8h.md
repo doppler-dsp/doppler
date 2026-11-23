@@ -390,7 +390,10 @@ A complete tracking despreader for a continuous DSSS-BPSK stream: it composes a 
 * `init_norm_freq` Seed carrier frequency, cycles/sample (the acquisition estimate). 
 * `init_chip` Seed code phase, chips (the acquisition estimate). 
 * `bn_carrier` Carrier loop noise bandwidth, normalized to the code-period (symbol) rate. 
-* `bn_code` Code loop noise bandwidth, normalized to the code-period rate. The code Doppler the loop pulls in unaided is bounded by its natural frequency wn = 8 zeta bn\_code / (4 zeta^2 + 1) per period: `delta * code_len` chips per period must stay below wn (the default 0.005 has wn 0.0094, about 7e-5 at 127 chips and 9e-6 at 1023; see [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create)). 
+* `bn_code` Code loop noise bandwidth, normalized to the code-period rate. A code Doppler is tracked with zero steady-state error whatever its size (the integrator holds the rate); only the acquisition transient of an unseeded step is bounded: its phase peak near (rate step) / wn, wn = 8 zeta bn\_code / (4 zeta^2 + 1), must stay inside the correlation triangle, since the discriminator is not periodic. Measured at the default 0.005 (wn 0.0094): held to twice wn, lost from 2.8, where `delta * code_len` chips per period is 7e-5 at 127 chips and 9e-6 at
+  * Past that, seed the rate or widen `bn_code` (see [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create)). 
+
+
 * `bn_fll` Carrier FLL-assist bandwidth (0 = pure PLL); set &gt; 0 for FLL-assisted carrier pull-in. 
 * `zeta` Damping factor shared by both second-order loops. 
 * `spacing` DLL early/late correlator tap offset, chips. 

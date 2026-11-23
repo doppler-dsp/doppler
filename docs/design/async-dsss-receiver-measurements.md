@@ -2795,6 +2795,47 @@ The rows, the selection and the captures' sidecars are committed to the measurem
 
 ______________________________________________________________________
 
+### The fine hand-over's test row, as fixed before step D (page text at c7aa34468)
+
+The design page's "The test row, fixed before any run" in "The hand-over: the M-th power of the refine's partial dumps", moved unchanged once step D's run (`d-6fc84cc80`) had read it; the page keeps what the run measured. Its pass criterion names the averaged denominator's edge (10.9 / 10.3 Hz); the built loop's edge is the unit form's, 11.9 / 11.4 Hz.
+
+**The test row, fixed before any run.**
+
+- **The draws.** Run 415's guideline draws (seeds, `frame_off` and `f0`; 60 a cell) at 4, 5 and 10 dB on both carriers, at 0 Hz/s as run 415 ran and at R_env, 11 Hz/s (`--dynamics pass`). The 5 dB cells are there because the decision rule names 4 and 5 dB inside 20 s. Each draw records:
+
+    - the refine `Dll`'s code error over the total dwell, against the truth;
+    - the fine estimate, its `snr_db`, `ho_src`;
+    - `CarrierAcquisition`'s estimate beside it.
+
+- **Pass.** In each cell, the hand-over error is inside the averaged form's worst-start edge (10.9 / 10.3 Hz) on at least 0.99 of the draws, which on 60 draws is all of them. It is reported separately for all-data, straddling and code-only total dwells.
+
+    - The total dwell is 624 / 672 symbols (688 at 2.8 GHz and 11 Hz/s), so an all-data total dwell lies wholly in the frame's 725 data symbols.
+
+- **Predicted, from the derivation.**
+
+    - No draw outside the edge.
+    - A median abs error of 0.10 / 0.09 Hz at the floor (0.674 sd) and 0.03 to 0.05 Hz at 10 dB, at 0 Hz/s. At 11 Hz/s, add the age. 5 dB lies between; no separate number is derived for it.
+    - No refusal: `P_miss` at the rows' conditions is about 10⁻⁸.
+    - `snr_db` near `10·log10(1 + p·ρ) + 2.51`: 20.4 / 20.2 dB at the floor and 28.9 / 29.0 dB at 10 dB, at the rows' median `ε`.
+
+- **The image cases, named.** These are the 8 draws whose seed error is past `±1/(4T)`:
+
+    - 2.2/10: seeds 4, 5, 13, 46 and 50 (871 to 1,235 Hz);
+    - 2.8/10: seeds 7, 31 and 46 (1,085 to 1,498 Hz).
+
+    Each must hand over inside the edge with `ho_src` 3.
+
+- **The control that must fail.** On those 8 draws, `K = 1` (the dumps summed to the whole period) used alone is predicted to land exactly one image off: 1,571 Hz at 2.2 GHz and 2,000 Hz at 2.8, each ± the edge. If they land inside the edge, the control does not discriminate and the image claim is unproven.
+
+- **What refutes it.**
+
+    - Any draw with `ho_src` 3 outside the edge.
+    - A cell's median error more than 3 times the prediction.
+    - Any refusal at the rows' conditions.
+    - A median `snr_db` more than 1 dB under the prediction at the measured `ε`. That means the SNR model is wrong. If the measured `ε` is the cause, the total dwell is resized at it.
+
+______________________________________________________________________
+
 ## 6 and 9. The pool's runs
 
 *The runs behind §6 and §9 of the design page. §6.1 to §9.2 predate the

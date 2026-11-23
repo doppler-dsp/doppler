@@ -6,5 +6,5 @@
     `CarrierAcquisition` (a 6 Hz hand-over error at a design sd of
     0.58 Hz). `DsssReceiver` sized its scratch at the call's own length, so
     a call of a few samples that completed a carried period kept only as
-    many of the period's partials as it had samples. Both are now sized for the most a call can emit
-    (#3281).
+    many of the period's partials as it had samples. Both are now sized
+    for the most a call can emit (#3281).

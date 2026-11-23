@@ -6,4 +6,3 @@
     (`dp_dll_init()` allocates nothing and reads the code, to the same
     values). The output is the same bits. The tracking receiver at the
     415.1-B-1 point takes about a third of the time, and `dll::steps` half.
-    The state blob is version 17.

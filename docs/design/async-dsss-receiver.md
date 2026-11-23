@@ -899,8 +899,8 @@ the code phase crosses the next `sf/segments` chips, so the count need not
 divide the epoch's samples: the receiver's tracking `Dll` takes 4, partials
 of 511.5 samples on average at the 3.069 Mcps point's 2046 (§3.4, §4.1). A
 count can also be derived from a tolerable async correlation loss
-`max_error` in dB: `dp_dll_lookback_segments()` takes the partial length as
-the divisor of `sf·spc` nearest the coverage `1 − 10^(−max_error/10)` asks
+`max_error_db`: `dp_dll_lookback_segments()` takes the partial length as
+the divisor of `sf·spc` nearest the coverage `1 − 10^(−max_error_db/10)` asks
 for, 11 partials at 2046 samples and 0.5 dB, which is how the receiver
 sizes its refine-stage `Dll` (`refine_max_error_db`). Per epoch, over the
 prompt product `x`, schematically (the `reshape` is exact only when
@@ -1926,8 +1926,8 @@ At 10 dB the same total dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 
 - **The first detection** (`seed_t_s`) at 10 dB is 0.092 / 0.090 s on every draw: two total dwells after arrival (2 × 45.8 / 45.0 ms), the partly filled one and a whole one. At the floor the median is 0.138 / 0.135 s, three total dwells. The search's predicted Pd at the design C/N0 (`pd_predicted`, the `# search` section of `--design`) reads 1.000000 at both carriers, so the design Pd has no margin left in which a depth's gain could show. What the R_env sizing buys is the hand-over's frequency error, through the narrower row (§2.3), not detection.
 - **No phase reversal after the declared lock.** The fold crossings after it (`slips_post`) and the net π reversals (`net_rev_post`) are 0 in all 12 cells, over 33,000 s of on-code tracking after the declared lock. The crossings before it (`slips_pre`, 0 to 9 a cell) are printed, never gated. The design reason is the loop SNR: Lindsey's first-order mean time to a slip, `π ρ′ I₀(ρ′)² / (2 B_L)`, at the agreed `ρ_L` of 20 dB, gives about 10²⁰ s at `B_L` 31.1 / 29.6 Hz. `ρ_L` already counts the squaring loss. The further `ρ′ = ρ_L / 4` is the M = 2 loop's phase process, `2φ` (a factor of M² on the phase), not the squaring loss a second time.
 - **The error rate** of the aligned, unslipped draws, pooled: 2.0 × 10⁻² / 1.1 × 10⁻² / 3.3 × 10⁻⁵ at 4 / 5 / 10 dB, against BPSK's 1.25 × 10⁻² / 6.0 × 10⁻³ / 3.9 × 10⁻⁶. As an Es/N0 loss that is 0.76 / 0.78 / 1.0 dB, the same at both carriers. The derived part is the replica's 0.39 dB (§3.6); the rest is open.
-    - The loss grows with Es/N0, and thermal timing jitter falls with it even in a loop wider than its stated bn. So the remainder points at something deterministic: the `Dll` increment's truncation (#3249, a loop frozen between least significant bits), the timing detector's pattern self-noise, or the replica and interpolation geometry.
-    - #3249's test is the loss at 10 dB at an integer against a non-integer samples-a-chip. This run cannot read it: both carriers are non-integer (3.42 and 2.69 samples a chip), and their 10 dB losses agree.
+    - The loss grows with Es/N0, and thermal timing jitter falls with it even in a loop wider than its stated bn. So the remainder points at something deterministic: the timing detector's pattern self-noise, or the replica and interpolation geometry.
+    - Not the `Dll` increment's truncation (#3249). The release's final run, `final-9ce208250` (`read_final.py`), has the carried remainder in, and its 10 dB rate reads 3.26 to 3.57 × 10⁻⁵, the same 1.0 dB. The open remainder is doppler#3292.
     - The draws are not the cause: leaving out the ones that do not work, the 10 dB pooled rate is unchanged, and the per-draw median is 3.1 / 3.4 × 10⁻⁵.
 - **At 10 dB static "every draw's link works" is red** on 1 to 3 draws a cell, where the error-rate meter is unaligned at the start or unsynced at the end. The receiver shows no carrier crossing and no flag change on those draws, and they carry 3 to 8 errors in 178,000 symbols. The `run415` rows show the same at that cell; `d-6fc84cc80` has 57 (2.2 GHz) and 58 (2.8 GHz) of 60 working at 10 dB static, against 40 and 53 in `run415`. It is the meter, not a symbol-timing slip. A capture of 2.2 GHz seed 43 (`--telemetry --draw 2.2,10,0,43`) re-detects the alignment 113 times from 3.6 to 59.6 s (`err.sym_lag`) and reads a lag of 0 every time, with 6 errors to the end (`err.count`). So the end check's refusal (`dp_ber_sync` placing no marker near the end) is the meter's own, as the validator's comment already records at 20 dB. The end marker the noiseless replay resolves sat 0.26 dB under the noisy threshold, at the right lag. The validator judges an end the sync cannot place on its tail: the start's alignment over the last 1,000 symbols, in 100-symbol blocks, each refused past the midpoint between the contract's rate and a slip's 0.5 (`pi_end_verdict`). Seed 43 works under it; a symbol dropped 500 before the end is refused, with the end sync and without it (the `--check` controls).
 
@@ -2424,21 +2424,29 @@ emitter's code sidelobe and a weak emitter within about 24 dB on the same
 carrier cannot be separated by power, code phase or data without also
 releasing usable tracks. The fine hand-over moves most ghosts onto their
 parent's carrier (k = 0), where the ghost rule leaves them (§8,
-doppler#2551): every one forced at k = −1, 0, +1 and +2. At k = −2, 5 of
-20 at each carrier end 1, 2 or 4 ambiguity intervals off instead, and the ghost
-rule releases each (`run-cen-0373a01d5`'s `ghosts_forced.csv`,
-`df_end_hz`). At 2.8 GHz the shipped pool holds 4 to 8 of 20 ghosts for
-20 s, per k.
+doppler#2551): every one forced at k = −1, 0, +1 and +2, at both carriers.
+At k = −2, 4 of 20 at 2.8 GHz end 1 or 4 ambiguity intervals off instead,
+and the ghost rule releases each; at 2.2 GHz none does
+(`final-9ce208250`'s `ghosts_forced.csv`, `df_end_hz`; `read_ghosts.py`).
+The shipped pool holds ghosts for the 20 s allocation at both carriers:
+3 to 8 of 20 per k at 2.8 GHz, and 0 to 2 of 20 per k at 2.2 GHz, 5 of 100
+in all. The record before it, `run-cen-0373a01d5`, held 0 of 100 at
+2.2 GHz. The two are not told apart at 100 draws (Wilson 95% 0.02 to 0.11
+against 0 to 0.04; Fisher's exact p 0.06), and no mechanism is measured
+for either (doppler#3263).
 
 - **Evidence:** `run-b-34cfdce9b` (`read_b.py`), `run-pc-8df79b4cc`
-    (`read_pc.py`: the prompt ratio and the phase spread both fail) and
-    `run-cen-0373a01d5` (`read_cen.py`).
+    (`read_pc.py`: the prompt ratio and the phase spread both fail),
+    `run-cen-0373a01d5` (`read_cen.py`) and `final-9ce208250`
+    (`read_ghosts.py`).
 - **The closest candidate,** the centered data-copy test, catches 27 of 27
     held ghosts but releases 13 of 180 distinct emitters that decode.
 - **The pin.** `_test_shipped_pool_leaves_one_on_a` is a strict xfail on
-    seed 5, a draw the record holds for the whole 20 s allocation. Seed 2,
-    which the loss release frees inside the allocation, is its failing
-    case.
+    seed 12, a draw `final-9ce208250` holds for the whole 20 s allocation
+    (its longest run with both flags down 0.256 s, against
+    `lost_confirm_s` 2.0). Seed 2, which the loss release frees inside the
+    allocation, is its failing case. Which draws are held moves with the
+    tree; a count over the validator would not, and is doppler#3263's.
 
 **What the evidence is, and is not.** The limit is measured in static
 scenes: a strong emitter with a second one pinned within 5 Hz of its

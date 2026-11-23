@@ -254,7 +254,7 @@ not use these.
 
 A count is `n_` and what it counts; a length carries its unit as a suffix.
 `n_noncoh` is the non-coherent count's name and keeps it. The table is the
-whole list of renames ruled on 2026-11-23 and not yet merged; a row leaves
+whole list of renames agreed on 2026-11-23 and not yet merged; a row leaves
 when its rename merges.
 
 **In the async receiver PR**, the names as the branch spells them. Shipped

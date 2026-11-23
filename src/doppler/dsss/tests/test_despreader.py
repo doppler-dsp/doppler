@@ -112,6 +112,54 @@ def test_full_receiver_locks_and_despreads():
     assert _amb_ber(dec, data[len(sym) // 2 : len(sym)]) == 0.0
 
 
+def test_code_loop_tracks_a_realistic_code_doppler_at_the_default_bandwidth():
+    """The default code loop resolves a 20 ppm Doppler and holds the phase.
+
+    The Despreader's code loop is one `Dll` segment at ``bn_code`` 0.005. A
+    20 ppm code-rate offset (a good oscillator plus a few km/s of motion, so
+    the realistic end of what a receiver sees) is a ramp of ``delta * SF`` =
+    0.0025 chip per period at 127 chips, a quarter of the loop's natural
+    frequency ``wn = 8 zeta bn / (4 zeta^2 + 1)`` = 0.0094 per period, so the
+    loop pulls in unaided and must settle on it. Two things are held, and
+    both are the use case rather than a fit to a reading:
+
+    * the rate error is under a tenth of the Doppler itself. The code rate
+      is what the loop exists to report, and a rate wrong by more than a
+      tenth of the offset is a rate that does not say what the offset is;
+      one phase-word step of the increment is ``tsamps * 2**-32`` = 0.012 of
+      this Doppler, so the bound is eight steps of the increment's own
+      resolution, not a figure read off a run;
+    * the chip phase against the truth stays inside the discriminator's
+      linear range, 0.25 chip, and the lock flag is up. The rate alone is
+      not a lock: a loop can read the rate to a tenth and still walk off the
+      code in phase, so the phase is held beside it.
+
+    The failing case is the loop this replaced: its integral path was
+    ``sf`` times the filter's contract, so the code loop ran about 58 times
+    wider than its ``bn`` and hunted: at this geometry the rate error read
+    +13.3, +3.6, -12.5 and +7.3 times the Doppler at 500, 1000, 2000 and
+    3000 periods (36 or more times the bound) while the flag said locked.
+    """
+    from doppler.wfm import PN
+
+    delta, nper = 2e-5, 3000
+    code = np.asarray(PN(length=7, seed=1).generate(SF)).astype(np.uint8)
+    csign = np.where(code & 1, -1.0, 1.0)
+    data = np.asarray(PN(length=13, seed=9).generate(nper)).astype(int) * 2 - 1
+    cph = np.arange(TSAMPS * nper) * (1 + delta) / SPS  # running chip phase
+    rx = (np.repeat(data, TSAMPS) * csign[(cph % SF).astype(int)]).astype(
+        np.complex64
+    )
+    # the seed is half a chip off the truth; every other argument is default
+    c = Despreader(code, sps=SPS, init_norm_freq=0.0, init_chip=0.5)
+    c.steps(rx)
+    truth = (nper * SF * delta) % SF
+    phase_err = ((c.code_phase - truth + SF / 2) % SF) - SF / 2
+    assert c.code_locked is True
+    assert abs(c.code_rate - (1.0 + delta)) < 0.1 * delta
+    assert abs(phase_err) < 0.25
+
+
 def test_fresh_receiver_is_unlocked():
     c = Despreader(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     assert c.carrier_locked is False

@@ -639,6 +639,16 @@ dll_update(dp_dll_state_t *s)
  *                   the code length, where Kd is the discriminator's slope
  *                   per chip: 1.31 at 4 samples per chip (1.02 at 2). The
  *                   slope is 0 at a spacing of one chip or more.
+ *                   The code-rate offset the loop pulls in unaided is bounded
+ *                   by its natural frequency wn = 8 zeta bn / (4 zeta^2 + 1)
+ *                   per period: an offset `delta` is a ramp of `delta * sf`
+ *                   chips per period, which must stay below wn (bn 0.005 has
+ *                   wn 0.0094, so about 7e-5 at 127 chips and 9e-6 at 1023).
+ *                   Measured at that bn the loop holds to twice wn, is
+ *                   erratic from 2.2 to 2.6 times it and is lost from 2.8
+ *                   (examples/dll_demo.py, dsss/tests/test_despreader.py);
+ *                   beyond wn, use the rate aid (dp_dll_set_rate_aid()) or a
+ *                   wider `bn`.
  * @param zeta       Damping factor (default 0.707).
  * @param spacing    Early/late tap offset, chips (default 0.5).
  * @param segments   Partial correlations per code epoch (default 1). 1 = a

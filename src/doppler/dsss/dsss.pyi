@@ -278,7 +278,11 @@ class Despreader:
         Carrier loop noise bandwidth, normalized to the code-period (symbol)
         rate.
     bn_code : float, default 0.005
-        Code loop noise bandwidth, normalized to the code-period rate.
+        Code loop noise bandwidth, normalized to the code-period rate. The code
+        Doppler the loop pulls in unaided is bounded by its natural frequency
+        wn = 8 zeta bn_code / (4 zeta^2 + 1) per period: `delta * code_len`
+        chips per period must stay below wn (the default 0.005 has wn 0.0094,
+        about 7e-5 at 127 chips and 9e-6 at 1023; see dp_dll_create()).
     bn_fll : float, default 0.0
         Carrier FLL-assist bandwidth (0 = pure PLL); set > 0 for FLL-assisted
         carrier pull-in.

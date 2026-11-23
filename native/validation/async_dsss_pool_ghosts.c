@@ -165,7 +165,30 @@ typedef struct
      block count (NaN: never). */
   double rc100, rc25, nl100, nl25, ns25, thr25, t_cross;
   size_t nb25;
+  /* SECOND, the hand-over read (--handover): receiver 1's hand-over
+     source and the Doppler it handed over at, less B's and A's truth
+     there, Hz, s past the seed; and at its last tracking step (the step
+     before a release, or the run's end) its carrier less B's and A's
+     truth in lattice steps and its code phase less theirs in chips,
+     wrapped to [-code_len/2, code_len/2). NaN: never tracked. */
+  int    ho_src;
+  double ho_b_hz, ho_a_hz, t_ho_s, end_b_lat, end_a_lat, end_b_chips,
+      end_a_chips, t_end_s;
 } gh_t;
+
+/* --handover: SECOND only, every level and carrier, the draws named by
+   --seeds (all when empty), and the hand-over columns. */
+static int      gh_ho_only;
+static uint32_t gh_seeds[16];
+static size_t   gh_n_seeds;
+
+/* a - b on a circle of n, in [-n/2, n/2). */
+static double
+gh_wrap (double a, double b, double n)
+{
+  const double d = fmod (a - b + 1.5 * n, n);
+  return (d < 0.0 ? d + n : d) - 0.5 * n;
+}
 
 /* The centered test's null shift, symbols: five frames of 1,000. */
 #define GH_NULL_SHIFT 5000
@@ -721,7 +744,11 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
   double t_seed = -1.0, t = 0.0, t_full = -1.0;
   long   n = 0, code_up = 0;
   memset (o, 0, sizeof *o);
-  gh_acc_t acc = { 0 };
+  o->ho_src  = -1;
+  o->ho_b_hz = o->ho_a_hz = o->t_ho_s = NAN;
+  o->end_b_lat = o->end_a_lat = o->end_b_chips = o->end_a_chips = NAN;
+  o->t_end_s                                                    = NAN;
+  gh_acc_t acc                                                  = { 0 };
   for (;;)
     {
       DP_REQUIRE (gh_push (p, &air, x) == 0);
@@ -755,6 +782,24 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
               break;
             }
           continue;
+        }
+      if (s1.state == ASYNC_DSSS_RX_TRACKING)
+        {
+          const dp_air_truth_t ta = dp_air_truth (&air, 0, air.n_out);
+          const dp_air_truth_t tb = dp_air_truth (&air, 1, air.n_out);
+          if (isnan (o->t_ho_s))
+            {
+              o->ho_src
+                  = dp_async_dsss_receiver_get_handover_source (p->rx[1]);
+              o->ho_b_hz = s1.doppler_hz - tb.car_hz;
+              o->ho_a_hz = s1.doppler_hz - ta.car_hz;
+              o->t_ho_s  = t - t_seed;
+            }
+          o->end_b_lat   = (s1.doppler_hz - tb.car_hz) / p->lattice_hz;
+          o->end_a_lat   = (s1.doppler_hz - ta.car_hz) / p->lattice_hz;
+          o->end_b_chips = gh_wrap (s1.chip_phase, tb.code_chips, 1023.0);
+          o->end_a_chips = gh_wrap (s1.chip_phase, ta.code_chips, 1023.0);
+          o->t_end_s     = t - t_seed;
         }
       gh_sample (code, p, &s0, &s1, fc, 1, b_dbhz, seed, t - t_seed, &acc);
       gh_collect (p, &s0, &s1, air.n_out, &acc);
@@ -896,6 +941,12 @@ main (int argc, char **argv)
         gh_forced_s = strtod (argv[++i], NULL);
       else if (strcmp (argv[i], "--second-s") == 0 && i + 1 < argc)
         gh_second_s = strtod (argv[++i], NULL);
+      else if (strcmp (argv[i], "--handover") == 0)
+        gh_ho_only = 1;
+      else if (strcmp (argv[i], "--seeds") == 0 && i + 1 < argc)
+        for (char *tok = strtok (argv[++i], ","); tok && gh_n_seeds < 16;
+             tok       = strtok (NULL, ","))
+          gh_seeds[gh_n_seeds++] = (uint32_t)strtoul (tok, NULL, 10);
       else if (strcmp (argv[i], "--shard") == 0 && i + 1 < argc)
         DP_REQUIRE (sscanf (argv[++i], "%u/%u", &shard, &shards) == 2
                     && shards > 0 && shard < shards);
@@ -906,6 +957,36 @@ main (int argc, char **argv)
   dp_dsss_gold_1023 (code);
   static const double fcs[2]    = { DP_S415_FC_LO, DP_S415_FC_HI };
   static const double b_lvls[5] = { 38.8, 42.0, 44.0, 46.0, 50.0 };
+
+  if (gh_ho_only)
+    {
+      /* The hand-over read: which estimate receiver 1 handed B over from,
+         how far from B it landed, and where it was when it left. */
+      printf ("# handover\nfc_ghz,b_dbhz,seed,outcome,code_frac,lag_r,"
+              "ho_src,t_ho_s,ho_b_hz,ho_a_hz,t_end_s,end_b_lat,end_a_lat,"
+              "end_b_chips,end_a_chips\n");
+      for (int f = 0; f < 2; f++)
+        for (int l = 0; l < 5; l++)
+          for (uint32_t s = 1; s <= draws; s++)
+            {
+              int named = gh_n_seeds == 0;
+              for (size_t j = 0; j < gh_n_seeds; j++)
+                named |= gh_seeds[j] == s;
+              if (!named || (s - 1) % shards != shard)
+                continue;
+              gh_t o;
+              DP_REQUIRE (gh_second (code, fcs[f], b_lvls[l], s, &o) == 0);
+              printf ("%.1f,%.1f,%u,%d,%.3f,%ld,%d,%.3f,%.2f,%.2f,%.3f,"
+                      "%.3f,%.3f,%.3f,%.3f\n",
+                      fcs[f] / 1e9, b_lvls[l], s, o.outcome, o.code_frac,
+                      o.lag_r, o.ho_src, o.t_ho_s, o.ho_b_hz, o.ho_a_hz,
+                      o.t_end_s, o.end_b_lat, o.end_a_lat, o.end_b_chips,
+                      o.end_a_chips);
+              DP_CHECK (o.outcome >= -1);
+            }
+      free (gh_ratios);
+      DP_TEST_END ("validate_async_dsss_pool_ghosts");
+    }
 
   if (emit)
     printf ("# forced\nfc_ghz,k,seed,outcome,code_frac,sym_frac,any_k,"

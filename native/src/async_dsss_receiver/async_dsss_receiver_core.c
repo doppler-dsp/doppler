@@ -1004,8 +1004,15 @@ adr_refine_decided (const dp_async_dsss_receiver_state_t *s)
   if (ca->n_blocks >= cap)
     return 1;
   /* A sequential estimator that fires early still waits out the fine
-     dwell. */
-  return ca->ready && (!s->fine_on || ca->n_blocks >= s->fine.blocks);
+     dwell. Once ready it counts no more blocks (dp_carrier_acq_steps()
+     returns early), so the dwell is also read off the fine buffer, which
+     keeps filling: it holds the dwell's sums once it is full but for its
+     spare period (fine_cap). Without it a refine that fired early never
+     decided. A non-sequential estimator is ready only at its dwell target,
+     which is at least the fine dwell, so its decision is unchanged. */
+  return ca->ready
+         && (!s->fine_on || ca->n_blocks >= s->fine.blocks
+             || s->fine_n + (size_t)s->fine.k >= s->fine_cap);
 }
 
 /* The first sample a live chain can start on at or past @p at: the smallest
@@ -3198,11 +3205,6 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   if (!dp_async_dsss_receiver_seed_ok (s, extra.seed_chip_phase,
                                        extra.seed_doppler_hz_est))
     return DP_ERR_INVALID;
-  DP_R_CHILD (&_r, dp_correlator, s->acq);
-  DP_R_CHILD (&_r, dp_costas, &s->car_frozen);
-  DP_R_CHILD (&_r, dp_dll, s->refine_dll);
-  DP_R_CHILD (&_r, dp_RateConverter, s->refine_rc);
-  DP_R_CHILD (&_r, dp_carrier_acq, s->ca);
   /* The two carrier children decode into copies and commit only when each
      is the loop create() builds: M = 2, an update a period, the unit
      denominator at the design point's gamma, the block lock create()
@@ -3210,11 +3212,32 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
      not this blob's to change (car_gamma, car_blk and bn_carrier are
      create()'s, restored by it): a blob from a receiver built at another
      C/N0 has the same size and would restore a different loop, and one
-     with an update a sample would run the control tsamps times too large. */
+     with an update a sample would run the control tsamps times too large.
+     They are checked BEFORE any child commits, through a reader that skips
+     the five children ahead of them, so a refusal leaves the receiver as
+     it was (decode, check whole, then commit). */
   dp_carrier_nda_state_t car = s->car, held = s->car_held;
-  DP_R_CHILD (&_r, dp_carrier_nda, &car);
-  DP_R_CHILD (&_r, dp_carrier_nda, &held);
-  if (!adr_carrier_is_built (s, &car) || !adr_carrier_is_built (s, &held))
+  {
+    dp_reader_t pk = _r;
+    if (!dp_r_reserve (&pk, dp_correlator_state_bytes (s->acq))
+        || !dp_r_reserve (&pk, dp_costas_state_bytes (&s->car_frozen))
+        || !dp_r_reserve (&pk, dp_dll_state_bytes (s->refine_dll))
+        || !dp_r_reserve (&pk, dp_RateConverter_state_bytes (s->refine_rc))
+        || !dp_r_reserve (&pk, dp_carrier_acq_state_bytes (s->ca)))
+      return DP_ERR_INVALID;
+    DP_R_CHILD (&pk, dp_carrier_nda, &car);
+    DP_R_CHILD (&pk, dp_carrier_nda, &held);
+    if (!adr_carrier_is_built (s, &car) || !adr_carrier_is_built (s, &held))
+      return DP_ERR_INVALID;
+  }
+  DP_R_CHILD (&_r, dp_correlator, s->acq);
+  DP_R_CHILD (&_r, dp_costas, &s->car_frozen);
+  DP_R_CHILD (&_r, dp_dll, s->refine_dll);
+  DP_R_CHILD (&_r, dp_RateConverter, s->refine_rc);
+  DP_R_CHILD (&_r, dp_carrier_acq, s->ca);
+  /* The carrier pair, already decoded and checked: skipped here. */
+  if (!dp_r_reserve (&_r, dp_carrier_nda_state_bytes (&s->car))
+      || !dp_r_reserve (&_r, dp_carrier_nda_state_bytes (&s->car_held)))
     return DP_ERR_INVALID;
   s->car      = car;
   s->car_held = held;

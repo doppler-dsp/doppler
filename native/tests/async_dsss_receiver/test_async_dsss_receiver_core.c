@@ -414,9 +414,20 @@ _test_give_up_cap (void)
 
   DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 0);
   DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
-  /* Give-up: doppler estimate stays the UNREFINED coarse handoff value --
-   * 0.0 Hz here, since _make_signal() injects no real Doppler offset. */
-  DP_CHECK (fabs (dp_async_dsss_receiver_get_doppler_hz (rx) - 0.0) < 1e-6);
+  /* Give-up: CarrierAcquisition is not ready at its one-block cap, so it
+   * hands over nothing of its own. The fine hand-over still decides on the
+   * same block (at 70 dB-Hz its designed dwell fits under the cap), and its
+   * estimate, against a truth of 0 Hz (the capture injects no Doppler and
+   * the seed is the coarse search's 0), is what the chain is built from:
+   * predicted ho_src _FINE, and |fine_hz - 0| inside three of the design's
+   * own sd_hz at this C/N0. Before the fine hand-over (1ba73e06d) this row
+   * read the seed's bit-exact 0.0. */
+  printf ("  give-up: ho_src %d, fine %g Hz (truth 0, design sd %g Hz)\n",
+          dp_async_dsss_receiver_get_handover_source (rx), rx->fine_hz,
+          rx->fine.sd_hz);
+  DP_CHECK (dp_async_dsss_receiver_get_handover_source (rx)
+            == ASYNC_DSSS_RX_HO_FINE);
+  DP_CHECK (fabs (rx->fine_hz - 0.0) <= 3.0 * rx->fine.sd_hz);
   /* Still tracking/decoding despite the unrefined seed -- the give-up
    * path must not otherwise break the object. */
   DP_CHECK (n_syms > 20);
@@ -1887,9 +1898,15 @@ _test_fine_hands_over (void)
  * changed through carrier_nda's own setters (so the child itself is a valid
  * carrier_nda blob) is refused, one row per key: the update period, the
  * denominator's form, its design gamma, its weight, the block length, bn,
- * zeta. So is a blob from a receiver built at another C/N0, the same size.
- * The twin is untouched by a refusal of its carrier children. Sabotage:
- * drop the adr_carrier_is_built() check -> every forged row restores, red. */
+ * zeta. So is a blob from a receiver built at another C/N0: at 45 dB-Hz
+ * (key 8) it is not even the same size, since create's C/N0 sizes the fine
+ * hand-over's buffer (fine_cap, from fine.blocks; no mutator reaches either),
+ * and the envelope refuses it on size; key 9 is the nearest C/N0 above the
+ * twin's, in 0.01 dB steps, whose blob IS the twin's size and whose carrier
+ * design differs, so the carrier key, not the size, refuses it. The twin is
+ * untouched by a refusal of its carrier children. Sabotage: drop the
+ * adr_carrier_is_built() check -> every forged row but key 8 restores,
+ * red. */
 static dp_async_dsss_receiver_state_t *
 _car_twin (double cn0)
 {
@@ -1901,9 +1918,32 @@ _car_twin (double cn0)
 static int
 _test_carrier_config_is_a_reject_key (void)
 {
-  for (int key = 0; key <= 8; key++)
+  /* Key 9's C/N0: the twin's size, another carrier. */
+  double cn0_same = NAN;
+  {
+    dp_async_dsss_receiver_state_t *b = _car_twin (38.77);
+    DP_REQUIRE (b != NULL);
+    for (int j = 1; j <= 100 && isnan (cn0_same); j++)
+      {
+        const double                    cn0 = 38.77 + 0.01 * j;
+        dp_async_dsss_receiver_state_t *a   = _car_twin (cn0);
+        DP_REQUIRE (a != NULL);
+        if (dp_async_dsss_receiver_state_bytes (a)
+                == dp_async_dsss_receiver_state_bytes (b)
+            && a->car_gamma != b->car_gamma)
+          cn0_same = cn0;
+        dp_async_dsss_receiver_destroy (a);
+      }
+    dp_async_dsss_receiver_destroy (b);
+    DP_REQUIRE_MSG (!isnan (cn0_same),
+                    "a C/N0 within 1 dB of the twin's gives its size and "
+                    "another carrier");
+  }
+  for (int key = 0; key <= 9; key++)
     {
-      dp_async_dsss_receiver_state_t *a = _car_twin (key == 8 ? 45.0 : 38.77);
+      dp_async_dsss_receiver_state_t *a = _car_twin (key == 8   ? 45.0
+                                                     : key == 9 ? cn0_same
+                                                                : 38.77);
       dp_async_dsss_receiver_state_t *b = _car_twin (38.77);
       DP_REQUIRE (a && b);
       dp_carrier_nda_state_t *c = &a->car;
@@ -1945,7 +1985,8 @@ _test_carrier_config_is_a_reject_key (void)
           break;
         }
       const size_t sz = dp_async_dsss_receiver_state_bytes (a);
-      DP_CHECK (sz == dp_async_dsss_receiver_state_bytes (b));
+      /* Key 8 is refused by size, every other row by its carrier. */
+      DP_CHECK ((sz == dp_async_dsss_receiver_state_bytes (b)) == (key != 8));
       void *blob = malloc (sz);
       dp_async_dsss_receiver_get_state (a, blob);
       const dp_carrier_nda_state_t before = b->car;
@@ -2987,8 +3028,11 @@ _test_carry_tail_is_zeros (void)
     return 1;
   const size_t cb    = dp_async_dsss_receiver_state_bytes (rx);
   const size_t carry = rx->tsamps * sizeof (float _Complex);
-  /* The hand-over ring follows the carry (v17). */
-  const size_t   ring = rx->refine_hist_cap * sizeof (float _Complex);
+  /* What the writer packs after the carry, in its order
+     (dp_async_dsss_receiver_state_bytes): the hand-over ring (v17), then
+     the fine hand-over's sums (v23). */
+  const size_t ring
+      = (rx->refine_hist_cap + rx->fine_cap) * sizeof (float _Complex);
   unsigned char *blob = malloc (cb);
   unsigned char *back = malloc (cb);
   dp_async_dsss_receiver_get_state (rx, blob);
@@ -3624,20 +3668,32 @@ _test_forged_seed_is_refused (void)
   return fails;
 }
 
-/* The hand-over holds the refined Doppler to the seed domain (#2461 #122).
- * The estimator is forced ready by the blob, with a +-5 kHz residual, so the
- * next steps() is the hand-over. Every seed is in range at fs = 10 MHz; the
- * refined Doppler (seed plus residual) is not always:
+/* The hand-over holds the refined Doppler to the seed domain (#2461 #122),
+ * from either estimate it hands over. The refine is made decided on the
+ * source receiver itself, before its get_state(), so the blob is laid out by
+ * the writer and no offset is written here: CarrierAcquisition ready with a
+ * +-5 kHz residual, and its n_blocks at the fine hand-over's dwell, which a
+ * decision waits out when the fine hand-over is on (adr_refine_decided). The
+ * next steps() of the restored twin is the hand-over. Every seed is in
+ * range at fs = 10 MHz; the refined Doppler (seed plus residual) is not
+ * always:
  *   4.990 MHz + 5 kHz =  4.995 MHz  inside: tracks at exactly that;
  *  -4.990 MHz - 5 kHz = -4.995 MHz  inside, the negative side;
  *   4.995 MHz + 5 kHz =  5.000 MHz  AT fs/2: refused ("at or past");
  *  -4.998 MHz - 5 kHz = -5.003 MHz  past -fs/2: refused.
+ * The fine estimate's own row: with no fine sums the rows above hand over
+ * CarrierAcquisition's residual (ho_src _DATA); in the fifth the buffer
+ * holds a clean tone at 0.3 cycles a sum (inside the estimator's +-0.5),
+ * fine_hz = 0.3 k / (M T), so its check passes and it is handed over, from
+ * a seed half of fine_hz under fs/2: past it by the other half, refused,
+ * where CarrierAcquisition's residual of 0 would have tracked.
  * A refused hand-over is refused like a hit: not tracking, searching again,
  * one refused hit counted -- and the Doppler it refused is not left
  * readable: both estimates read 0, as after reset(). Sabotages: drop the
  * hand-over's domain test -> the refused rows track, red; keep the refused
- * seed's Doppler -> get_doppler_hz() reads it, red. Returns the number of
- * failed checks. */
+ * seed's Doppler -> get_doppler_hz() reads it, red; leave n_blocks short of
+ * the fine dwell -> the refine never decides and the inside rows read the
+ * seed, red. Returns the number of failed checks. */
 static int
 _test_handover_holds_the_refined_doppler_to_the_domain (void)
 {
@@ -3645,72 +3701,90 @@ _test_handover_holds_the_refined_doppler_to_the_domain (void)
   uint32_t cst = 13;
   for (size_t i = 0; i < 1023; i++)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
-  const double seeds[4]    = { 4.990e6, -4.990e6, 4.995e6, -4.998e6 };
-  const double residual[4] = { 5.0e3, -5.0e3, 5.0e3, -5.0e3 };
-  const int    inside[4]   = { 1, 1, 0, 0 };
+  const double fs          = 2.0 * 5.0e6;
+  double       seeds[5]    = { 4.990e6, -4.990e6, 4.995e6, -4.998e6, 0.0 };
+  const double residual[5] = { 5.0e3, -5.0e3, 5.0e3, -5.0e3, 0.0 };
+  const int    inside[5]   = { 1, 1, 0, 0, 0 };
   int          fails       = 0;
-  for (int k = 0; k < 4; k++)
+  for (int k = 0; k < 5; k++)
     {
       const double                    residual_hz = residual[k];
+      const int                       fine_row    = k == 4;
       dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
-          code, 1023, 5.0e6, 2700.0, 2.0 * 5.0e6, 2, 45.0, 1e-3, 0.9, 100.0, 4,
-          8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0,
-          0.0, true);
+          code, 1023, 5.0e6, 2700.0, fs, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0,
+          true);
       dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create (
-          code, 1023, 5.0e6, 2700.0, 2.0 * 5.0e6, 2, 45.0, 1e-3, 0.9, 100.0, 4,
-          8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0,
-          0.0, true);
+          code, 1023, 5.0e6, 2700.0, fs, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0,
+          true);
       DP_REQUIRE (src != NULL && dst != NULL);
+      DP_REQUIRE_MSG (src->fine_on, "this receiver's fine hand-over is on");
+      /* The fine row's tone, and the seed it is handed over from. */
+      const double T       = 1023.0 / 5.0e6;
+      const double fine_hz = 0.3 * (double)src->fine.k / ((double)src->m * T);
+      if (fine_row)
+        seeds[k] = 0.5 * fs - 0.5 * fine_hz;
       DP_REQUIRE (dp_async_dsss_receiver_seed (src, 0.0, seeds[k], 45.0)
                   == DP_OK);
+      DP_REQUIRE (src->ca != NULL);
       /* Off the block grid: 100 samples in, so a restart owes 1946. */
-      src->samples_in     = 100;
+      src->samples_in      = 100;
+      src->ca->ready       = 1;
+      src->ca->residual_hz = residual_hz;
+      src->ca->n_blocks    = src->fine.blocks;
+      if (fine_row)
+        {
+          for (size_t i = 0; i < src->fine_cap; i++)
+            src->fine_buf[i]
+                = (float _Complex)cexp (2.0 * M_PI * I * 0.3 * (double)i);
+          src->fine_n = src->fine_cap;
+        }
       const size_t   cb   = dp_async_dsss_receiver_state_bytes (src);
       unsigned char *blob = malloc (cb);
+      DP_REQUIRE (blob != NULL);
       dp_async_dsss_receiver_get_state (src, blob);
-      uint32_t magic = CARRIER_ACQ_STATE_MAGIC;
-      size_t   at    = cb;
-      for (size_t i = 0; i + sizeof magic <= cb && at == cb; i++)
-        if (memcmp (blob + i, &magic, sizeof magic) == 0)
-          at = i;
-      DP_CHECK (at < cb);
-      if (at < cb)
+      DP_CHECK (dp_async_dsss_receiver_set_state (dst, blob) == DP_OK);
+      const uint64_t refused0 = dst->refused_hits;
+      float _Complex x[1024]  = { 0 }, out[1024];
+      (void)dp_async_dsss_receiver_steps (dst, x, 1024, out, 1024);
+      if (inside[k])
         {
-          const size_t rec = at + sizeof (dp_state_hdr_t);
-          blob[rec + 32]   = 1; /* ready: the carrier_acq extra's ready byte */
-          memcpy (blob + rec + 40, &residual_hz, sizeof residual_hz);
-          DP_CHECK (dp_async_dsss_receiver_set_state (dst, blob) == DP_OK);
-          const uint64_t refused0 = dst->refused_hits;
-          float _Complex x[1024]  = { 0 }, out[1024];
-          (void)dp_async_dsss_receiver_steps (dst, x, 1024, out, 1024);
-          if (inside[k])
+          /* Inside: tracks at seed plus residual, exactly, from
+             CarrierAcquisition's estimate. */
+          DP_CHECK (dp_async_dsss_receiver_get_tracking (dst) == 1);
+          DP_CHECK (dp_async_dsss_receiver_get_handover_source (dst)
+                    == ASYNC_DSSS_RX_HO_DATA);
+          if (dp_async_dsss_receiver_get_doppler_hz (dst)
+              != seeds[k] + residual_hz)
             {
-              /* Inside: tracks at seed plus residual, exactly. */
-              DP_CHECK (dp_async_dsss_receiver_get_tracking (dst) == 1);
-              if (dp_async_dsss_receiver_get_doppler_hz (dst)
-                  != seeds[k] + residual_hz)
-                {
-                  DP_TEST_ERR ("  hand-off Doppler %g, not seed + residual "
-                               "%g\n",
-                               dp_async_dsss_receiver_get_doppler_hz (dst),
-                               seeds[k] + residual_hz);
-                  fails++;
-                }
-              DP_CHECK (dst->refused_hits == refused0);
+              DP_TEST_ERR ("  hand-off Doppler %g, not seed + residual "
+                           "%g\n",
+                           dp_async_dsss_receiver_get_doppler_hz (dst),
+                           seeds[k] + residual_hz);
+              fails++;
             }
-          else
-            {
-              /* Past fs/2: refused, searching again, counted. */
-              DP_CHECK (dp_async_dsss_receiver_get_tracking (dst) == 0);
-              DP_CHECK (dp_async_dsss_receiver_status (dst).state
-                        == ASYNC_DSSS_RX_SEARCHING);
-              DP_CHECK (dst->refused_hits == refused0 + 1);
-              DP_CHECK (dp_async_dsss_receiver_get_doppler_hz (dst) == 0.0);
-              DP_CHECK (dst->seed_doppler_hz_est == 0.0);
-              /* The search restarts on the grid: 1124 in, owed to 2046. */
-              DP_CHECK (dst->align_pending
-                        && dp_correlator_position (dst->acq) == 0);
-            }
+          DP_CHECK (dst->refused_hits == refused0);
+        }
+      else
+        {
+          /* Past fs/2: refused, searching again, counted. In the fine row
+             the estimate refused is the tone's, within half of the
+             estimator's bin over the buffer (0.5 / fine_cap cycles a sum),
+             in Hz. */
+          if (fine_row)
+            DP_CHECK (fabs (dst->fine_hz - fine_hz)
+                      < 0.5 / (double)src->fine_cap * (double)src->fine.k
+                            / ((double)src->m * T));
+          DP_CHECK (dp_async_dsss_receiver_get_tracking (dst) == 0);
+          DP_CHECK (dp_async_dsss_receiver_status (dst).state
+                    == ASYNC_DSSS_RX_SEARCHING);
+          DP_CHECK (dst->refused_hits == refused0 + 1);
+          DP_CHECK (dp_async_dsss_receiver_get_doppler_hz (dst) == 0.0);
+          DP_CHECK (dst->seed_doppler_hz_est == 0.0);
+          /* The search restarts on the grid: 1124 in, owed to 2046. */
+          DP_CHECK (dst->align_pending
+                    && dp_correlator_position (dst->acq) == 0);
         }
       free (blob);
       dp_async_dsss_receiver_destroy (src);
@@ -4095,7 +4169,8 @@ static int
 _test_tlm_names_documented (void)
 {
   static const char *const children[]
-      = { "rx.car.", "rx.code.", "rx.demod.", "rx.acq.", "rx.ref." };
+      = { "rx.car.", "rx.code.", "rx.demod.",
+          "rx.acq.", "rx.ref.",  "rx.ref_fine." };
   static const char *const own[]
       = { "rx.state",      "rx.handover_hz", "rx.refused", "rx.sym.lock",
           "rx.sym.locked", "rx.ho_src",      "rx.cn0",     "rx.phase.car",

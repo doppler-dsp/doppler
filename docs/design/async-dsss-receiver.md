@@ -2456,7 +2456,7 @@ The owner's rulings of 2026-11-21 come before any change of behavior: the testin
 - D1, owner's ruling 5 (§12.30): the carrier error is formed over the code-period window, its one mode (`72f577f90`).
 - `refine` is an argument (`b3d3bdf1c`), and its default is the release's behavior.
 - The refine's estimator is the release's. The squared-stream estimator (`79fa50cfe`) is reverted on this branch: a behavior change with no failing requirement behind it (owner, 2026-11-21).
-- The pool's ghost test has no 60 dB-Hz k = 0 row: its premise, a ghost on its parent's carrier, came from the reverted squared refine, and its scene waits to be derived under the release's refine ([#3216](https://github.com/doppler-dsp/doppler/issues/3216)). The pool test no longer covers that case.
+- The pool's 60 dB-Hz k = 0 case is `_test_shipped_pool_leaves_one_on_a`: under the shipped refine, the fine hand-over carries a k = 2 seed to its parent's carrier, where the ghost rule leaves it, and the pool holds it for the 20 s allocation (a strict xfail on [#3263](https://github.com/doppler-dsp/doppler/issues/3263)).
 - The Dll's run correlation (`b6ed0118a`, `7e80adb45`), a performance change; the Dll's own tests hold its outputs.
 - The pool joins its workers once every 16 code periods (`3b41f5dd1`).
 - Probes and readbacks: the Dll's look terms, the receiver's state probes, and the lock-rule getters (`7772ced26`, `edfcb0c86`, `8a1e04e34`). No decision is touched.
@@ -3525,8 +3525,12 @@ any other code length N and sum count K, the exact figure is
 **What 20 dB looks like, measured.** B at 50 dB-Hz under a 70 dB-Hz A on
 A's carrier:
 
-- **Handed over within 2 Hz** of B on both of its draws, and held for 4 s
-    (`run-ho-74185cf38`, `read_ho.py`).
+- **Held on B, not A.** Its carrier cannot say which: B sits within 5 Hz
+    of A by construction. Its code phase can. On both of its draws the
+    receiver ends 0.14 to 0.19 chip from B's code phase, 111 chips from
+    A's, with code lock up 99.6 and 99.7% of the time over 4 s
+    (`run-ho-74185cf38`, `handover.csv`'s `end_b_chips`, `end_a_chips` and
+    `code_frac`).
 - **Never released by the ghost rule.** None of 28 draws was released over
     20 s (`run-rho-145281207`, `read_rho.py`).
 - **Decoded.** B's error rate is 1 × 10⁻⁴ (median) on a −1 lag, and 7 × 10⁻⁴
@@ -3557,9 +3561,12 @@ lags; the hand-over tolerates about 23 dB on all of them.
 **The pool: a ghost on its parent's carrier.** A receiver on a strong
 emitter's code sidelobe and a weak emitter within about 24 dB on the same
 carrier cannot be separated by power, code phase or data without also
-releasing usable tracks. The fine hand-over moves every ghost onto its
-parent's carrier (k = 0), where the ghost rule leaves it alone (§8,
-doppler#2551). At 2.8 GHz the shipped pool holds 4 to 8 of 20 ghosts for
+releasing usable tracks. The fine hand-over moves most ghosts onto their
+parent's carrier (k = 0), where the ghost rule leaves them (§8,
+doppler#2551): every one forced at k = −1, 0, +1 and +2. At k = −2, 5 of
+20 at each carrier end 1, 2 or 4 lattice steps off instead, and the ghost
+rule releases each (`run-cen-0373a01d5`'s `ghosts_forced.csv`,
+`df_end_hz`). At 2.8 GHz the shipped pool holds 4 to 8 of 20 ghosts for
 20 s, per k.
 
 - **Evidence:** `run-b-34cfdce9b` (`read_b.py`), `run-pc-8df79b4cc`

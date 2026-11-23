@@ -52,6 +52,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _docs_pages import FENCE, SPAN  # the one fence and code-span regexes
+
 ROOT = Path(__file__).resolve().parent.parent
 
 #: Pages naming a symbol that is gone on purpose, one `page symbol` per line.
@@ -72,8 +74,6 @@ _SYMBOL = re.compile(
 #: symbol: `dp_mytype_create`, `dp_foo_create`.
 PLACEHOLDER_WORDS = frozenset({"foo", "bar", "baz", "mytype", "myobj"})
 
-_FENCE = re.compile(r"^[ \t]*(```|~~~).*?^[ \t]*\1", re.S | re.M)
-_SPAN = re.compile(r"`([^`\n]+)`")
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
 _LINE_COMMENT = re.compile(r"//[^\n]*")
 
@@ -118,9 +118,9 @@ def pages(files: list[str]) -> list[str]:
 
 def named_symbols(text: str) -> set[str]:
     """The `dp_*` names in a page's fences and code spans."""
-    fences = [m.group(0) for m in _FENCE.finditer(text)]
-    prose = _FENCE.sub("", text)
-    spans = fences + _SPAN.findall(prose)
+    fences = [m.group(0) for m in FENCE.finditer(text)]
+    prose = FENCE.sub("", text)
+    spans = fences + SPAN.findall(prose)
     names = {m.group(1) for s in spans for m in _SYMBOL.finditer(s)}
     return {
         n for n in names if not PLACEHOLDER_WORDS & set(n.lower().split("_"))

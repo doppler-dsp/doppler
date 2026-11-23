@@ -1,0 +1,46 @@
+# Existing uses of a retired word, `<page> <count> <phrase>`: the list only shrinks.
+# scripts/check_retired_words.py reads it; the "Retired words" tables of docs/design/vocabulary.md are the declaration.
+# Exact both ways: more uses than listed is a new use (fix it); fewer is stale (lower or delete).
+docs/benchmarks.md 20 tile
+docs/benchmarks.md 11 tiles
+docs/design/acq-fn.md 1 look count
+docs/design/acq-surface.md 1 look count
+docs/design/acq-surface.md 5 native span
+docs/design/acq-surface.md 72 tile
+docs/design/acq-surface.md 29 tiles
+docs/design/agc.md 1 as built
+docs/design/api-taxonomy.md 1 tile
+docs/design/api-taxonomy.md 2 tiles
+docs/design/async-dsss-receiver.md 15 as built
+docs/design/async-dsss-receiver.md 1 lattice
+docs/design/async-dsss-receiver.md 1 lattice step
+docs/design/async-dsss-receiver.md 11 tile
+docs/design/async-dsss-receiver.md 2 tiles
+docs/design/burst-bank.md 1 tile
+docs/design/burst-bank.md 1 tiles
+docs/design/burst-capture.md 2 native span
+docs/design/burst-capture.md 2 tile
+docs/design/coarse-channel.md 1 native span
+docs/design/corr2d-hypotheses.md 2 tile
+docs/design/correlator.md 1 tile
+docs/design/correlator.md 2 tiles
+docs/design/detection.md 4 look count
+docs/design/dsss-burst-receiver.md 1 as built
+docs/design/loop-filter.md 1 as built
+docs/design/mpsk.md 1 as built
+docs/dev/contributing/dsss-use-cases.md 1 doppler window
+docs/dev/contributing/dsss-use-cases.md 7 native span
+docs/dev/contributing/dsss-use-cases.md 4 tile
+docs/dev/contributing/dsss-use-cases.md 1 tiles
+docs/dev/issues.md 3 tile
+docs/gallery/dsss-burst-receiver.md 1 tiles
+docs/gallery/dsss-receiver.md 1 tiles
+docs/gallery/receiver-lock.md 1 look count
+docs/guide/acquisition.md 5 native span
+docs/guide/acquisition.md 4 tile
+docs/guide/acquisition.md 4 tiles
+docs/guide/dsss-acquisition.md 7 native span
+docs/guide/dsss-acquisition.md 6 tile
+docs/guide/dsss-acquisition.md 7 tiles
+docs/guide/dsss-receivers.md 1 native span
+docs/guide/lock-detection.md 1 n looks

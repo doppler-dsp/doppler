@@ -1280,6 +1280,7 @@ $(UV) run python scripts/check_doc_face_parity.py
 $(UV) run python scripts/check_init_param_optionality.py
 $(UV) run python scripts/check_out_param_guard.py
 $(UV) run python scripts/check_c_api_link_refs.py
+$(UV) run python scripts/check_retired_words.py
 $(UV) run python docs/design/spectrogram-measurements/u1u4.py --check
 $(UV) run python docs/design/spectrogram-measurements/b2094.py --check
 $(UV) run python docs/design/async-dsss-receiver-measurements/record.py --check
@@ -2027,7 +2028,8 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 kwarg-parity-check \
                 issues issues-check \
                 gates-extra-home-check \
-                doc-sections-check doc-symbols-check state-versions-check \
+                doc-sections-check doc-symbols-check retired-words-check \
+                state-versions-check \
                 installed-headers-check cxx-headers-check \
                 exported-link-check symbol-prefix-check \
                 export-check public-symbols \
@@ -2147,7 +2149,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       issue-link-check bootstrap-cmd-check deps-budget-check \
       ci-image-refs-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
-      doc-symbols-check state-versions-check \
+      doc-symbols-check retired-words-check state-versions-check \
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check mem-guard-check \
       design-pages-check gallery-scripts-check user-docs-check \
@@ -2279,6 +2281,15 @@ doc-sections-check: ## Verify every `docs/x.md` section citation resolves
 # a renamed or deleted symbol survived every other docs gate (#2580).
 doc-symbols-check: ## Verify every C symbol named in docs/ exists in the tree
 	@$(UV) run python scripts/check_doc_symbols.py
+
+# A word the "Retired words" tables of docs/design/vocabulary.md retire does
+# not come back in the prose it is retired from. The rows are read from the
+# page, so a row added there is enforced here with no second edit; existing
+# uses are the shrink-only scripts/.retired-words-exempt. In the commit
+# hook's docs-invariants list too (#3276: a check only `make lint` runs
+# reaches a push).
+retired-words-check: ## Verify no retired word (vocabulary.md's tables) is used in docs prose
+	@$(UV) run python scripts/check_retired_words.py
 
 # A state blob's `(magic, version)` names one layout for all time, or
 # `set_state` reinterprets an old blob instead of refusing it. Read from the

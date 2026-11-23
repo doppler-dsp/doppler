@@ -238,9 +238,8 @@ def test_a_segments_rate_does_not_depend_on_source_order():
                 )
             ]
         )
-    assert (
-        "ofdm sources 0 (2e+07 Hz) and 1 (1e+07 Hz) differ in bandwidth"
-        in (str(e.value))
+    assert "ofdm sources 0 (20 MHz) and 1 (10 MHz) differ in bandwidth" in (
+        str(e.value)
     )
 
 

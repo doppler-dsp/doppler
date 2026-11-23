@@ -814,11 +814,11 @@ resolved_scene (const wfm_segment_t *segs, size_t n_segs, const char **why)
                  error path. */
               static _Thread_local char msg[256];
               (void)snprintf (msg, sizeof msg,
-                              "segment %zu: its ofdm sources %zu (%g Hz) and "
-                              "%zu (%g Hz) differ in bandwidth, so at the "
-                              "default fs it has no one rate: give the "
+                              "segment %zu: its ofdm sources %zu (%g MHz) "
+                              "and %zu (%g MHz) differ in bandwidth, so at "
+                              "the default fs it has no one rate: give the "
                               "segment's fs",
-                              i, first, rs[i].fs, k, fs);
+                              i, first, rs[i].fs / 1e6, k, fs / 1e6);
               bad = msg;
               break;
             }

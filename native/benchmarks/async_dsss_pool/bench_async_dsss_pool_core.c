@@ -589,7 +589,9 @@ main (void)
     return 1;
 
   /* The 415.1-B-1 specification point at each band end: chips at
-     fc x 31/21216, 3,000 sym/s, +/-1,500 Hz, a 400 Hz/s rate bound, a
+     fc x 31/21216, 3,000 sym/s, +/-1,500 Hz, the residual's rate R_env
+     as the rate bound (dp_s415_r_env(), 11 Hz/s; v0.85.0 and earlier
+     measured a 400 Hz/s bound), a
      275-symbol code-only window in every 1,000-symbol frame, 4 dB Es/N0.
      The nine emitters sit 311 Hz apart from -1,335 Hz to +1,154 Hz (a
      tracked Doppler is matched within 150 Hz) and hold their Doppler, as
@@ -609,7 +611,7 @@ main (void)
               .carrier_hz    = fcs[i],
               .span_hz       = DP_S415_SPAN_HZ,
               .code_only_s   = (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
-              .rate_hz_s     = DP_S415_RATE_HZ_S,
+              .rate_hz_s     = dp_s415_r_env (),
               .f_lo          = -1450.0,
               .f_hi          = 1350.0,
               .ramp_hz_s     = 0.0,

@@ -517,203 +517,6 @@ pi_slope (double rho, int kw, uint64_t seed)
   return acc / ((double)PI_SLOPE_N * 2.0 * PI_SLOPE_D);
 }
 
-/* The use case's dynamics (docs/design/async-dsss-receiver.md, "The
-   dynamics the receiver is specified for"; owner 11-17: LEO, Doppler
-   pre-compensated, the residual offset uniform in +/-DP_S415_SPAN_HZ, its rate
-   a conservative envelope from an ephemeris error model). A LEO pass is a
-   circular orbit over a spherical Earth seen from a fixed point above a
-   PI_PASS_MASK_DEG elevation mask, Earth rotation ignored (its worst case
-   is the factor pi_pass_rotation()); the passes in scope are those whose
-   RAW peak rate is the specification's PI_PASS_RATE_SPEC, one a grid
-   altitude with its maximum elevation solved. Over them:
-     - timing: the along-track error, residual f(t) - f(t - dt) for every
-       dt up to the one whose residual reaches DP_S415_SPAN_HZ, both branches;
-     - proportional: the cross-check, residual eps f(t) for every eps up to
-       DP_S415_SPAN_HZ over the pass's visible peak offset.
-   R_env is pi_r_env(): the timing envelope's maximum (the ephemeris error
-   model, owner 11-17), times the rotation factor, rounded up to the whole
-   Hz/s. The proportional model is its cross-check, printed with the pass
-   that drives it, and does not set it. */
-#define PI_PASS_MASK_DEG 10.0
-#define PI_PASS_RATE_SPEC 400.0
-#define PI_PASS_RE_KM 6371.0
-#define PI_PASS_MU 398600.4418
-#define PI_PASS_C_KMS 299792.458
-#define PI_PASS_OMEGA_E 7.2921e-5
-#define PI_PASS_DT 0.02
-#define PI_PASS_TRIM 25
-#define PI_PASS_BINS                                                          \
-  15 /* |offset| bins of DP_S415_SPAN_HZ / PI_PASS_BINS Hz */
-
-/* One pass's residual-free curve: f, f' and f'' (Hz, Hz/s, Hz/s^2) on a
-   PI_PASS_DT grid above the mask, the range rate in closed form and every
-   end point a numerical derivative touches trimmed. Returns the point
-   count (0: the pass never clears the mask); *v the orbital speed, km/s. */
-static size_t
-pi_pass_curve (double h_km, double el_deg, double fc, double **f, double **f1,
-               double **f2, double *v)
-{
-  const double rs = PI_PASS_RE_KM + h_km,
-               w  = sqrt (PI_PASS_MU / (rs * rs * rs));
-  const double e = el_deg * M_PI / 180.0, em = PI_PASS_MASK_DEG * M_PI / 180.0;
-  const double g0 = acos (PI_PASS_RE_KM * cos (e) / rs) - e;
-  const double gm = acos (PI_PASS_RE_KM * cos (em) / rs) - em;
-  *v              = rs * w;
-  if (g0 >= gm)
-    return 0;
-  const double tmax = acos (cos (gm) / cos (g0)) / w;
-  const size_t n    = (size_t)(2.0 * tmax / PI_PASS_DT);
-  if (n < 4 * PI_PASS_TRIM)
-    return 0;
-  double *a = dp_xmallocn (n, sizeof *a), *b = dp_xmallocn (n, sizeof *b),
-         *c = dp_xmallocn (n, sizeof *c);
-  for (size_t i = 0; i < n; i++)
-    {
-      const double t  = -tmax + (double)i * PI_PASS_DT;
-      const double cg = cos (g0) * cos (w * t);
-      const double d  = sqrt (PI_PASS_RE_KM * PI_PASS_RE_KM + rs * rs
-                              - 2.0 * PI_PASS_RE_KM * rs * cg);
-      a[i]            = -fc / PI_PASS_C_KMS * PI_PASS_RE_KM * rs * cos (g0) * w
-                        * sin (w * t) / d;
-    }
-  for (size_t i = 1; i + 1 < n; i++)
-    b[i] = (a[i + 1] - a[i - 1]) / (2.0 * PI_PASS_DT);
-  for (size_t i = 2; i + 2 < n; i++)
-    c[i] = (b[i + 1] - b[i - 1]) / (2.0 * PI_PASS_DT);
-  const size_t m = n - 2 * PI_PASS_TRIM;
-  memmove (a, a + PI_PASS_TRIM, m * sizeof *a);
-  memmove (b, b + PI_PASS_TRIM, m * sizeof *b);
-  memmove (c, c + PI_PASS_TRIM, m * sizeof *c);
-  *f = a, *f1 = b, *f2 = c;
-  return m;
-}
-
-static double
-pi_pass_peak_rate (double h_km, double el_deg, double fc)
-{
-  double      *f, *f1, *f2, v, pk = 0.0;
-  const size_t n = pi_pass_curve (h_km, el_deg, fc, &f, &f1, &f2, &v);
-  for (size_t i = 0; i < n; i++)
-    pk = fmax (pk, fabs (f1[i]));
-  if (n)
-    free (f), free (f1), free (f2);
-  return pk;
-}
-
-/* The pass at altitude h whose raw peak rate is PI_PASS_RATE_SPEC: its
-   maximum elevation by bisection; NAN when even overhead stays under. */
-static double
-pi_pass_el (double h_km, double fc)
-{
-  /* In scope only where some pass at h has exactly that peak: not when
-     even overhead stays under it, nor when even the lowest pass above the
-     mask already exceeds it. */
-  double lo = PI_PASS_MASK_DEG + 0.5, hi = 89.9;
-  if (pi_pass_peak_rate (h_km, hi, fc) < PI_PASS_RATE_SPEC
-      || pi_pass_peak_rate (h_km, lo, fc) > PI_PASS_RATE_SPEC)
-    return NAN;
-  for (int i = 0; i < 30; i++)
-    {
-      const double m = 0.5 * (lo + hi);
-      if (pi_pass_peak_rate (h_km, m, fc) > PI_PASS_RATE_SPEC)
-        hi = m;
-      else
-        lo = m;
-    }
-  return lo;
-}
-
-typedef struct
-{
-  double step_km;
-  int    n_pass;
-  double env[PI_PASS_BINS]; /* timing: largest |rate| by |offset| bin */
-  double timing_max, prop_max, v_min, f2_max;
-  double res_f2_max;     /* timing: the largest |residual rate'|, Hz/s^2 */
-  double raw_ppm_max[2]; /* the raw |offset| / carrier, ppm, per carrier */
-  double prop_h_km, prop_el_deg, prop_fc, prop_eps; /* its driving pass */
-} pi_pass_env_t;
-
-/* The envelope over every in-scope pass on a step_km altitude grid from
-   350 km, at both carriers. */
-static void
-pi_pass_envelope (double step_km, pi_pass_env_t *pe)
-{
-  memset (pe, 0, sizeof *pe);
-  pe->step_km                = step_km;
-  pe->v_min                  = INFINITY;
-  static const double fcs[2] = { DP_S415_FC_LO, DP_S415_FC_HI };
-  for (int k = 0; k < 2; k++)
-    for (double h = 350.0; h <= 1200.0 + 1e-9; h += step_km)
-      {
-        const double el = pi_pass_el (h, fcs[k]);
-        if (isnan (el))
-          continue;
-        double      *f, *f1, *f2, v;
-        const size_t n = pi_pass_curve (h, el, fcs[k], &f, &f1, &f2, &v);
-        if (!n)
-          continue;
-        pe->n_pass++;
-        pe->v_min  = fmin (pe->v_min, v);
-        double fpk = 0.0, f1pk = 0.0;
-        for (size_t i = 0; i < n; i++)
-          {
-            fpk        = fmax (fpk, fabs (f[i]));
-            f1pk       = fmax (f1pk, fabs (f1[i]));
-            pe->f2_max = fmax (pe->f2_max, fabs (f2[i]));
-          }
-        /* timing: lag j samples, j stepping 0.05 s, until the residual
-           first passes the bound */
-        for (size_t j = 1; j < n; j += (size_t)(0.05 / PI_PASS_DT))
-          {
-            double rmax = 0.0;
-            for (size_t i = j; i < n; i++)
-              rmax = fmax (rmax, fabs (f[i] - f[i - j]));
-            if (rmax > DP_S415_SPAN_HZ)
-              break;
-            for (size_t i = j; i < n; i++)
-              {
-                const double o  = fabs (f[i] - f[i - j]);
-                int          bi = (int)(o / (DP_S415_SPAN_HZ / PI_PASS_BINS));
-                if (bi >= PI_PASS_BINS)
-                  bi = PI_PASS_BINS - 1;
-                pe->env[bi] = fmax (pe->env[bi], fabs (f1[i] - f1[i - j]));
-                pe->res_f2_max
-                    = fmax (pe->res_f2_max, fabs (f2[i] - f2[i - j]));
-              }
-          }
-        pe->raw_ppm_max[k] = fmax (pe->raw_ppm_max[k], fpk / fcs[k] * 1e6);
-        /* proportional: the largest residual rate is eps_max f'_max */
-        if (DP_S415_SPAN_HZ / fpk * f1pk > pe->prop_max)
-          {
-            pe->prop_max    = DP_S415_SPAN_HZ / fpk * f1pk;
-            pe->prop_h_km   = h;
-            pe->prop_el_deg = el;
-            pe->prop_fc     = fcs[k];
-            pe->prop_eps    = DP_S415_SPAN_HZ / fpk;
-          }
-        free (f), free (f1), free (f2);
-      }
-  for (int i = 0; i < PI_PASS_BINS; i++)
-    pe->timing_max = fmax (pe->timing_max, pe->env[i]);
-}
-
-/* Earth rotation, ignored by the pass model: at most the equatorial
-   surface speed against the slowest in-scope orbit. */
-static double
-pi_pass_rotation (double v_min_kms)
-{
-  return 1.0 + PI_PASS_OMEGA_E * PI_PASS_RE_KM / v_min_kms;
-}
-
-/* R_env, the rate a pass draw holds, Hz/s: the timing envelope's maximum
-   times the rotation factor, rounded up to the whole Hz/s. */
-static double
-pi_r_env (double timing_max, double rotation)
-{
-  return ceil (timing_max * rotation);
-}
-
 /* --dynamics pass: R_env for this run (0 until main computes it). */
 static double pi_pass_r_env = 0.0;
 /* --dynamics: "pass" (the use case: static, and the constant R_env) or
@@ -1877,11 +1680,10 @@ print_cell (const draw_t *ds, size_t n)
       "in %.0f s %zu, unaligned at lock %zu, early lock %zu; aligned "
       "%zu, slipped %zu, end unsynced %zu; SER %.2e [%.2e, %.2e] (%lu/%lu), "
       "loss %.2f dB\n",
-      ds[0].fc / 1e9, ds[0].esn0, ds[0].rate == 0.0 ? 0.0 : DP_S415_RATE_HZ_S,
-      works, n, wl, wh, acq, fl, nt ? t[nt / 2] : NAN,
-      nt ? t[(size_t)(0.9 * (double)nt)] : NAN, nt ? t[nt - 1] : NAN,
-      DP_S415_LOCK_S, late, unal, early, al, slip, unsync, ci.p_hat, ci.lo,
-      ci.hi, err, sc, loss);
+      ds[0].fc / 1e9, ds[0].esn0, fabs (ds[0].rate), works, n, wl, wh, acq, fl,
+      nt ? t[nt / 2] : NAN, nt ? t[(size_t)(0.9 * (double)nt)] : NAN,
+      nt ? t[nt - 1] : NAN, DP_S415_LOCK_S, late, unal, early, al, slip,
+      unsync, ci.p_hat, ci.lo, ci.hi, err, sc, loss);
 }
 
 /* 415.1-B-1 §7.4.1 in every cell. Its form depends on what the cell's
@@ -1975,19 +1777,20 @@ pi_design (const double fcs[2], const double esn0s[4])
 {
   /* The use case's dynamics: the envelope on the 50 km grid and on the
      halved one, how far the maxima move, and R_env. */
-  pi_pass_env_t pe[2];
-  pi_pass_envelope (50.0, &pe[0]);
-  pi_pass_envelope (25.0, &pe[1]);
+  dp_s415_pass_env_t pe[2];
+  dp_s415_pass_envelope (50.0, &pe[0]);
+  dp_s415_pass_envelope (25.0, &pe[1]);
   printf ("# pass\nstep_km,passes,f2_raw_max_hz_s2,timing_max_hz_s,"
           "prop_max_hz_s,prop_pass_h_km,prop_pass_el_deg,prop_pass_fc_ghz,"
           "prop_pass_eps,rotation,r_env_hz_s,o2_lag_at_r_env_deg,"
           "o2_lag_at_prop_max_deg,res_f2_max_hz_s2");
-  for (int i = 0; i < PI_PASS_BINS; i++)
-    printf (",env_%.0f", (double)(i + 1) * DP_S415_SPAN_HZ / PI_PASS_BINS);
+  for (int i = 0; i < DP_S415_PASS_BINS; i++)
+    printf (",env_%.0f",
+            (double)(i + 1) * DP_S415_SPAN_HZ / DP_S415_PASS_BINS);
   printf ("\n");
   for (int g = 0; g < 2; g++)
     {
-      const double rot = pi_pass_rotation (pe[g].v_min);
+      const double rot = dp_s415_pass_rotation (pe[g].v_min);
       /* The order-2 lag at the rule's bn, the larger of the carriers'. */
       double lag_per = 0.0;
       for (int f = 0; f < 2; f++)
@@ -1999,14 +1802,14 @@ pi_design (const double fcs[2], const double esn0s[4])
               lag_per,
               360.0 * dp_state_filter_steady_error (2, lf.ki, 0.0, 2, T * T));
         }
-      const double r_env = pi_r_env (pe[g].timing_max, rot);
+      const double r_env = dp_s415_r_env_of (pe[g].timing_max, rot);
       printf ("%.0f,%d,%.3f,%.3f,%.3f,%.0f,%.1f,%.1f,%.4f,%.4f,%.0f,%.3f,"
               "%.3f,%.3f",
               pe[g].step_km, pe[g].n_pass, pe[g].f2_max, pe[g].timing_max,
               pe[g].prop_max, pe[g].prop_h_km, pe[g].prop_el_deg,
               pe[g].prop_fc / 1e9, pe[g].prop_eps, rot, r_env, lag_per * r_env,
               lag_per * pe[g].prop_max, pe[g].res_f2_max);
-      for (int i = 0; i < PI_PASS_BINS; i++)
+      for (int i = 0; i < DP_S415_PASS_BINS; i++)
         printf (",%.3f", pe[g].env[i]);
       printf ("\n");
     }
@@ -2088,9 +1891,8 @@ pi_design (const double fcs[2], const double esn0s[4])
                           * log10 (k * k * rho
                                    / (4.0 * bd * (1.0 + kw / (2.0 * rho)))),
                       360.0
-                          * dp_state_filter_steady_error (order, lf.ki, 0.0, 2,
-                                                          DP_S415_RATE_HZ_S * T
-                                                              * T));
+                          * dp_state_filter_steady_error (
+                              order, lf.ki, 0.0, 2, dp_s415_r_env () * T * T));
             }
       }
 }
@@ -2178,9 +1980,7 @@ main (int argc, char **argv)
      conservative residual rate, from the 50 km envelope. */
   if (pi_dyn_pass)
     {
-      pi_pass_env_t pe;
-      pi_pass_envelope (50.0, &pe);
-      pi_pass_r_env = pi_r_env (pe.timing_max, pi_pass_rotation (pe.v_min));
+      pi_pass_r_env = dp_s415_r_env ();
       rates[1]      = pi_pass_r_env;
     }
   /* A slice flag that names no cell is refused: a run that measured
@@ -2323,9 +2123,13 @@ main (int argc, char **argv)
   free (ds);
   if (check)
     {
-      /* The live carrier holds a 400 Hz/s ramp: at 10 dB, the receiver as
-         built, the end's carrier is within the false-lock limit of the
-         truth. The draw is sized so the hand-over's Doppler is past it. */
+      /* An out-of-use-case stress, printed and not gated: a 400 Hz/s
+         ramp (DP_S415_RATE_HZ_S, the raw pass's peak rate, which the
+         receiver does not meet: async-dsss-receiver.md §1.8; the owner,
+         11-17, "We don't want to test what will never happen"; D3's red
+         (iv)). The receiver is configured for R_env (dp_s415_r_env()).
+         The draw is sized so the hand-over's Doppler is past the
+         false-lock limit. */
       draw_t rd;
       DP_REQUIRE (run_draw (code, DP_S415_FC_HI, 10.0, DP_S415_RATE_HZ_S, 1,
                             PI_RAMP_CHECK_S, spc, NULL, NULL, &rd)
@@ -2336,11 +2140,9 @@ main (int argc, char **argv)
               "%.0f Hz off, %.2fx the %.0f Hz limit\n",
               PI_RAMP_CHECK_S, rd.end_resid_hz, rd.end_stale_hz,
               fabs (rd.end_stale_hz) / lim, lim);
-      DP_CHECK_MSG (fabs (rd.end_stale_hz) > 1.2 * lim,
-                    "the draw is long enough to tell the live carrier from "
-                    "the hand-over's");
-      DP_CHECK_MSG (!rd.false_lock, "the live carrier holds a 400 Hz/s ramp "
-                                    "at 10 dB");
+      printf ("  ramp (out of the use case, not gated): long enough %d, "
+              "the live carrier holds it %d\n",
+              fabs (rd.end_stale_hz) > 1.2 * lim, !rd.false_lock);
 
       /* #3134, pinned where it moves first: the 60-draw slice at 2.8 GHz,
          10 dB, static has the code lock change over the data, after it is

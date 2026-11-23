@@ -8,13 +8,15 @@
  * figure. The link: BPSK at 3,000 symbols a second, spread by a 1,023-chip
  * Gold code whose chip rate is the carrier times 31/21216, the data
  * asynchronous to the code. The receiver takes 11 MSa/s and searches a
- * Doppler within +/-1,500 Hz that moves by up to 400 Hz/s. Told the RF
+ * Doppler within +/-1,500 Hz that moves at up to R_env, 11 Hz/s: the
+ * residual the link's ephemeris pre-compensation leaves (the design page's
+ * §1.8). Told the RF
  * carrier (`carrier_freq_hz`), it feeds the carrier offset it tracks to its
  * code loop as the matching code-rate offset, so it follows the chip clock
  * the Doppler stretches.
  *
  * It runs at both ends of the band, 2.2 and 2.8 GHz, each a capture whose
- * Doppler ramps at 400 Hz/s from -500 Hz through zero to +500 Hz, at Es/N0 =
+ * Doppler ramps at R_env from -13.75 Hz through zero to +13.75 Hz, at Es/N0 =
  * 10 dB, 6 dB above the link's 4 dB floor. It demonstrates the receiver; it
  * does not certify it: performance at the floor is measured by the
  * receiver's validators (docs/design/async-dsss-receiver-measurements.md).
@@ -80,7 +82,10 @@
         */
 #define FRAME_SYM 1000u
 #define DOPPLER_UNCERTAINTY_HZ 1500.0 /* one-sided: within +/-1,500 Hz */
-#define DOPPLER_RATE_HZ_S 400.0       /* the fastest the Doppler changes */
+/* The fastest the Doppler changes: R_env, the residual's rate (the design
+   page's §1.8; the 415.1-B-1 test fixture's dp_s415_r_env(), which
+   test_c_example_pairs.py holds this equal to). */
+#define DOPPLER_RATE_HZ_S 11.0
 /* Es/N0 at the receiver input: 6 dB above the link's 4 dB floor, so the
    despread symbols show as two clusters. A demonstration, not a validator. */
 #define ESN0_DB 10.0
@@ -98,8 +103,8 @@
 #define PAYLOAD_SEED 1u
 #define PAYLOAD_PN_LENGTH 15u
 /* The Doppler at the signal's first sample; it ramps at DOPPLER_RATE_HZ_S
-   through zero at 1.25 s, to +500 Hz. */
-#define START_HZ (-500.0)
+   through zero at 1.25 s, to +13.75 Hz. */
+#define START_HZ (-13.75)
 
 /* The checks' bounds; the Python twin's validate block says why each sits
    where it does. Symbol lock is a per-draw outcome on random noise, so one
@@ -133,9 +138,9 @@ struct regime
    checks them against their definitions. */
 static const struct regime REGIMES[] = {
   { "2.2 GHz", 2.2e9, 3214555.052790347, 1.7109677419354838,
-    -0.22727272727272727, 0.18181818181818182 },
+    -0.0062499999999999995, 0.005 },
   { "2.8 GHz", 2.8e9, 4091251.8853695323, 1.344331797235023,
-    -0.17857142857142858, 0.14285714285714285 },
+    -0.004910714285714286, 0.003928571428571429 },
 };
 #define N_REGIMES (sizeof REGIMES / sizeof REGIMES[0])
 

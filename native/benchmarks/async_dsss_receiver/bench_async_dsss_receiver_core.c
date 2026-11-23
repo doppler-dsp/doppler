@@ -421,7 +421,9 @@ run_tracking (jm_bench_t *bench, const uint8_t *code)
  * 1,023-chip code at fc x 31/21216 chips a second (the CCSDS 415.1-B-1
  * forward-link coherence ratio), 3,000 sym/s, fed 11 MSa/s directly (its
  * search resamples to the 2,048-sample epoch; refine and tracking run at
- * 11 MSa/s), +/-1,500 Hz, a 400 Hz/s rate bound, a 275-symbol code-only
+ * 11 MSa/s), +/-1,500 Hz, the residual's rate R_env as the rate bound
+ * (dp_s415_r_env(), 11 Hz/s; v0.85.0 and earlier measured a 400 Hz/s
+ * bound, which searched shallower), a 275-symbol code-only
  * window and the carrier set, so the code rate is aided from the carrier.
  * The design C/N0 is 4 dB Es/N0 (38.77 dB-Hz), the shipped awgn. Two
  * carriers, the band's ends: 2.2 GHz (3.215 Mcps) and 2.8 GHz (4.091 Mcps).

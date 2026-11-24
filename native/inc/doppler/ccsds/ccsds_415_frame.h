@@ -93,7 +93,8 @@ typedef struct
   /** Frame sequence number, 0 to 255 (0: the value the COP sets on a
    *  Type-B frame). */
   unsigned seq;
-  /** Gap symbols ahead of the acquisition sequence: the code alone. */
+  /** Gap symbols ahead of the acquisition sequence: the code alone. 1 to
+   *  #WFM_FIELD_MAX_BITS, since the gap is one field of that many bits. */
   size_t gap_sym;
 } dp_ccsds_415_frame_cfg_t;
 
@@ -133,7 +134,8 @@ typedef struct
  * @param why          on refusal, receives a static sentence naming the
  *                     fix; may be NULL.
  * @return 0, or -1 with @p why set: data octets out of range, a value that
- *         does not fit its field, a zero gap, or NULL @p f.
+ *         does not fit its field, a gap of zero or more than
+ *         #WFM_FIELD_MAX_BITS symbols, or NULL @p f.
  *
  * @code
  * dp_ccsds_415_frame_t f;

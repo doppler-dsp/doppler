@@ -21,7 +21,8 @@ crc16_octets (const uint8_t *o, size_t n)
     {
       r ^= (uint16_t)(o[i] << 8);
       for (int k = 0; k < 8; k++)
-        r = (uint16_t)((r & 0x8000u) ? (r << 1) ^ 0x1021u : (r << 1));
+        r = (uint16_t)((r & 0x8000u) ? ((unsigned)r << 1) ^ 0x1021u
+                                     : ((unsigned)r << 1));
     }
   return r;
 }

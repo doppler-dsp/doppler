@@ -1436,7 +1436,7 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "most\n"
     "Traceback (most recent call last):\n"
     "    ...\n"
-    "ValueError: AsyncDsssPool: invalid parameter ...\n",
+    "ValueError: AsyncDsssPool: refused: ...\n",
   .tp_methods = AsyncDsssPoolObj_methods,
   .tp_getset  = AsyncDsssPool_getset,
   .tp_new     = AsyncDsssPoolObj_new,

@@ -15,8 +15,9 @@
 //      the payload, dropped no symbol, and the capture is complete.
 //
 // The loop is run.cpp's, shared with ccsds415-tui. plot.py reads what this
-// writes; it only plots. The point's numbers are the library's
-// (doppler/ccsds/ccsds_415.h): nothing here restates one.
+// writes; it only plots. The point's rates and limits are the library's
+// (doppler/ccsds/ccsds_415.h); the code's parameters are the standard's,
+// named where run.cpp passes them (gold_code()).
 #include "run.hpp"
 
 #include <cstdio>

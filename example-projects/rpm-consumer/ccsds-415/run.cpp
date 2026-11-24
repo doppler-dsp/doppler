@@ -9,6 +9,7 @@
 #include <doppler/wfm/wfm_core.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -28,19 +29,33 @@ c_ptr (std::vector<cf32> &v)
 
 constexpr double LEAD_IN_S = 0.05; // noise alone before the signal arrives
 constexpr unsigned PAYLOAD_SEED = 1, PAYLOAD_PN = 15;
-// What "sustained" means for the symbol lock: dp_ber_lock_symbol()'s
-// defaults on the Python face.
-constexpr size_t LOCK_SUSTAIN = 200;
-constexpr double LOCK_MIN_FRAC = 0.9;
+// What "sustained" means for the symbol lock is dp_ber_lock_symbol()'s
+// own: 0 and 0.0 select its defaults, so this file does not restate them.
+constexpr size_t LOCK_SUSTAIN = 0;
+constexpr double LOCK_MIN_FRAC = 0.0;
 constexpr double MAX_BER = 1e-3;
 constexpr long LAG_SPAN = 1000; // symbols the stream may start into the data
 
-// The mission's code: doppler's Gold generator at its CCSDS defaults.
+// The mission's code, a 1,023-chip Gold code from the CCSDS command-link
+// generator (415.0-G-1 §5.2.2.4, Figure 5-1). The library leaves the code
+// to the caller (ccsds_415.h: "the mission's, so it is an argument"), and
+// its C face has no names for the standard's registers yet (#3348), so
+// each argument is named here.
 std::vector<uint8_t>
 gold_code ()
 {
+  // Register A's polynomial x^10+x^9+x^8+x^6+x^3+x^2+1: fixed.
+  const uint64_t taps_a = 934;
+  // Register A's initial value: user dependent, so it picks the mission's
+  // member of the family. 350 is Figure 5-2's worked example (PN Code
+  // Library Table 1, code number 365).
+  const uint64_t seed_a = 350;
+  // Register B's polynomial and its initial value 1001001000: both fixed.
+  const uint64_t taps_b = 567, seed_b = 73;
+  // Ten-stage registers: a period of 2^10 - 1 = 1,023 chips.
+  const uint32_t length = 10;
   std::vector<uint8_t> code (DP_CCSDS_415_SF);
-  dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_state_t *g = dp_gold_create (taps_a, seed_a, taps_b, seed_b, length);
   check (g != nullptr, "the Gold generator opens");
   dp_gold_generate (g, code.size (), code.data (), code.size ());
   dp_gold_destroy (g);
@@ -97,6 +112,32 @@ check (bool ok, const std::string &why)
     fail (why);
 }
 
+// A whole option value as a number, or a failed check naming the option:
+// strtod and strtoul read "abc" as 0 and "6x" as 6 without complaint.
+static double
+number (const std::string &opt, const std::string &v)
+{
+  char *end = nullptr;
+  errno = 0;
+  const double x = std::strtod (v.c_str (), &end);
+  check (!v.empty () && end == v.c_str () + v.size () && errno == 0
+             && std::isfinite (x),
+         opt + " takes a number, not '" + v + "'");
+  return x;
+}
+
+static size_t
+count (const std::string &opt, const std::string &v)
+{
+  char *end = nullptr;
+  errno = 0;
+  const unsigned long long x = std::strtoull (v.c_str (), &end, 10);
+  check (!v.empty () && v[0] != '-' && end == v.c_str () + v.size ()
+             && errno == 0,
+         opt + " takes a whole number, not '" + v + "'");
+  return static_cast<size_t> (x);
+}
+
 void
 parse (int argc, char **argv, Options &o, bool tui)
 {
@@ -148,11 +189,11 @@ parse (int argc, char **argv, Options &o, bool tui)
             check (v == "both", "--carrier is lo, hi or both");
         }
       else if (a == "--esn0")
-        o.esn0_db = std::strtod (v.c_str (), nullptr);
+        o.esn0_db = number (a, v);
       else if (a == "--seconds")
-        o.seconds = std::strtod (v.c_str (), nullptr);
+        o.seconds = number (a, v);
       else if (a == "--chunk")
-        o.chunk = static_cast<size_t> (std::strtoul (v.c_str (), nullptr, 10));
+        o.chunk = count (a, v);
       else if (a == "--out")
         o.out = v;
       else
@@ -182,9 +223,22 @@ public:
     const double start_hz = -DP_CCSDS_415_R_ENV_HZ_S * seconds / 2.0;
     const dp_ccsds_415_scene_t s = dp_ccsds_415_scene (fc, 2.0, start_hz);
     const double fs2 = 2.0 * s.chip_rate;
-    syn_.reset (dp_wfm_synth_create (WFM_SYNTH_DSSS, fs2, 0.0,
-                                     WFM_SYNTH_SNR_CLEAN, 0, 0, 2, 15, 0,
-                                     PN_GALOIS, 0.0));
+    // The emitter: a continuous DSSS source at two samples a chip, clean
+    // (the noise is added after the channel). Its own PN arguments are
+    // unused, since its data is the payload set below.
+    const int type = WFM_SYNTH_DSSS;
+    const double freq_hz = 0.0;             // no carrier offset of its own
+    const double clean_db = WFM_SYNTH_SNR_CLEAN; // 100 dB and up: no AWGN
+    const int snr_mode = 0;                 // auto; moot with no AWGN
+    const uint32_t seed = 0;                // its PRNG: no AWGN, no PN data
+    const int sps = 2;                      // samples a chip
+    const int pn_length = 15;               // its PN register: unused
+    const uint64_t pn_poly = 0;             // 0: the table's MLS polynomial
+    const int lfsr = PN_GALOIS;
+    const double f_end_hz = 0.0;            // chirps only
+    syn_.reset (dp_wfm_synth_create (type, fs2, freq_hz, clean_db, snr_mode,
+                                     seed, sps, pn_length, pn_poly, lfsr,
+                                     f_end_hz));
     check (syn_ != nullptr, "the emitter opens");
     check (dp_wfm_synth_set_dsss_cont (
                syn_.get (), code, DP_CCSDS_415_SF,
@@ -275,7 +329,7 @@ Run::Run (const Options &o, double fc) : o_ (o), fc_ (fc)
   payload_ = payload_bits (
       static_cast<size_t> ((o.seconds + LEAD_IN_S) * DP_CCSDS_415_SYM) + 64);
 
-  // The receiver the library builds at the point, for its 4 dB floor.
+  // The receiver the library builds at the point, for Es/N0 4 dB.
   const char *why = nullptr;
   rx_.reset (dp_async_dsss_receiver_create_ccsds415 (
       code_.data (), code_.size (), fc, 0.0, true, &why));
@@ -461,7 +515,7 @@ Run::finish_partial ()
                          / DP_CCSDS_415_FS);
       lock = b;
     }
-  std::printf ("%s: stopped at %.2f s of %.2f by the user; %s; the "
+  std::printf ("%s: stopped at %.2f s of %.2f s by the user; %s; the "
                "full-scene checks (%sBER, the payload marker) were not "
                "evaluated. Partial checks (capture complete, %zu records, "
                "no call filled its capacity): %s\n",

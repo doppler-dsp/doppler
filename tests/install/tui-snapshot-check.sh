@@ -29,7 +29,7 @@ rows=(
     "threshold|$num"
     "C/N0|$num dB-Hz"
     "Doppler|$num Hz"
-    "code rate|$num chips/chip"
+    "code rate \(received / nominal\)|$num"
     "carrier|$num GHz"
     "time|$num s"
     "symbols|[0-9]+"

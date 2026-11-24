@@ -104,7 +104,7 @@ size_t dp_ccsds_415_frame_cfg_t::gap_sym;
 
 
 
-Gap symbols ahead of the acquisition sequence: the code alone. 
+Gap symbols ahead of the acquisition sequence: the code alone. 1 to [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits), since the gap is one field of that many bits. 
 
 
         

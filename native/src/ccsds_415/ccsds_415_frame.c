@@ -30,6 +30,11 @@ add_literal (wfm_frame_desc_t *d, const char *name, const uint8_t *bits,
   return dp_wfm_frame_add_field (d, name, &s, reps);
 }
 
+/* The gap's refusal sentence names this number; a change to the field
+   bound must change the sentence with it. */
+_Static_assert (WFM_FIELD_MAX_BITS == 261120,
+                "the gap refusal names WFM_FIELD_MAX_BITS as 261,120");
+
 int
 dp_ccsds_415_frame_desc (dp_ccsds_415_frame_t           *f,
                          const dp_ccsds_415_frame_cfg_t *cfg,
@@ -53,6 +58,11 @@ dp_ccsds_415_frame_desc (dp_ccsds_415_frame_t           *f,
     no = "seq is 8 bits: 0 to 255";
   else if (c->gap_sym == 0)
     no = "the gap holds at least one symbol";
+  /* The gap is one zero bit repeated gap_sym times, a field of gap_sym
+     bits, so it is bounded as a field is: a longer run is a stream. */
+  else if (c->gap_sym > WFM_FIELD_MAX_BITS)
+    no = "the gap holds at most 261,120 symbols (WFM_FIELD_MAX_BITS, the "
+         "most bits one field carries)";
   if (no)
     {
       if (why)

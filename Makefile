@@ -163,15 +163,25 @@ else ifeq ($(origin PYTHON_EXECUTABLE),undefined)
 ifeq ($(shell command -v $(_PY_UV) 2>/dev/null),)
 PYTHON_EXECUTABLE := $(shell command -v python3 2>/dev/null)
 else
-_PY_PROBE := $(shell out=$$($(_PY_UV) run python -c \
+# A parse-time probe ASKS; it must never change the shared .venv. With a venv,
+# `run --no-sync` answers with that venv's interpreter and leaves it alone (a
+# mismatched venv is reported, not rebuilt). With none, `uv python find` names
+# the interpreter a sync WOULD use and creates nothing. Measured: a plain
+# `uv run` here, with UV_PYTHON unset, rebuilt a 3.14 venv as 3.12 on every
+# make that ran it (#3305, the trace of test_make_env_budget).
+ifneq ($(wildcard $(CURDIR)/.venv/bin/python),)
+_PY_PROBE := $(shell out=$$($(_PY_UV) run --no-sync python -c \
     'import sys; print(sys.executable)' 2>/dev/null) && echo "ok $$out")
+else
+_PY_PROBE := $(shell out=$$($(_PY_UV) python find 2>/dev/null) && echo "ok $$out")
+endif
 ifeq ($(firstword $(_PY_PROBE)),ok)
 PYTHON_EXECUTABLE := $(wordlist 2,$(words $(_PY_PROBE)),$(_PY_PROBE))
 else
 PYTHON_EXECUTABLE :=
 # uv's error line, not a `warning:` printed ahead of it; the first line of
 # any kind when uv says nothing starting `error`.
-_PY_ERROR := $(or $(shell out=$$($(_PY_UV) run python -c pass 2>&1 \
+_PY_ERROR := $(or $(shell out=$$($(_PY_UV) run --no-sync python -c pass 2>&1 \
     >/dev/null); printf '%s\n' "$$out" | grep -m1 '^error' \
     || printf '%s\n' "$$out" | head -n 1),`$(_PY_UV) run python` failed)
 endif
@@ -245,7 +255,10 @@ UV         = uv
 # `nats-down` runs `if: always()`, after a job that may have failed for any
 # reason at all, including a broken environment.
 NATS_STREAMS = python3 scripts/nats_streams.py
-DEV_RUN    = $(UV) run --group dev
+# Through scripts/venv_guard.sh: a NESTED make refuses to rebuild a .venv on
+# another Python (exit 2, one line naming both), instead of silently recreating
+# it under a running suite (#3305). The top-level make is unaffected.
+DEV_RUN    = bash scripts/venv_guard.sh $(UV) run --group dev
 RUFF       = $(DEV_RUN) ruff
 # Routed through the dev group, not PATH: uv.lock is the one pin, shared by
 # make, the pre-commit hooks and jm's own `c_format_command`.

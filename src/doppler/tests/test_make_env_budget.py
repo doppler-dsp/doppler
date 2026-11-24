@@ -51,7 +51,19 @@ def _env(cwd: Path, files: list[str], home: Path) -> dict[bytes, bytes]:
             "envdump",
         ],
         capture_output=True,
-        env={"PATH": os.environ["PATH"], "HOME": str(home)},
+        # The leg's interpreter passes through, as in CI (setup-uv exports
+        # UV_PYTHON): a make with it dropped asks uv for the default, and the
+        # probe then names a venv it must not touch. The budget is about the
+        # exports a Makefile adds, not about this one variable.
+        env={
+            "PATH": os.environ["PATH"],
+            "HOME": str(home),
+            **(
+                {"UV_PYTHON": os.environ["UV_PYTHON"]}
+                if os.environ.get("UV_PYTHON")
+                else {}
+            ),
+        },
         check=True,
     )
     out: dict[bytes, bytes] = {}

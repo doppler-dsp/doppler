@@ -126,6 +126,8 @@ Each point runs 8 noise realisations. `|freq error|` is the worst seed's mean tr
 
 Of 18 points swept, 13 track and only 7 declare. The gap is the object's honest sensitivity statement, and it widens with M: the M-th power multiplies the noise-induced phase excursion by M, so the coherent gain the statistic is built from collapses at high order long before the loop, which integrates, gives up. `docs/design/mpsk.md` already rules that `lock`/`locked` are **telemetry and user reassurance, never control**; this table is the measurement that rule needs to be more than an assertion (**F12**).
 
+**M = 8 meets its tracking edge at 15 dB.** Its lock statistic there is +0.15, near zero, against +0.48 at 20 dB, and the error is bimodal: a seed either tracks (near 1e-05) or wanders as at 10 dB (near 1e-03), so whether the worst of 8 seeds lands inside 0.00015 is the draw's and the build's. Here it read 3.9e-05; on Windows clang-cl one seed did not (#3298). The tracking claim below therefore stops where the statistic still has margin: every M at 20 dB and above, and M of 4 and below at 15 dB.
+
 ### 2.3 The capture map — every `k/M` is a stable lock
 
 The header names two acquisition bounds and says the second one fails silently. Sweeping the true carrier from DC past the first alias, with the loop always seeded at zero, shows the whole structure at once.
@@ -372,7 +374,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 | PASS | and an RRC-shaped input, which costs the loop four orders of steady-state accuracy, still leaves the residual inside the same 5e-4 tolerance the frequency is held to (worst 3.8e-04) — usable output does not depend on the lock decision (F12) |
 | PASS | a rect-pulse or unmodulated input declares lock at every M, with the statistic above 0.8 |
 | PASS | the TRACKING envelope is strictly wider than the DECLARING one (13 of 18 Es/N0 points track, 7 declare) — `locked` is a telemetry statement about the M-th power, not a statement about whether the loop is working (F12) |
-| PASS | and every M tracks to better than 0.00015 cycles/sample (half the offset) at Es/N0 of 15 dB and above |
+| PASS | and every M tracks to better than 0.00015 cycles/sample (half the offset) at Es/N0 of 20 dB and above, and M of 4 and below at 15 dB (M = 8's edge is 15 dB, §2.2) |
 | PASS | the pull-in ceiling scales as exactly `1/M`: `M x edge` is constant to 0.58% at every arm length, so an 8PSK caller needs four times tighter tuning than a BPSK one |
 | PASS | and it tightens monotonically as the arm window widens (0.0411 > 0.0307 > 0.0203 > 0.0121 cyc/sample, M = 4) — the arm is not sensitivity-only (F6) |
 | PASS | the ceiling is at least 3x below the `1/(2M)` aliasing ceiling at every geometry, so pulling in can never reach the aliasing bound — a caller reaches it only by being SEEDED near an alias |

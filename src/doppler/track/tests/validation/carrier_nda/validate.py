@@ -949,6 +949,20 @@ def characterise() -> Data:
         f"(**{R.ref('track_vs_declare_envelopes')}**)."
     )
     R.md()
+    _e8 = next(r for r in d.esno if r[0] == 8 and r[1] == 15.0)
+    _e8_20 = next(r for r in d.esno if r[0] == 8 and r[1] == 20.0)
+    R.md(
+        f"**M = 8 meets its tracking edge at 15 dB.** Its lock statistic "
+        f"there is {_e8[3]:+.2f}, near zero, against {_e8_20[3]:+.2f} at "
+        f"20 dB, and the error is bimodal: a seed either tracks "
+        f"(near 1e-05) or wanders as at 10 dB (near 1e-03), so whether the "
+        f"worst of 8 seeds lands inside {TRACK_TOL:g} is the draw's and "
+        f"the build's. Here it read {_e8[2]:.1e}; on Windows clang-cl one "
+        f"seed did not (#3298). The tracking claim below therefore stops "
+        f"where the statistic still has margin: every M at 20 dB and "
+        f"above, and M of 4 and below at 15 dB."
+    )
+    R.md()
 
     # --- 2.3 the capture map ------------------------------------------
     R.md("### 2.3 The capture map — every `k/M` is a stable lock")
@@ -2007,9 +2021,14 @@ def limits(d: Data) -> None:
         f"whether the loop is working ({R.ref('track_vs_declare_envelopes')})",
     )
     R.limit(
-        all(r[5] for r in d.esno if r[1] >= 15.0),
+        all(
+            r[5]
+            for r in d.esno
+            if r[1] >= 20.0 or (r[1] >= 15.0 and r[0] <= 4)
+        ),
         f"and every M tracks to better than {TRACK_TOL:g} cycles/sample (half "
-        f"the offset) at Es/N0 of 15 dB and above",
+        f"the offset) at Es/N0 of 20 dB and above, and M of 4 and below at "
+        f"15 dB (M = 8's edge is 15 dB, §2.2)",
     )
 
     # --- the acquisition contract ---------------------------------------

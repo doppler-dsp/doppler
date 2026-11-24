@@ -457,25 +457,36 @@ typedef struct {
                             17-6 prints it, one of 6, 9, 12, 18, 24, 36, 48,
                             54: a second spelling of constellation and
                             code_rate (--wlan 36 is --constellation qam16
-                            --code-rate 3/4). 0 = not given. Refused beside a
-                            given constellation or code_rate, at any other
-                            bandwidth (where a 10 or 5 MHz source is spelled by
-                            its constellation and code_rate), and on any other
-                            type. */
-    int constellation; /**< For type=ofdm: the subcarrier constellation, one of
-                            bpsk, qpsk, qam16, qam64; the pair with code_rate
-                            must be a row of the standard's rate table, and is
-                            given whole or not at all. auto (the default) is
-                            the pair wlan names, or with no wlan the 36 Mb/s
-                            pair, qam16 and 3/4 (18 or 9 Mb/s at a 10 or 5 MHz
-                            bandwidth). A Synth reads, and a record holds, the
-                            resolved value, never auto. On any other type it
-                            reads back what was given, auto unless set. */
-    int code_rate; /**< For type=ofdm: the convolutional code rate, one of 1/2,
-                            2/3, 3/4, 5/6; given with constellation, or neither
-                            is. auto (the default) as for constellation. On any
-                            other type it reads back what was given, auto
-                            unless set. */
+                            --code-rate 3/4). 0 = not given. Refused beside
+                            a given constellation or code_rate, at any other
+                            bandwidth (where a 10 or 5 MHz source is spelled
+                            by its constellation and code_rate), and on any
+                            other type. Set on a live ofdm source whose pair
+                            is given, it is refused at once (set
+                            constellation or code_rate to auto first). */
+    int constellation; /**< For type=ofdm: the subcarrier constellation, one
+                            of bpsk, qpsk, qam16, qam64; the pair with
+                            code_rate must be a row of the standard's rate
+                            table, and is given whole or not at all. auto
+                            (the default) is the pair wlan names, or with no
+                            wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9
+                            Mb/s at a 10 or 5 MHz bandwidth). A Synth reads,
+                            and a record holds, the resolved value, never
+                            auto. Set on a live ofdm source, the pair stays
+                            whole: with code_rate auto, code_rate is fixed
+                            at the value it read; auto returns both halves
+                            to auto; beside wlan it is refused; a pair the
+                            table lacks is written and refused when the
+                            source builds (dp_wfm_source_set_constellation).
+                            On any other type it reads back what was given,
+                            auto unless set. */
+    int code_rate; /**< For type=ofdm: the convolutional code rate, one of
+                            1/2, 2/3, 3/4, 5/6; given with constellation, or
+                            neither is. auto (the default) as for
+                            constellation. Set on a live ofdm source, the
+                            pair stays whole by constellation's rules,
+                            mirrored. On any other type it reads back what
+                            was given, auto unless set. */
     int scrambler_init; /**< For type=ofdm: the 7-bit initial state of the data
                             scrambler, 1 to 127. 0 draws a fresh state for each
                             PPDU from seed, so a run is reproducible and a
@@ -1158,6 +1169,78 @@ int dp_wfm_source_constellation(const wfm_source_t *src, double fs);
  *         rate does not resolve.
  */
 int dp_wfm_source_code_rate(const wfm_source_t *src, double fs);
+
+/**
+ * @brief Set an ofdm source's constellation so its rate pair stays whole:
+ *        the `set_fn` behind a Synth's and a Segment's `constellation`.
+ *
+ * An ofdm rate is a pair, constellation and code_rate, given whole or left
+ * at `auto` whole (docs/design/wlan.md, "A live object's pair stays
+ * whole"). A setter writes one half, so on an ofdm source it keeps the
+ * pair whole by these rules, the same for both halves
+ * (dp_wfm_source_set_code_rate() is the mirror):
+ *
+ * | the pair before            | set a half to a value                 | set a half to `auto`  |
+ * | -------------------------- | ------------------------------------- | --------------------- |
+ * | `auto`, no `wlan`          | the other half is FIXED at the value it read before the write: the default pair's, (qam16, 3/4) at 20 MHz | stays `auto` |
+ * | `auto`, rate set by `wlan` | refused, the struct untouched: "the rate is set by wlan: set wlan to 0 before setting constellation or code_rate" | stays `auto` |
+ * | given                      | written; the other half is kept as given | BOTH halves return to `auto` |
+ *
+ * `auto` is a property of the pair, never of one half: setting either half
+ * to `auto` returns both, so no write leaves one half `auto` beside a
+ * given other. A given pair the standard's rate table lacks, as
+ * (qam16, 5/6), is written: the setter returns NULL, and the source is
+ * refused when it builds, by dp_wfm_source_error(), with "this
+ * constellation and code_rate have no SIGNAL RATE bits (Table 17-6 lists
+ * eight of the sixteen pairs)". On any other type the value is stored as
+ * given, as it reads back.
+ *
+ * A constructor, a record and `from_json` do not call this: they set every
+ * field at once and refuse half a pair.
+ *
+ * @param src            The source.
+ * @param constellation  The index, or #WLAN_CONSTELLATION_AUTO.
+ * @return NULL after writing, or a static sentence with @p src untouched.
+ *
+ * @code
+ * #include <doppler/wfm/wfm_defaults.h>   // WFM_SOURCE_DEFAULTS
+ *
+ * wfm_source_t s = WFM_SOURCE_DEFAULTS;
+ * s.type         = WFM_SYNTH_FRAMES;                    // ofdm
+ * dp_wfm_source_set_constellation (&s, 0);              // bpsk
+ * // s.constellation == 0, s.code_rate == WLAN_CODE_3_4: fixed at its read
+ * @endcode
+ */
+const char *dp_wfm_source_set_constellation(wfm_source_t *src,
+                                            int           constellation);
+
+/**
+ * @brief Set an ofdm source's code_rate so its rate pair stays whole: the
+ *        `set_fn` behind a Synth's and a Segment's `code_rate`, the mirror
+ *        of dp_wfm_source_set_constellation(), whose table is the rule.
+ * @param src        The source.
+ * @param code_rate  The index (0 for 1/2 ... 3 for 5/6), or
+ *                   #WLAN_CODE_AUTO.
+ * @return NULL after writing, or a static sentence with @p src untouched.
+ */
+const char *dp_wfm_source_set_code_rate(wfm_source_t *src, int code_rate);
+
+/**
+ * @brief Set an ofdm source's `wlan`, the rate's second spelling: the
+ *        `set_fn` behind a Synth's and a Segment's `wlan`.
+ *
+ * On an ofdm source whose pair is given, a nonzero `wlan` is refused, the
+ * struct untouched: "the rate is set by constellation and code_rate: set
+ * either to auto (which returns the pair to auto) before setting wlan".
+ * It is the mirror of a half set beside `wlan`
+ * (dp_wfm_source_set_constellation()). 0 is always written, and so is any
+ * value on another type. A `wlan` no row of the table names is written
+ * and refused when the source builds, as a constructor's is.
+ * @param src   The source.
+ * @param wlan  0, or a data rate at 20 MHz in Mb/s.
+ * @return NULL after writing, or a static sentence with @p src untouched.
+ */
+const char *dp_wfm_source_set_wlan(wfm_source_t *src, int wlan);
 
 /**
  * @brief The MAC mode an ofdm source renders with: `auto` reads `fcs`

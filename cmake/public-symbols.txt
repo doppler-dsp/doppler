@@ -1965,6 +1965,9 @@ dp_wfm_source_mac function
 dp_wfm_source_mac_header_bits function
 dp_wfm_source_ofdm_defaults function
 dp_wfm_source_oversample function
+dp_wfm_source_set_code_rate function
+dp_wfm_source_set_constellation function
+dp_wfm_source_set_wlan function
 dp_wfm_source_sync_refuse_text function
 dp_wfm_source_synth_type function
 dp_wfm_source_to_synth function

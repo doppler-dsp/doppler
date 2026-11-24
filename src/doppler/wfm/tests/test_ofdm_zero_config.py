@@ -243,16 +243,85 @@ def test_a_segments_rate_does_not_depend_on_source_order():
     )
 
 
-def test_a_live_half_pair_reads_as_written():
-    """A half pair on a live object reads each given half as written, and
-    the default's for the other, never auto. Rejects a getter that masks a
-    write with the default pair: bpsk given must not read as qam16."""
+def _pair(s: Synth) -> tuple[str, str]:
+    return (s.constellation, s.code_rate)
+
+
+def _recorded_pair(s: Synth) -> tuple[str, str]:
+    """The pair a record of @p s holds, through Segment.sum and to_json."""
+    rec = json.loads(Composer([Segment.sum(s)]).to_json())["segments"][0]
+    src = rec["sources"][0] if "sources" in rec else rec
+    return (src["constellation"], src["code_rate"])
+
+
+@pytest.mark.parametrize(
+    "half, value, other, fixed",
+    [
+        ("constellation", "bpsk", "code_rate", "3/4"),
+        ("code_rate", "1/2", "constellation", "qam16"),
+    ],
+)
+def test_a_live_half_fixes_the_other_at_its_read(half, value, other, fixed):
+    """Either order: setting one half beside an auto other fixes the other
+    at the value it read, so the pair is whole and a record carries it.
+    Rejects a setter that stores the half alone (the source would then be
+    refused at build as half a pair)."""
     s = Synth(type="ofdm")
-    s.constellation = "bpsk"
-    assert (s.constellation, s.code_rate) == ("bpsk", "3/4")
-    t = Synth(type="ofdm")
-    t.code_rate = "5/6"
-    assert (t.constellation, t.code_rate) == ("qam16", "5/6")
+    setattr(s, half, value)
+    assert getattr(s, half) == value and getattr(s, other) == fixed
+    s.steps(8)  # builds: the pair is whole
+    want = _pair(s)
+    assert _recorded_pair(s) == want
+
+
+def test_auto_returns_the_whole_pair():
+    """auto is the pair's: one half set to auto returns both, and the next
+    half set fixes the other at its read again. Rejects a setter that makes
+    one half auto beside a given other (setting qpsk then would keep the
+    old 1/2, not fix the default's 3/4)."""
+    s = Synth(type="ofdm", constellation="bpsk", code_rate="1/2")
+    s.code_rate = "auto"
+    assert _pair(s) == ("qam16", "3/4")  # both auto: the default pair
+    s.wlan = 54  # accepted only because the pair is auto again
+    s.wlan = 0
+    s.constellation = "qpsk"
+    assert _pair(s) == ("qpsk", "3/4")
+    assert _recorded_pair(s) == ("qpsk", "3/4")
+
+
+def test_a_second_spelling_is_refused_either_way():
+    """A half beside wlan, and wlan beside a given pair: each refused with
+    its sentence, the object untouched. Rejects either setter storing."""
+    w = Synth(type="ofdm", wlan=54)
+    with pytest.raises(ValueError, match="the rate is set by wlan"):
+        w.constellation = "bpsk"
+    assert (w.wlan, *_pair(w)) == (54, "qam64", "3/4")
+    g = Synth(type="ofdm", constellation="bpsk", code_rate="1/2")
+    with pytest.raises(
+        ValueError, match="the rate is set by constellation and code_rate"
+    ):
+        g.wlan = 54
+    assert (g.wlan, *_pair(g)) == (0, "bpsk", "1/2")
+
+
+def test_a_pair_the_table_lacks_is_written_then_refused_at_build():
+    """(qam16, 5/6) is a given pair Table 17-6 lacks: the setter writes it
+    and the source is refused when it builds, naming the pair and the
+    table. Rejects a setter that refuses it (the doc says the build does)
+    and a build that accepts it."""
+    s = Synth(type="ofdm", constellation="qam16", code_rate="3/4")
+    s.code_rate = "5/6"
+    assert _pair(s) == ("qam16", "5/6")
+    with pytest.raises(ValueError, match="no SIGNAL RATE bits"):
+        s.steps(8)
+
+
+def test_another_type_stores_a_half_as_given():
+    """On a tone the rule does not apply: a half is stored as written and
+    the other stays auto. Rejects the ofdm rule leaking onto every type."""
+    t = Synth(type="tone")
+    t.constellation = "bpsk"
+    assert _pair(t) == ("bpsk", "auto")
 
 
 def _synth_fs_default() -> float:

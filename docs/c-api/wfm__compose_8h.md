@@ -158,6 +158,9 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  size\_t | [**dp\_wfm\_source\_mac\_header\_bits**](#function-dp_wfm_source_mac_header_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint8\_t \* out, size\_t max) <br>_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`mac_header` _._ |
 |  const char \* | [**dp\_wfm\_source\_ofdm\_defaults**](#function-dp_wfm_source_ofdm_defaults) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, [**wfm\_source\_t**](structwfm__source__t.md) \* out, double \* fs\_out) <br>_An ofdm source with its zero-config defaults filled in, and the rate it renders at: the one place those defaults are decided._  |
 |  unsigned | [**dp\_wfm\_source\_oversample**](#function-dp_wfm_source_oversample) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, const char \*\* why) <br>_The oversampling_ `M = fs / bandwidth` _of an ofdm source, 1 to_`WLAN_OVERSAMPLE_MAX` _, or 0 with the reason it has none._ |
+|  const char \* | [**dp\_wfm\_source\_set\_code\_rate**](#function-dp_wfm_source_set_code_rate) ([**wfm\_source\_t**](structwfm__source__t.md) \* src, int code\_rate) <br>_Set an ofdm source's code\_rate so its rate pair stays whole: the_ `set_fn` _behind a Synth's and a Segment's_`code_rate` _, the mirror of_[_**dp\_wfm\_source\_set\_constellation()**_](wfm__compose_8h.md#function-dp_wfm_source_set_constellation) _, whose table is the rule._ |
+|  const char \* | [**dp\_wfm\_source\_set\_constellation**](#function-dp_wfm_source_set_constellation) ([**wfm\_source\_t**](structwfm__source__t.md) \* src, int constellation) <br>_Set an ofdm source's constellation so its rate pair stays whole: the_ `set_fn` _behind a Synth's and a Segment's_`constellation` _._ |
+|  const char \* | [**dp\_wfm\_source\_set\_wlan**](#function-dp_wfm_source_set_wlan) ([**wfm\_source\_t**](structwfm__source__t.md) \* src, int wlan) <br>_Set an ofdm source's_ `wlan` _, the rate's second spelling: the_`set_fn` _behind a Synth's and a Segment's_`wlan` _._ |
 |  size\_t | [**dp\_wfm\_source\_sync\_refuse\_text**](#function-dp_wfm_source_sync_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for the retired_ `sync=` _: a sync word is a field of the frame description._ |
 |  int | [**dp\_wfm\_source\_synth\_type**](#function-dp_wfm_source_synth_type) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The synth type to create this source with._  |
 |  const char \* | [**dp\_wfm\_source\_to\_synth\_error**](#function-dp_wfm_source_to_synth_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Why_ [_**dp\_wfm\_source\_to\_synth()**_](wfm__compose__bridge_8h.md#function-dp_wfm_source_to_synth) _refused this source, or NULL._ |
@@ -3558,6 +3561,148 @@ The one derivation: [**dp\_wfm\_ofdm\_fs\_error()**](wfm__compose_8h.md#function
 **Returns:**
 
 `M`, or 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_set\_code\_rate 
+
+_Set an ofdm source's code\_rate so its rate pair stays whole: the_ `set_fn` _behind a Synth's and a Segment's_`code_rate` _, the mirror of_[_**dp\_wfm\_source\_set\_constellation()**_](wfm__compose_8h.md#function-dp_wfm_source_set_constellation) _, whose table is the rule._
+```C++
+const char * dp_wfm_source_set_code_rate (
+    wfm_source_t * src,
+    int code_rate
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `code_rate` The index (0 for 1/2 ... 3 for 5/6), or [**WLAN\_CODE\_AUTO**](wlan__core_8h.md#define-wlan_code_auto). 
+
+
+
+**Returns:**
+
+NULL after writing, or a static sentence with `src` untouched. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_set\_constellation 
+
+_Set an ofdm source's constellation so its rate pair stays whole: the_ `set_fn` _behind a Synth's and a Segment's_`constellation` _._
+```C++
+const char * dp_wfm_source_set_constellation (
+    wfm_source_t * src,
+    int constellation
+) 
+```
+
+
+
+An ofdm rate is a pair, constellation and code\_rate, given whole or left at `auto` whole (docs/design/wlan.md, "A live object's pair stays
+whole"). A setter writes one half, so on an ofdm source it keeps the pair whole by these rules, the same for both halves ([**dp\_wfm\_source\_set\_code\_rate()**](wfm__compose_8h.md#function-dp_wfm_source_set_code_rate) is the mirror):
+
+
+
+|the pair before   |set a half to a value   |set a half to `auto`    |
+|-----|-----|-----|
+|`auto`, no `wlan`   |the other half is FIXED at the value it read before the write: the default pair's, (qam16, 3/4) at 20 MHz   |stays `auto`    |
+|`auto`, rate set by `wlan`   |refused, the struct untouched: "the rate is set by wlan: set wlan to 0 before setting constellation or code\_rate"   |stays `auto`    |
+|given   |written; the other half is kept as given   |BOTH halves return to `auto`   |
+
+
+
+
+
+
+`auto` is a property of the pair, never of one half: setting either half to `auto` returns both, so no write leaves one half `auto` beside a given other. A given pair the standard's rate table lacks, as (qam16, 5/6), is written: the setter returns NULL, and the source is refused when it builds, by [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm_source_error), with "this
+constellation and code\_rate have no SIGNAL RATE bits (Table 17-6 lists
+eight of the sixteen pairs)". On any other type the value is stored as given, as it reads back.
+
+
+A constructor, a record and `from_json` do not call this: they set every field at once and refuse half a pair.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `constellation` The index, or [**WLAN\_CONSTELLATION\_AUTO**](wlan__core_8h.md#define-wlan_constellation_auto). 
+
+
+
+**Returns:**
+
+NULL after writing, or a static sentence with `src` untouched.
+
+
+
+```C++
+#include <doppler/wfm/wfm_defaults.h>   // WFM_SOURCE_DEFAULTS
+
+wfm_source_t s = WFM_SOURCE_DEFAULTS;
+s.type         = WFM_SYNTH_FRAMES;                    // ofdm
+dp_wfm_source_set_constellation (&s, 0);              // bpsk
+// s.constellation == 0, s.code_rate == WLAN_CODE_3_4: fixed at its read
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_set\_wlan 
+
+_Set an ofdm source's_ `wlan` _, the rate's second spelling: the_`set_fn` _behind a Synth's and a Segment's_`wlan` _._
+```C++
+const char * dp_wfm_source_set_wlan (
+    wfm_source_t * src,
+    int wlan
+) 
+```
+
+
+
+On an ofdm source whose pair is given, a nonzero `wlan` is refused, the struct untouched: "the rate is set by constellation and code\_rate: set
+either to auto (which returns the pair to auto) before setting wlan". It is the mirror of a half set beside `wlan` ([**dp\_wfm\_source\_set\_constellation()**](wfm__compose_8h.md#function-dp_wfm_source_set_constellation)). 0 is always written, and so is any value on another type. A `wlan` no row of the table names is written and refused when the source builds, as a constructor's is. 
+
+**Parameters:**
+
+
+* `src` The source. 
+* `wlan` 0, or a data rate at 20 MHz in Mb/s. 
+
+
+
+**Returns:**
+
+NULL after writing, or a static sentence with `src` untouched. 
 
 
 

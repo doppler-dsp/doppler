@@ -2987,7 +2987,12 @@ Synth_set_wlan (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.wlan = _v;
+  const char *_why = dp_wfm_source_set_wlan (&self->src, _v);
+  if (_why)
+    {
+      PyErr_SetString (PyExc_ValueError, _why);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -3027,7 +3032,12 @@ Synth_set_constellation (SynthObject *self, PyObject *value, void *closure)
                     s);
       return -1;
     }
-  self->src.constellation = _i;
+  const char *_why = dp_wfm_source_set_constellation (&self->src, _i);
+  if (_why)
+    {
+      PyErr_SetString (PyExc_ValueError, _why);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -3065,7 +3075,12 @@ Synth_set_code_rate (SynthObject *self, PyObject *value, void *closure)
           "invalid code_rate '%s' (choices: 1/2, 2/3, 3/4, 5/6, auto)", s);
       return -1;
     }
-  self->src.code_rate = _i;
+  const char *_why = dp_wfm_source_set_code_rate (&self->src, _i);
+  if (_why)
+    {
+      PyErr_SetString (PyExc_ValueError, _why);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -3516,7 +3531,9 @@ static PyGetSetDef Synth_getset[] = {
     "and code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = "
     "not given. Refused beside a given constellation or code_rate, at any "
     "other bandwidth (where a 10 or 5 MHz source is spelled by its "
-    "constellation and code_rate), and on any other type.\n",
+    "constellation and code_rate), and on any other type. Set on a live ofdm "
+    "source whose pair is given, it is refused at once (set constellation or "
+    "code_rate to auto first).\n",
     NULL },
   { "constellation", (getter)Synth_get_constellation,
     (setter)Synth_set_constellation,
@@ -3525,14 +3542,19 @@ static PyGetSetDef Synth_getset[] = {
     "table, and is given whole or not at all. auto (the default) is the pair "
     "wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 "
     "Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the "
-    "resolved value, never auto. On any other type it reads back what was "
-    "given, auto unless set.\n",
+    "resolved value, never auto. Set on a live ofdm source, the pair stays "
+    "whole: with code_rate auto, code_rate is fixed at the value it read; "
+    "auto returns both halves to auto; beside wlan it is refused; a pair the "
+    "table lacks is written and refused when the source builds "
+    "(dp_wfm_source_set_constellation). On any other type it reads back what "
+    "was given, auto unless set.\n",
     NULL },
   { "code_rate", (getter)Synth_get_code_rate, (setter)Synth_set_code_rate,
     "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; "
     "given with constellation, or neither is. auto (the default) as for "
-    "constellation. On any other type it reads back what was given, auto "
-    "unless set.\n",
+    "constellation. Set on a live ofdm source, the pair stays whole by "
+    "constellation's rules, mirrored. On any other type it reads back what "
+    "was given, auto unless set.\n",
     NULL },
   { "scrambler_init", (getter)Synth_get_scrambler_init,
     (setter)Synth_set_scrambler_init,
@@ -4221,7 +4243,10 @@ static PyTypeObject SynthType = {
       "    or code_rate, at any other bandwidth (where a 10 or 5 MHz source "
       "is\n"
       "    spelled by its constellation and code_rate), and on any other "
-      "type.\n"
+      "type. Set\n"
+      "    on a live ofdm source whose pair is given, it is refused at once "
+      "(set\n"
+      "    constellation or code_rate to auto first).\n"
       "constellation : str, default ``\"auto\"``\n"
       "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
       "qam16,\n"
@@ -4233,7 +4258,15 @@ static PyTypeObject SynthType = {
       "9\n"
       "    Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record "
       "holds,\n"
-      "    the resolved value, never auto. On any other type it reads back "
+      "    the resolved value, never auto. Set on a live ofdm source, the "
+      "pair\n"
+      "    stays whole: with code_rate auto, code_rate is fixed at the value "
+      "it\n"
+      "    read; auto returns both halves to auto; beside wlan it is refused; "
+      "a\n"
+      "    pair the table lacks is written and refused when the source "
+      "builds\n"
+      "    (dp_wfm_source_set_constellation). On any other type it reads back "
       "what\n"
       "    was given, auto unless set.\n"
       "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``, "
@@ -4243,9 +4276,10 @@ static PyTypeObject SynthType = {
       "5/6;\n"
       "    given with constellation, or neither is. auto (the default) as "
       "for\n"
-      "    constellation. On any other type it reads back what was given, "
-      "auto\n"
-      "    unless set.\n"
+      "    constellation. Set on a live ofdm source, the pair stays whole by\n"
+      "    constellation's rules, mirrored. On any other type it reads back "
+      "what\n"
+      "    was given, auto unless set.\n"
       "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``, "
       "``\"auto\"``.\n"
       "scrambler_init : int, default 0\n"
@@ -6438,7 +6472,9 @@ static PyGetSetDef Segment_getset[] = {
     "and code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = "
     "not given. Refused beside a given constellation or code_rate, at any "
     "other bandwidth (where a 10 or 5 MHz source is spelled by its "
-    "constellation and code_rate), and on any other type.\n",
+    "constellation and code_rate), and on any other type. Set on a live ofdm "
+    "source whose pair is given, it is refused at once (set constellation or "
+    "code_rate to auto first).\n",
     NULL },
   { "constellation", (getter)Segment_flat_constellation, NULL,
     "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, "
@@ -6446,14 +6482,19 @@ static PyGetSetDef Segment_getset[] = {
     "table, and is given whole or not at all. auto (the default) is the pair "
     "wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 "
     "Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the "
-    "resolved value, never auto. On any other type it reads back what was "
-    "given, auto unless set.\n",
+    "resolved value, never auto. Set on a live ofdm source, the pair stays "
+    "whole: with code_rate auto, code_rate is fixed at the value it read; "
+    "auto returns both halves to auto; beside wlan it is refused; a pair the "
+    "table lacks is written and refused when the source builds "
+    "(dp_wfm_source_set_constellation). On any other type it reads back what "
+    "was given, auto unless set.\n",
     NULL },
   { "code_rate", (getter)Segment_flat_code_rate, NULL,
     "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; "
     "given with constellation, or neither is. auto (the default) as for "
-    "constellation. On any other type it reads back what was given, auto "
-    "unless set.\n",
+    "constellation. Set on a live ofdm source, the pair stays whole by "
+    "constellation's rules, mirrored. On any other type it reads back what "
+    "was given, auto unless set.\n",
     NULL },
   { "scrambler_init", (getter)Segment_flat_scrambler_init, NULL,
     "For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127. "
@@ -6866,7 +6907,10 @@ static PyTypeObject SegmentType = {
       "    or code_rate, at any other bandwidth (where a 10 or 5 MHz source "
       "is\n"
       "    spelled by its constellation and code_rate), and on any other "
-      "type.\n"
+      "type. Set\n"
+      "    on a live ofdm source whose pair is given, it is refused at once "
+      "(set\n"
+      "    constellation or code_rate to auto first).\n"
       "constellation : str, default ``\"auto\"``\n"
       "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
       "qam16,\n"
@@ -6878,7 +6922,15 @@ static PyTypeObject SegmentType = {
       "9\n"
       "    Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record "
       "holds,\n"
-      "    the resolved value, never auto. On any other type it reads back "
+      "    the resolved value, never auto. Set on a live ofdm source, the "
+      "pair\n"
+      "    stays whole: with code_rate auto, code_rate is fixed at the value "
+      "it\n"
+      "    read; auto returns both halves to auto; beside wlan it is refused; "
+      "a\n"
+      "    pair the table lacks is written and refused when the source "
+      "builds\n"
+      "    (dp_wfm_source_set_constellation). On any other type it reads back "
       "what\n"
       "    was given, auto unless set.\n"
       "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``, "
@@ -6888,9 +6940,10 @@ static PyTypeObject SegmentType = {
       "5/6;\n"
       "    given with constellation, or neither is. auto (the default) as "
       "for\n"
-      "    constellation. On any other type it reads back what was given, "
-      "auto\n"
-      "    unless set.\n"
+      "    constellation. Set on a live ofdm source, the pair stays whole by\n"
+      "    constellation's rules, mirrored. On any other type it reads back "
+      "what\n"
+      "    was given, auto unless set.\n"
       "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``, "
       "``\"auto\"``.\n"
       "scrambler_init : int, default 0\n"

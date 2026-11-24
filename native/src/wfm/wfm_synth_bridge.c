@@ -1322,13 +1322,14 @@ dp_wfm_source_fs (const wfm_source_t *src, double fs)
 }
 
 /* The pair an ofdm source reads back as: the resolved one, or, for a pair
-   that does not resolve (a live object's half pair, a C struct's bad index),
-   each half as stored when it is a value, and the default pair's half where
-   it is auto or no value. So a read agrees with every write, `auto` is never
-   read, and a half pair reads as the setter's rule will leave it (the other
-   half at the value read). The source is refused naming why when it builds;
-   a pair Table 17-6 lacks, as (qam16, 5/6), reads as written and is refused
-   with "no SIGNAL RATE bits", as a whole pair it lacks is. */
+   that does not resolve (a C struct's half pair or bad index; a live
+   object's setters keep its pair whole), each half as stored when it is a
+   value, and the default pair's half where it is auto or no value. So a
+   read agrees with every write, `auto` is never read, and a half pair
+   reads as the setters would leave it (the other half at the value read). The
+   source is refused naming why when it builds; a pair Table 17-6 lacks, as
+   (qam16, 5/6), reads as written and is refused with "no SIGNAL RATE bits", as
+   a whole pair it lacks is. */
 static void
 wfofdm_read_pair (const wfm_source_t *src, int *c, int *r)
 {
@@ -1372,6 +1373,70 @@ dp_wfm_source_code_rate (const wfm_source_t *src, double fs)
   int c, r;
   wfofdm_read_pair (src, &c, &r);
   return r;
+}
+
+/* The two refusals of a second spelling, worded as a pair: wlan beside a
+   given half, and a half beside wlan. */
+#define WFOFDM_HALF_BESIDE_WLAN                                               \
+  "the rate is set by wlan: set wlan to 0 before setting constellation or "   \
+  "code_rate"
+#define WFOFDM_WLAN_BESIDE_HALF                                               \
+  "the rate is set by constellation and code_rate: set either to auto "       \
+  "(which returns the pair to auto) before setting wlan"
+
+/* One half of an ofdm source's pair, written so the pair stays whole
+   (docs/design/wlan.md, "A live object's pair stays whole"). `mine` is the
+   half being set and `other` its sibling; `other_read` is the sibling's
+   read before the write, the value it is fixed at. */
+static const char *
+wfofdm_set_half (wfm_source_t *src, int *mine, int *other, int v,
+                 int mine_auto, int other_auto, int other_read)
+{
+  if (src->type != WFM_SYNTH_FRAMES)
+    {
+      *mine = v;
+      return NULL;
+    }
+  if (v == mine_auto)
+    {
+      /* auto is the pair's, not a half's: both return to it */
+      *mine  = mine_auto;
+      *other = other_auto;
+      return NULL;
+    }
+  if (src->wlan != 0)
+    return WFOFDM_HALF_BESIDE_WLAN;
+  if (*other == other_auto)
+    *other = other_read;
+  *mine = v;
+  return NULL;
+}
+
+const char *
+dp_wfm_source_set_constellation (wfm_source_t *src, int constellation)
+{
+  return wfofdm_set_half (src, &src->constellation, &src->code_rate,
+                          constellation, WLAN_CONSTELLATION_AUTO,
+                          WLAN_CODE_AUTO, dp_wfm_source_code_rate (src, 0.0));
+}
+
+const char *
+dp_wfm_source_set_code_rate (wfm_source_t *src, int code_rate)
+{
+  return wfofdm_set_half (src, &src->code_rate, &src->constellation, code_rate,
+                          WLAN_CODE_AUTO, WLAN_CONSTELLATION_AUTO,
+                          dp_wfm_source_constellation (src, 0.0));
+}
+
+const char *
+dp_wfm_source_set_wlan (wfm_source_t *src, int wlan)
+{
+  if (src->type == WFM_SYNTH_FRAMES && wlan != 0
+      && (src->constellation != WLAN_CONSTELLATION_AUTO
+          || src->code_rate != WLAN_CODE_AUTO))
+    return WFOFDM_WLAN_BESIDE_HALF;
+  src->wlan = wlan;
+  return NULL;
 }
 
 int

@@ -99,6 +99,21 @@ double dp_wfm_source_fs(const wfm_source_t *, double);
 /* Read segment field `fs` at rate fs (get_fn, gh-2710). */
 double dp_wfm_segment_fs(const wfm_segment_t *, double);
 
+/* Write source field `wlan` and any sibling it fixes: NULL after writing,
+ * or a static sentence raised as ValueError with the struct untouched
+ * (set_fn, gh-2753). */
+const char *dp_wfm_source_set_wlan(wfm_source_t *, int);
+
+/* Write source field `constellation` and any sibling it fixes: NULL after
+ * writing, or a static sentence raised as ValueError with the struct
+ * untouched (set_fn, gh-2753). */
+const char *dp_wfm_source_set_constellation(wfm_source_t *, int);
+
+/* Write source field `code_rate` and any sibling it fixes: NULL after
+ * writing, or a static sentence raised as ValueError with the struct
+ * untouched (set_fn, gh-2753). */
+const char *dp_wfm_source_set_code_rate(wfm_source_t *, int);
+
 #ifdef __cplusplus
 }
 #endif

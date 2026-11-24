@@ -253,6 +253,13 @@ int dp_wfm_source_constellation(const wfm_source_t *src, double fs);
 
 int dp_wfm_source_code_rate(const wfm_source_t *src, double fs);
 
+const char *dp_wfm_source_set_constellation(wfm_source_t *src,
+                                            int           constellation);
+
+const char *dp_wfm_source_set_code_rate(wfm_source_t *src, int code_rate);
+
+const char *dp_wfm_source_set_wlan(wfm_source_t *src, int wlan);
+
 int dp_wfm_source_mac(const wfm_source_t *src, double fs);
 
 double dp_wfm_source_fs(const wfm_source_t *src, double fs);

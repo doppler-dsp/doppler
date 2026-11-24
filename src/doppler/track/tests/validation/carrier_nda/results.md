@@ -126,7 +126,7 @@ Each point runs 8 noise realisations. `|freq error|` is the worst seed's mean tr
 
 Of 18 points swept, 13 track and only 7 declare. The gap is the object's honest sensitivity statement, and it widens with M: the M-th power multiplies the noise-induced phase excursion by M, so the coherent gain the statistic is built from collapses at high order long before the loop, which integrates, gives up. `docs/design/mpsk.md` already rules that `lock`/`locked` are **telemetry and user reassurance, never control**; this table is the measurement that rule needs to be more than an assertion (**F12**).
 
-**M = 8 meets its tracking edge at 15 dB.** Its lock statistic there is +0.15, near zero, against +0.48 at 20 dB, and the error is bimodal: a seed either tracks (near 1e-05) or wanders as at 10 dB (near 1e-03), so whether the worst of 8 seeds lands inside 0.00015 is the draw's and the build's. Here it read 3.9e-05; on Windows clang-cl one seed did not (#3298). The tracking claim below therefore stops where the statistic still has margin: every M at 20 dB and above, and M of 4 and below at 15 dB.
+**M = 8 meets its tracking edge at 15 dB.** Its lock statistic there is +0.15, near zero, against +0.48 at 20 dB, and the error is bimodal: a seed either tracks (near 1e-05) or wanders as at 10 dB (near 1e-03), so whether the worst of 8 seeds lands inside 0.00015 is the draw's and the build's. Here it read 3.9e-05. On the Windows clang-cl leg the tracking limit failed as then written (CI run 45313556202, #3298); that log did not print the row or its value, so which seed missed is not known. The tracking claim below therefore stops where the statistic still has margin: every M at 20 dB and above, and M of 4 and below at 15 dB.
 
 ### 2.3 The capture map — every `k/M` is a stable lock
 
@@ -386,7 +386,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 | PASS | M drops out of the collapse entirely: at a fixed `u` and `bn` the three orders agree to 0.04%, which is what makes `u` a design variable rather than a curve fit |
 | PASS | **the seeding rule**: a residual inside `\|df\| <= bn/(4M)` settles within two loop time constants (`2/bn` samples) at every M and `bn` measured — worst case 0.34, best 0.38, so `u = 1/4` carries margin |
 | PASS | and it survives noise: at 6 dB the two-constant window is still 0.54 in the same units, so a coarse acquisition placing the residual inside `bn/(4M)` hands over a loop that locks promptly rather than one that grinds |
-| PASS | a longer budget never buys a smaller window, and noise never buys a larger one |
+| PASS | a longer budget never buys a smaller window, at every noise level measured |
 | PASS | the SILENT failure is reproducible: seeding at zero against a carrier near `1/M` gives 5 stable false locks in the swept band |
 | PASS | and each is wrong by EXACTLY `1/M` = 0.25 cycles/sample, which is what makes the false locks a lattice rather than a drift |
 | PASS | while reading a lock statistic of at least +1.0000 — nothing self-referenced detects it, which is why it takes an external reference, a sync word or a seeded coarse estimate |

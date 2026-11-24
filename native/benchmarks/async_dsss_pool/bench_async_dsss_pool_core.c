@@ -344,7 +344,10 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
   /* A point that fixes the push's length gets its buffer once, before any
      pool, as the 5 Mcps rows always have: allocated per row after the
      pool, the same row read 30% slower on bare metal (memory layout, not
-     work), so the existing rows keep their layout exactly. */
+     work). The on-air scene is dp_air_test.h's (DP_AIR_CHUNK 4096, not the
+     65536 chunk the rows were first timed with), so a row is comparable to
+     an earlier release's only where its stream is the same; the key names
+     the row, not the samples. */
   const size_t fixed_block = pt->block_periods
                                  ? (size_t)llround ((double)pt->block_periods
                                                     * CODE_LEN / chip * fs_in)

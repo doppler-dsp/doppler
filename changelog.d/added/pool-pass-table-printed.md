@@ -1,0 +1,1 @@
+- **The pass table is printed.** The pull-in validator prints each in-scope pass (carrier, altitude, maximum elevation, duration, peak and mask range, worst 30 s level change) and the three level spreads, from `dp_s415_pass_table()`. Groundwork for the pool constellation scene (#3263).

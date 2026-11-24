@@ -112,6 +112,59 @@ dp_s415_lock_flags (const dp_async_dsss_receiver_state_t *rx,
 #define DP_S415_PASS_BINS                                                     \
   15 /* |offset| bins of DP_CCSDS_415_SPAN_HZ / DP_S415_PASS_BINS Hz */
 
+/* The altitude grid of the use case's passes (async-dsss-receiver.md §1.8):
+   350 to 1200 km in 50 km steps, for the envelope and the pass table alike. */
+#define DP_S415_ALT_LO 350.0
+#define DP_S415_ALT_HI 1200.0
+#define DP_S415_ALT_STEP 50.0
+
+/* The geometry of one pass: rs the orbit radius, w the angular rate, g0 the
+   Earth-central angle from the peak to the satellite's rise and fall at the
+   pass's maximum elevation, gm the same at the mask, tmax the time from the
+   peak to the mask, and v the orbital speed. Filled by
+   dp_s415_pass_geometry(), the one place these are derived. */
+typedef struct
+{
+  double rs, w, g0, gm, tmax, v;
+} dp_s415_pass_geo_t;
+
+/* Fill g for a pass at altitude h_km with maximum elevation el_deg. Returns 0
+   when the pass is out of scope (it never clears the mask: g0 >= gm); g->v is
+   set either way. */
+static inline int
+dp_s415_pass_geometry (double h_km, double el_deg, dp_s415_pass_geo_t *g)
+{
+  g->rs           = DP_S415_PASS_RE_KM + h_km;
+  g->w            = sqrt (DP_S415_PASS_MU / (g->rs * g->rs * g->rs));
+  const double e  = el_deg * M_PI / 180.0,
+               em = DP_S415_PASS_MASK_DEG * M_PI / 180.0;
+  g->g0           = acos (DP_S415_PASS_RE_KM * cos (e) / g->rs) - e;
+  g->gm           = acos (DP_S415_PASS_RE_KM * cos (em) / g->rs) - em;
+  g->v            = g->rs * g->w;
+  if (g->g0 >= g->gm)
+    return 0;
+  g->tmax = acos (cos (g->gm) / cos (g->g0)) / g->w;
+  return 1;
+}
+
+/* The pass's samples on the DP_S415_PASS_DT grid, rise to set above the mask
+   (before the derivative trim). */
+static inline size_t
+dp_s415_pass_samples (const dp_s415_pass_geo_t *g)
+{
+  return (size_t)(2.0 * g->tmax / DP_S415_PASS_DT);
+}
+
+/* The slant range at time t from the peak, km: the law dp_s415_pass_curve
+   differentiates, the same expression in the same order. */
+static inline double
+dp_s415_pass_range_at (const dp_s415_pass_geo_t *g, double t)
+{
+  const double cg = cos (g->g0) * cos (g->w * t);
+  return sqrt (DP_S415_PASS_RE_KM * DP_S415_PASS_RE_KM + g->rs * g->rs
+               - 2.0 * DP_S415_PASS_RE_KM * g->rs * cg);
+}
+
 /* One pass's residual-free curve: f, f' and f'' (Hz, Hz/s, Hz/s^2) on a
    DP_S415_PASS_DT grid above the mask, the range rate in closed form and every
    end point a numerical derivative touches trimmed. Returns the point
@@ -120,27 +173,21 @@ static inline size_t
 dp_s415_pass_curve (double h_km, double el_deg, double fc, double **f,
                     double **f1, double **f2, double *v)
 {
-  const double rs = DP_S415_PASS_RE_KM + h_km,
-               w  = sqrt (DP_S415_PASS_MU / (rs * rs * rs));
-  const double e  = el_deg * M_PI / 180.0,
-               em = DP_S415_PASS_MASK_DEG * M_PI / 180.0;
-  const double g0 = acos (DP_S415_PASS_RE_KM * cos (e) / rs) - e;
-  const double gm = acos (DP_S415_PASS_RE_KM * cos (em) / rs) - em;
-  *v              = rs * w;
-  if (g0 >= gm)
+  dp_s415_pass_geo_t g;
+  const int          in = dp_s415_pass_geometry (h_km, el_deg, &g);
+  *v                    = g.v;
+  if (!in)
     return 0;
-  const double tmax = acos (cos (gm) / cos (g0)) / w;
-  const size_t n    = (size_t)(2.0 * tmax / DP_S415_PASS_DT);
+  const size_t n = dp_s415_pass_samples (&g);
   if (n < 4 * DP_S415_PASS_TRIM)
     return 0;
-  double *a = dp_xmallocn (n, sizeof *a), *b = dp_xmallocn (n, sizeof *b),
+  const double rs = g.rs, w = g.w, g0 = g.g0, tmax = g.tmax;
+  double      *a = dp_xmallocn (n, sizeof *a), *b = dp_xmallocn (n, sizeof *b),
          *c = dp_xmallocn (n, sizeof *c);
   for (size_t i = 0; i < n; i++)
     {
-      const double t  = -tmax + (double)i * DP_S415_PASS_DT;
-      const double cg = cos (g0) * cos (w * t);
-      const double d  = sqrt (DP_S415_PASS_RE_KM * DP_S415_PASS_RE_KM + rs * rs
-                              - 2.0 * DP_S415_PASS_RE_KM * rs * cg);
+      const double t = -tmax + (double)i * DP_S415_PASS_DT;
+      const double d = dp_s415_pass_range_at (&g, t);
       a[i] = -fc / DP_S415_PASS_C_KMS * DP_S415_PASS_RE_KM * rs * cos (g0) * w
              * sin (w * t) / d;
     }
@@ -212,7 +259,7 @@ dp_s415_pass_envelope (double step_km, dp_s415_pass_env_t *pe)
   pe->v_min                  = INFINITY;
   static const double fcs[2] = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
   for (int k = 0; k < 2; k++)
-    for (double h = 350.0; h <= 1200.0 + 1e-9; h += step_km)
+    for (double h = DP_S415_ALT_LO; h <= DP_S415_ALT_HI + 1e-9; h += step_km)
       {
         const double el = dp_s415_pass_el (h, fcs[k]);
         if (isnan (el))
@@ -298,6 +345,66 @@ dp_s415_r_env (void)
       r = dp_s415_r_env_of (pe.timing_max, dp_s415_pass_rotation (pe.v_min));
     }
   return r;
+}
+
+/* ── The per-pass table (docs/design/pool-constellation-scene.md §5) ────────
+ * One row per in-scope pass: the carrier, its altitude and maximum elevation
+ * (dp_s415_pass_el), its full length 2 t_max, its slant range at the peak and
+ * at the mask, and the largest |20 log10 (d(t+30)/d(t))| inside it. The range
+ * d(t) is the header's own geometry (dp_s415_pass_curve's cos (w t) form, with
+ * the same g0 and mask). The pool scene's pass table and its spreads are
+ * computed here, once, and printed by pi_design(). */
+#define DP_S415_TABLE_WINDOW_S 30.0
+#define DP_S415_TABLE_STEP_S 0.5
+typedef struct
+{
+  int    carrier; /* 0: DP_CCSDS_415_FC_LO, 1: DP_CCSDS_415_FC_HI */
+  double fc_hz, alt_km, el_deg, dur_s, peak_km, mask_km, worst30_db;
+} dp_s415_pass_row_t;
+
+/* Fill rows for every in-scope pass over DP_S415_ALT_LO..DP_S415_ALT_HI km in
+   DP_S415_ALT_STEP steps, both carriers: the passes dp_s415_pass_envelope()
+   takes, by the same geometry and scope rule. Returns the count (25 on the
+   header as it stands); at most `max` rows are written. */
+static inline size_t
+dp_s415_pass_table (dp_s415_pass_row_t *rows, size_t max)
+{
+  static const double fcs[2] = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
+  size_t              n      = 0;
+  for (int k = 0; k < 2; k++)
+    for (double h = DP_S415_ALT_LO; h <= DP_S415_ALT_HI + 1e-9;
+         h += DP_S415_ALT_STEP)
+      {
+        const double el = dp_s415_pass_el (h, fcs[k]);
+        if (isnan (el))
+          continue;
+        dp_s415_pass_geo_t g;
+        if (!dp_s415_pass_geometry (h, el, &g)
+            || dp_s415_pass_samples (&g) < 4 * DP_S415_PASS_TRIM)
+          continue;
+        double worst = 0.0;
+        for (double t = -g.tmax; t + DP_S415_TABLE_WINDOW_S <= g.tmax;
+             t += DP_S415_TABLE_STEP_S)
+          {
+            const double d0 = dp_s415_pass_range_at (&g, t);
+            const double d1
+                = dp_s415_pass_range_at (&g, t + DP_S415_TABLE_WINDOW_S);
+            worst = fmax (worst, fabs (20.0 * log10 (d1 / d0)));
+          }
+        if (n < max)
+          rows[n] = (dp_s415_pass_row_t){
+            .carrier    = k,
+            .fc_hz      = fcs[k],
+            .alt_km     = h,
+            .el_deg     = el,
+            .dur_s      = 2.0 * g.tmax,
+            .peak_km    = dp_s415_pass_range_at (&g, 0.0),
+            .mask_km    = dp_s415_pass_range_at (&g, g.tmax),
+            .worst30_db = worst,
+          };
+        n++;
+      }
+  return n;
 }
 
 /** The receiver at the point and carrier @p fc: the Ccsds415Receiver view

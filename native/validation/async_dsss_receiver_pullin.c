@@ -2232,6 +2232,42 @@ pi_design (const double fcs[2], const double esn0s[4])
   DP_CHECK_MSG (pe[0].n_pass > 0 && pe[0].timing_max > 0.0,
                 "the pass model has passes in scope");
 
+  /* The pool scene's pass table (pool-constellation-scene.md §5.1): one row
+     per in-scope pass, then the three spreads of §5.2 per carrier and over
+     both. (a) between passes at their peaks, (b) within one pass, peak to
+     mask, (c) instantaneous, the shortest peak against the longest mask. */
+  static dp_s415_pass_row_t prow[64];
+  const size_t              np = dp_s415_pass_table (prow, 64);
+  printf ("# pass_table\ncarrier_ghz,alt_km,el_deg,dur_s,peak_km,mask_km,"
+          "worst30_db\n");
+  for (size_t i = 0; i < np; i++)
+    printf ("%.1f,%.0f,%.2f,%.1f,%.1f,%.1f,%.3f\n", prow[i].fc_hz / 1e9,
+            prow[i].alt_km, prow[i].el_deg, prow[i].dur_s, prow[i].peak_km,
+            prow[i].mask_km, prow[i].worst30_db);
+  printf ("# spreads\ncarrier_ghz,a_between_peaks_db,b_within_pass_db,"
+          "c_instantaneous_db,passes\n");
+  for (int c = -1; c < 2; c++)
+    {
+      /* c = -1 is both carriers; 0 and 1 are the carriers. */
+      double pmin = INFINITY, pmax = 0.0, mmax = 0.0, bmax = 0.0;
+      size_t n = 0;
+      for (size_t i = 0; i < np; i++)
+        {
+          if (c >= 0 && prow[i].carrier != c)
+            continue;
+          n++;
+          pmin = fmin (pmin, prow[i].peak_km);
+          pmax = fmax (pmax, prow[i].peak_km);
+          mmax = fmax (mmax, prow[i].mask_km);
+          bmax = fmax (bmax, 20.0 * log10 (prow[i].mask_km / prow[i].peak_km));
+        }
+      if (!n)
+        continue;
+      printf ("%s,%.2f,%.2f,%.2f,%zu\n",
+              c < 0 ? "both" : (c == 0 ? "2.2" : "2.8"),
+              20.0 * log10 (pmax / pmin), bmax, 20.0 * log10 (mmax / pmin), n);
+    }
+
   /* Carrier-only pre-compensation (owner 11-17: "Assume it only corrects
      carrier - worst-case"): the code clock keeps the raw pass's Doppler.
      The search's coherent block and its stacked dwell, read from the

@@ -3,8 +3,10 @@
 
 #include <doppler/ber/ber_core.h>
 #include <doppler/ccsds/ccsds_415.h>
+#include <doppler/ccsds/ccsds_415_frame.h>
 #include <doppler/gold/gold_core.h>
 #include <doppler/pn/pn_core.h>
+#include <doppler/syncword/syncword_core.h>
 #include <doppler/timing/timing_core.h>
 #include <doppler/wfm/wfm_core.h>
 
@@ -29,6 +31,8 @@ c_ptr (std::vector<cf32> &v)
 
 constexpr double LEAD_IN_S = 0.05; // noise alone before the signal arrives
 constexpr unsigned PAYLOAD_SEED = 1, PAYLOAD_PN = 15;
+// The data lengths' own PN, apart from the data's.
+constexpr unsigned LENGTH_SEED = 2;
 // What "sustained" means for the symbol lock is dp_ber_lock_symbol()'s
 // own: 0 and 0.0 select its defaults, so this file does not restate them.
 constexpr size_t LOCK_SUSTAIN = 0;
@@ -69,41 +73,383 @@ gold_code ()
   return code;
 }
 
-// The payload, a bit a symbol from doppler's PN15, each frame's code-only
-// opening zero: the truth the BER is scored against is what was sent.
-std::vector<uint8_t>
-payload_bits (size_t n)
+// One period of the 415.1-B-1 stimulus (§1.4) with a frame of `octets`
+// data octets: the library's description of it and the description's
+// layout. The description points into `f`, so a Period is never copied.
+struct Period
 {
-  std::vector<uint8_t> bits (n);
-  dp_pn_state_t *pn
-      = dp_pn_create_mls (0, PAYLOAD_SEED, PAYLOAD_PN, PN_GALOIS);
-  check (pn != nullptr, "the payload PN opens");
-  dp_pn_generate (pn, n, bits.data (), n);
-  dp_pn_destroy (pn);
-  for (size_t i = 0; i < n; i++)
-    if (i % DP_CCSDS_415_FRAME_SYM < DP_CCSDS_415_CODE_ONLY_SYM)
-      bits[i] = 0;
-  return bits;
+  dp_ccsds_415_frame_t f;
+  wfm_frame_desc_layout_t lay;
+
+  explicit Period (unsigned octets)
+  {
+    const char *why = nullptr;
+    check (dp_ccsds_415_frame_desc (&f, nullptr, octets, &why) == 0,
+           std::string ("the frame description: ") + (why ? why : "?"));
+    check (dp_wfm_frame_desc_layout (&f.desc, &lay) == 0,
+           "the frame description lays out");
+  }
+  Period (const Period &) = delete;
+  Period &operator= (const Period &) = delete;
+
+  // A field's first bit in the period, by its name in the description.
+  size_t
+  off (const char *field) const
+  {
+    const int i = dp_wfm_frame_field_index (&f.desc, field);
+    check (i >= 0, std::string ("the description has a field ") + field);
+    return lay.field_off[i];
+  }
+};
+
+// A data length, 1 to 1,017 octets with every value equally likely: ten
+// bits of the length PN at a time, a draw outside the range rejected. A PN
+// rather than <random>'s distributions, whose output differs between
+// standard libraries, so every build sends the same stimulus.
+unsigned
+draw_octets (dp_pn_state_t *pn)
+{
+  for (;;)
+    {
+      uint8_t b[10];
+      dp_pn_generate (pn, sizeof b, b, sizeof b);
+      unsigned v = 0;
+      for (const uint8_t bit : b)
+        v = (v << 1) | bit;
+      if (v >= DP_CCSDS_415_DATA_MIN && v <= DP_CCSDS_415_DATA_MAX)
+        return v;
+    }
 }
 
-// The first symbol at least LAG_SPAN into the locked stream from which the
-// whole BER_SYNC_SYMS-symbol marker is data: never in a frame's code-only
-// opening, which is all one symbol and the same in every frame, so a marker
-// reaching into one matches at more than one lag and the alignment refuses
-// it.
-size_t
-marker_at (size_t lo)
+// At least n bits of the stimulus, whole periods of it: the gap, the
+// acquisition and start sequences, and one TC transfer frame, each frame
+// with a data field of a length drawn per frame and filled from doppler's
+// PN15. The library assembles every period from its description; this
+// only draws the lengths and the data, and keeps where each period sits.
+Stimulus
+stimulus (size_t n)
 {
-  size_t t0 = lo + LAG_SPAN;
-  const size_t in = t0 % DP_CCSDS_415_FRAME_SYM;
-  if (in < DP_CCSDS_415_CODE_ONLY_SYM)
-    t0 += DP_CCSDS_415_CODE_ONLY_SYM - in;
-  else if (in + BER_SYNC_SYMS > DP_CCSDS_415_FRAME_SYM)
-    t0 += DP_CCSDS_415_FRAME_SYM - in + DP_CCSDS_415_CODE_ONLY_SYM;
-  return t0;
+  Owned<dp_pn_state_t, dp_pn_destroy> data (
+      dp_pn_create_mls (0, PAYLOAD_SEED, PAYLOAD_PN, PN_GALOIS));
+  Owned<dp_pn_state_t, dp_pn_destroy> lengths (
+      dp_pn_create_mls (0, LENGTH_SEED, PAYLOAD_PN, PN_GALOIS));
+  check (data && lengths, "the stimulus PNs open");
+  Stimulus s;
+  std::vector<uint8_t> chunk (8 * DP_CCSDS_415_DATA_MAX), period;
+  while (s.bits.size () < n)
+    {
+      const unsigned octets = draw_octets (lengths.get ());
+      const Period p (octets);
+      dp_pn_generate (data.get (), 8 * octets, chunk.data (), chunk.size ());
+      period.resize (p.lay.frame_bits);
+      check (dp_wfm_frame_assemble_data (&p.f.desc, nullptr, chunk.data (),
+                                         period.data (), period.size ())
+                 == period.size (),
+             "a period assembles");
+      s.at.push_back (s.bits.size ());
+      s.len.push_back (period.size ());
+      s.data_at.push_back (s.bits.size () + p.off ("data"));
+      s.data_len.push_back (8 * octets);
+      s.bits.insert (s.bits.end (), period.begin (), period.end ());
+    }
+  return s;
+}
+
+// Where the BER meter's marker starts: the first data field at least
+// LAG_SPAN into the locked stream that is long enough to be the whole
+// marker. Data, because the gap, the acquisition sequence and the header
+// repeat from period to period, and a marker inside them would match more
+// than one lag.
+size_t
+marker_at (const Stimulus &s, size_t lo)
+{
+  for (size_t i = 0; i < s.at.size (); i++)
+    if (s.data_at[i] >= lo + LAG_SPAN && s.data_len[i] >= BER_SYNC_SYMS)
+      return s.data_at[i];
+  fail ("no data field long enough for the BER marker in the stimulus");
 }
 
 } // namespace
+
+// Reads the stimulus's frames from the receiver's decided symbols, a chunk
+// at a time, with no truth: the receiver's side of the link. Each symbol
+// is decided by its sign, a bit 1 for a negative real part (bit 0 is sent
+// as +1); the stream's polarity is whatever the carrier loop settled on,
+// and the start sequence says which.
+//
+// It finds a period by what §1.4 puts there for the purpose: the 128-bit
+// acquisition sequence and the 16-bit start sequence after it, one 144-bit
+// marker, searched in either polarity. The tolerance is the most errors
+// whose false-frame probability over the bits searched is at most 1e-6
+// (dp_syncword_max_errors_for()), so a noisy marker is found and data that
+// happens to resemble one is not. It then reads the header's length through
+// the library's description and checks the CRC; every frame found counts,
+// whatever its CRC says. Once a frame's CRC holds, its length is trusted
+// and the reader tracks: the next marker is one period on, where one place
+// is tried, and a marker not there is a miss. After a frame whose CRC
+// failed, whose length field may itself be wrong, the search resumes.
+class FrameReader
+{
+public:
+  // Where a frame was read: its period's first bit in the decided stream,
+  // its bits, the polarity, and the CRC's verdict.
+  struct Seen
+  {
+    size_t at, len;
+    bool inverted, crc_ok;
+  };
+
+  FrameReader () : hdr_ (DP_CCSDS_415_DATA_MIN)
+  {
+    // Every period's fields up to the data sit at the same offsets, so the
+    // shortest description reads any frame's header.
+    start_ = hdr_.off ("start");
+    acq_ = hdr_.off ("acq");
+    header_end_ = hdr_.off ("data");
+    // The marker's bits, as the library assembles them: the acquisition
+    // and start sequences of a period (its data is irrelevant here).
+    std::vector<uint8_t> data (8 * DP_CCSDS_415_DATA_MIN, 0),
+        period (hdr_.lay.frame_bits);
+    check (dp_wfm_frame_assemble_data (&hdr_.f.desc, nullptr, data.data (),
+                                       period.data (), period.size ())
+               == period.size (),
+           "the marker's period assembles");
+    marker_len_ = start_ + DP_CCSDS_415_START_BITS - acq_;
+    sw_.reset (dp_syncword_create (&period[acq_], marker_len_));
+    check (sw_ != nullptr, "the marker search opens");
+    // One offset is tried while tracking.
+    track_errors_ = tolerance (1);
+  }
+
+  void
+  feed (const cf32 *syms, size_t n)
+  {
+    for (size_t i = 0; i < n; i++)
+      bits_.push_back (syms[i].real () < 0.0f ? 1 : 0);
+    if (bits_.size () >= need_)
+      process ();
+  }
+
+  const FrameStats &
+  stats () const
+  {
+    return st_;
+  }
+  const std::vector<Seen> &
+  seen () const
+  {
+    return seen_;
+  }
+  const std::vector<uint8_t> &
+  bits () const
+  {
+    return bits_;
+  }
+
+private:
+  enum Outcome
+  {
+    NEED,   // not enough bits yet
+    MISS,   // tracking: no start sequence where it should be
+    REJECT, // searching: not a frame
+    READ    // a frame was read and counted
+  };
+
+  // The most marker errors whose false-frame probability over `window`
+  // offsets is at most 1e-6.
+  uint32_t
+  tolerance (size_t window) const
+  {
+    const int t = dp_syncword_max_errors_for (sw_.get (), window, 1e-6);
+    return t > 0 ? static_cast<uint32_t> (t) : 0u;
+  }
+
+  // The frame whose start sequence begins at bit h, its marker found
+  // with `errors` errors in polarity `inverted`. While tracking, the
+  // marker is checked here first.
+  Outcome
+  read_at (size_t h, bool tracking, uint32_t errors = 0, bool inverted = false)
+  {
+    if (h < start_)
+      return tracking ? MISS : REJECT;
+    const size_t at = h - start_;
+    if (bits_.size () < at + header_end_)
+      {
+        need_ = at + header_end_;
+        return NEED;
+      }
+    syncword_hit_t hit{ 1, 0, inverted ? 1 : 0, errors };
+    if (tracking)
+      {
+        hit = dp_syncword_find (sw_.get (), &bits_[at + acq_], marker_len_,
+                                track_errors_);
+        if (!hit.found)
+          return MISS;
+      }
+    const uint8_t flip = hit.inverted ? 1 : 0;
+
+    // The header, through the shortest description: the frame-length field
+    // holds the frame's octets less one (232.0-B-4 §4.1.2.7.2).
+    buf_.assign (hdr_.lay.frame_bits, 0);
+    for (size_t i = 0; i < header_end_; i++)
+      buf_[i] = bits_[at + i] ^ flip;
+    uint64_t length = 0;
+    const char *why = nullptr;
+    check (dp_wfm_frame_desc_field (&hdr_.f.desc, buf_.data (), buf_.size (),
+                                    "length", &length, &why)
+               == 0,
+           std::string ("the length field reads: ") + (why ? why : "?"));
+    const uint64_t octets = length + 1 - DP_CCSDS_415_HEADER_BITS / 8 - 2;
+    if (length + 1 < DP_CCSDS_415_HEADER_BITS / 8 + 2 + DP_CCSDS_415_DATA_MIN
+        || octets > DP_CCSDS_415_DATA_MAX)
+      {
+        if (!tracking)
+          return REJECT;
+        // Tracked, but no frame has this length: a frame whose header was
+        // received wrong, so its end is unknown and the search resumes.
+        count (h, at, 0, flip, false, hit.errors);
+        st_.tracking = false;
+        scan_ = h + 1;
+        return READ;
+      }
+
+    const Period p (static_cast<unsigned> (octets));
+    if (bits_.size () < at + p.lay.frame_bits)
+      {
+        need_ = at + p.lay.frame_bits;
+        return NEED;
+      }
+    buf_.resize (p.lay.frame_bits);
+    for (size_t i = 0; i < p.lay.frame_bits; i++)
+      buf_[i] = bits_[at + i] ^ flip;
+    const bool ok = dp_wfm_frame_desc_crc_ok (&p.f.desc, buf_.data ()) == 1;
+    count (h, at, p.lay.frame_bits, flip, ok, hit.errors);
+    // The header's fields as received, read back by name.
+    uint64_t v = 0;
+    if (dp_wfm_frame_desc_field (&p.f.desc, buf_.data (), buf_.size (),
+                                 "scid", &v, nullptr)
+        == 0)
+      st_.scid = static_cast<unsigned> (v);
+    if (dp_wfm_frame_desc_field (&p.f.desc, buf_.data (), buf_.size (),
+                                 "vcid", &v, nullptr)
+        == 0)
+      st_.vcid = static_cast<unsigned> (v);
+    if (dp_wfm_frame_desc_field (&p.f.desc, buf_.data (), buf_.size (),
+                                 "seq", &v, nullptr)
+        == 0)
+      st_.seq = static_cast<unsigned> (v);
+    st_.octets = static_cast<unsigned> (octets);
+    // The next period's start sequence is one period on, if this frame's
+    // length can be trusted: only when its CRC held. A failed frame's
+    // length field may be wrong itself, so the search resumes after its
+    // start instead.
+    if (ok)
+      {
+        next_ = h + p.lay.frame_bits;
+        st_.tracking = true;
+      }
+    else
+      {
+        st_.tracking = false;
+        scan_ = h + 1;
+      }
+    return READ;
+  }
+
+  void
+  count (size_t h, size_t at, size_t len, uint8_t flip, bool ok,
+         uint32_t errors)
+  {
+    st_.found++;
+    (ok ? st_.crc_ok : st_.crc_failed)++;
+    st_.any = true;
+    st_.inverted = flip != 0;
+    st_.start_errors = errors;
+    seen_.push_back ({ at, len, flip != 0, ok });
+    last_h_ = h;
+  }
+
+  void
+  process ()
+  {
+    need_ = 0;
+    for (;;)
+      {
+        if (st_.tracking)
+          {
+            const Outcome o = read_at (next_, true);
+            if (o == NEED)
+              return;
+            if (o == MISS)
+              {
+                st_.missed++;
+                st_.tracking = false;
+                scan_ = last_h_ + 1;
+              }
+            continue;
+          }
+        if (bits_.size () < scan_ + marker_len_)
+          return;
+        const size_t window = bits_.size () - scan_ - marker_len_ + 1;
+        const syncword_hit_t hit
+            = dp_syncword_find (sw_.get (), &bits_[scan_],
+                                bits_.size () - scan_, tolerance (window));
+        if (!hit.found)
+          {
+            // The last bits may be a marker's first: keep them.
+            scan_ = bits_.size () - (marker_len_ - 1);
+            return;
+          }
+        // The search answers with the FIRST offset within the tolerance,
+        // and the acquisition sequence alternates, so a marker shifted by
+        // two bits still matches all of it and the first answer can come a
+        // few bits early. The marker sits where its errors are fewest, so
+        // the offsets the marker's length on are compared and the fewest
+        // taken (the earliest of a tie).
+        size_t m = scan_ + hit.offset;
+        syncword_hit_t best = hit;
+        if (bits_.size () < m + 2 * marker_len_)
+          {
+            scan_ = m;
+            need_ = m + 2 * marker_len_;
+            return;
+          }
+        for (size_t k = 1; k < marker_len_; k++)
+          {
+            const syncword_hit_t c
+                = dp_syncword_find (sw_.get (), &bits_[scan_ + hit.offset + k],
+                                    marker_len_, best.errors);
+            if (c.found && c.offset == 0 && c.errors < best.errors)
+              {
+                best = c;
+                m = scan_ + hit.offset + k;
+              }
+          }
+        // The marker starts at the acquisition sequence; h is the start
+        // sequence's first bit.
+        const size_t h = m + (start_ - acq_);
+        const Outcome o
+            = read_at (h, false, best.errors, best.inverted != 0);
+        if (o == NEED)
+          {
+            // Search again from this marker once the frame's bits are in.
+            scan_ = h - (start_ - acq_);
+            return;
+          }
+        if (o == REJECT)
+          scan_ = h + 1;
+      }
+  }
+
+  const Period hdr_;
+  size_t start_ = 0, acq_ = 0, header_end_ = 0, marker_len_ = 0;
+  Owned<dp_syncword_state_t, dp_syncword_destroy> sw_;
+  uint32_t track_errors_ = 0;
+  std::vector<uint8_t> bits_, buf_;
+  size_t scan_ = 0, next_ = 0, last_h_ = 0, need_ = 0;
+  FrameStats st_;
+  std::vector<Seen> seen_;
+};
 
 double
 sample_period_ns ()
@@ -346,8 +692,9 @@ Run::Run (const Options &o, double fc) : o_ (o), fc_ (fc)
   std::snprintf (name, sizeof name, "ccsds415-%.1fGHz", fc / 1e9);
   name_ = name;
   code_ = gold_code ();
-  payload_ = payload_bits (
+  stim_ = stimulus (
       static_cast<size_t> ((o.seconds + LEAD_IN_S) * DP_CCSDS_415_SYM) + 64);
+  reader_ = std::make_unique<FrameReader> ();
 
   // The receiver the library builds at the point, for Es/N0 4 dB.
   const char *why = nullptr;
@@ -375,7 +722,7 @@ Run::Run (const Options &o, double fc) : o_ (o), fc_ (fc)
       dp_tlm_capture_open (tlm_.get (), o.chunk, path.c_str (), &clock_));
   check (cap_ != nullptr, "the capture opens " + path);
 
-  scene_ = std::make_unique<Scene> (code_.data (), payload_, fc, o.esn0_db,
+  scene_ = std::make_unique<Scene> (code_.data (), stim_.bits, fc, o.esn0_db,
                                     o.seconds, o.chunk);
   x_.resize (o.chunk);
   out_.resize (o.chunk);
@@ -427,6 +774,8 @@ Run::step ()
       code_flags_.push_back (static_cast<uint8_t> (st_.code_locked));
     }
   emitted_.push_back (syms_.size ());
+  // The frames, read from what this chunk decided: outside the timed span.
+  reader_->feed (out_.data (), got);
   n_ += o_.chunk;
   return true;
 }
@@ -486,14 +835,14 @@ Run::finish ()
   Owned<dp_ber_meter_state_t, dp_ber_meter_destroy> meter (
       dp_ber_meter_create (2, 0, 0.0));
   check (meter != nullptr, "the BER meter opens");
-  check (dp_ber_meter_set_truth (meter.get (), payload_.data (),
-                                 payload_.size ())
+  check (dp_ber_meter_set_truth (meter.get (), stim_.bits.data (),
+                                 stim_.bits.size ())
              == 0,
-         "the meter takes the payload");
+         "the meter takes the stimulus");
   // Scoring needs the marker, BER_SYNC_SYMS long, starting LAG_SPAN into
   // the locked stream, and LAG_SPAN more for the alignment's search.
   const size_t need
-      = marker_at (static_cast<size_t> (lo)) + BER_SYNC_SYMS + LAG_SPAN;
+      = marker_at (stim_, static_cast<size_t> (lo)) + BER_SYNC_SYMS + LAG_SPAN;
   if (need > syms_.size ())
     {
       char b[200];
@@ -507,7 +856,7 @@ Run::finish ()
       fail (b);
     }
   check (dp_ber_meter_align (meter.get (), c_ptr (syms_), syms_.size (),
-                             marker_at (static_cast<size_t> (lo)), 0, 0,
+                             marker_at (stim_, static_cast<size_t> (lo)), 0, 0,
                              LAG_SPAN, 0.0),
          "[" + name_ + "] the payload marker is in the locked stream");
   dp_ber_meter_score (meter.get (), c_ptr (syms_), syms_.size (),
@@ -522,7 +871,59 @@ Run::finish ()
   r.esn0_db = o_.esn0_db;
   if (o_.errors)
     print_errors (meter.get (), static_cast<size_t> (lo));
+
+  // The frames, against the truth, at the lag the meter detected
+  // (symbol i carries stimulus bit i + lag): every period sent whole
+  // inside the locked stream must have been read, and each CRC verdict must
+  // be what comparing the frame with what was sent says. A frame read
+  // where no period begins is a wrong verdict too.
+  const long lag = dp_ber_meter_get_lag (meter.get ());
+  const auto in_window = [&] (long at, size_t len) {
+    return at >= lo && at + static_cast<long> (len) <= static_cast<long> (syms_.size ());
+  };
+  for (size_t i = 0; i < stim_.at.size (); i++)
+    if (in_window (static_cast<long> (stim_.at[i]) - lag, stim_.len[i]))
+      r.frames_sent++;
+  const std::vector<uint8_t> &rx = reader_->bits ();
+  for (const FrameReader::Seen &f : reader_->seen ())
+    {
+      if (!in_window (static_cast<long> (f.at), f.len))
+        continue;
+      r.frames_read++;
+      (f.crc_ok ? r.frames_ok : r.frames_failed)++;
+      const long t = static_cast<long> (f.at) + lag;
+      const auto p = std::lower_bound (stim_.at.begin (), stim_.at.end (),
+                                       static_cast<size_t> (std::max (t, 0L)));
+      const size_t i = static_cast<size_t> (p - stim_.at.begin ());
+      // A frame read where no period begins is wrong whatever its CRC
+      // says: nothing was sent there.
+      if (p == stim_.at.end () || static_cast<long> (*p) != t)
+        {
+          r.frames_wrong++;
+          continue;
+        }
+      // Read at a period's start with another length: its length field
+      // arrived wrong, and only a CRC that passed it is wrong.
+      if (stim_.len[i] != f.len)
+        {
+          if (f.crc_ok)
+            r.frames_wrong++;
+          continue;
+        }
+      bool same = true;
+      for (size_t k = 0; same && k < f.len; k++)
+        same = (rx[f.at + k] ^ (f.inverted ? 1 : 0))
+               == stim_.bits[static_cast<size_t> (t) + k];
+      if (same != f.crc_ok)
+        r.frames_wrong++;
+    }
   return r;
+}
+
+const FrameStats &
+Run::frames () const
+{
+  return reader_->stats ();
 }
 
 // Where the scored stream's bit errors fall, at the meter's own detected lag
@@ -541,11 +942,11 @@ Run::print_errors (const dp_ber_meter_state_t *meter, size_t lo) const
   for (size_t i = lo; i < syms_.size (); i++)
     {
       const long t = static_cast<long> (i) + lag;
-      if (t < 0 || static_cast<size_t> (t) >= payload_.size ())
+      if (t < 0 || static_cast<size_t> (t) >= stim_.bits.size ())
         continue;
       n++;
       const uint8_t bit = (syms_[i] * rot).real () < 0.0f ? 1 : 0;
-      if (bit != payload_[static_cast<size_t> (t)])
+      if (bit != stim_.bits[static_cast<size_t> (t)])
         {
           if (!errs)
             first = i;
@@ -562,7 +963,7 @@ Run::print_errors (const dp_ber_meter_state_t *meter, size_t lo) const
   for (size_t i = first; errs && i < syms_.size (); i++)
     {
       const long t = static_cast<long> (i) + lag;
-      if (t >= 0 && static_cast<size_t> (t) < payload_.size ())
+      if (t >= 0 && static_cast<size_t> (t) < stim_.bits.size ())
         after++;
     }
   // The errors in each tenth of the window, to show a rate that moves.
@@ -571,10 +972,10 @@ Run::print_errors (const dp_ber_meter_state_t *meter, size_t lo) const
   for (size_t i = lo; span && i < syms_.size (); i++)
     {
       const long t = static_cast<long> (i) + lag;
-      if (t < 0 || static_cast<size_t> (t) >= payload_.size ())
+      if (t < 0 || static_cast<size_t> (t) >= stim_.bits.size ())
         continue;
       const uint8_t bit = (syms_[i] * rot).real () < 0.0f ? 1 : 0;
-      if (bit != payload_[static_cast<size_t> (t)])
+      if (bit != stim_.bits[static_cast<size_t> (t)])
         tenth[std::min<size_t> (9, (i - lo) * 10 / span)]++;
     }
   std::printf ("%s errors: %zu in %zu scored symbols from symbol %zu (lag "
@@ -643,7 +1044,7 @@ Run::finish_partial ()
       lock = b;
     }
   std::printf ("%s: stopped at %.2f s of %.2f s by the user; %s; the "
-               "full-scene checks (%sBER, the payload marker) were not "
+               "full-scene checks (%sBER, the payload marker, the frames) were not "
                "evaluated. Partial checks (capture complete, %zu records, "
                "no call filled its capacity): %s\n",
                name_.c_str (), elapsed_s (), length_s (), lo >= 0 ? lock.c_str () : "lock not yet reached",
@@ -697,6 +1098,31 @@ report (const std::string &name, const Result &r, size_t chunk)
     {
       std::fprintf (stderr, "FAIL: [%s] locked after the allocation\n",
                     name.c_str ());
+      ok = false;
+    }
+  std::printf ("  frames: %zu of the %zu sent in the locked stream read; "
+               "CRC passed %zu, failed %zu; %zu verdicts the truth "
+               "contradicts\n",
+               r.frames_read, r.frames_sent, r.frames_ok, r.frames_failed,
+               r.frames_wrong);
+  if (r.frames_sent == 0)
+    {
+      std::fprintf (stderr, "FAIL: [%s] no whole frame in the locked "
+                            "stream: a longer scene has some\n",
+                    name.c_str ());
+      ok = false;
+    }
+  if (r.frames_read != r.frames_sent)
+    {
+      std::fprintf (stderr, "FAIL: [%s] %zu frames read of %zu sent\n",
+                    name.c_str (), r.frames_read, r.frames_sent);
+      ok = false;
+    }
+  if (r.frames_wrong)
+    {
+      std::fprintf (stderr, "FAIL: [%s] %zu CRC verdicts the truth "
+                            "contradicts\n",
+                    name.c_str (), r.frames_wrong);
       ok = false;
     }
   // No bits scored has an interval from 0, which no bound refuses: it

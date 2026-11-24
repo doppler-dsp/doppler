@@ -70,6 +70,21 @@ void parse (int argc, char **argv, Options &o, bool tui);
 [[noreturn]] void fail (const std::string &why);
 void check (bool ok, const std::string &why);
 
+// What the frame reader has read so far, from the receiver's decided
+// symbols alone: no truth. Every count is of whole frames.
+struct FrameStats
+{
+  size_t found = 0;      // frames read: a start sequence, then the length
+  size_t crc_ok = 0;     // of those, the FECF's CRC held
+  size_t crc_failed = 0; // and did not
+  size_t missed = 0;     // no start sequence where the last frame put it
+  bool tracking = false; // the next start sequence's place is known
+  // The last frame read.
+  bool any = false;
+  unsigned octets = 0, scid = 0, vcid = 0, seq = 0, start_errors = 0;
+  bool inverted = false; // read from the complemented stream
+};
+
 // What a finished run measured.
 struct Result
 {
@@ -83,12 +98,26 @@ struct Result
   double proc_ns = 0.0;  // processing time per sample, whole run
   double worst_ns = 0.0; // the slowest chunk's
   size_t chunks = 0;
+  // Frames in the locked stream: those sent whole inside it, those read,
+  // their CRC verdicts, and the verdicts the truth contradicts.
+  size_t frames_sent = 0, frames_read = 0, frames_ok = 0, frames_failed = 0;
+  size_t frames_wrong = 0;
 };
 
 // The summary lines for one carrier, and whether its checks held.
 bool report (const std::string &name, const Result &r, size_t chunk);
 
 class Scene;
+class FrameReader;
+
+// The stimulus, every period of it, as the bits sent and where each period
+// sits in them.
+struct Stimulus
+{
+  std::vector<uint8_t> bits;
+  std::vector<size_t> at, len;   // a period's first bit, and its bits
+  std::vector<size_t> data_at, data_len; // its data field's
+};
 
 // One carrier's run: the scene, the receiver, its telemetry and capture.
 class Run
@@ -102,7 +131,9 @@ public:
   // Process the next chunk; false once the scene has ended.
   bool step ();
   // Close the capture and score the run: the self-checks (a complete
-  // capture, every probe emitted, a sustained lock, the payload found).
+  // capture, every probe emitted, a sustained lock, the payload found, and
+  // every frame sent in the locked stream read, with CRC verdicts the
+  // truth agrees with).
   Result finish ();
   // A run stopped before its scene ended (the TUI's q): close the capture
   // and check only what a partial run can answer. The capture closes
@@ -150,12 +181,16 @@ public:
   {
     return syms_.size ();
   }
+  // The frames read so far.
+  const FrameStats &frames () const;
 
 private:
   const Options &o_;
   double fc_;
   std::string name_;
-  std::vector<uint8_t> code_, payload_;
+  std::vector<uint8_t> code_;
+  Stimulus stim_;
+  std::unique_ptr<FrameReader> reader_;
   Owned<dp_async_dsss_receiver_state_t, dp_async_dsss_receiver_destroy> rx_;
   Owned<dp_tlm_t, dp_tlm_destroy> tlm_;
   Owned<dp_tlm_capture_t, dp_tlm_capture_destroy> cap_;

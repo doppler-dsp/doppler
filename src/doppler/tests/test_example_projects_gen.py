@@ -58,6 +58,7 @@ def _repo(tmp: Path) -> Path:
 def _write(g, root: Path) -> None:
     (root / "docs" / "example-projects").mkdir(parents=True, exist_ok=True)
     for rel, text in g.render(root).items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
         (root / rel).write_text(text, encoding="utf-8")
 
 
@@ -151,3 +152,97 @@ def test_a_binary_file_is_named_on_the_page_not_a_crash(
     )
     assert "data.bin" in page and "binary file" in page
     assert g.missing_files(root) == []
+
+
+def _family(tmp: Path) -> Path:
+    """The one-level project ``p`` beside a family ``fam`` of two."""
+    root = _repo(tmp)
+    for kid in ("a", "b"):
+        d = root / "example-projects" / "fam" / kid
+        d.mkdir(parents=True)
+        (d / "README.md").write_text(
+            f"# {kid}\n\n<!-- --8<-- [start:body] -->\nBody.\n"
+            "<!-- --8<-- [end:body] -->\n"
+        )
+        (d / "Makefile").write_text("all:\n")
+        (d / "main.cpp").write_text("int main() { return 0; }\n")
+    _git(root, "add", "-A")
+    return root
+
+
+def test_a_family_is_a_project_per_child_with_its_own_page(
+    tmp_path: Path,
+) -> None:
+    """A directory with no build file whose children have one is a family:
+    each child is a project, paged under the family, fetched as itself.
+    Rejects the one-level reading, which made ``fam`` one project whose
+    children's files were tabs on a page nobody could build from."""
+    g = _gen()
+    root = _family(tmp_path)
+    assert g.projects(root) == ["fam/a", "fam/b", "p"]
+    pages = g.render(root)
+    assert set(pages) == {
+        "docs/example-projects/p.md",
+        "docs/example-projects/fam/a.md",
+        "docs/example-projects/fam/b.md",
+    }
+    a = pages["docs/example-projects/fam/a.md"]
+    assert '--8<-- "example-projects/fam/a/main.cpp"' in a
+    assert "```cpp" in a
+    assert "example-projects/fam/b" not in a
+    # the fetch strips down to the project's own folder, at either depth
+    assert "--strip-components=3 doppler-1.2.3/example-projects/fam/a" in a
+    p = pages["docs/example-projects/p.md"]
+    assert "--strip-components=2 doppler-1.2.3/example-projects/p" in p
+    _write(g, root)
+    assert g.missing_files(root) == []
+    assert g.page_problems(root) == []
+
+
+def test_a_file_of_a_familys_own_is_refused_by_name(tmp_path: Path) -> None:
+    """A family holds projects only: a file beside them would reach no page,
+    so it is refused, naming it. Rejects it being silently dropped."""
+    g = _gen()
+    root = _family(tmp_path)
+    (root / "example-projects" / "fam" / "notes.txt").write_text("x\n")
+    _git(root, "add", "-A")
+    with pytest.raises(SystemExit, match=r"fam/ is a family.*notes\.txt"):
+        g.projects(root)
+
+
+def test_an_orphan_page_under_a_family_is_found(tmp_path: Path) -> None:
+    """A page left under a family's folder with no project behind it is an
+    orphan too. Rejects an orphan check that reads one level only."""
+    g = _gen()
+    root = _family(tmp_path)
+    _write(g, root)
+    (root / "docs" / "example-projects" / "fam" / "gone.md").write_text("#\n")
+    assert any("fam/gone.md" in x for x in g.page_problems(root))
+
+
+def test_a_project_the_release_lacks_says_so_and_links_nothing(
+    tmp_path: Path,
+) -> None:
+    """A project added since the release: its page has no fetch and no
+    pinned link (both would 404 until the next release) and says it is new.
+    Rejects the release block on a project the tag does not carry, which
+    check_repo_links.py then refuses."""
+    g = _gen()
+    root = _repo(tmp_path)
+    _git(root, "commit", "-q", "-m", "release")
+    _git(root, "tag", "v1.2.3")
+    d = root / "example-projects" / "q"
+    d.mkdir()
+    (d / "README.md").write_text(
+        "# q\n\n<!-- --8<-- [start:body] -->\nBody.\n"
+        "<!-- --8<-- [end:body] -->\n"
+    )
+    (d / "Makefile").write_text("all:\n")
+    _git(root, "add", "-A")
+    pages = g.render(root)
+    q = pages["docs/example-projects/q.md"]
+    assert "new since the latest release" in q
+    assert "archive/refs/tags" not in q and "tree/v1.2.3" not in q
+    assert '--8<-- "example-projects/q/Makefile"' in q
+    p = pages["docs/example-projects/p.md"]
+    assert "archive/refs/tags/v1.2.3.tar.gz" in p

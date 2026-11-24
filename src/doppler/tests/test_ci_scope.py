@@ -73,4 +73,33 @@ def test_main_writes_the_output(tmp_path: Path) -> None:
         [sys.executable, str(SCRIPT)], env=env, capture_output=True, text=True
     )
     assert r.returncode == 0, r.stderr
-    assert out.read_text(encoding="utf-8") == "scope=full\n"
+    assert out.read_text(encoding="utf-8") == (
+        'scope=full\nlinux_os=["ubuntu-22.04","ubuntu-24.04"]\n'
+    )
+
+
+@pytest.mark.parametrize(
+    ("result", "want"),
+    [
+        ("minimal", ["ubuntu-24.04"]),
+        ("full", ["ubuntu-22.04", "ubuntu-24.04"]),
+        ("skip", ["ubuntu-22.04", "ubuntu-24.04"]),
+    ],
+)
+def test_the_linux_os_list_is_the_matrix_input(
+    result: str, want: list[str]
+) -> None:
+    """The JSON the matrix reads with fromJSON. A minimal push drops the
+    22.04 leg; any unknown scope builds both, failing toward more."""
+    import json
+
+    assert json.loads(ci_scope.linux_os(result)) == want
+
+
+def test_an_unknown_scope_builds_both() -> None:
+    import json
+
+    assert json.loads(ci_scope.linux_os("garbage")) == [
+        "ubuntu-22.04",
+        "ubuntu-24.04",
+    ]

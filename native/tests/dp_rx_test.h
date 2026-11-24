@@ -72,6 +72,7 @@
 #include "dp_tx_test.h" /* dp_tx_bits_for_run -- the record, tiled */
 
 #include "doppler/ber/ber_core.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/frame_meter/frame_meter_core.h"
 #include "doppler/loop_filter/loop_filter_core.h"
@@ -1017,10 +1018,18 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
              taken at the END, of the MEAN — the sign is the direction the
              Doppler happens to run and says nothing about the loop, but
              taking it per sample first is what turns the measurement into a
-             reading of the discriminator's noise. */
+             reading of the discriminator's noise. The mean is the
+             DISCRIMINATOR's (`last_error`), and the law is the loop's
+             carrier phase: the discriminator reads the M-th power's, slope
+             CARRIER_NDA_DISC_SLOPE (2) at every M, and the loop's gain is 1
+             since #3224 divided that slope out ahead of the filter. So the
+             lag in carrier phase is the mean over the slope, as
+             test_mpsk_receiver_core.c's ramp law reads it. MpskReceiver is
+             the battery's one receiver (rx_battery.c), and the slope is its
+             carrier detector's. */
           r.ramp_law_rad = dp_rx_ramp_law (pt, zeta);
           if (r.ramp_law_rad > 0.0 && cnt)
-            r.ramp_lag_rad = fabs (s1 / (double)cnt);
+            r.ramp_lag_rad = fabs (s1 / (double)cnt) / CARRIER_NDA_DISC_SLOPE;
         }
         /* Acquisition, reported only where the answer is not trivially zero:
            at foff = 0 the correct answer IS zero, so a loop that never steers

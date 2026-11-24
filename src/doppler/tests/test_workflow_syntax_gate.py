@@ -144,3 +144,33 @@ def test_the_live_workflows_pass(tmp_path: Path) -> None:
         [sys.executable, str(SCRIPT)], capture_output=True, text=True, cwd=REPO
     )
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_job_if_that_reads_matrix_is_refused(tmp_path: Path) -> None:
+    """The defect that rejected two scratch pushes: `matrix` in a job's `if:`.
+
+    GitHub evaluates that `if:` before the matrix expands and rejects the
+    whole file, so the push shows as a workflow-file failure with no branch.
+    Sabotage: `if: contains(fromJSON(...), matrix.os)` on a matrix job.
+    """
+    wf = tmp_path / "w.yml"
+    wf.write_text(
+        "on: push\n"
+        "jobs:\n"
+        "  b:\n"
+        "    if: contains(fromJSON('[\"a\"]'), matrix.os)\n"
+        "    strategy:\n"
+        "      matrix:\n"
+        "        os: [a]\n"
+        "    runs-on: ubuntu-latest\n"
+        "    steps:\n"
+        "      - run: true\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), str(wf)],
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "its `if:` reads `matrix`" in r.stdout

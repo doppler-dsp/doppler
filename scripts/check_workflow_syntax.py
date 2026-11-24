@@ -89,6 +89,20 @@ def check(path: pathlib.Path) -> list[str]:
         return []
 
     problems: list[str] = []
+    # A job's `if:` is evaluated before its matrix expands, so GitHub does not
+    # provide `matrix` there (the context table: jobs.<job_id>.if takes
+    # github, needs, vars, inputs). A workflow that reads it is REJECTED as a
+    # file, and the run is a push run with no branch and no jobs. This gate
+    # reads the documented table, not GitHub's parser: actionlint is the full
+    # checker, and it is not in this repo's pin.
+    for name, job in (doc.get("jobs") or {}).items():
+        cond = job.get("if") if isinstance(job, dict) else None
+        if isinstance(cond, str) and re.search(r"\bmatrix\.", cond):
+            problems.append(
+                f"{path.name}: job {name} -- its `if:` reads `matrix`, which "
+                "GitHub does not provide at job level (jobs.<job_id>.if takes "
+                "github, needs, vars, inputs); the workflow is rejected"
+            )
     default_shell = ((doc.get("defaults") or {}).get("run") or {}).get(
         "shell", ""
     )

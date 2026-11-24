@@ -285,8 +285,16 @@ nobody reads again. A push to `main` / `develop` never cancels.
 **To read a branch's state:**
 
 ```sh
-gh run list --branch <branch> --limit 1 --json status,conclusion
+gh api "repos/doppler-dsp/doppler/actions/runs?head_sha=$(git rev-parse HEAD)" \
+  --jq '.workflow_runs[] | "\(.id) \(.event) \(.conclusion) \(.name)"'
 ```
+
+Read it by `head_sha`, not by branch. A workflow file GitHub rejects still
+produces a run for the commit, but it has no branch, so `gh run list --branch`
+shows nothing and the failure is invisible to that command. A rejected file
+shows as a run whose `name` is the workflow's path (`.github/workflows/ci.yml`)
+with conclusion `failure`, and it names no jobs. Both a rejected file and a
+real CI run appear under the commit's `head_sha`.
 
 `conclusion` is `success` only when `CI passed` was green, and for a
 `minimal` run that means the minimal set, not the PR's full one: a branch is

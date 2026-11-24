@@ -172,6 +172,9 @@ jobs:
     outputs:
       image_2204: ${{ steps.read.outputs.image_2204 }}
       image_2404: ${{ steps.read.outputs.image_2404 }}
+      # The two pinned images keyed by OS: the Linux matrix reads its leg's
+      # image from here, so no matrix include can add a leg back.
+      images: ${{ steps.read.outputs.images }}
 
     steps:
     - uses: actions/checkout@v7
@@ -184,6 +187,8 @@ jobs:
         . .github/ci-images.env
         echo "image_2204=$CI_IMAGE_2204" >> "$GITHUB_OUTPUT"
         echo "image_2404=$CI_IMAGE_2404" >> "$GITHUB_OUTPUT"
+        printf 'images={"ubuntu-22.04":"%s","ubuntu-24.04":"%s"}\n' \
+            "$CI_IMAGE_2204" "$CI_IMAGE_2404" >> "$GITHUB_OUTPUT"
         echo "22.04 $CI_IMAGE_2204" >> "$GITHUB_STEP_SUMMARY"
         echo "24.04 $CI_IMAGE_2404" >> "$GITHUB_STEP_SUMMARY"
 
@@ -194,8 +199,7 @@ jobs:
     # not list is a skipped leg, and no matrix expression names it.
     if: >-
       needs.changes.outputs.code == 'true' &&
-      needs.scope.outputs.scope != 'skip' &&
-      contains(fromJSON(needs.scope.outputs.linux_os), matrix.os)
+      needs.scope.outputs.scope != 'skip'
     needs: [pin, changes, scope]
     name: Build on ${{ matrix.os }}
     runs-on: ubuntu-latest
@@ -209,17 +213,13 @@ jobs:
         # (The 2.28 FLOOR is a different question, answered by the glibc-228
         # job below and by manylinux_2_28 wheels at release.)
         # A push without a PR builds the newer image alone: `scope` emits the
-        # OS list (scripts/ci_scope.py, LINUX_OS), and the image of each OS is
-        # read from pin's `images` map. No expression inside `exclude`, and no
-        # leg added by `include` (an `include` entry for a leg the list lacks
-        # would add it back).
-        include:
-          - os: ubuntu-22.04
-            image: ${{ needs.pin.outputs.image_2204 }}
-          - os: ubuntu-24.04
-            image: ${{ needs.pin.outputs.image_2404 }}
+        # OS list (scripts/ci_scope.py, LINUX_OS), and each OS's image is read
+        # from pin's `images` map. A matrix `include` would add a leg the list
+        # lacks, so there is none. A job `if:` cannot name `matrix` (the
+        # context table: jobs.<job_id>.if has github, needs, vars, inputs).
+        os: ${{ fromJSON(needs.scope.outputs.linux_os) }}
     container:
-      image: ${{ matrix.image }}
+      image: ${{ fromJSON(needs.pin.outputs.images)[matrix.os] }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}

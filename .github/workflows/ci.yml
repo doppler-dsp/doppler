@@ -1,12 +1,18 @@
 name: CI
 
 on:
+  # EVERY branch push, never a tag (a release tag is release.yml's, and a
+  # tag run would be a second CI of the commit that main already ran). What a
+  # push runs depends on where it lands: the `scope` job below says `full`
+  # for main / develop, `minimal` for any other branch, and `skip` when the
+  # pushed commit is the head of an open pull request, whose own run is then
+  # the gate. A branch that had no PR used to meet CI for the first time when
+  # the PR opened, weeks in, with every red at once (docs/dev/ci.md).
   push:
-    branches: [ main, develop ]
+    tags-ignore: ['**']
   # No base-branch filter: a stacked PR (base = another feature branch) must
   # get the same CI as one targeting main — an unfiltered pull_request event
-  # runs on every PR, while the push trigger above keeps post-merge runs
-  # scoped to the long-lived branches (no double-run for feature pushes).
+  # runs on every PR.
   # Every PR runs the FULL matrix: it is the run that gates the merge. There
   # is no merge queue (retired 2026-10-01), so nothing runs after a PR's own
   # checks and before it lands; docs/dev/ci.md has why.
@@ -27,15 +33,21 @@ on:
   workflow_dispatch:
 
 # A force-push to a PR (routine while a stacked branch rebases) supersedes
-# the in-flight run — cancel it. Pushes to main/develop never cancel: a PR
-# push lands in the PR's own `refs/pull/N/merge` group and cannot reach them.
+# the in-flight run — cancel it, and so does a push to any branch that is not
+# main / develop: its older run tests a commit nobody will read again.
+# Pushes to main/develop never cancel: a PR push lands in the PR's own
+# `refs/pull/N/merge` group and cannot reach them.
 #
 # The event is in the group so the nightly and a push to main never share
 # one: in a group, a newer pending run cancels an older pending run, so a
 # shared group would let either one silently replace the other.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request' ||
+        (github.event_name == 'push' &&
+         github.ref != 'refs/heads/main' &&
+         github.ref != 'refs/heads/develop') }}
 
 jobs:
   # ------------------------------------------------------------------
@@ -69,6 +81,32 @@ jobs:
   # drift and the CI-image pin still run, because they check the very files
   # a bump changes. Any doubt (unreachable base, empty probe, anything else
   # changed) answers src=true and the whole matrix runs.
+  # How much of CI THIS run owes: full | minimal | skip (scripts/ci_scope.py
+  # has the rule and its tests). It is a job of ci.yml's own, not an output
+  # of the vendored `changes.yml`: which events get what is doppler's policy.
+  # `gh pr list` needs `pull-requests: read`, so the job asks for it rather
+  # than rely on the repository's default token.
+  scope:
+    name: Scope of this run
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
+    steps:
+    - uses: actions/checkout@v7
+    - id: scope
+      env:
+        EVENT: ${{ github.event_name }}
+        REF: ${{ github.ref }}
+        BRANCH: ${{ github.ref_name }}
+        SHA: ${{ github.sha }}
+        REPO: ${{ github.repository }}
+        GH_TOKEN: ${{ github.token }}
+      run: python3 scripts/ci_scope.py
+
   # Is this diff a version bump, a tree CI already passed, or docs alone?
   # The vendored `changes.yml` answers (canonical, standard-check holds it
   # verbatim): src=false for a bump or an already-tested tree, code=false for
@@ -81,12 +119,14 @@ jobs:
       contents: read
 
   # The Python matrix, which is doppler's own and so not the vendored
-  # workflow's to answer: every supported version, or the primary alone when
+  # workflow's to answer: every supported version; the primary alone when
   # code=false (docs can break the full suite, but not on one interpreter more
-  # than another). Read from pyproject.toml's classifiers, never written here.
+  # than another); the primary and the newest for a push without a PR. Read
+  # from pyproject.toml's classifiers, never written here.
   pythons:
     name: Python matrix
-    needs: changes
+    needs: [changes, scope]
+    if: needs.scope.outputs.scope != 'skip'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     outputs:
@@ -103,10 +143,16 @@ jobs:
     - id: matrix
       env:
         CODE: ${{ needs.changes.outputs.code }}
+        SCOPE: ${{ needs.scope.outputs.scope }}
       run: |
         primary=$(make -s print-python-primary)
+        newest=$(make -s print-python-newest)
         if [ "$CODE" = false ]; then
           pythons="[\"$primary\"]"
+        elif [ "$SCOPE" = minimal ]; then
+          # A push without a PR: the floor (the primary, which also runs the
+          # once-only gates) and the newest, the two ends of the range.
+          pythons="[\"$primary\", \"$newest\"]"
         else
           pythons=$(make -s print-python-matrix)
         fi
@@ -115,6 +161,8 @@ jobs:
 
   pin:
     name: Resolve the pinned CI image
+    needs: scope
+    if: needs.scope.outputs.scope != 'skip'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     outputs:
@@ -137,8 +185,11 @@ jobs:
 
   build-and-test-linux:
     # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
-    needs: [pin, changes]
+    # In the minimal set; a push without a PR runs the 24.04 leg alone.
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope != 'skip'
+    needs: [pin, changes, scope]
     name: Build on ${{ matrix.os }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -150,11 +201,18 @@ jobs:
         # would leave the matrix naming two environments while testing one.
         # (The 2.28 FLOOR is a different question, answered by the glibc-228
         # job below and by manylinux_2_28 wheels at release.)
+        # A push without a PR runs the newer image alone: the older leg is
+        # excluded when `scope` says minimal. `os` is the base list and
+        # `include` only adds each leg's image to the leg of that name, so
+        # no entry here can add a leg back.
+        os: [ubuntu-22.04, ubuntu-24.04]
         include:
           - os: ubuntu-22.04
             image: ${{ needs.pin.outputs.image_2204 }}
           - os: ubuntu-24.04
             image: ${{ needs.pin.outputs.image_2404 }}
+        exclude:
+          - os: ${{ needs.scope.outputs.scope == 'minimal' && 'ubuntu-22.04' || 'none' }}
     container:
       image: ${{ matrix.image }}
       credentials:
@@ -170,20 +228,24 @@ jobs:
         key: build-${{ matrix.os }}
 
     - name: Build
+      id: build
       run: make build
 
     # A fresh tree never has a stale vendored-nats.c cache, so the #1936 fix
     # is a no-op in every other step. This makes that state on purpose and
     # checks the vendor's cache, not the exit code.
     - name: Vendored nats.c keeps its options after a compiler change
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make nats-vendor-fresh-check
 
     - name: Test
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make test
 
     # Every built C benchmark runs to exit 0. Nothing else runs them before
     # the release bench run, which is where #2675's two crashes surfaced.
     - name: Benchmarks run
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make bench-run-check
 
     # The rows that run just measured, each with its recorded unit, held to
@@ -193,7 +255,7 @@ jobs:
     # the 22.04 image's Python 3.10 lacks. It fails, naming the module, if a
     # future image's python3 has none, so an image bump cannot turn it off.
     - name: Benchmark rows are labelled
-      if: matrix.os == 'ubuntu-24.04'
+      if: ${{ !cancelled() && steps.build.outcome == 'success' && matrix.os == 'ubuntu-24.04' }}
       run: make bench-labels-pr-check BENCH_LABELS_SUITE=c
 
     # dp_isotime.h follows just-bashit's `iso-8601-basic` rather than defining
@@ -202,6 +264,7 @@ jobs:
     # flag a missing checkout would SKIP, and a gate that skips in CI is a
     # gate that stopped gating without saying so.
     - name: Check ISO 8601 parity with just-bashit
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: |
         # macOS ships BSD date, and BOTH sides of this comparison want GNU:
         # just-bashit's own helper picks `gdate` when it is there, and this
@@ -214,12 +277,15 @@ jobs:
             JUST_BASHIT="$RUNNER_TEMP/just-bashit"
 
     - name: Example smoke tests
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make test-examples
 
     - name: Rust FFI tests
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make test-rust
 
     - name: Compiler-cache statistics
+      if: ${{ !cancelled() }}
       # In the log on purpose: a cache that stops hitting has no symptom
       # other than builds slowly getting longer.
       run: make ccache-stats
@@ -232,6 +298,7 @@ jobs:
     # -march=native (or a stray wide-SIMD flag) leaked into the default build.
     # x86_64 Linux only: macOS is arm64 (NEON, no AVX) and Windows isn't shipped.
     - name: Verify portable SIMD + C++-free build
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # Wide SIMD outside a runtime-dispatched *avx512* function means a flag
       # leaked into the default build -- a wheel that SIGILLs on a user's CPU.
       # The C++ check keeps the library pure C: no libstdc++, no CXXABI, -lm
@@ -239,10 +306,12 @@ jobs:
       run: make abi-check
 
     - name: Smoke-test static link (libdoppler.a -lm -lpthread)
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # The question a downstream actually asks, answered on every platform.
       run: make link-check
 
     - name: Verify installed headers declare only what the libraries define
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # `native/inc/` is installed wholesale, so a header there is a
       # PUBLISHED C API whether or not anything implements it. Two declared
       # an API that was never built (#801) and a third block survived a
@@ -251,6 +320,7 @@ jobs:
       run: make installed-headers-check
 
     - name: Verify installed headers parse as C++, and a C++ consumer runs
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # No C++ compiler reads a doppler header anywhere else: the build is
       # LANGUAGES C. So a header that stopped parsing as C++ was found by a
       # downstream (#3108). Both g++ and clang++, from the image; they
@@ -259,6 +329,7 @@ jobs:
       run: make cxx-headers-check
 
     - name: Verify the exported CMake link interface names no absolute path
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # v0.51.0 exported find_library's `/usr/lib64/libm.so` into
       # doppler-targets.cmake, so CMake consumers of the static library on
       # Debian/Ubuntu could not link. A consumer built HERE links anyway --
@@ -266,23 +337,27 @@ jobs:
       run: make exported-link-check
 
     - name: Verify every exported symbol carries the dp_ prefix
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # A bare export collides with any other library that exports the same
       # name, and only the consumer's link notices. Absolute since #1565.
       run: make symbol-prefix-check
 
     - name: Verify the shared libraries export exactly the public API
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # libdoppler.so exported every external symbol -- vendored cJSON and
       # PFFFT included -- until its export list was written from the
       # headers (#1164). Both directions: nothing leaks, nothing is missing.
       run: make export-check
 
     - name: Verify a consumer's own cJSON / nats.c links beside doppler
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # doppler embeds both; the archives respell them dp__v_* and the
       # shared libraries do not export them, so a program bringing its own
       # copy neither collides nor hijacks, static or shared (#1565, #1164).
       run: make vendored-collision-check
 
     - name: Smoke-test the three consumer faces (cc / CMake / pkg-config)
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # Installs the fresh build to a scratch prefix and builds the
       # core+stream consumer via all three documented faces, asserting
       # identical output. The docs' "Compile it — three ways" snippets
@@ -293,6 +368,7 @@ jobs:
       run: make consumer-faces-check
 
     - name: Build example-projects/burst-pipeline against a real install
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # A directory the docs tell users to COPY, so it is built the way they
       # will build it: find_package against an install prefix, not the source
       # tree. It runs too, and its checks are real -- `repeats` against a
@@ -304,6 +380,7 @@ jobs:
       run: make burst-pipeline-check
 
     - name: UNO Q example (install prefix, both link modes)
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # The RTL-SDR front end example-projects/uno-q demonstrates, built the
       # way its README says and run in its self-test mode: U8ToF32 -> DDC ->
       # PSD on a synthetic cu8 capture, every claim checked.
@@ -317,9 +394,11 @@ jobs:
   # multi-platform index, so the arm runner pulls its arm64 variant.
   build-and-test-linux-arm64:
     # Docs cannot break this: skipped when code=false; see `changes`.
-    # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
-    needs: [pin, changes]
+    # In the minimal set.
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope != 'skip'
+    needs: [pin, changes, scope]
     name: Build on ubuntu-24.04-arm
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
@@ -337,16 +416,19 @@ jobs:
         key: build-ubuntu-24.04-arm
 
     - name: Build
+      id: build
       run: make build
 
     # `make test`, the x86 legs' target: the same selection as test-fast
     # without --stop-on-failure, so a red run names every failing test.
     - name: Test
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make test
 
     # The UNO Q example targets an aarch64 board, so it is checked on the
     # aarch64 runner as well as the x86 and macOS legs.
     - name: UNO Q example (install prefix, both link modes)
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make uno-q-check
 
   # Windows, clang-cl: BINDING, because the release publishes what it builds.
@@ -363,10 +445,12 @@ jobs:
   # bindings to clang-cl in 0.77.0, and this is where doppler's own cores are
   # tested under it -- the prerequisite for a Windows wheel.
   build-and-test-windows:
-    needs: changes
+    needs: [changes, scope]
     # Docs cannot break this: skipped when code=false; see `changes`.
-    # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
+    # In the minimal set.
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope != 'skip'
     name: Build on windows-latest (clang-cl)
     runs-on: windows-latest
     timeout-minutes: 45
@@ -395,15 +479,19 @@ jobs:
     # The library, the tests and the benchmarks, installed and zipped by the
     # recipe release.yml runs -- one build serves the suite and the package.
     - name: Build + package the C library
+      id: build
       run: make package-c-tarball VERSION=ci CMAKE_ARGS="$WIN_CMAKE_ARGS"
 
     - name: No compiler-rt complex helpers in the objects
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make complex-helpers-check
 
     - name: C suite
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make test
 
     - name: Consume the packaged zip (find_package, static + shared)
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make package-c-smoke VERSION=ci
 
     # The vcpkg face, from the in-repo overlay port and the clang-cl triplet
@@ -416,21 +504,27 @@ jobs:
     # pointing at the copy bundled with Visual Studio, which is manifest-only
     # and cannot install a port by name.
     - name: Install + consume through vcpkg (overlay port, clang-cl triplet)
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make vcpkg-smoke VCPKG_ROOT="$VCPKG_INSTALLATION_ROOT"
 
     # Last, and after the C steps on purpose: PYTHON_EXECUTABLE resolves
     # through `uv run` once uv is on PATH, so installing it earlier would
     # change the interpreter the C build above configured against.
     - name: Install uv + Python + package deps
+      id: uv
+      if: ${{ !cancelled() }}
       uses: ./.github/actions/setup-uv
       with:
         python-version: '3.12'
         sync: --group dev
 
     - name: Build Python C extensions
+      id: pyext
+      if: ${{ !cancelled() && steps.uv.outcome == 'success' && steps.build.outcome == 'success' }}
       run: make pyext CMAKE_ARGS="$WIN_CMAKE_ARGS"
 
     - name: Python suite
+      if: ${{ !cancelled() && steps.pyext.outcome == 'success' }}
       run: make test-python
 
   # The Windows WHEEL, built and smoked the way release.yml's `smoke-wheel`
@@ -442,9 +536,12 @@ jobs:
   # job rather than steps on build-and-test-windows: a wheel build is a full
   # rebuild, and serialising it would roughly double that job's wall time.
   wheel-smoke-windows:
-    needs: changes
+    needs: [changes, scope]
     # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
+    # Left to the PR run (scope == 'full').
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope == 'full'
     name: Wheel smoke (win_amd64, cp312)
     runs-on: windows-latest
     timeout-minutes: 45
@@ -475,10 +572,12 @@ jobs:
   # bake: `make install-deps` is the one dep command a developer also runs and
   # it auto-detects apt vs brew, so this stays exactly as it was.
   build-and-test-macos:
-    needs: changes
+    needs: [changes, scope]
     # Docs cannot break this: skipped when code=false; see `changes`.
-    # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
+    # Left to the PR run (scope == 'full').
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope == 'full'
     name: Build on macos-latest
     runs-on: macos-latest
     timeout-minutes: 45
@@ -487,13 +586,17 @@ jobs:
     - uses: actions/checkout@v7
 
     - name: Install system dependencies
+      id: deps
       timeout-minutes: 25
       run: make install-deps-ci
 
     - name: Build
+      id: build
+      if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
       run: make build
 
     - name: Test
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make test
 
     # dp_isotime.h follows just-bashit's `iso-8601-basic` rather than defining
@@ -502,6 +605,7 @@ jobs:
     # flag a missing checkout would SKIP, and a gate that skips in CI is a
     # gate that stopped gating without saying so.
     - name: Check ISO 8601 parity with just-bashit
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: |
         # macOS ships BSD date, and BOTH sides of this comparison want GNU:
         # just-bashit's own helper picks `gdate` when it is there, and this
@@ -517,16 +621,20 @@ jobs:
             JUST_BASHIT="$RUNNER_TEMP/just-bashit"
 
     - name: Example smoke tests
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make test-examples
 
     - name: Rust FFI tests
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make test-rust
 
     - name: Smoke-test static link (libdoppler.a -lm -lpthread)
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # The question a downstream actually asks, answered on every platform.
       run: make link-check
 
     - name: Smoke-test the three consumer faces (cc / CMake / pkg-config)
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # Installs the fresh build to a scratch prefix and builds the
       # core+stream consumer via all three documented faces, asserting
       # identical output. The docs' "Compile it — three ways" snippets
@@ -537,6 +645,7 @@ jobs:
       run: make consumer-faces-check
 
     - name: Build example-projects/burst-pipeline against a real install
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # A directory the docs tell users to COPY, so it is built the way they
       # will build it: find_package against an install prefix, not the source
       # tree. It runs too, and its checks are real -- `repeats` against a
@@ -548,6 +657,7 @@ jobs:
       run: make burst-pipeline-check
 
     - name: UNO Q example (install prefix, both link modes)
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       # The RTL-SDR front end example-projects/uno-q demonstrates, built the
       # way its README says and run in its self-test mode: U8ToF32 -> DDC ->
       # PSD on a synthetic cu8 capture, every claim checked.
@@ -558,8 +668,11 @@ jobs:
   # ------------------------------------------------------------------
   python:
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
-    if: needs.changes.outputs.src == 'true'
-    needs: [pin, changes, pythons]
+    # In the minimal set, on two interpreters (see `pythons`).
+    if: >-
+      needs.changes.outputs.src == 'true' &&
+      needs.scope.outputs.scope != 'skip'
+    needs: [pin, changes, pythons, scope]
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -586,12 +699,14 @@ jobs:
         key: python
 
     - name: Install uv + Python + package deps
+      id: uv
       uses: ./.github/actions/setup-uv
       with:
         python-version: ${{ matrix.python-version }}
         sync: --group dev
 
     - name: Start NATS JetStream broker (for nats:// stream tests)
+      id: nats
       # The stream suite's nats:// tests self-skip when 127.0.0.1:4222 is
       # unreachable; start a JetStream broker so they actually run in CI.
       # A service container can't pass the `-js` flag, so run it explicitly.
@@ -605,17 +720,21 @@ jobs:
       run: make nats-up
 
     - name: Build C library
+      id: build
       run: make build
 
     - name: Build Python C extensions
+      id: pyext
       run: make pyext
 
     - name: Compiler-cache statistics
+      if: ${{ !cancelled() }}
       # In the log on purpose: a cache that stops hitting has no symptom
       # other than builds slowly getting longer.
       run: make ccache-stats
 
     - name: Doctest generated stubs
+      if: ${{ !cancelled() && steps.pyext.outcome == 'success' }}
       # The .pyi docstrings are derived from each _core.h's Doxygen by jm.
       # Run their synthesized examples against the freshly built extensions so
       # a doc that no longer matches the API fails CI ("passing examples
@@ -639,7 +758,7 @@ jobs:
       #
       # The primary leg (doppler#1714: a version literal here once matched no
       # leg a pull_request ran, so a broken fence reached main).
-      if: matrix.python-version == needs.pythons.outputs.primary
+      if: ${{ !cancelled() && steps.pyext.outcome == 'success' && matrix.python-version == needs.pythons.outputs.primary }}
       run: make test-snippets
 
     - name: Test
@@ -653,14 +772,15 @@ jobs:
       # (below), and the number the patch gate actually reads comes from the
       # `coverage` job, which measures C ∪ Python ∪ Rust against one
       # instrumented build.
-      if: matrix.python-version != needs.pythons.outputs.primary
+      if: ${{ !cancelled() && steps.pyext.outcome == 'success' && matrix.python-version != needs.pythons.outputs.primary }}
       run: make test-python
 
     - name: Test with coverage
+      id: cov
       # The primary leg: the coverage.xml it writes is uploaded below.
       # BENCH_ROWS=1 also records every Python benchmark row the run
       # measured, for the next step.
-      if: matrix.python-version == needs.pythons.outputs.primary
+      if: ${{ !cancelled() && steps.pyext.outcome == 'success' && matrix.python-version == needs.pythons.outputs.primary }}
       run: |
         make test-python BENCH_ROWS=1 PYTEST_ARGS="--cov \
           --cov-report=term-missing \
@@ -670,10 +790,11 @@ jobs:
     # pull request half of bench-coverage-check's release-time label gate.
     # Its unit is not checked -- a Python bench's rate needs a timed run.
     - name: Benchmark rows are labelled
-      if: matrix.python-version == needs.pythons.outputs.primary
+      if: ${{ !cancelled() && steps.cov.outcome == 'success' && matrix.python-version == needs.pythons.outputs.primary }}
       run: make bench-labels-pr-check BENCH_LABELS_SUITE=py
 
     - name: Python example smoke tests
+      if: ${{ !cancelled() && steps.pyext.outcome == 'success' && steps.nats.outcome == 'success' }}
       # BEFORE nats-down, deliberately. The examples gate runs the
       # broker-dependent examples -- the conditional `broker:` entries in
       # both skip registries, and the two-process pairs -- and every one of
@@ -687,6 +808,7 @@ jobs:
     # started. Both patterns end to end -- pub/sub and JetStream push/pull --
     # every frame delivered once and held to the example's self-test checks.
     - name: UNO Q NATS transport (pub/sub + push/pull)
+      if: ${{ !cancelled() && steps.pyext.outcome == 'success' && steps.nats.outcome == 'success' }}
       run: make uno-q-nats-check
 
     - name: Stop NATS broker
@@ -714,13 +836,13 @@ jobs:
       # in a container, against this box's 15.2 / 2.43 -- where all eleven now
       # pass. Version-independent, so once, like the fence gates.
       #
-      if: matrix.python-version == needs.pythons.outputs.primary
+      if: ${{ !cancelled() && steps.pyext.outcome == 'success' && matrix.python-version == needs.pythons.outputs.primary }}
       run: make validate-check
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v7
       # The primary leg, with the step that wrote the file.
-      if: matrix.python-version == needs.pythons.outputs.primary
+      if: ${{ !cancelled() && steps.cov.outcome == 'success' && matrix.python-version == needs.pythons.outputs.primary }}
       with:
         name: coverage-report
         path: coverage.xml
@@ -730,10 +852,12 @@ jobs:
   # Catches any accidental use of glibc symbols > 2.28 at build time.
   # ------------------------------------------------------------------
   glibc-228:
-    needs: changes
+    needs: [changes, scope]
     # Docs cannot break this: skipped when code=false; see `changes`.
-    # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
+    # Left to the PR run (scope == 'full').
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope == 'full'
     name: glibc 2.28 (Debian 10)
     # No `container:` any more, and no provisioning inline. The Debian 10
     # environment this job needs is deploy/docker/Dockerfile.glibc228, and
@@ -757,8 +881,11 @@ jobs:
   # ------------------------------------------------------------------
   doxygen:
     # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
-    needs: [pin, changes]
+    # Left to the PR run (scope == 'full').
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope == 'full'
+    needs: [pin, changes, scope]
     name: Doxygen
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -778,6 +905,7 @@ jobs:
     # here at CI's pinned version -- running it in `docs` would fall back to
     # the container shim and rebuild a pinned doxygen image every run.
     - name: Install uv
+      id: uv
       uses: ./.github/actions/setup-uv
       with:
         python-version: '3.12'
@@ -795,6 +923,7 @@ jobs:
       run: make doxygen-check
 
     - name: Committed docs/c-api matches the headers
+      if: ${{ !cancelled() && steps.uv.outcome == 'success' }}
       # The generated C API tree is committed, so it can go stale silently --
       # and had, by 22 pages. `make gen-c-api` locally is this step.
       run: make gen-c-api-check
@@ -815,9 +944,11 @@ jobs:
   # ------------------------------------------------------------------
   sweep-validators:
     # Docs cannot break this: skipped when code=false; see `changes`.
-    # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
-    needs: [pin, changes]
+    # In the minimal set.
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope != 'skip'
+    needs: [pin, changes, scope]
     name: sweep validators
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -846,27 +977,32 @@ jobs:
         sync: --group dev
 
     - name: Build
+      id: build
       run: make build
 
     # One run serves both purposes -- it executes the spot checks AND
     # produces the timings the budget reads, so the gate cannot be judging a
     # different run from the one that passed.
     - name: Spot checks + wall-clock budget
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
       run: make test-sweep SWEEP_STRICT=1
 
     - name: Compiler-cache statistics
+      if: ${{ !cancelled() }}
       run: make ccache-stats
 
   # ------------------------------------------------------------------
   # Documentation build (zensical)
   # ------------------------------------------------------------------
   docs:
-    needs: changes
+    needs: [changes, scope]
     # A version bump alone skips this (ci-changes, standard.mk) -- unless the
     # site's own inputs changed, which a release PR's always do; see `changes`.
+    # Left to the PR run (scope == 'full').
     if: >-
-      needs.changes.outputs.src == 'true' ||
-      needs.changes.outputs.docs == 'true'
+      (needs.changes.outputs.src == 'true' ||
+       needs.changes.outputs.docs == 'true') &&
+      needs.scope.outputs.scope == 'full'
     name: Docs
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -898,10 +1034,12 @@ jobs:
   # through the Makefile, the single driver for every docker build here.
   # ------------------------------------------------------------------
   docker:
-    needs: changes
+    needs: [changes, scope]
     # Docs cannot break this: skipped when code=false; see `changes`.
-    # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
+    # Left to the PR run (scope == 'full').
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope == 'full'
     name: Docker
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -921,10 +1059,12 @@ jobs:
   # and consumed from /usr through find_package and pkg-config.
   # ------------------------------------------------------------------
   linux-packages:
-    needs: changes
+    needs: [changes, scope]
     # Docs cannot break this: skipped when code=false; see `changes`.
-    # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
+    # Left to the PR run (scope == 'full').
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope == 'full'
     name: Linux packages (.deb + .rpm)
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -957,6 +1097,8 @@ jobs:
   # is excluded in .pre-commit-config.yaml and guarded instead by manifest-drift.
   pre-commit:
     name: pre-commit (lint + format)
+    needs: scope
+    if: needs.scope.outputs.scope != 'skip'
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -1013,6 +1155,8 @@ jobs:
 
   manifest-drift:
     name: jm manifest drift gate
+    needs: scope
+    if: needs.scope.outputs.scope != 'skip'
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -1075,9 +1219,11 @@ jobs:
   # ------------------------------------------------------------------
   sanitizers:
     # Docs cannot break this: skipped when code=false; see `changes`.
-    # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
-    needs: [pin, changes]
+    # Left to the PR run (scope == 'full').
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope == 'full'
+    needs: [pin, changes, scope]
     name: ${{ matrix.san.label }}
     # Pinned, not ubuntu-latest: on an ubuntu-26.04 host the TSan runtime
     # dies at startup ("unexpected memory mapping") before any test runs,
@@ -1130,6 +1276,7 @@ jobs:
       run: make nats-down
 
     - name: Compiler-cache statistics
+      if: ${{ !cancelled() }}
       run: make ccache-stats
 
   # ------------------------------------------------------------------
@@ -1148,8 +1295,11 @@ jobs:
   # ------------------------------------------------------------------
   warnings:
     # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
-    needs: [pin, changes]
+    # Left to the PR run (scope == 'full').
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope == 'full'
+    needs: [pin, changes, scope]
     name: -Wall -Wextra (gcc + clang)
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -1178,6 +1328,7 @@ jobs:
       run: make warnings-check
 
     - name: Compiler-cache statistics
+      if: ${{ !cancelled() }}
       run: make ccache-stats
 
   # ------------------------------------------------------------------
@@ -1192,9 +1343,11 @@ jobs:
   # ------------------------------------------------------------------
   coverage:
     # Docs cannot break this: skipped when code=false; see `changes`.
-    # Docs cannot break this: skipped when code=false; see `changes`.
-    if: needs.changes.outputs.code == 'true'
-    needs: [pin, changes]
+    # Left to the PR run (scope == 'full').
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      needs.scope.outputs.scope == 'full'
+    needs: [pin, changes, scope]
     name: coverage (C + Python + Rust)
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -1241,6 +1394,7 @@ jobs:
       run: make coverage | tee coverage.txt
 
     - name: Compiler-cache statistics
+      if: ${{ !cancelled() }}
       # In the log on purpose: a cache that stops hitting has no symptom
       # other than builds slowly getting longer.
       run: make ccache-stats
@@ -1285,6 +1439,7 @@ jobs:
   ci-passed:
     name: CI passed
     needs:
+      - scope
       - changes
       - pythons
       - pin
@@ -1312,14 +1467,20 @@ jobs:
       - uses: actions/checkout@v7
       # scripts/ci_passed.py: every job must SUCCEED, except that a job in
       # SKIPPABLE may be skipped when `changes` said src=false (a bump, or a
-      # push whose tree its PR tested), and a job in CODE_ONLY when it said
-      # code=false (that, or a docs-only diff). scripts/check_ci_aggregator.py
-      # holds SKIPPABLE to the jobs gated on `src` and CODE_ONLY to the jobs
-      # gated on `code`.
+      # push whose tree its PR tested), a job in CODE_ONLY when it said
+      # code=false (that, or a docs-only diff), and a job in PR_ONLY when
+      # `scope` said minimal (a push without a PR). A push whose sha heads an
+      # open PR (`scope` = skip) may skip anything: that PR's run is the gate.
+      # scripts/check_ci_aggregator.py holds SKIPPABLE to the jobs gated on
+      # `src`, CODE_ONLY to the jobs gated on `code` and PR_ONLY to the jobs
+      # gated on `scope == 'full'`.
       - name: Require all jobs to have succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
           SKIPPABLE: python docs
+          PR_ONLY: >-
+            build-and-test-macos wheel-smoke-windows glibc-228 doxygen docs
+            docker linux-packages sanitizers coverage warnings
           CODE_ONLY: >-
             build-and-test-linux build-and-test-linux-arm64
             build-and-test-windows wheel-smoke-windows build-and-test-macos

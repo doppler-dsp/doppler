@@ -3627,7 +3627,8 @@ class Ccsds415Receiver:
         The mission's spreading code, one chip a byte (0/1): 1,023 chips.
     carrier_freq_hz : float, default DP_CCSDS_415_FC_LO
         The carrier, F_fwd, Hz: 2.2e9 to 2.8e9 at the point. It sets the chip
-        rate (F_fwd x 31 / 21216).
+        rate (F_fwd x 31 / 21216). Built from about 2.1004 to 7.528 GHz
+        (DP_CCSDS_415_RX_FC_MIN, _MAX).
     lost_confirm_s : float, default 0.0
         Both flags down for longer than this enters lost; 0 never does.
     refine : bool, default True
@@ -3636,10 +3637,9 @@ class Ccsds415Receiver:
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``Ccsds415Receiver:
-        refused: the code must be 1,023 chips (the point's Gold code length;
-        the code is the mission's), carrier_freq_hz finite and above 5.5 MHz
-        (the point's 11 MSa/s over two), and lost_confirm_s >= 0``.
+        If construction fails. The exception message is the reason the
+        constructor gives, or ``Ccsds415Receiver: refused (dp_ccsds_415_rx
+        names the cause)`` when it gives none.
 
     Examples
     --------
@@ -3651,7 +3651,7 @@ class Ccsds415Receiver:
     >>> Ccsds415Receiver(code[:511])
     Traceback (most recent call last):
     ...
-    ValueError: Ccsds415Receiver: refused: the code must be 1,023 chips ...
+    ValueError: the code must be 1,023 chips: the point's Gold code ...
 
     """
 
@@ -5261,11 +5261,9 @@ class Ccsds415Pool:
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``Ccsds415Pool:
-        refused: the code must be 1,023 chips (the point's Gold code length;
-        the code is the mission's), n_receivers >= 1, carrier_freq_hz finite
-        and above 5.5 MHz (the point's 11 MSa/s over two), lost_confirm_s >= 0
-        and threads >= 0``.
+        If construction fails. The exception message is the reason the
+        constructor gives, or ``Ccsds415Pool: refused (dp_ccsds_415_rx or the
+        pool names the cause)`` when it gives none.
 
     Examples
     --------

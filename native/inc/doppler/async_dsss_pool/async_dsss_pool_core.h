@@ -353,21 +353,25 @@ extern "C"
    * @brief A pool of receivers at the CCSDS 415.1-B-1 specification point
    *        (doppler/ccsds/ccsds_415.h): the `Ccsds415Pool` view.
    *
-   * dp_async_dsss_pool_create() with every number the point sets, as
-   * dp_async_dsss_receiver_create_ccsds415() sets them for one receiver,
-   * and the binding's defaults for the rest.
+   * dp_async_dsss_pool_create() with the arguments dp_ccsds_415_rx() fills,
+   * as dp_async_dsss_receiver_create_ccsds415() reads them for one
+   * receiver.
    *
    * @param code             The mission's spreading code, one chip a byte
    *                         (0/1): 1,023 chips. Any other length is refused.
    * @param code_len         Its length; must be #DP_CCSDS_415_SF.
-   * @param n_receivers      Receivers in the pool, >= 1.
-   * @param carrier_freq_hz  The carrier, F_fwd: 2.2 to 2.8 GHz at the point.
+   * @param n_receivers      Receivers in the pool, 1 to
+   *                         #ASYNC_DSSS_POOL_MAX_RECEIVERS.
+   * @param carrier_freq_hz  The carrier, F_fwd: 2.2 to 2.8 GHz at the point;
+   *                         built from #DP_CCSDS_415_RX_FC_MIN to
+   *                         #DP_CCSDS_415_RX_FC_MAX.
    * @param lost_confirm_s   A receiver whose flags are down longer than this
    *                         is released, as on the full create.
    * @param threads          Worker threads; 0 is the pool's own choice.
    * @param refine           The refine stage on (true) or off.
-   * @return The pool, or NULL: a code that is not 1,023 chips, or a refusal
-   *         of dp_async_dsss_pool_create()'s.
+   * @param why              Set to the refusal's sentence; may be NULL.
+   * @return The pool, or NULL with @p why set: dp_ccsds_415_rx()'s
+   *         refusals, @p n_receivers out of range, or @p threads < 0.
    *
    * @code
    * >>> import numpy as np
@@ -382,7 +386,7 @@ extern "C"
   dp_async_dsss_pool_state_t *dp_async_dsss_pool_create_ccsds415 (
       const uint8_t *code, size_t code_len, size_t n_receivers,
       double carrier_freq_hz, double lost_confirm_s, int threads,
-      bool refine);
+      bool refine, const char **why);
 
   /**
    * @brief Destroy a pool and every receiver.

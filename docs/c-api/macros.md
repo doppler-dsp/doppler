@@ -212,6 +212,8 @@
 * **DP\_CCSDS\_415\_FRAME\_SYM** ([**ccsds\_415.h**](ccsds__415_8h.md))
 * **DP\_CCSDS\_415\_FS** ([**ccsds\_415.h**](ccsds__415_8h.md))
 * **DP\_CCSDS\_415\_LOCK\_S** ([**ccsds\_415.h**](ccsds__415_8h.md))
+* **DP\_CCSDS\_415\_RX\_FC\_MAX** ([**ccsds\_415.h**](ccsds__415_8h.md))
+* **DP\_CCSDS\_415\_RX\_FC\_MIN** ([**ccsds\_415.h**](ccsds__415_8h.md))
 * **DP\_CCSDS\_415\_R\_ENV\_HZ\_S** ([**ccsds\_415.h**](ccsds__415_8h.md))
 * **DP\_CCSDS\_415\_SF** ([**ccsds\_415.h**](ccsds__415_8h.md))
 * **DP\_CCSDS\_415\_SPAN\_HZ** ([**ccsds\_415.h**](ccsds__415_8h.md))

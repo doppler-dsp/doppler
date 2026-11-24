@@ -475,6 +475,7 @@ dp_ccsds415_chip_rate function
 dp_ccsds415_cn0 function
 dp_ccsds_415_chip_rate function
 dp_ccsds_415_cn0 function
+dp_ccsds_415_rx function
 dp_ccsds_415_scene function
 dp_ccsds_tm_asm_bits function
 dp_ccsds_tm_asm_find function

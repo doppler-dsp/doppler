@@ -592,6 +592,7 @@
 * **dp\_carrier\_nda\_tlm\_flush** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **dp\_ccsds\_415\_chip\_rate** ([**ccsds\_415.h**](ccsds__415_8h.md))
 * **dp\_ccsds\_415\_cn0** ([**ccsds\_415.h**](ccsds__415_8h.md))
+* **dp\_ccsds\_415\_rx** ([**ccsds\_415.h**](ccsds__415_8h.md))
 * **dp\_ccsds\_415\_scene** ([**ccsds\_415.h**](ccsds__415_8h.md))
 * **dp\_asm\_bits** ([**ccsds\_core.h**](ccsds__core_8h.md))
 * **dp\_ccsds415\_chip\_rate** ([**ccsds\_core.h**](ccsds__core_8h.md))

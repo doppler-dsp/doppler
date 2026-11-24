@@ -53,7 +53,7 @@ _CCSDS 131.0-B's published literals, as a Python-facing component._ [More...](#d
 | Type | Name |
 | ---: | :--- |
 |  void | [**dp\_asm\_bits**](#function-dp_asm_bits) (uint8\_t \* out) <br>_The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits._  |
-|  double | [**dp\_ccsds415\_chip\_rate**](#function-dp_ccsds415_chip_rate) (double fc) <br>_Chips a second at carrier_ `fc` _at the CCSDS 415.1-B-1 point: F\_fwd x 31 / (221 x 96), table 4-1. Computed with fast math off, so every compiler, and the Python face, give the same bits._ |
+|  double | [**dp\_ccsds415\_chip\_rate**](#function-dp_ccsds415_chip_rate) (double fc) <br>_Chips a second at carrier_ `fc` _at the CCSDS 415.1-B-1 point: F\_fwd x 31 / (221 x 96), table 4-1. IEEE arithmetic with fast math off, so every compiler, and the Python face, give the same bits._ |
 |  double | [**dp\_ccsds415\_cn0**](#function-dp_ccsds415_cn0) (double esn0\_db) <br>_C/N0, dB-Hz, of an Es/N0 at the 415.1-B-1 point's 3,000 symbols a second:_ `esn0_db + 10 log10(3000)` _. An alias over_[_**dp\_ccsds\_415\_cn0()**_](ccsds__415_8h.md#function-dp_ccsds_415_cn0) _._ |
 
 
@@ -146,7 +146,7 @@ True
 
 ### function dp\_ccsds415\_chip\_rate 
 
-_Chips a second at carrier_ `fc` _at the CCSDS 415.1-B-1 point: F\_fwd x 31 / (221 x 96), table 4-1. Computed with fast math off, so every compiler, and the Python face, give the same bits._
+_Chips a second at carrier_ `fc` _at the CCSDS 415.1-B-1 point: F\_fwd x 31 / (221 x 96), table 4-1. IEEE arithmetic with fast math off, so every compiler, and the Python face, give the same bits._
 ```C++
 double dp_ccsds415_chip_rate (
     double fc

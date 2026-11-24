@@ -5,8 +5,10 @@
  *        scene at it needs, and (through the receiver's and the pool's
  *        `Ccsds415` views) the receiver built there.
  *
- * Every number is a row of docs/design/async-dsss-receiver.md §1's table,
- * which names its source; nothing here is chosen. The receiver's runs at
+ * The point's numbers are rows of docs/design/async-dsss-receiver.md §1's
+ * table, which names each source, and the frame's are §1.4's; none of them
+ * is chosen. The receiver's other arguments, in dp_ccsds_415_rx(), are
+ * the receiver binding's defaults. The receiver's runs at
  * this point are docs/design/async-dsss-receiver-measurements.md; its
  * certification record holds at another point, 3.069 Mcps, and not at this
  * one (async-dsss-receiver.md §1, The specification, whose paragraph on
@@ -30,8 +32,11 @@
  * computed with fast math off (the precedent is
  * dp_wfm_dsss_cont_edge(), wfm_dsp.c): under -ffast-math a division is
  * rewritten differently by GCC and by Clang, and a rate one ulp apart
- * moves a bit error between two programs that should agree. So every
- * compiler, and the Python face, reads the same bits.
+ * moves a bit error between two programs that should agree. The chip
+ * rate and the scene are IEEE arithmetic alone, so they are the same bits
+ * on every compiler: test_ccsds_415.c pins them to literals, and the
+ * Python chip rate is checked bit for bit. C/N0 goes through the
+ * platform's log10, so it is held to 1e-12, not bit for bit.
  *
  * A C caller uses the names declared here, `dp_ccsds_415_*`. The
  * `ccsds` module's dp_ccsds415_chip_rate() and dp_ccsds415_cn0()
@@ -49,6 +54,9 @@
  */
 #ifndef DP_CCSDS_415_H
 #define DP_CCSDS_415_H
+
+#include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -151,6 +159,90 @@ typedef struct
  */
 dp_ccsds_415_scene_t dp_ccsds_415_scene (double fc, double spc,
                                        double start_hz);
+
+/** The lowest carrier the point builds a receiver at, Hz: where a symbol
+ *  (1 / DP_CCSDS_415_SYM s) is one code period (DP_CCSDS_415_SF chips).
+ *  Below it the chip rate is under SF x SYM, a symbol is shorter than a
+ *  code period, and the receiver's carrier error, read over a code period
+ *  free of symbol transitions, has no such period. About 2.1004 GHz. */
+#define DP_CCSDS_415_RX_FC_MIN                                               \
+  ((double)DP_CCSDS_415_SF * DP_CCSDS_415_SYM * (221.0 * 96.0) / 31.0)
+/** The highest carrier the point builds a receiver at, Hz: where the chip
+ *  rate reaches the capture rate, DP_CCSDS_415_FS. Above it a chip is
+ *  shorter than a sample. About 7.528 GHz. */
+#define DP_CCSDS_415_RX_FC_MAX (DP_CCSDS_415_FS * (221.0 * 96.0) / 31.0)
+
+/**
+ * @brief The async DSSS receiver's create arguments at the point, every
+ *        one but the code: what dp_ccsds_415_rx() fills.
+ *
+ * One field per parameter of dp_async_dsss_receiver_create(), in its order
+ * and under its name; that function's documentation says what each does.
+ * The receiver view (dp_async_dsss_receiver_create_ccsds415()), the pool
+ * view (dp_async_dsss_pool_create_ccsds415()) and the receiver's test all
+ * read this one record, so the point's arguments are written once.
+ */
+typedef struct
+{
+  double chip_rate;   /**< dp_ccsds_415_chip_rate() of the carrier. */
+  double symbol_rate; /**< DP_CCSDS_415_SYM. */
+  double sample_rate; /**< DP_CCSDS_415_FS. */
+  int    m;           /**< 2: BPSK. */
+  double cn0_dbhz;    /**< dp_ccsds_415_cn0() of the Es/N0 floor. */
+  double pfa;         /**< 1e-3. */
+  double pd;          /**< 0.9. */
+  double doppler_uncertainty;       /**< DP_CCSDS_415_SPAN_HZ. */
+  size_t segments;                  /**< 4. */
+  size_t sps;                       /**< 8. */
+  int    differential;              /**< 0: coherent demap. */
+  double refine_max_error_db;       /**< 0.5. */
+  size_t refine_samples_per_symbol; /**< 4. */
+  double refine_design_margin_db;   /**< 14.0. */
+  size_t refine_n_fft;              /**< 64. */
+  size_t refine_zero_pad;           /**< 8. */
+  bool   refine_sequential;         /**< false. */
+  size_t refine_max_n_blocks;       /**< 100000. */
+  double carrier_freq_hz;           /**< The caller's carrier. */
+  double lost_confirm_s;            /**< The caller's. */
+  bool   reacquire;                 /**< false. */
+  double code_only_s; /**< DP_CCSDS_415_CODE_ONLY_SYM / DP_CCSDS_415_SYM. */
+  double doppler_rate; /**< DP_CCSDS_415_R_ENV_HZ_S. */
+  bool   refine;       /**< The caller's. */
+} dp_ccsds_415_rx_t;
+
+/**
+ * @brief Fills @p a with the receiver's create arguments at the point, or
+ *        refuses with the reason.
+ *
+ * The caller's choices are the code's length, the carrier, the lost
+ * confirm time and the refine stage; everything else is the point's
+ * (dp_ccsds_415_rx_t says which). Refused, each with its own sentence in
+ * @p why: a code that is not DP_CCSDS_415_SF chips; a carrier that is not
+ * finite, below DP_CCSDS_415_RX_FC_MIN or above DP_CCSDS_415_RX_FC_MAX;
+ * a negative or NaN @p lost_confirm_s.
+ *
+ * @param a                Filled on success; untouched on a refusal.
+ * @param code_len         The code's chips; the point's is 1,023.
+ * @param carrier_freq_hz  The carrier, F_fwd, Hz.
+ * @param lost_confirm_s   Both flags down for longer than this enters
+ *                         lost; 0 never does.
+ * @param refine           The refine stage on or off.
+ * @param why              Set to the reason on a refusal; may be NULL.
+ * @return 0, or -1 with @p why set.
+ *
+ * @code
+ * dp_ccsds_415_rx_t a;
+ * const char       *why = NULL;
+ * if (dp_ccsds_415_rx (&a, 1023, 2.0e9, 0.0, true, &why) != 0)
+ *   printf ("%s\n", why);
+ * // carrier_freq_hz is below DP_CCSDS_415_RX_FC_MIN (about 2.1004 GHz):
+ * // its chip rate is under 1,023 x 3,000, so a symbol is shorter than a
+ * // code period
+ * @endcode
+ */
+int dp_ccsds_415_rx (dp_ccsds_415_rx_t *a, size_t code_len,
+                     double carrier_freq_hz, double lost_confirm_s,
+                     bool refine, const char **why);
 
 #ifdef __cplusplus
 }

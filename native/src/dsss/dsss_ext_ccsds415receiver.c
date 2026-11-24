@@ -59,6 +59,7 @@ Ccsds415ReceiverObj_init (Ccsds415ReceiverObject *self, PyObject *args,
                                     &refine_raw))
     return -1;
   bool           refine = (int)refine_raw;
+  const char    *_why   = NULL;
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
@@ -68,16 +69,16 @@ Ccsds415ReceiverObj_init (Ccsds415ReceiverObject *self, PyObject *args,
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
   self->handle    = dp_async_dsss_receiver_create_ccsds415 (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, carrier_freq_hz,
-      lost_confirm_s, refine);
+      lost_confirm_s, refine, &_why);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_ValueError,
-                       "Ccsds415Receiver: refused: the code must be 1,023 "
-                       "chips (the point's Gold code length; the code is the "
-                       "mission's), carrier_freq_hz finite and above 5.5 MHz "
-                       "(the point's 11 MSa/s over two), and lost_confirm_s "
-                       ">= 0");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "Ccsds415Receiver: refused (dp_ccsds_415_rx names "
+                         "the cause)");
       return -1;
     }
   return 0;
@@ -2416,7 +2417,8 @@ static PyTypeObject Ccsds415ReceiverObjType = {
     "carrier_freq_hz : float, default DP_CCSDS_415_FC_LO\n"
     "    The carrier, F_fwd, Hz: 2.2e9 to 2.8e9 at the point. It sets the "
     "chip\n"
-    "    rate (F_fwd x 31 / 21216).\n"
+    "    rate (F_fwd x 31 / 21216). Built from about 2.1004 to 7.528 GHz\n"
+    "    (DP_CCSDS_415_RX_FC_MIN, _MAX).\n"
     "lost_confirm_s : float, default 0.0\n"
     "    Both flags down for longer than this enters lost; 0 never does.\n"
     "refine : bool, default True\n"
@@ -2425,12 +2427,9 @@ static PyTypeObject Ccsds415ReceiverObjType = {
     "Raises\n"
     "------\n"
     "ValueError\n"
-    "    If construction fails. The exception message is ``Ccsds415Receiver:\n"
-    "    refused: the code must be 1,023 chips (the point's Gold code "
-    "length;\n"
-    "    the code is the mission's), carrier_freq_hz finite and above 5.5 "
-    "MHz\n"
-    "    (the point's 11 MSa/s over two), and lost_confirm_s >= 0``.\n"
+    "    If construction fails. The exception message is the reason the\n"
+    "    constructor gives, or ``Ccsds415Receiver: refused (dp_ccsds_415_rx\n"
+    "    names the cause)`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -2442,8 +2441,7 @@ static PyTypeObject Ccsds415ReceiverObjType = {
     ">>> Ccsds415Receiver(code[:511])\n"
     "Traceback (most recent call last):\n"
     "...\n"
-    "ValueError: Ccsds415Receiver: refused: the code must be 1,023 chips "
-    "...\n",
+    "ValueError: the code must be 1,023 chips: the point's Gold code ...\n",
   .tp_methods = Ccsds415ReceiverObj_methods,
   .tp_getset  = Ccsds415Receiver_getset,
   .tp_new     = Ccsds415ReceiverObj_new,

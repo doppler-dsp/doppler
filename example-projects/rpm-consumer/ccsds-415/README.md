@@ -60,9 +60,14 @@ the ones `doppler/ccsds/ccsds_415.h` holds; the code's parameters are
 415.0-G-1's, named where `run.cpp` passes them (the C face has no names for
 them yet, #3348):
 
-- a 1,023-chip Gold code spreading a PN15 payload at 3,000 symbols a second,
-    each 1,000-symbol frame opening with 275 code-only symbols (the shipped
-    `wfm_synth` continuous DSSS);
+- a 1,023-chip Gold code spreading the point's stimulus at 3,000 symbols a
+    second (the shipped `wfm_synth` continuous DSSS). The stimulus is the
+    design page's §1.4 period, repeated: a 275-symbol gap of the code
+    alone, the 128-bit acquisition sequence, the EB90 start sequence and
+    one CCSDS TC transfer frame (232.0-B-4) of 1 to 1,017 data octets,
+    the length drawn per frame. The library describes and assembles each
+    period (`dp_ccsds_415_frame_desc()`, `dp_wfm_frame_assemble_data()`);
+    this program draws the lengths and fills the data from doppler's PN15;
 - the chip rate the carrier sets, resampled to the 11 MSa/s capture
     (`RateConverter`, at the ratio `dp_ccsds_415_scene()` computes);
 - a Doppler ramping at R_env, 11 Hz/s, through zero at mid-run
@@ -73,9 +78,21 @@ The receiver is the one the library builds at the point,
 `dp_async_dsss_receiver_create_ccsds415()` (Python: `Ccsds415Receiver`),
 designed for Es/N0 4 dB, so it is built once for its weakest signal.
 
-The scene's payload is continuous data, not transfer frames. The TC frame
-stimulus (232.0-B-4 frames as a frame description) and reading their header
-fields back are the next step; until then nothing here decodes a frame.
+The frames are read back from the receiver's decided symbols with no
+truth, as a ground station would read them:
+
+- a period is found by its 128-bit acquisition sequence and start
+    sequence, one 144-bit marker, in either polarity (`dp_syncword_find()`),
+    at the most errors whose false-frame probability over the bits
+    searched is 1e-6 (`dp_syncword_max_errors_for()`);
+- the header's fields are read back by name through the same description
+    (`dp_wfm_frame_desc_field()`): the length, the SCID, the VCID and the
+    frame sequence number;
+- the CRC is checked (`dp_wfm_frame_desc_crc_ok()`), and every frame found
+    counts, whatever it says;
+- after a frame whose CRC holds, the next marker is one period on, and is
+    tracked there; after one whose CRC fails, whose length field may itself
+    be wrong, the search resumes.
 
 ## What it checks
 
@@ -83,7 +100,7 @@ fields back are the next step; until then nothing here decodes a frame.
 
 1. the lock is sustained within the point's lock allocation, 20 s from
     arrival (`DP_CCSDS_415_LOCK_S`);
-1. the BER over the locked stream, scored against the payload that was
+1. the BER over the locked stream, scored against the stimulus that was
     sent (`dp_ber_meter`), is not shown to be worse
     than the BPSK bound at the Es/N0 run less 1.13 dB: it fails when the
     meter's exact 99% interval (`dp_ber_confidence()`) lies wholly above
@@ -97,7 +114,11 @@ fields back are the next step; until then nothing here decodes a frame.
     prints the loss its own rate implies (`dp_ber_esn0_db_for_ser()`);
 1. no call filled its output capacity, so no symbol was dropped;
 1. the capture is complete (`dp_tlm_capture_close()` returns `DP_OK`);
-1. every probe the receiver registers emitted at least once.
+1. every probe the receiver registers emitted at least once;
+1. every frame sent whole inside the locked stream was read, and each
+    frame's CRC verdict is the one the truth gives: pass when it was
+    received as sent, fail when not. A frame read where none was sent is
+    wrong whatever its CRC says.
 
 The locked stream opens where the symbol lock and the code lock are both
 sustained: the later of the two, each sustained by `dp_ber_lock_symbol()`.
@@ -184,7 +205,11 @@ the batch binary's. It draws, at most every 100 ms of wall time:
     its threshold, C/N0, the Doppler and the code rate (received over
     nominal: 1 is no Doppler), as `dp_async_dsss_receiver_status()`
     reports them;
-- **scene**: the carrier, the time, the symbols out, and progress.
+- **scene**: the carrier, the time, the symbols out, and progress;
+- **frames**: whether the start sequence is searched for or tracked, the
+    frames read with their CRC verdicts, the start sequences missed, and
+    the last frame's header read back: its data octets, SCID, VCID and
+    frame sequence number, and the polarity it was read in.
 
 It runs on one thread. The timed span is the receiver call alone; the
 drawing and the pacing fall outside it. By default each chunk is held to
@@ -203,7 +228,7 @@ stopped run answers only what a partial run can: the capture is complete
 and holds every record emitted so far, and no call filled its capacity. It
 exits 0 when those hold, and says in one line when it stopped and which
 full-scene checks (the lock time, if not yet reached; the BER; the payload
-marker) it did not evaluate. `--snapshot` and `ccsds415` keep the full
+marker; the frames) it did not evaluate. `--snapshot` and `ccsds415` keep the full
 checks.
 
 <!-- docs-snippet: no-exec=needs the RPM and FTXUI; package-linux-smoke runs the TUI's snapshot on Fedora -->
@@ -234,10 +259,5 @@ as an extension and MSVC does not. So it builds with:
     each in CI;
 - **Clang**: 21.1.8, by hand, not in CI (#3347);
 - **not MSVC**, so not the Windows build doppler itself has.
-
-## Not here yet
-
-- **The TC frame stimulus**, and the frame fields read back from it, in
-    both binaries.
 
 <!-- --8<-- [end:body] -->

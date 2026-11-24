@@ -27,6 +27,7 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/ccsds/ccsds_415.h"
 #include "dp_air_test.h"
+#include "dp_test.h"
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -364,6 +365,85 @@ dp_s415_emitter (const uint8_t *code, double fc, double f0, double rate,
   e.lag_s            = lag_s;
   e.seed             = seed;
   return e;
+}
+
+/** The test's own expectation of dp_ccsds_415_rx()'s table, typed here
+ *  once: the point's numbers from ccsds_415.h, and for the rest the
+ *  receiver binding's defaults (objects/async_dsss_receiver.toml), which
+ *  the table claims to equal. A wrong value written inside the table
+ *  itself fails here, where a view-equals-table check cannot see it. */
+static inline void
+dp_s415_table_is_expected (const dp_ccsds_415_rx_t *a, double fc,
+                           double lost_s, bool refine)
+{
+#define S415_EXPECT(f, v) DP_CHECK_MSG (a->f == (v), "table " #f " == " #v)
+  S415_EXPECT (chip_rate, dp_ccsds_415_chip_rate (fc));
+  S415_EXPECT (symbol_rate, 3000.0);
+  S415_EXPECT (sample_rate, 11e6);
+  S415_EXPECT (m, 2);
+  S415_EXPECT (cn0_dbhz, dp_ccsds_415_cn0 (4.0));
+  S415_EXPECT (pfa, 1e-3);
+  S415_EXPECT (pd, 0.9);
+  S415_EXPECT (doppler_uncertainty, 1500.0);
+  S415_EXPECT (segments, 4u);
+  S415_EXPECT (sps, 8u);
+  S415_EXPECT (differential, 0);
+  S415_EXPECT (refine_max_error_db, 0.5);
+  S415_EXPECT (refine_samples_per_symbol, 4u);
+  S415_EXPECT (refine_design_margin_db, 14.0);
+  S415_EXPECT (refine_n_fft, 64u);
+  S415_EXPECT (refine_zero_pad, 8u);
+  S415_EXPECT (refine_sequential, false);
+  S415_EXPECT (refine_max_n_blocks, 100000u);
+  S415_EXPECT (carrier_freq_hz, fc);
+  S415_EXPECT (lost_confirm_s, lost_s);
+  S415_EXPECT (reacquire, false);
+  S415_EXPECT (code_only_s, 275.0 / 3000.0);
+  S415_EXPECT (doppler_rate, 11.0);
+  S415_EXPECT (refine, refine);
+#undef S415_EXPECT
+}
+
+/** Every argument dp_async_dsss_receiver_create() took, read back from the
+ *  built receiver @p v, equals the table @p a: the 22 it stores, the
+ *  sample rate through spc, and doppler_uncertainty through its search. A
+ *  state blob cannot show this: pd, differential, the refine margin and
+ *  sequential flag, lost_confirm_s, reacquire and doppler_rate are config
+ *  no blob carries. The receiver view's test and the pool view's (over
+ *  each receiver and the search) both call it. */
+static inline void
+dp_s415_rx_is_the_table (const dp_async_dsss_receiver_state_t *v,
+                         const dp_ccsds_415_rx_t              *a)
+{
+#define S415_SAME(f) DP_CHECK_MSG (v->f == a->f, #f " is the table's")
+  S415_SAME (chip_rate);
+  S415_SAME (symbol_rate);
+  S415_SAME (m);
+  S415_SAME (cn0_dbhz);
+  S415_SAME (pfa);
+  S415_SAME (pd);
+  S415_SAME (segments);
+  S415_SAME (sps);
+  S415_SAME (differential);
+  S415_SAME (refine_max_error_db);
+  S415_SAME (refine_samples_per_symbol);
+  S415_SAME (refine_design_margin_db);
+  S415_SAME (refine_n_fft);
+  S415_SAME (refine_zero_pad);
+  S415_SAME (refine_sequential);
+  S415_SAME (refine_max_n_blocks);
+  S415_SAME (carrier_freq_hz);
+  S415_SAME (lost_confirm_s);
+  S415_SAME (reacquire);
+  S415_SAME (code_only_s);
+  S415_SAME (doppler_rate);
+  S415_SAME (refine);
+#undef S415_SAME
+  DP_CHECK_MSG (v->spc == a->sample_rate / a->chip_rate,
+                "sample_rate is the table's");
+  DP_CHECK_MSG (
+      v->acq && v->acq->search->doppler_uncertainty == a->doppler_uncertainty,
+      "doppler_uncertainty is the table's");
 }
 
 #endif /* DP_S415_TEST_H */

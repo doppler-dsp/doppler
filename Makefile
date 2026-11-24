@@ -1872,6 +1872,13 @@ endef
 # empty first line is dropped by standard.mk's own blank-line filter.
 VERSION_PROBES := $(foreach L,$(VERSION_SITE_LABELS),$(VERSION_PROBE_NEWLINE)$(L)|$(VERSION_SITES_CMD) --read $(L))
 
+# The version written in a DERIVED form the probe does not print: the package
+# name `libdoppler-dsp0.85_0.85.0_amd64.deb` carries the ABI major.minor, which
+# a release moves to `0.86` (the bump check accepts only tokens named here).
+# Each template is specific on purpose; see standard.mk's CI_DERIVED_VERSION_TOKENS
+# and just-buildit.github.io#240. doppler #3317 is the case that needed it.
+CI_DERIVED_VERSION_TOKENS = libdoppler-dsp{major}.{minor}
+
 # `--write` sets every DECLARED site and reads them all back, so a site missing
 # from VERSION_SITE_LABELS above is still written and still verified -- the
 # silent direction of the old two-list arrangement cannot recur.

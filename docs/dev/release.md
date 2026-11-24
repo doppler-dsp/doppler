@@ -376,10 +376,21 @@ green before merging (`gh pr checks`, the two `Docs walk, candidate` rows);
 `release.yml` runs the published face after the tag, and a failure there is a
 shipped release.
 
-The release PR is a version bump alone, so `changes` classifies it
-`src=false` and the heavy matrix its parent already passed is skipped. The
-cheap gates (lint, manifest drift, the CI-image pin) still run. See
-[CI](ci.md#pull-requests).
+The release PR is classified by content, not by path: `changes` answers
+`src=false` only when every changed file is the version bump and nothing
+else (`make ci-changes`). When it does, the heavy matrix its parent already
+passed is skipped, and the cheap gates (lint, manifest drift, the CI-image
+pin) still run. See [CI](ci.md#pull-requests).
+
+**What is true today.** A release that moves a version written in a derived
+form, such as doppler's package name `libdoppler-dsp0.85_0.85.0_amd64.deb`
+(the ABI major.minor), is accepted as a bump only through
+`CI_DERIVED_VERSION_TOKENS` in the Makefile. Its test replays this release's
+package lines and asserts the skip. Until a release PR's own run shows the
+skip, read the PR's `changes` answer (`make ci-changes BASE=<main>` on the
+PR head) before assuming it. The full matrix ran on the
+v0.85.0 release PR (#3220), and on the PR before this test landed (#3316),
+which is tracked in #3317.
 
 ## 6. Tag merged main
 

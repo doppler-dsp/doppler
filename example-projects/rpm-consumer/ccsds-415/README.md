@@ -41,10 +41,15 @@ make plot PLOT_ARGS=--save   # writes build/out/<capture>.png instead
 
 `make help` lists the knobs. The program's own options go through `ARGS`,
 for example `make run ARGS='--carrier hi --esn0 6'`; `--help` lists them.
-At 2.2 GHz the run fails at Es/N0 4, 6, 7 and 8 dB and passes at 5, 9 and
-10, not monotonically: for some arrival offsets the receiver slips whole
-symbols (#3349), and this scene arrives at one of them. So no command here
-runs `--carrier lo` below 10 dB. `--errors` prints
+At 2.2 GHz below Es/N0 9 dB, some arrivals give an error rate near 1/3
+for seconds while the receiver reports lock (#3349): this scene fails at
+4, 6, 7 and 8 dB and passes at 5, 9 and 10. Scored from all five lock
+flags, which the certification reads through a test header and `status()`
+does not publish (#3350), some of those runs pass
+([#3349, the five-flag table](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7146889068))
+and one tested does not
+([#3349, the counterexample](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7146958718)).
+So no command here runs `--carrier lo` below 10 dB. `--errors` prints
 where the bit errors fall in the scored stream: the first and last, the
 longest run, and a count for each tenth of it.
 

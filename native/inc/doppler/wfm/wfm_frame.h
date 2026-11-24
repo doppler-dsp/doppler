@@ -476,13 +476,11 @@ extern "C"
    * @param reps  repetitions of @p seq, verbatim; 0 means one.
    * @return the new field's index, or -1 if @p d or @p seq is NULL, the
    *         description is full, or @p name is already taken. It also refuses
-   *         a field past the Field bound, each reason on its own:
-   *         - `seq->len` above @ref WFM_FIELD_MAX_BITS, the length alone;
-   *         - `reps` above @ref WFM_FIELD_MAX_BITS, the count alone;
-   *         - `seq->len * max(reps, 1)` above @ref WFM_FIELD_MAX_BITS, the
-   *           field's bits, a run the layout cannot sum without wrapping.
-   *         The bound is the Field grammar's, so a field this function
-   *         refuses is one the text door refuses too (#3321).
+   *         a field whose bits, `seq->len * max(reps, 1)`, do not fit a
+   *         size_t: such a value has no size to hold it (#3321). Nothing
+   *         tighter is applied here. The Field TEXT grammar's bound
+   *         (@ref WFM_FIELD_MAX_BITS) is for text; a frame is as long as the
+   *         layout can sum, and the layout refuses a wrap.
    */
   int dp_wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
                            const wfm_seq_t *seq, size_t reps);
@@ -501,8 +499,8 @@ extern "C"
    * @param name  the field's name, or NULL/"" for anonymous.
    * @param bits  its length, which its stage decides and the caller states.
    * @return the new field's index, or -1 on NULL, a full description, a
-   *         zero @p bits, a @p bits past @ref WFM_FIELD_MAX_BITS (the same
-   *         bound a supplied field meets, #3321), or a name already taken.
+   *         zero @p bits, or a name already taken. A width is not bounded
+   *         here: the layout refuses a description whose sums wrap (#3321).
    */
   int dp_wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name,
                              size_t bits);
@@ -880,7 +878,11 @@ extern "C"
    * @return 0, or -1 if @p d or @p out is NULL, a count or a cover runs
    *         past its array, a derived field names no producing stage, an
    *         emitting stage covers less than the whole frame or is not the
-   *         only one, or the frame has two data fields.
+   *         only one, the frame has two data fields, or a size wraps: a
+   *         field's bits, a stage's span, the frame's bits or its emitted
+   *         bits does not fit a size_t (#3321). A description refused here
+   *         is never assembled, so no caller sizes a buffer from a wrapped
+   *         frame.
    */
   int dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
                              wfm_frame_desc_layout_t *out);

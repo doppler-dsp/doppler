@@ -237,19 +237,39 @@ add_num_keys (cJSON *o, const void *base, const num_key_t *keys, size_t n)
 }
 
 /* Read every member named by @p keys; an absent key is 0. The inverse of
-   add_num_keys, from the same list -- which is the whole point of the list. */
-static void
-read_num_keys (const cJSON *o, void *base, const num_key_t *keys, size_t n)
+   add_num_keys, from the same list -- which is the whole point of the list.
+
+   A number must be a whole, non-negative value that the member holds
+   exactly: below 2^53 for a size_t (a JSON double holds no more, so a larger
+   "bits" is already a rounded number, and a 2^64 - 2048 cast to size_t is
+   the wrap the layout would then sum), below UINT_MAX for an unsigned. The
+   cast of an out-of-range double is undefined, so it is refused before it is
+   made, with its own sentence. */
+static int
+read_num_keys (const cJSON *o, void *base, const num_key_t *keys, size_t n,
+               const char **why)
 {
   for (size_t i = 0; i < n; i++)
     {
       void        *p = (char *)base + keys[i].off;
       const double v = num (o, keys[i].key, 0);
+      const double hi
+          = keys[i].wide ? 9007199254740992.0 /* 2^53 */ : (double)UINT_MAX;
+      if (v < 0.0 || v != floor (v) || v >= hi)
+        {
+          *why = keys[i].wide
+                     ? "a field's \"bits\" must be a whole number below "
+                       "2^53, the largest a JSON number holds exactly"
+                     : "a field's or stage's count must be a whole number "
+                       "below 2^32";
+          return -1;
+        }
       if (keys[i].wide)
         *(size_t *)p = (size_t)v;
       else
         *(unsigned *)p = (unsigned)v;
     }
+  return 0;
 }
 
 /* A stage's kind: the NAME when this build has one, the raw integer when it
@@ -1008,7 +1028,8 @@ read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d, const char *where,
               return -1;
             memcpy (f->name, name, sizeof name); /* parse clears the name */
           }
-        read_num_keys (it, f, FIELD_KEYS, N_FIELD_KEYS);
+        if (read_num_keys (it, f, FIELD_KEYS, N_FIELD_KEYS, why) != 0)
+          return -1;
       }
     }
 
@@ -1028,7 +1049,8 @@ read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d, const char *where,
           return -1;
         if (read_stage_kind (it, &s->kind) != 0)
           return -1;
-        read_num_keys (it, s, STAGE_KEYS, N_STAGE_KEYS);
+        if (read_num_keys (it, s, STAGE_KEYS, N_STAGE_KEYS, why) != 0)
+          return -1;
       }
     }
   return 0;

@@ -32,6 +32,11 @@
  * moves a bit error between two programs that should agree. So every
  * compiler, and the Python face, reads the same bits.
  *
+ * A C caller uses the names declared here, `dp_ccsds_415_*`. The
+ * `ccsds` module's dp_ccsds415_chip_rate() and dp_ccsds415_cn0()
+ * (ccsds_core.h) are the same two functions under the Python module's
+ * names, thin aliases that call these: one function each, not two.
+ *
  * @code
  * #include <doppler/ccsds/ccsds_415.h>
  * #include <stdio.h>

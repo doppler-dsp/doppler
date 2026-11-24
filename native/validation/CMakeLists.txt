@@ -532,7 +532,9 @@ add_test(NAME validate_async_dsss_receiver_lock_telemetry
 # The spot check runs the contract's cells (2.8 GHz, 10 dB, static, both
 # carrier windows, one 20 s draw each) and gates that each link works --
 # sustained lock, no change of either flag over the data, not a false lock --
-# aligns without a slip, and errs under the bound 3 dB lower; the 4 and 5 dB
+# aligns without a slip up to the end marker (about 0.2 s before the end;
+# a symbol slip after it is not verified, #3294), and errs under the bound
+# 3 dB lower; the 4 and 5 dB
 # floor is printed with its intervals and not claimed.
 add_executable(validate_async_dsss_receiver_pullin
                ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_receiver_pullin.c)

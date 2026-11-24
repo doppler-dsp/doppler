@@ -720,20 +720,39 @@ pi_end_verdict (const float complex *syms, size_t ns, const uint8_t *truth,
     *unsynced = 1;
 }
 
-/* The end verdict's failing cases, once, on the first draw that aligns: the
-   same stream with its end sync forced to fail must be accepted on its
-   tail, and the stream with one symbol dropped PI_END_TAIL / 2 before its
-   end must be refused, both with the end sync as it is and forced to
-   fail. */
+/* The end verdict's failing cases, once, on the first draw that aligns and
+   whose own verdict is clean (slipped 0, the end synced): a control that
+   expects a clean end is only a control on a clean draw, and the caller
+   picks one (a draw that slipped would fail it for being what it is). On
+   it: the same stream with its end sync forced to fail must be accepted
+   on its tail, and a stream with one symbol dropped must be refused by
+   each path. Each drop sits where its path looks. With the end sync as it
+   is, the drop goes before the end marker's own window (the marker
+   pi_end_verdict places on the shortened stream, at the start's lag): the
+   whole window then reads the lag one off, so a sync that places must
+   call it a slip. A drop inside the window was read either way by which
+   side held more of it, which is how the control failed on 40 jobs of
+   the release's final run. With the sync forced off, the drop goes
+   PI_END_TAIL / 2 before the end, inside the tail the fallback scores.
+   What neither path verifies is a symbol slip after the marker's window:
+   the last few hundred symbols, about 0.1 to 0.2 s of a draw
+   (doppler#3294). */
 static int pi_end_controls_done = 0;
 
 static void
 pi_end_controls (const float complex *syms, size_t ns, const uint8_t *truth,
                  size_t n_truth, const dp_ber_marker_t *mk,
-                 const dp_ber_sync_t *sy, double esn0)
+                 const dp_ber_sync_t *sy, double esn0, int slipped,
+                 int unsynced)
 {
   if (pi_end_controls_done || ns < 2 * PI_END_TAIL)
     return;
+  /* The caller's premise, checked: a control needs a clean draw. */
+  if (slipped || unsynced)
+    {
+      DP_CHECK_MSG (0, "the end verdict's controls run on a clean draw");
+      return;
+    }
   pi_end_controls_done = 1;
   int           u, sl;
   unsigned long te;
@@ -743,19 +762,35 @@ pi_end_controls (const float complex *syms, size_t ns, const uint8_t *truth,
           te, PI_END_TAIL, u || sl ? "refused" : "accepted");
   DP_CHECK_MSG (!u && !sl, "control: a clean end the sync cannot place is "
                            "accepted on its tail");
-  float complex *f  = dp_xmalloc (ns * sizeof *f);
-  const size_t   at = ns - PI_END_TAIL / 2;
-  memcpy (f, syms, at * sizeof *f);
-  memcpy (f + at, syms + at + 1, (ns - at - 1) * sizeof *f);
+  /* The end marker pi_end_verdict places on the stream one symbol
+     shorter: it depends on the truth and the length only. */
+  const size_t guard = (size_t)DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS;
+  const size_t t_end
+      = dp_ber_marker_place (truth, n_truth, 2, ns - 1 - guard, 0,
+                             DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1);
+  const long     win = (long)t_end - sy->lag; /* its first rx symbol */
+  float complex *f   = dp_xmalloc (ns * sizeof *f);
   for (int force = 0; force < 2; force++)
     {
+      const long at_l
+          = force ? (long)(ns - PI_END_TAIL / 2) : win - (long)PI_END_BLK;
+      if (t_end == SIZE_MAX || at_l <= 0 || (size_t)at_l >= ns - 1)
+        {
+          DP_CHECK_MSG (0, "the control's drop lies inside the stream");
+          break;
+        }
+      const size_t at = (size_t)at_l;
+      memcpy (f, syms, at * sizeof *f);
+      memcpy (f + at, syms + at + 1, (ns - at - 1) * sizeof *f);
       pi_end_verdict (f, ns - 1, truth, n_truth, mk, sy, esn0, force, &u, &sl,
                       &te);
-      printf ("  end verdict's failing cases: a symbol dropped %u before "
-              "the end, end sync %s: %s (tail errors %lu)\n",
-              PI_END_TAIL / 2, force ? "forced off" : "as it is",
+      printf ("  end verdict's failing cases: a symbol dropped %zu before "
+              "the end (the marker's window starts %ld before it), end "
+              "sync %s: %s (tail errors %lu)\n",
+              ns - at, (long)ns - win, force ? "forced off" : "as it is",
               u || sl ? "refused" : "accepted", te);
-      DP_CHECK_MSG (u || sl, "control: a slip before the end is refused");
+      DP_CHECK_MSG (u || sl, "control: a slip where its path looks is "
+                             "refused");
     }
   free (f);
 }
@@ -1721,7 +1756,9 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
               pi_end_verdict (syms, ns, truth, n_truth, &mk, &sy, esn0, 0,
                               &d->end_unsynced, &d->slipped, &tail_err);
               if (!pi_no_emitter && !pi_expect_broken)
-                pi_end_controls (syms, ns, truth, n_truth, &mk, &sy, esn0);
+                if (!d->slipped && !d->end_unsynced)
+                  pi_end_controls (syms, ns, truth, n_truth, &mk, &sy, esn0,
+                                   d->slipped, d->end_unsynced);
               const long   lo_e = (long)(mk.t0 + mk.n) - sy.lag;
               const size_t lo   = (lo_e > 0 && (size_t)lo_e > lock_sym)
                                       ? (size_t)lo_e
@@ -2020,7 +2057,9 @@ check_cell (const draw_t *ds, size_t n)
       DP_CHECK_MSG (!pi_works (&unal), "a link the meter cannot align at its "
                                        "lock does not work");
       DP_CHECK_MSG (ds[i].aligned, "and aligns at the start");
-      DP_CHECK_MSG (!ds[i].slipped, "and holds that alignment to the end");
+      DP_CHECK_MSG (!ds[i].slipped, "and holds that alignment to the end "
+                                    "marker, about 0.2 s before the end "
+                                    "(doppler#3294)");
       DP_CHECK_MSG (!ds[i].end_unsynced, "and the meter syncs at the end");
       err += ds[i].errors;
       sc += ds[i].scored;

@@ -208,7 +208,7 @@ ______________________________________________________________________
 
 One declaration names the default interpreter: `.python-version` (3.12),
 unless `UV_PYTHON` says otherwise. Every `uv` call a `make` target makes goes
-through one guard (`scripts/uvg.sh`, behind `UV` in the Makefile), and
+through one guard (`scripts/uvg.py`, behind `UV` in the Makefile), and
 `make lint` refuses any other spelling of uv.
 
 What a developer sees the first time this lands, on a `.venv` built for 3.13:

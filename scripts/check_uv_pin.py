@@ -656,10 +656,7 @@ def interpreter_offenders(root: Path, files: list[str]) -> list[str]:
 
 #: The one guarded spelling of uv in a makefile (#3305): every uv call a recipe
 #: makes is `$(UV)`, and UV is this, the nested-make guard around UV_BIN.
-GUARDED_UV = "override UV = bash scripts/uvg.sh $(UV_BIN)"
-#: The Windows branch of the same definition: no guard (bash on Windows
-#: is WSL).
-WINDOWS_UV = "override UV = $(UV_BIN)"
+GUARDED_UV = "override UV = python3 scripts/uvg.py $(UV_BIN)"
 _UV_ASSIGN = re.compile(r"^\s*(?:override\s+)?(?:export\s+)?UV\s*[?:+!]?=")
 
 
@@ -677,9 +674,9 @@ def uv_definition_offenders(root: Path) -> list[str]:
         if _UV_ASSIGN.match(line)
     ]
     bad: list[str] = []
-    allowed = {GUARDED_UV, WINDOWS_UV}
+    allowed = {GUARDED_UV}
     texts = [h for _, h in hits]
-    if sorted(texts) != sorted([GUARDED_UV, WINDOWS_UV]):
+    if texts != [GUARDED_UV]:
         for n, text in hits:
             if text not in allowed:
                 bad.append(
@@ -698,9 +695,9 @@ def uv_definition_offenders(root: Path) -> list[str]:
 #: A Python script that launches a sync-capable uv itself: an argv LIST whose
 #: first element is "uv" and second is run/sync/venv, across lines too. Such a
 #: call must go through the venv guard
-#: (`["bash", "scripts/uvg.sh", "uv", ...]`,
-#: whose first element is "bash"), or a nested make rebuilds the project .venv
-#: it runs from (#3305).
+#: (`[sys.executable, "scripts/uvg.py", "uv", ...]`,
+#: whose first element is the guard), or a nested make rebuilds the project
+#: .venv it runs from (#3305).
 _SCRIPT_UV = re.compile(
     r"""\[\s*["']uv["']\s*,\s*["'](?:run|sync|venv)["']""", re.S
 )
@@ -717,7 +714,8 @@ def script_uv_offenders(root: Path) -> list[str]:
             bad.append(
                 f"scripts/{f.name}:{n}: launches uv by argv -- `{line[:70]}`;"
                 " route it through the venv guard "
-                '(`["bash", "scripts/uvg.sh", "uv", "run", ...]`, #3305)'
+                '(`[sys.executable, "scripts/uvg.py", "uv", "run", ...]`,'
+                " #3305)"
             )
     return bad
 

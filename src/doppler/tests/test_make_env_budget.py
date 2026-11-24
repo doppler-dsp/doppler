@@ -37,12 +37,12 @@ REPO = repo_root(__file__)
 # is why the budget is a difference). Measured 2026-11-04 on Linux: 2556 bytes
 # with the list kept out, 4980 with it in; the largest variable 2548 then.
 ADDED_MAX = 3500
-# VAR_MAX raised 1800 -> 2160 (+360), a RAISED RATCHET for the reviewer to
+# VAR_MAX raised 1800 -> 2243 (+443), a RAISED RATCHET for the reviewer to
 # accept or refuse (#3305). DOCS_CHECK_PRE_CMDS is a `define` of about 30 uv
-# calls, each now spelled `bash scripts/uvg.sh uv run` (the venv guard, 20
+# calls, each now spelled `python3 scripts/uvg.py uv run` (the venv guard, 20
 # bytes a use). Measured 2159 with the shortest spelling that keeps `bash`: a
 # Windows checkout does not reliably keep the exec bit (not verified there).
-VAR_MAX = 2160
+VAR_MAX = 2243
 
 
 def _env(cwd: Path, files: list[str], home: Path) -> dict[bytes, bytes]:

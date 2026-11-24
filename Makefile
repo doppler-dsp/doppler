@@ -157,28 +157,16 @@ CMAKE       := cmake
 # legs override it by setting UV_PYTHON through setup-uv; `primary` (the
 # floor, 3.9) is a matrix leg, not the default interpreter.
 # UV_BIN is the uv binary; UV is the ONLY spelling a recipe uses, and it is the
-# binary behind the nested-make guard (scripts/uvg.sh, #3305). `override`
+# binary behind the nested-make guard (scripts/uvg.py, #3305). `override`
 # makes it win over a command-line UV=, so no spelling of a uv call skips the
 # guard: the override moved to UV_BIN. A nested make refuses a sync-capable uv
 # command against a .venv on another Python; the top-level make may build it.
 UV_BIN     ?= uv
-ifeq ($(OS),Windows_NT)
-# Windows: `bash` on PATH is the WSL launcher (System32), not Git's bash, so
-# the guard cannot be spawned there (windows-latest, #3305). The Windows legs
-# build their venv through setup-uv with UV_PYTHON matching it, so no nested
-# rebuild is expected there; the guard runs on every POSIX leg. Named residual.
-override UV = $(UV_BIN)
-else
-override UV = bash scripts/uvg.sh $(UV_BIN)
-endif
+override UV = python3 scripts/uvg.py $(UV_BIN)
 # The same guard by absolute path, for the recipes that change directory into
 # the downstream example first (a relative path would not resolve there). Not
 # exported, so it costs the environment budget nothing.
-ifeq ($(OS),Windows_NT)
-UV_ABS = $(UV_BIN)
-else
-UV_ABS = bash $(CURDIR)/scripts/uvg.sh $(UV_BIN)
-endif
+UV_ABS = python3 $(CURDIR)/scripts/uvg.py $(UV_BIN)
 _PY_UV := $(UV)
 ifneq ($(JUST_BUILDIT_PYTHON),)
 PYTHON_EXECUTABLE := $(JUST_BUILDIT_PYTHON)

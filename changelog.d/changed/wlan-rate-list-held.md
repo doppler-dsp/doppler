@@ -1,1 +1,0 @@
-- **The 802.11 data-rate list is held equal to the table.** `--wlan`'s help, the manifest and header docs, the bridge refusal and the guides name the rates of Table 17-6; `test_wlan_rate_list.py` derives the list from `Wlan.rate_mbps` and fails on any spelling that differs or any new typed copy.

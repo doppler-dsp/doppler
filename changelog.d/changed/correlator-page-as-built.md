@@ -1,1 +1,0 @@
-- **The correlator design page states what the committed engine does without the phrase "as built".** The vocabulary entry is removed (keeping *emulated*), and the two sentences that used it say "the committed search" and "the committed engine".

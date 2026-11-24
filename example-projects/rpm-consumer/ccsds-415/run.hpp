@@ -163,13 +163,14 @@ private:
   int proc_id_ = -1;
   std::unique_ptr<Scene> scene_;
   std::vector<cf32> x_, out_, syms_;
-  std::vector<uint8_t> flags_;
+  std::vector<uint8_t> flags_, code_flags_; // per symbol: symbol, code lock
   std::vector<size_t> emitted_;
   async_dsss_receiver_status_t st_{};
   uint64_t n_ = 0, total_ns_ = 0;
   double last_ns_ = 0.0, worst_ns_ = 0.0;
   bool filled_ = false; // a call filled its capacity: the run stopped there
   void print_errors (const dp_ber_meter_state_t *meter, size_t lo) const;
+  int64_t window_start () const;
 };
 
 } // namespace ccsds415

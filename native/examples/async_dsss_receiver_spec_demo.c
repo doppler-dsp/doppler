@@ -135,8 +135,8 @@ struct regime
    just-makeit#2755 binds the helper, and the pair test holds its literals
    to these through the line main() prints). */
 static struct regime REGIMES[] = {
-  { "2.2 GHz", DP_CCSDS_415_FC_LO, { 0 } },
-  { "2.8 GHz", DP_CCSDS_415_FC_HI, { 0 } },
+  { .name = "2.2 GHz", .carrier_hz = DP_CCSDS_415_FC_LO },
+  { .name = "2.8 GHz", .carrier_hz = DP_CCSDS_415_FC_HI },
 };
 #define N_REGIMES (sizeof REGIMES / sizeof REGIMES[0])
 

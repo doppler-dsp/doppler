@@ -105,7 +105,7 @@ _The CCSDS 415.1-B-1 specification point the async DSSS receiver is specified fo
 ## Detailed Description
 
 
-Every number is a row of docs/design/async-dsss-receiver.md §1's table, which names its source; nothing here is chosen. The receiver's runs at this point are docs/design/async-dsss-receiver-measurements.md; its certification record holds at another point, 3.069 Mcps, and not at this one (async-dsss-receiver.md §1, "What the certification covers"). A test, a validator, a bench or an example that runs at the point reads these names rather than restating them, so two programs cannot measure two points under one name.
+Every number is a row of docs/design/async-dsss-receiver.md §1's table, which names its source; nothing here is chosen. The receiver's runs at this point are docs/design/async-dsss-receiver-measurements.md; its certification record holds at another point, 3.069 Mcps, and not at this one (async-dsss-receiver.md §1, The specification, whose paragraph on what the certification covers says so). A test, a validator, a bench or an example that runs at the point reads these names rather than restating them, so two programs cannot measure two points under one name.
 
 
 code Gold, 1,023 chips: the mission's, so it is an argument chip rate F\_fwd x 31 / (221 x 96) table 4-1 carrier F\_fwd 2.2 to 2.8 GHz owner symbols 3,000 sym/s, asynchronous to the code owner capture 11 MSa/s, complex owner Doppler within +/-1,500 Hz owner its rate R\_env, 11 Hz/s §1.8 floor Es/N0 4 dB owner frame 1,000 symbols, the first 275 code alone owner, §1.4
@@ -269,6 +269,10 @@ printf ("%.17g %.17g\n", s.start_ppm, s.rate_ppm_s);
 
 
 
+Of a frame's symbols, the code-only ones that open it. 
+
+
+        
 
 <hr>
 
@@ -282,6 +286,10 @@ printf ("%.17g %.17g\n", s.start_ppm, s.rate_ppm_s);
 
 
 
+The band's high end, F\_fwd, Hz. 
+
+
+        
 
 <hr>
 
@@ -295,7 +303,7 @@ printf ("%.17g %.17g\n", s.start_ppm, s.rate_ppm_s);
 
 
 
-The band's two ends, F\_fwd, Hz. 
+The band's low end, F\_fwd, Hz. 
 
 
         
@@ -329,7 +337,7 @@ The sensitivity floor, Es/N0 dB.
 
 
 
-Symbols a frame, and of them the code-only ones that open it. 
+Symbols a frame. 
 
 
         

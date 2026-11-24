@@ -1988,8 +1988,8 @@ _test_shipped_pool_frees_a_dropped_ghost (void)
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
   _g415_t z;
-  DP_REQUIRE (_g415_scene (code, 2, 60.0, 2, 2.0, DP_CCSDS_415_LOCK_S, true, &z)
-              == 0);
+  DP_REQUIRE (
+      _g415_scene (code, 2, 60.0, 2, 2.0, DP_CCSDS_415_LOCK_S, true, &z) == 0);
   dp_async_dsss_pool_state_t *p = z.p;
   printf ("k = 2 scene, shipped pool, seed 2, %.0f s: carrier %.1f Hz off "
           "A's, %ld tracking steps (%ld code up, %ld symbol up, %ld both "

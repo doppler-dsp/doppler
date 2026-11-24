@@ -145,7 +145,7 @@ CMAKE       := cmake
 #   no python3 -- is case 4's refusal too, with its own reason.
 #
 # `$(or $(UV),uv)` because `UV = uv` is defined further down, under Tooling,
-# and this block is expanded NOW; a `UV=` on the command line is already
+# and this block is expanded NOW; a `UV_BIN=` on the command line is already
 # set, and otherwise the value is the same `uv` the Tooling line assigns.
 # Not a `$(error)`: standard.mk's _std_require expands PYEXT_CMD and
 # COVERAGE_CMD at parse time, so an error there would stop `make lint` and
@@ -156,11 +156,22 @@ CMAKE       := cmake
 # wheel for a pinned package (pillow 12.2.0 has none for 3.15). CI's matrix
 # legs override it by setting UV_PYTHON through setup-uv; `primary` (the
 # floor, 3.9) is a matrix leg, not the default interpreter.
-_PY_UV := $(or $(UV),uv)
+# UV_BIN is the uv binary; UV is the ONLY spelling a recipe uses, and it is the
+# binary behind the nested-make guard (scripts/venv_guard.sh, #3305). `override`
+# makes it win over a command-line UV=, so no spelling of a uv call skips the
+# guard: the override moved to UV_BIN. A nested make refuses a sync-capable uv
+# command against a .venv on another Python; the top-level make may build it.
+UV_BIN     ?= uv
+override UV = bash scripts/venv_guard.sh $(UV_BIN)
+# The same guard by absolute path, for the recipes that change directory into
+# the downstream example first (a relative path would not resolve there). Not
+# exported, so it costs the environment budget nothing.
+UV_ABS = bash $(CURDIR)/scripts/venv_guard.sh $(UV_BIN)
+_PY_UV := $(UV)
 ifneq ($(JUST_BUILDIT_PYTHON),)
 PYTHON_EXECUTABLE := $(JUST_BUILDIT_PYTHON)
 else ifeq ($(origin PYTHON_EXECUTABLE),undefined)
-ifeq ($(shell command -v $(_PY_UV) 2>/dev/null),)
+ifeq ($(shell command -v $(UV_BIN) 2>/dev/null),)
 PYTHON_EXECUTABLE := $(shell command -v python3 2>/dev/null)
 else
 # A parse-time probe ASKS; it must never change the shared .venv. With a venv,
@@ -241,11 +252,8 @@ BLAZING_CFLAGS ?= -march=native
 # and are pinned by uv.lock — which is what makes local and CI resolve
 # identically, and why the hook config resolves no lock-managed tool itself.
 # Override it with an ABSOLUTE path, or a name on PATH: a few recipes `cd`
-# into a subproject before running $(UV), where a relative UV= no longer
+# into a subproject before running $(UV), where a relative UV_BIN= no longer
 # names the same file.
-UV         = uv
-
-
 # A BARE interpreter, deliberately not `$(UV) run python`, and the exception
 # is narrow: scripts/nats_streams.py is stdlib-only (there is a test pinning
 # that) and its callers are the two places a resolved dev venv cannot be
@@ -255,10 +263,8 @@ UV         = uv
 # `nats-down` runs `if: always()`, after a job that may have failed for any
 # reason at all, including a broken environment.
 NATS_STREAMS = python3 scripts/nats_streams.py
-# Through scripts/venv_guard.sh: a NESTED make refuses to rebuild a .venv on
-# another Python (exit 2, one line naming both), instead of silently recreating
-# it under a running suite (#3305). The top-level make is unaffected.
-DEV_RUN    = bash scripts/venv_guard.sh $(UV) run --group dev
+# Through UV, so through the guard (see UV above).
+DEV_RUN    = $(UV) run --group dev
 RUFF       = $(DEV_RUN) ruff
 # Routed through the dev group, not PATH: uv.lock is the one pin, shared by
 # make, the pre-commit hooks and jm's own `c_format_command`.
@@ -381,7 +387,7 @@ DOWNSTREAM_GEN_C_RE := ^($(shell git grep -l '^/\* jm:generated ' -- \
 # into xargs: POSIX sh has no pipefail, so a failing `list_hand_ext_c.py`
 # only shortened the list and the target still exited 0 -- a gate reading
 # green while checking less. It also ran a bare `uv`, which ignores the
-# `UV=` override, so a box whose uv is not the pin dropped those files
+# `UV_BIN=` override, so a box whose uv is not the pin dropped those files
 # every time.
 C_FILES     = git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'
 HAND_EXT_C  = $(UV) run python scripts/list_hand_ext_c.py
@@ -1222,7 +1228,7 @@ python-executable-check: ## Fail when there is no interpreter to build for
 	@if [ -n $(_PY_ERROR_Q) ]; then \
 	  echo "python-executable-check: no interpreter to build for:"; \
 	  printf '    %s\n' $(_PY_ERROR_Q); \
-	  echo "  Fix uv (or pass UV=<the pinned uv>), or name one with"; \
+	  echo "  Fix uv (or pass UV_BIN=<the pinned uv>), or name one with"; \
 	  echo "  PYTHON_EXECUTABLE=<python>. Not falling back to python3: that"; \
 	  echo "  builds the extension for the wrong interpreter (#2364)."; \
 	  exit 1; \
@@ -4219,14 +4225,14 @@ jm-migrate-fragments: ## Move each [module.X] to modules/<name>.toml
 jm-revendor: ## Re-vendor every jm_*.h that is behind the pinned jm (both projects)
 	$(UV) sync --group dev --no-install-project
 	$(UV) run python scripts/check_jm_status.py --fix
-	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) \
+	cd $(DOWNSTREAM_DIR) && $(UV_ABS) run --project $(CURDIR) \
 	    python $(CURDIR)/scripts/check_jm_status.py --fix
 
 jm-status-docs: ## List members whose docstring falls back to their name (jm status --docs)
 	$(UV) run --group dev just-makeit status --docs
 
 jm-apply-downstream: ## Regenerate the downstream example's jm glue (same pin)
-	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) just-makeit apply
+	cd $(DOWNSTREAM_DIR) && $(UV_ABS) run --project $(CURDIR) just-makeit apply
 
 # jm-adopt for the downstream example: same arguments, same pin, run from
 # its directory so `adopt` reads its manifest rather than doppler's.
@@ -4235,7 +4241,7 @@ jm-adopt-downstream: ## JM_ADOPT_ARGS='<obj>... | --check --all' — jm-adopt fo
 	    echo "usage: make jm-adopt-downstream JM_ADOPT_ARGS='--check --all'"; \
 	    exit 2; }
 	$(UV) sync --group dev --no-install-project
-	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) \
+	cd $(DOWNSTREAM_DIR) && $(UV_ABS) run --project $(CURDIR) \
 	    just-makeit adopt $(JM_ADOPT_ARGS)
 
 # The jm manifest drift gate. --no-install-project because the gate only reads
@@ -4261,7 +4267,7 @@ drift-check: ## jm manifest drift gate (CI's 'jm manifest drift')
 # bindings/stubs/CMake can drift from its manifest exactly like doppler's can.
 # Checked with the SAME pinned jm, so the example cannot silently document a jm
 # version doppler is not on.
-	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) \
+	cd $(DOWNSTREAM_DIR) && $(UV_ABS) run --project $(CURDIR) \
 	    python $(CURDIR)/scripts/check_jm_status.py
 
 # One definition of "code", used by BOTH questions below — and by

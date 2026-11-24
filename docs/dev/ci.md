@@ -204,6 +204,39 @@ references is a failure too: a scan that matches nothing has not run.
 
 ______________________________________________________________________
 
+## A `.venv` on another Python
+
+One declaration names the default interpreter: `.python-version` (3.12),
+unless `UV_PYTHON` says otherwise. Every `uv` call a `make` target makes goes
+through one guard (`scripts/venv_guard.sh`, behind `UV` in the Makefile), and
+`make lint` refuses any other spelling of uv.
+
+What a developer sees the first time this lands, on a `.venv` built for 3.13:
+
+- **A top-level `make` rebuilds the venv to 3.12, once.** That is `uv`'s
+    own message, `Removed virtual environment at: .venv`, followed by a sync.
+    It is the one allowed rebuild: the top-level make is the one that may
+    change the environment.
+
+- **A nested `make` refuses until then.** A make started by another make (or
+    by a test or a hook that runs one) will not change the venv, and prints one
+    line naming both versions, for example:
+
+    ```text
+    venv_guard: the .venv is on Python 3.13; this request is 3.12 (from
+    .python-version). A nested make will not rebuild it. Run the same make
+    command at top level, or set UV_PYTHON=3.13 to match the venv.
+    ```
+
+    Either fix works: run the same command at top level, or set `UV_PYTHON`
+    to the venv's version.
+
+The guard exists because a rebuild under a running suite deletes the
+packages the suite is importing (`No module named 'pygments'`, then
+`matplotlib`): a half-deleted install that `uv sync` does not repair without
+`--reinstall`. The parse-time probe in the Makefile only asks, and never
+syncs, so reading the Makefile cannot rebuild a venv either.
+
 ## The compiler cache
 
 The C core is built several times per run with the same compiler and the same

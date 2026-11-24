@@ -654,6 +654,42 @@ def interpreter_offenders(root: Path, files: list[str]) -> list[str]:
     return bad
 
 
+#: The one guarded spelling of uv in a makefile (#3305): every uv call a recipe
+#: makes is `$(UV)`, and UV is this, the nested-make guard around UV_BIN.
+GUARDED_UV = "override UV = bash scripts/venv_guard.sh $(UV_BIN)"
+_UV_ASSIGN = re.compile(r"^\s*(?:override\s+)?(?:export\s+)?UV\s*[?:+!]?=")
+
+
+def uv_definition_offenders(root: Path) -> list[str]:
+    """The Makefile defines UV exactly once, guarded, and nothing else
+    assigns it: a second definition, or an unguarded one, is a uv spelling
+    the venv guard does not see."""
+    mk = root / "Makefile"
+    if not mk.is_file():
+        return []
+    lines = mk.read_text(encoding="utf-8").splitlines()
+    hits = [
+        (n, line.strip())
+        for n, line in enumerate(lines, 1)
+        if _UV_ASSIGN.match(line)
+    ]
+    bad: list[str] = []
+    if [h for _, h in hits] != [GUARDED_UV]:
+        for n, text in hits:
+            if text != GUARDED_UV:
+                bad.append(
+                    f"Makefile:{n}: assigns UV -- `{text[:70]}`; the one "
+                    f"definition is `{GUARDED_UV}` (every uv call goes "
+                    "through the venv guard)"
+                )
+        if not any(h == GUARDED_UV for _, h in hits):
+            bad.append(
+                f"Makefile: UV is not defined as `{GUARDED_UV}`, so a uv "
+                "call would bypass the venv guard"
+            )
+    return bad
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", type=Path, default=ROOT)
@@ -692,6 +728,7 @@ def main() -> int:
     bad += setup_bad + installer_offenders(root, files)
     bad += bare_uv_offenders(root, files, args.base)
     bad += interpreter_offenders(root, files)
+    bad += uv_definition_offenders(root)
     for b in bad:
         print(f"check_uv_pin: {b}")
     if bad:

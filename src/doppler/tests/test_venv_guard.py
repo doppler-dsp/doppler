@@ -43,7 +43,7 @@ def _run(
     if uv_python is not None:
         env["UV_PYTHON"] = uv_python
     return subprocess.run(
-        ["bash", str(GUARD), "echo", "ran"],
+        ["bash", str(GUARD), "echo", "run", "ran"],
         cwd=cwd,
         env=env,
         capture_output=True,
@@ -54,15 +54,16 @@ def _run(
 def test_a_nested_make_refuses_a_mismatched_venv(tmp_path: Path) -> None:
     r = _run(_project(tmp_path, "3.14.4", "3.12"), makelevel="1")
     assert r.returncode == 2, r.stdout + r.stderr
-    assert "venv is Python 3.14 and this make asks for 3.12" in r.stderr
-    assert "ran" not in r.stdout
+    assert "the .venv is on Python 3.14; this request is 3.12" in r.stderr
+    assert "Run the same make" in r.stderr
+    assert "run ran" not in r.stdout
 
 
 def test_a_top_level_make_is_not_refused(tmp_path: Path) -> None:
     """The top-level make may build the venv it was asked for."""
     r = _run(_project(tmp_path, "3.14.4", "3.12"), makelevel="0")
     assert r.returncode == 0, r.stderr
-    assert r.stdout.strip() == "ran"
+    assert r.stdout.strip() == "run ran"
 
 
 def test_a_matching_venv_is_not_refused(tmp_path: Path) -> None:

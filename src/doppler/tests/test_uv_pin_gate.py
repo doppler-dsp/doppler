@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "check_uv_pin.py"
 COMPOSITE = ".github/actions/setup-uv/action.yml"
+GUARDED_UV_LINE = "override UV = bash scripts/venv_guard.sh $(UV_BIN)\n"
 DOCKERFILE = "deploy/docker/Dockerfile"
 
 PIN = '[tool.uv]\nrequired-version = "==0.12.24"\n'
@@ -61,6 +62,15 @@ def _seed(
     tmp_path.mkdir(parents=True, exist_ok=True)
     if allow is not None:
         files = {"scripts/.bare-uv-allow": allow, **(files or {})}
+    # Every seeded makefile carries the one guarded UV definition unless the
+    # test gives its own (rule 6 refuses a tree without it).
+    files = dict(files or {})
+    if (
+        "Makefile" in files
+        and "override UV =" not in files["Makefile"]
+        and "UV =" not in files["Makefile"]
+    ):
+        files["Makefile"] = files["Makefile"] + GUARDED_UV_LINE
     (tmp_path / "pyproject.toml").write_text(
         '[project]\nname = "x"\n\n' + pyproject, encoding="utf-8"
     )
@@ -282,7 +292,7 @@ def _lock_gate(tmp_path: Path, edit: tuple[str, str] | None = None):
     # on windows-latest too).
     uv_cmd = f"{PurePath(uv).as_posix()} --directory {tmp_path.as_posix()}"
     return subprocess.run(
-        ["make", "-s", "-C", str(REPO), "lint-uv-lock", f"UV={uv_cmd}"],
+        ["make", "-s", "-C", str(REPO), "lint-uv-lock", f"UV_BIN={uv_cmd}"],
         capture_output=True,
         text=True,
     )
@@ -354,8 +364,7 @@ def test_a_bare_uv_in_a_makefile_is_refused(tmp_path: Path, line: str) -> None:
 
 def test_uv_through_the_variable_passes(tmp_path: Path) -> None:
     mk = (
-        "UV = uv\n"
-        "t:\n"
+        GUARDED_UV_LINE + "t:\n"
         "\t$(UV) run python scripts/x.py\n"
         "\t$(UV) sync --group dev\n"
         "\tcmake -DPy=$$($(UV) run python -c 'print(1)')\n"
@@ -459,7 +468,7 @@ def test_a_tool_run_outside_the_lock_is_refused(
 
 def test_a_locked_tool_through_dev_run_passes(tmp_path: Path) -> None:
     mk = (
-        "UV = uv\nDEV_RUN = $(UV) run --group dev\n"
+        GUARDED_UV_LINE + "DEV_RUN = $(UV) run --group dev\n"
         "t:\n\t$(DEV_RUN) diff-cover cov.lcov --fail-under=80\n"
         "# a comment may say uvx diff-cover\n"
         "\t@# so may a recipe comment: uvx diff-cover\n"
@@ -730,3 +739,36 @@ def test_the_live_tree_passes_the_interpreter_rule() -> None:
     """The committed tree, with its ratchet, is clean."""
     r = _run(REPO)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+# ── rule 6: UV is defined once, guarded; no spelling of uv skips the guard ───
+
+
+def test_the_guarded_uv_definition_passes(tmp_path: Path) -> None:
+    mk = "override UV = bash scripts/venv_guard.sh $(UV_BIN)\n"
+    assert _run(_seed(tmp_path, files={"Makefile": mk})).returncode == 0
+
+
+def test_a_second_uv_definition_is_refused(tmp_path: Path) -> None:
+    """The sabotage: an unguarded UV beside the guarded one."""
+    mk = "override UV = bash scripts/venv_guard.sh $(UV_BIN)\nUV = uv\n"
+    r = _run(_seed(tmp_path, files={"Makefile": mk}))
+    assert r.returncode == 1
+    assert "assigns UV" in r.stdout
+
+
+def test_an_unguarded_only_definition_is_refused(tmp_path: Path) -> None:
+    """The sabotage: the guard removed from the one definition."""
+    r = _run(_seed(tmp_path, files={"Makefile": "UV = uv\n"}))
+    assert r.returncode == 1
+    assert "UV is not defined as" in r.stdout
+
+
+def test_a_command_line_uv_override_is_named_not_hidden(
+    tmp_path: Path,
+) -> None:
+    """`override` makes a command-line UV= lose to the guard: the Makefile
+    still has the guarded definition, so the gate passes it; the override
+    itself is not visible to a tree scan, and that is said in the docs."""
+    mk = "override UV = bash scripts/venv_guard.sh $(UV_BIN)\n"
+    assert _run(_seed(tmp_path, files={"Makefile": mk})).returncode == 0

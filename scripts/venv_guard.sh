@@ -1,32 +1,55 @@
 #!/usr/bin/env bash
-# Run a uv command for the project, but refuse to REBUILD a .venv on another
-# Python from inside a nested make.
+# The one door every uv call the Makefile makes goes through (`UV`, which is
+# `override UV = bash scripts/venv_guard.sh $(UV_BIN)`). It refuses one thing:
+# a NESTED make asking a sync-capable uv command (run, sync, venv) to rebuild a
+# .venv that is on another Python than the request names.
 #
 # Why (#3305): `uv run` removes and recreates a .venv whose Python disagrees
-# with the one it is asked for ("Removed virtual environment at: .venv"). A
-# nested make, or a test that runs one, does that under a suite that is still
-# importing from the venv: the packages go missing mid-run. A top-level make
-# with no venv, or one already on the requested Python, is unaffected.
+# with the one it is asked for, and the suite is still importing from it, so the
+# packages vanish mid-run. A top-level make may rebuild (that is how a venv is
+# made or moved); a nested make may not, and says so in one line:
 #
-# Usage: venv_guard.sh <command> [args...]
-#   Exits 2 with one line naming both versions when a nested make would
-#   rebuild; otherwise execs the command unchanged.
+#   venv_guard: the .venv is on Python 3.14; this request is 3.12 (from
+#   .python-version). A nested make will not rebuild it. Run `make <goal>` at
+#   top level, or set UV_PYTHON=3.14 to match the venv.
+#
+# `uv run --no-sync` never syncs, so it is always allowed (the interpreter
+# probe uses it). Everything else exec's unchanged.
+#
+# Usage: venv_guard.sh <uv> [args...]
 set -euo pipefail
 
+uv_bin="$1"
+shift
+
+sub="${1:-}"
+case "$sub" in
+  run | sync | venv) ;;
+  *) exec "$uv_bin" "$@" ;;
+esac
+
+for a in "$@"; do
+  if [ "$a" = "--no-sync" ]; then
+    exec "$uv_bin" "$@"
+  fi
+done
+
 want="${UV_PYTHON:-}"
+from="UV_PYTHON"
 if [ -z "$want" ] && [ -f .python-version ]; then
   want=$(head -n 1 .python-version)
+  from=".python-version"
 fi
 
 if [ -n "$want" ] && [ -f .venv/pyvenv.cfg ] && [ "${MAKELEVEL:-0}" -gt 0 ]; then
   have=$(sed -n 's/^version_info = \([0-9]*\.[0-9]*\).*/\1/p' .venv/pyvenv.cfg)
   req=$(printf '%s' "$want" | cut -d. -f1,2)
   if [ -n "$have" ] && [ "$have" != "$req" ]; then
-    echo "venv_guard: .venv is Python $have and this make asks for $req; a" \
-      "nested make refuses to rebuild it. Fix: remove .venv and run make" \
-      "again, or set UV_PYTHON=$have to match the venv." >&2
+    echo "venv_guard: the .venv is on Python $have; this request is $req" \
+      "(from $from). A nested make will not rebuild it. Run the same make" \
+      "command at top level, or set UV_PYTHON=$have to match the venv." >&2
     exit 2
   fi
 fi
 
-exec "$@"
+exec "$uv_bin" "$@"

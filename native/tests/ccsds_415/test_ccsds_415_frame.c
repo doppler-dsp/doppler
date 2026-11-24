@@ -167,5 +167,17 @@ main (void)
   c         = (dp_ccsds_415_frame_cfg_t)DP_CCSDS_415_FRAME_CFG_DEFAULTS;
   c.gap_sym = 0;
   DP_CHECK (dp_ccsds_415_frame_desc (&f, &c, 17, &why) == -1 && why);
+  /* the gap is one field: WFM_FIELD_MAX_BITS symbols build, one more is
+     refused with its own sentence, before any field stores the count */
+  c.gap_sym = WFM_FIELD_MAX_BITS;
+  why       = NULL;
+  DP_CHECK (dp_ccsds_415_frame_desc (&f, &c, 17, &why) == 0);
+  c.gap_sym = (size_t)WFM_FIELD_MAX_BITS + 1u;
+  DP_CHECK (dp_ccsds_415_frame_desc (&f, &c, 17, &why) == -1 && why
+            && strstr (why, "at most 261,120 symbols") != NULL);
+  c.gap_sym = SIZE_MAX;
+  why       = NULL;
+  DP_CHECK (dp_ccsds_415_frame_desc (&f, &c, 17, &why) == -1 && why
+            && strstr (why, "at most 261,120 symbols") != NULL);
   DP_TEST_END ("test_ccsds_415_frame");
 }

@@ -190,7 +190,7 @@ Fills `f` in place (see the file comment for the fields). The data field is a WF
 
 **Returns:**
 
-0, or -1 with `why` set: data octets out of range, a value that does not fit its field, a zero gap, or NULL `f`.
+0, or -1 with `why` set: data octets out of range, a value that does not fit its field, a gap of zero or more than [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits) symbols, or NULL `f`.
 
 
 

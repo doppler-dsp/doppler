@@ -245,6 +245,7 @@
 * **den** ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md))
 * **den\_alpha** ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md))
 * **den\_gamma** ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md))
+* **desc** ([**dp\_ccsds\_415\_frame\_t**](structdp__ccsds__415__frame__t.md))
 * **doppler\_uncertainty** ([**dp\_ccsds\_415\_rx\_t**](structdp__ccsds__415__rx__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md))
 * **doppler\_span\_hz** ([**dp\_correlator\_search**](structdp__correlator__search.md))
 * **dsl\_ready** ([**dp\_correlator\_search**](structdp__correlator__search.md))
@@ -439,6 +440,7 @@
 * **ghost\_window** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
 * **group** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
 * **gain** ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md))
+* **gap\_sym** ([**dp\_ccsds\_415\_frame\_cfg\_t**](structdp__ccsds__415__frame__cfg__t.md))
 * **grid** ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md))
 * **gen** ([**dp\_pool**](structdp__pool.md), [**rs\_t**](structrs__t.md))
 * **gap\_noise** ([**wfm\_segment\_t**](structwfm__segment__t.md))
@@ -456,6 +458,7 @@
 * **hist** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
 * **horizon** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
 * **have\_prev** ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md), [**ratesync\_loop\_t**](structratesync__loop__t.md))
+* **header** ([**dp\_ccsds\_415\_frame\_t**](structdp__ccsds__415__frame__t.md))
 * **head** ([**dp\_delay\_state\_t**](structdp__delay__state__t.md), [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md))
 * **have\_prev\_epoch** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **held\_inc** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
@@ -1031,7 +1034,7 @@
 * **stat** ([**ber\_align\_t**](structber__align__t.md))
 * **symbols** ([**ber\_interval\_t**](structber__interval__t.md), [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md), [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md), [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md), [**frame\_check\_t**](structframe__check__t.md), [**node\_sync\_t**](structnode__sync__t.md), [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **shadowed** ([**burst\_capture\_pending\_t**](structburst__capture__pending__t.md))
-* **start** ([**burst\_capture\_pending\_t**](structburst__capture__pending__t.md), [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md), [**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_span\_t**](structwfm__span__t.md))
+* **start** ([**burst\_capture\_pending\_t**](structburst__capture__pending__t.md), [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md), [**dp\_ccsds\_415\_frame\_t**](structdp__ccsds__415__frame__t.md), [**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_span\_t**](structwfm__span__t.md))
 * **stages** ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md), [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md), [**frame\_check\_t**](structframe__check__t.md))
 * **seed** ([**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md), [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md), [**dp\_pn\_state\_t**](structdp__pn__state__t.md), [**wfm\_seq\_t**](structwfm__seq__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **scratch** ([**ddcr\_state**](structddcr__state.md), [**dp\_fir\_state\_t**](structdp__fir__state__t.md), [**dp\_specan\_state\_t**](structdp__specan__state__t.md))
@@ -1078,6 +1081,8 @@
 * **sample\_rate\_hz** ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md))
 * **sequential** ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md))
 * **seed\_norm\_freq** ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md), [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md))
+* **scid** ([**dp\_ccsds\_415\_frame\_cfg\_t**](structdp__ccsds__415__frame__cfg__t.md))
+* **seq** ([**dp\_ccsds\_415\_frame\_cfg\_t**](structdp__ccsds__415__frame__cfg__t.md), [**wfm\_field\_t**](structwfm__field__t.md))
 * **sample\_rate** ([**dp\_ccsds\_415\_rx\_t**](structdp__ccsds__415__rx__t.md), [**dp\_header\_t**](structdp__header__t.md))
 * **start\_ppm** ([**dp\_ccsds\_415\_scene\_t**](structdp__ccsds__415__scene__t.md))
 * **shift** ([**dp\_cic\_state\_t**](structdp__cic__state__t.md))
@@ -1141,7 +1146,6 @@
 * **stream** ([**wfm\_data\_stats\_t**](structwfm__data__stats__t.md))
 * **seg** ([**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_span\_t**](structwfm__span__t.md))
 * **src** ([**wfm\_draw\_t**](structwfm__draw__t.md))
-* **seq** ([**wfm\_field\_t**](structwfm__field__t.md))
 * **stage** ([**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md), [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md), [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md))
 * **sample\_type** ([**wfm\_reader\_info\_t**](structwfm__reader__info__t.md))
 * **sources** ([**wfm\_segment\_t**](structwfm__segment__t.md))
@@ -1249,6 +1253,7 @@
 ## v
 
 * **value** ([**det\_peak\_t**](structdet__peak__t.md), [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md), [**ofdm\_fixed\_t**](structofdm__fixed__t.md), [**wfm\_keyword\_t**](structwfm__keyword__t.md))
+* **vcid** ([**dp\_ccsds\_415\_frame\_cfg\_t**](structdp__ccsds__415__frame__cfg__t.md))
 * **version** ([**dp\_header\_t**](structdp__header__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md))
 
 
@@ -1287,6 +1292,7 @@
 ## z
 
 * **zeta** ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md), [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_dll\_state\_t**](structdp__dll__state__t.md), [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md), [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md), [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md), [**ratesync\_loop\_t**](structratesync__loop__t.md))
+* **zero** ([**dp\_ccsds\_415\_frame\_t**](structdp__ccsds__415__frame__t.md))
 * **zone** ([**dp\_correlator\_shape\_t**](structdp__correlator__shape__t.md))
 * **zcol** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **zcolout** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))

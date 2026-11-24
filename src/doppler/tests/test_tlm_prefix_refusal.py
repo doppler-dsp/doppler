@@ -65,6 +65,8 @@ from doppler.correlation import Correlator
 from doppler.dsss import (
     AsyncDsssPool,
     AsyncDsssReceiver,
+    Ccsds415Pool,
+    Ccsds415Receiver,
     Despreader,
 )
 from doppler.telemetry import Telemetry
@@ -78,11 +80,13 @@ from doppler.track import (
     RateSync,
     SymbolSync,
 )
+from doppler.wfm import Gold
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 _CODE = (np.arange(31) % 2).astype(np.uint8)
+_GOLD1023 = np.asarray(Gold().generate(1023), np.uint8)
 
 # Public name -> a fresh instance: the default configuration, built as small
 # as each class accepts. The probe SET can depend on configuration
@@ -107,6 +111,11 @@ FACES: dict[str, Callable[[], Any]] = {
         _CODE, n_receivers=2, threads=1
     ),
     "doppler.dsss.AsyncDsssReceiver": lambda: AsyncDsssReceiver(_CODE),
+    # the views at the 415.1-B-1 point, which take its 1,023-chip code
+    "doppler.dsss.Ccsds415Pool": lambda: Ccsds415Pool(
+        _GOLD1023, n_receivers=2, threads=1
+    ),
+    "doppler.dsss.Ccsds415Receiver": lambda: Ccsds415Receiver(_GOLD1023),
     "doppler.dsss.Despreader": lambda: Despreader(code=_CODE, sps=4),
     "doppler.track.BpskReceiver": lambda: BpskReceiver(
         sample_rate_hz=8e6, symbol_rate_hz=1e6
@@ -204,6 +213,9 @@ def _feed(obj: Any) -> None:
     if type(obj).__name__ == "AsyncDsssPool":  # a few code periods
         obj.push(np.ones(_CODE.size * 2 * 64, np.complex64))
         return
+    if type(obj).__name__ == "Ccsds415Pool":  # its 1,023-chip periods at 11
+        obj.push(np.ones(1 << 18, np.complex64))  # MSa/s: about 75 of them
+        return
     if hasattr(obj, "push"):  # Correlator: a few dwells of its 31-chip code
         obj.push(np.ones(obj.n_noncoh * _CODE.size * 2 * 4, np.complex64))
         return
@@ -242,6 +254,12 @@ REFUSALS: dict[str, str] = {
         "name must fit DP_TLM_NAME_MAX bytes"
     ),
     "doppler.dsss.AsyncDsssPool": (
+        "set_telemetry failed: the pool must run on one worker (threads 1), "
+        "decim must be >= 1, and every receiver's names must fit the prefix "
+        "and the context's table"
+    ),
+    # the pool's view shares its methods, so its sentence too
+    "doppler.dsss.Ccsds415Pool": (
         "set_telemetry failed: the pool must run on one worker (threads 1), "
         "decim must be >= 1, and every receiver's names must fit the prefix "
         "and the context's table"

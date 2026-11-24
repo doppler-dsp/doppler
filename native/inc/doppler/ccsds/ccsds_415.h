@@ -9,7 +9,8 @@
  * which names its source; nothing here is chosen. The receiver's runs at
  * this point are docs/design/async-dsss-receiver-measurements.md; its
  * certification record holds at another point, 3.069 Mcps, and not at this
- * one (async-dsss-receiver.md §1, "What the certification covers"). A test, a
+ * one (async-dsss-receiver.md §1, The specification, whose paragraph on
+ * what the certification covers says so). A test, a
  * validator, a bench or an example that runs at the point reads these
  * names rather than restating them, so two programs cannot measure two
  * points under one name.
@@ -60,8 +61,9 @@ extern "C"
 #define DP_CCSDS_415_FS 11e6
 /** Data symbols a second. */
 #define DP_CCSDS_415_SYM 3000.0
-/** The band's two ends, F_fwd, Hz. */
+/** The band's low end, F_fwd, Hz. */
 #define DP_CCSDS_415_FC_LO 2.2e9
+/** The band's high end, F_fwd, Hz. */
 #define DP_CCSDS_415_FC_HI 2.8e9
 /** The Doppler uncertainty about best lock, one side, Hz. */
 #define DP_CCSDS_415_SPAN_HZ 1500.0
@@ -73,8 +75,9 @@ extern "C"
 #define DP_CCSDS_415_R_ENV_HZ_S 11.0
 /** The sensitivity floor, Es/N0 dB. */
 #define DP_CCSDS_415_FLOOR_ESN0_DB 4.0
-/** Symbols a frame, and of them the code-only ones that open it. */
+/** Symbols a frame. */
 #define DP_CCSDS_415_FRAME_SYM 1000u
+/** Of a frame's symbols, the code-only ones that open it. */
 #define DP_CCSDS_415_CODE_ONLY_SYM 275u
 /** The lock allocation from arrival, s: 415.1-B-1 §7.4.1's acquisition
  *  time, and the owner's "typically allocated 20 seconds to lock". */

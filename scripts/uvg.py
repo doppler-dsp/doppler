@@ -5,15 +5,14 @@ Every `uv` call the Makefile makes goes through this (`UV`, `override UV =
 python3 scripts/uvg.py $(UV_BIN)`), on every platform. It refuses one thing:
 a NESTED make (MAKELEVEL > 1) asking a sync-capable uv command (run,
 sync, venv) to rebuild a .venv that is on another Python than the request
-names. GNU make exports MAKELEVEL one above the make that runs the recipe,
-so a top-level make's recipe sees 1: that is the top level, and only a make
-run by a make (2 or more) is nested. The old `> 0` refused every recipe,
-including a top-level `make setup` that must resync the venv (#3305).
+names. GNU make exports MAKELEVEL one above the make that runs the recipe, so
+a top-level make's recipe sees 1; only a make run by a make (2 or more) is
+nested.
 
-Why (#3305): `uv run` removes and recreates a .venv whose Python disagrees with
-the one it is asked for, and a suite that is still importing from that venv
-loses its packages mid-run. A top-level make may rebuild (that is how a venv is
-made or moved); a nested make may not, and says so in one line:
+`uv run` removes and recreates a .venv whose Python disagrees with the one it
+is asked for, and a suite that is still importing from that venv loses its
+packages mid-run. A top-level make may rebuild (that is how a venv is made or
+moved); a nested make may not, and says so in one line:
 
     venv_guard: the .venv is on Python 3.14; this request is 3.12 (from
     .python-version). A nested make will not rebuild it. Run the same make
@@ -34,6 +33,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -66,17 +66,40 @@ def _venv_version() -> str:
     return m.group(1) if m else ""
 
 
+def _windows_script_shell(uv_bin: str, err: OSError) -> str | None:
+    """The sh that runs a `#!` UV_BIN on Windows, or None (refuse instead).
+
+    On Windows CreateProcess starts only images, so a `#!/bin/sh` file fails
+    with WinError 193 (ERROR_BAD_EXE_FORMAT). make runs UV_BIN through its
+    SHELL, /bin/sh, which is Git's sh there; this runs the same file through
+    the sh on PATH. Only that error, and only a file that opens with `#!`:
+    anything else stays a refusal. POSIX never reaches this, because a file
+    with no exec bit is refused there as make's shell would refuse it.
+    """
+    if os.name != "nt" or getattr(err, "winerror", None) != 193:
+        return None
+    try:
+        with open(uv_bin, "rb") as f:
+            if f.read(2) != b"#!":
+                return None
+    except OSError:
+        return None
+    return shutil.which("sh")
+
+
 def _call(uv_bin: str, args: list[str]) -> int:
     """Run uv, or refuse in one line when the OS cannot start it.
 
-    A UV_BIN that is not an executable the OS can start (a `#!/bin/sh` file
-    with no .exe on Windows, a file with no exec bit on POSIX) makes Popen
-    raise OSError. That is a refusal of the request, not a crash, so it is
-    one line and exit 2 rather than a traceback (#3305).
+    A UV_BIN that the OS cannot start makes Popen raise OSError. That is a
+    refusal of the request, not a crash: one line and exit 2, never a
+    traceback. The one start that is not refused is `_windows_script_shell`'s.
     """
     try:
         return subprocess.call([uv_bin, *args])
     except OSError as e:
+        sh = _windows_script_shell(uv_bin, e)
+        if sh is not None:
+            return subprocess.call([sh, uv_bin, *args])
         print(
             f"uvg: cannot start {uv_bin!r} ({e.strerror}). Point UV_BIN at "
             "a uv that runs.",

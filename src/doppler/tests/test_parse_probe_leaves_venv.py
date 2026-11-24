@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from doppler.tests._repo import repo_root
+from doppler.tests._repo import nested_make_env, repo_root
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -64,7 +64,12 @@ def test_a_parse_only_make_leaves_a_3_14_venv_alone(tmp_path: Path) -> None:
     )
     cfg = project / ".venv" / "pyvenv.cfg"
     before = (cfg.read_bytes(), cfg.stat().st_mtime_ns)
-    env = {k: v for k, v in os.environ.items() if k != "UV_PYTHON"}
+    # A top-level make, as a user's shell runs it: no MAKELEVEL inherited.
+    # Under `make test-python` the outer make exports MAKELEVEL=1, so this
+    # make's probe would see 2, count as nested, and be refused by the guard
+    # whether or not the probe says --no-sync. The probe's own flag is the
+    # thing under test, so the guard must not be the one that protects it.
+    env = nested_make_env("UV_PYTHON")
     r = subprocess.run(
         ["make", "-n", "-C", str(project), "test-python"],
         env=env,

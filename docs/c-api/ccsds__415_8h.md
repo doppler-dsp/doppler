@@ -114,6 +114,9 @@ code Gold, 1,023 chips: the mission's, so it is an argument chip rate F\_fwd x 3
 The functions (native/src/ccsds\_415/, a hand-owned c\_dep as ccsds\_tm is, so a receiver links the point and not the TM coding chain) are computed with fast math off (the precedent is [**dp\_wfm\_dsss\_cont\_edge()**](wfm__dsp_8h.md#function-dp_wfm_dsss_cont_edge), wfm\_dsp.c): under -ffast-math a division is rewritten differently by GCC and by Clang, and a rate one ulp apart moves a bit error between two programs that should agree. So every compiler, and the Python face, reads the same bits.
 
 
+A C caller uses the names declared here, `dp_ccsds_415_*`. The `ccsds` module's [**dp\_ccsds415\_chip\_rate()**](ccsds__core_8h.md#function-dp_ccsds415_chip_rate) and [**dp\_ccsds415\_cn0()**](ccsds__core_8h.md#function-dp_ccsds415_cn0) ([**ccsds\_core.h**](ccsds__core_8h.md)) are the same two functions under the Python module's names, thin aliases that call these: one function each, not two.
+
+
 
 ```C++
 #include <doppler/ccsds/ccsds_415.h>

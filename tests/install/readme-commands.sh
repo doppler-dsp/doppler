@@ -23,9 +23,12 @@ die() { echo "FAIL: $*" >&2; exit 1; }
 [ -f "$readme" ] || die "no README at $readme"
 
 # command | issue whose defect makes it fail | the line it must print
-EXPECTED_FAIL=(
-    "make run ARGS='--carrier lo --esn0 6'|#3349|FAIL: \[ccsds415-2.2GHz\] BER"
-)
+#
+# None today. `--carrier lo --esn0 6` was #3349's row while the example sent
+# PN15 with 275 transition-free code-only symbols in every 1,000; under the
+# §1.4 stimulus it sends now, it passes, so its reproducer belongs in the
+# library's validation, not here.
+EXPECTED_FAIL=()
 
 # Every `make ...` on the page: fenced sh lines (a trailing comment cut), and
 # inline code spans.

@@ -884,6 +884,15 @@ Run::finish ()
   for (size_t i = 0; i < stim_.at.size (); i++)
     if (in_window (static_cast<long> (stim_.at[i]) - lag, stim_.len[i]))
       r.frames_sent++;
+  // With none, the --seconds that would end with the first period that
+  // starts in the window: the scene's symbols, less the lead-in's.
+  for (size_t i = 0; !r.frames_sent && i < stim_.at.size (); i++)
+    if (static_cast<long> (stim_.at[i]) - lag >= lo)
+      {
+        r.frames_need_s
+            = static_cast<double> (stim_.at[i] + stim_.len[i]) / DP_CCSDS_415_SYM;
+        break;
+      }
   const std::vector<uint8_t> &rx = reader_->bits ();
   for (const FrameReader::Seen &f : reader_->seen ())
     {
@@ -1107,9 +1116,12 @@ report (const std::string &name, const Result &r, size_t chunk)
                r.frames_wrong);
   if (r.frames_sent == 0)
     {
-      std::fprintf (stderr, "FAIL: [%s] no whole frame in the locked "
-                            "stream: a longer scene has some\n",
-                    name.c_str ());
+      std::fprintf (stderr,
+                    "FAIL: [%s] no whole frame in the locked stream: the "
+                    "first ends %.1f s into the signal, so --seconds %.1f "
+                    "or more holds it\n",
+                    name.c_str (), r.frames_need_s,
+                    std::ceil (r.frames_need_s * 10.0) / 10.0);
       ok = false;
     }
   if (r.frames_read != r.frames_sent)

@@ -156,6 +156,20 @@ static const char FIELD_TOO_LONG[]
     = "LEN * REPS is past the Field bound "
       "of " FIELD_STR (WFM_FIELD_MAX_BITS) " bits";
 
+/* The bound on one field's bits, LEN * max(REPS, 1), read by the Field
+   grammar and by dp_wfm_frame_add_field alike, so the two cannot disagree.
+   Each factor is compared with the bound BEFORE the product is formed, so the
+   product of two values at most WFM_FIELD_MAX_BITS (2^18) is at most 2^36 and
+   cannot wrap, whatever size_t is. A zero REPS is one repetition. */
+static int
+field_bits_fit (size_t len, size_t reps)
+{
+  if (len > WFM_FIELD_MAX_BITS || reps > WFM_FIELD_MAX_BITS)
+    return 0;
+  const uint64_t one = reps ? reps : 1u;
+  return (uint64_t)len * one <= WFM_FIELD_MAX_BITS;
+}
+
 static int
 field_refuse (const char **why, const char *msg)
 {
@@ -443,10 +457,7 @@ dp_wfm_field_parse (const char *spec, wfm_field_t *field, uint8_t **owned,
   if (rc != DP_OK)
     return rc;
 
-  /* LEN and REPS are each at most WFM_FIELD_MAX_BITS here, so the product
-     is computed in 64 bits without wrapping. */
-  if (q.len > WFM_FIELD_MAX_BITS || reps > WFM_FIELD_MAX_BITS
-      || (uint64_t)q.len * reps > WFM_FIELD_MAX_BITS)
+  if (!field_bits_fit (q.len, reps))
     {
       free (mine);
       return field_refuse (why, FIELD_TOO_LONG);
@@ -690,7 +701,9 @@ dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
       out->field_bits[i] = src ? f->bits : 0u;
     }
 
-  /* 3. offsets, in wire order */
+  /* 3. offsets, in wire order. add_field and add_derived refuse any field
+     past WFM_FIELD_MAX_BITS, and at most WFM_FRAME_MAX_FIELDS fields fit, so
+     off stays below 16 * 261120 bits and cannot wrap: no check is needed. */
   size_t off = 0;
   for (unsigned i = 0; i < d->n_fields; i++)
     {
@@ -1362,6 +1375,17 @@ dp_wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
   if (!d || !seq || d->n_fields >= WFM_FRAME_MAX_FIELDS
       || name_taken (d, name))
     return -1;
+  /* Refused: a LEN past the Field bound. The layout sums these, so an
+     unbounded LEN is what wraps the frame's size (#3321). */
+  if (seq->len > WFM_FIELD_MAX_BITS)
+    return -1;
+  /* Refused: a REPS past the Field bound, on its own. */
+  if (reps > WFM_FIELD_MAX_BITS)
+    return -1;
+  /* Refused: the product LEN * max(REPS, 1) past the bound, which is the
+     field's bits; a longer run is a stream, not a Field. */
+  if (!field_bits_fit (seq->len, reps))
+    return -1;
 
   const unsigned i = d->n_fields;
   memset (&d->field[i], 0, sizeof d->field[i]);
@@ -1377,6 +1401,10 @@ dp_wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name, size_t bits)
 {
   if (!d || bits == 0u || d->n_fields >= WFM_FRAME_MAX_FIELDS
       || name_taken (d, name))
+    return -1;
+  /* Refused: a width past the Field bound. Its stage fills it, and the layout
+     sums it like any field. */
+  if (bits > WFM_FIELD_MAX_BITS)
     return -1;
 
   const unsigned i = d->n_fields;

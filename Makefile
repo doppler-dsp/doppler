@@ -157,16 +157,16 @@ CMAKE       := cmake
 # legs override it by setting UV_PYTHON through setup-uv; `primary` (the
 # floor, 3.9) is a matrix leg, not the default interpreter.
 # UV_BIN is the uv binary; UV is the ONLY spelling a recipe uses, and it is the
-# binary behind the nested-make guard (scripts/venv_guard.sh, #3305). `override`
+# binary behind the nested-make guard (scripts/uvg.sh, #3305). `override`
 # makes it win over a command-line UV=, so no spelling of a uv call skips the
 # guard: the override moved to UV_BIN. A nested make refuses a sync-capable uv
 # command against a .venv on another Python; the top-level make may build it.
 UV_BIN     ?= uv
-override UV = bash scripts/venv_guard.sh $(UV_BIN)
+override UV = bash scripts/uvg.sh $(UV_BIN)
 # The same guard by absolute path, for the recipes that change directory into
 # the downstream example first (a relative path would not resolve there). Not
 # exported, so it costs the environment budget nothing.
-UV_ABS = bash $(CURDIR)/scripts/venv_guard.sh $(UV_BIN)
+UV_ABS = bash $(CURDIR)/scripts/uvg.sh $(UV_BIN)
 _PY_UV := $(UV)
 ifneq ($(JUST_BUILDIT_PYTHON),)
 PYTHON_EXECUTABLE := $(JUST_BUILDIT_PYTHON)

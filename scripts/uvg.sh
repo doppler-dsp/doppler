@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The one door every uv call the Makefile makes goes through (`UV`, which is
-# `override UV = bash scripts/venv_guard.sh $(UV_BIN)`). It refuses one thing:
+# `override UV = bash scripts/uvg.sh $(UV_BIN)`). It refuses one thing:
 # a NESTED make asking a sync-capable uv command (run, sync, venv) to rebuild a
 # .venv that is on another Python than the request names.
 #
@@ -16,7 +16,7 @@
 # `uv run --no-sync` never syncs, so it is always allowed (the interpreter
 # probe uses it). Everything else exec's unchanged.
 #
-# Usage: venv_guard.sh <uv> [args...]
+# Usage: uvg.sh <uv> [args...]
 set -euo pipefail
 
 uv_bin="$1"

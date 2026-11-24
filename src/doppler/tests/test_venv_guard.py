@@ -1,4 +1,4 @@
-"""scripts/venv_guard.sh: a nested make refuses to rebuild a mismatched .venv.
+"""scripts/uvg.sh: a nested make refuses to rebuild a mismatched .venv.
 
 The guard is what `DEV_RUN` runs through. A nested make (MAKELEVEL > 0) whose
 request names a different Python than the existing .venv is refused with one
@@ -18,7 +18,7 @@ from doppler.tests._repo import repo_root
 if TYPE_CHECKING:
     from pathlib import Path
 
-GUARD = repo_root(__file__) / "scripts" / "venv_guard.sh"
+GUARD = repo_root(__file__) / "scripts" / "uvg.sh"
 
 
 def _project(tmp_path: Path, venv_version: str, pin: str) -> Path:

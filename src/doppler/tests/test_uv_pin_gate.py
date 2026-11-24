@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "check_uv_pin.py"
 COMPOSITE = ".github/actions/setup-uv/action.yml"
-GUARDED_UV_LINE = "override UV = bash scripts/venv_guard.sh $(UV_BIN)\n"
+GUARDED_UV_LINE = "override UV = bash scripts/uvg.sh $(UV_BIN)\n"
 DOCKERFILE = "deploy/docker/Dockerfile"
 
 PIN = '[tool.uv]\nrequired-version = "==0.12.24"\n'
@@ -745,13 +745,13 @@ def test_the_live_tree_passes_the_interpreter_rule() -> None:
 
 
 def test_the_guarded_uv_definition_passes(tmp_path: Path) -> None:
-    mk = "override UV = bash scripts/venv_guard.sh $(UV_BIN)\n"
+    mk = "override UV = bash scripts/uvg.sh $(UV_BIN)\n"
     assert _run(_seed(tmp_path, files={"Makefile": mk})).returncode == 0
 
 
 def test_a_second_uv_definition_is_refused(tmp_path: Path) -> None:
     """The sabotage: an unguarded UV beside the guarded one."""
-    mk = "override UV = bash scripts/venv_guard.sh $(UV_BIN)\nUV = uv\n"
+    mk = "override UV = bash scripts/uvg.sh $(UV_BIN)\nUV = uv\n"
     r = _run(_seed(tmp_path, files={"Makefile": mk}))
     assert r.returncode == 1
     assert "assigns UV" in r.stdout
@@ -770,5 +770,33 @@ def test_a_command_line_uv_override_is_named_not_hidden(
     """`override` makes a command-line UV= lose to the guard: the Makefile
     still has the guarded definition, so the gate passes it; the override
     itself is not visible to a tree scan, and that is said in the docs."""
-    mk = "override UV = bash scripts/venv_guard.sh $(UV_BIN)\n"
+    mk = "override UV = bash scripts/uvg.sh $(UV_BIN)\n"
     assert _run(_seed(tmp_path, files={"Makefile": mk})).returncode == 0
+
+
+# ── rule 7: a script that launches uv by argv goes through the venv guard ────
+
+
+def test_a_script_launching_uv_run_by_argv_is_refused(tmp_path: Path) -> None:
+    """The sabotage: a multi-line argv list whose first element is uv."""
+    src = (
+        "import subprocess\n"
+        "subprocess.run(\n"
+        '    ["uv", "run", "--group", "dev", "mdformat", "-"],\n'
+        ")\n"
+    )
+    r = _run(_seed(tmp_path, files={"scripts/tool.py": src}))
+    assert r.returncode == 1, r.stdout
+    assert "launches uv by argv" in r.stdout
+
+
+def test_a_script_through_the_guard_passes(tmp_path: Path) -> None:
+    src = (
+        "import subprocess\n"
+        "subprocess.run(\n"
+        '    ["bash", "scripts/uvg.sh", "uv", "run", "mdformat", "-"],\n'
+        ")\n"
+    )
+    assert (
+        _run(_seed(tmp_path, files={"scripts/tool.py": src})).returncode == 0
+    )

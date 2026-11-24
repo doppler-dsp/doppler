@@ -36,13 +36,13 @@ REPO = repo_root(__file__)
 # platform put there anyway (PATH alone is 4.5 KB on the Windows runner, which
 # is why the budget is a difference). Measured 2026-11-04 on Linux: 2556 bytes
 # with the list kept out, 4980 with it in; the largest variable 2548 then.
-# Raised 2026-11-24 for the venv guard (#3305): every exported recipe that
-# expands $(UV) carries `bash scripts/venv_guard.sh`, so the total grew by
-# about 100 bytes and DOCS_CHECK_PRE_CMDS (the largest, a list of uv calls) by
-# about 550. That is the price of no unguarded uv spelling. A ruling for the
-# lead to confirm, not a drift: the budget still catches an unrelated bloat.
-ADDED_MAX = 3600
-VAR_MAX = 2400
+ADDED_MAX = 3500
+# VAR_MAX raised 1800 -> 2160 (+360), a RAISED RATCHET for the reviewer to
+# accept or refuse (#3305). DOCS_CHECK_PRE_CMDS is a `define` of about 30 uv
+# calls, each now spelled `bash scripts/uvg.sh uv run` (the venv guard, 20
+# bytes a use). Measured 2159 with the shortest spelling that keeps `bash`: a
+# Windows checkout does not reliably keep the exec bit (not verified there).
+VAR_MAX = 2160
 
 
 def _env(cwd: Path, files: list[str], home: Path) -> dict[bytes, bytes]:

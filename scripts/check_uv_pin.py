@@ -656,7 +656,7 @@ def interpreter_offenders(root: Path, files: list[str]) -> list[str]:
 
 #: The one guarded spelling of uv in a makefile (#3305): every uv call a recipe
 #: makes is `$(UV)`, and UV is this, the nested-make guard around UV_BIN.
-GUARDED_UV = "override UV = bash scripts/venv_guard.sh $(UV_BIN)"
+GUARDED_UV = "override UV = bash scripts/uvg.sh $(UV_BIN)"
 _UV_ASSIGN = re.compile(r"^\s*(?:override\s+)?(?:export\s+)?UV\s*[?:+!]?=")
 
 
@@ -686,6 +686,33 @@ def uv_definition_offenders(root: Path) -> list[str]:
             bad.append(
                 f"Makefile: UV is not defined as `{GUARDED_UV}`, so a uv "
                 "call would bypass the venv guard"
+            )
+    return bad
+
+
+#: A Python script that launches a sync-capable uv itself: an argv LIST whose
+#: first element is "uv" and second is run/sync/venv, across lines too. Such a
+#: call must go through the venv guard
+#: (`["bash", "scripts/uvg.sh", "uv", ...]`,
+#: whose first element is "bash"), or a nested make rebuilds the project .venv
+#: it runs from (#3305).
+_SCRIPT_UV = re.compile(
+    r"""\[\s*["']uv["']\s*,\s*["'](?:run|sync|venv)["']""", re.S
+)
+
+
+def script_uv_offenders(root: Path) -> list[str]:
+    """Every scripts/*.py whose argv launches uv run/sync/venv directly."""
+    bad: list[str] = []
+    for f in sorted((root / "scripts").glob("*.py")):
+        text = f.read_text(encoding="utf-8")
+        for m in _SCRIPT_UV.finditer(text):
+            n = text.count("\n", 0, m.start()) + 1
+            line = text.splitlines()[n - 1].strip()
+            bad.append(
+                f"scripts/{f.name}:{n}: launches uv by argv -- `{line[:70]}`;"
+                " route it through the venv guard "
+                '(`["bash", "scripts/uvg.sh", "uv", "run", ...]`, #3305)'
             )
     return bad
 
@@ -729,6 +756,7 @@ def main() -> int:
     bad += bare_uv_offenders(root, files, args.base)
     bad += interpreter_offenders(root, files)
     bad += uv_definition_offenders(root)
+    bad += script_uv_offenders(root)
     for b in bad:
         print(f"check_uv_pin: {b}")
     if bad:

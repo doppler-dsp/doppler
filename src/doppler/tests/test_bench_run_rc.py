@@ -60,7 +60,7 @@ def _run(tmp_path: Path, code: int) -> subprocess.CompletedProcess[str]:
         "CODE": str(code),
     }
     # A top-level make for this test: an outer suite's MAKELEVEL would make
-    # this one nested, and the venv guard (scripts/venv_guard.sh) would then
+    # this one nested, and the venv guard (scripts/uvg.sh) would then
     # refuse the stub on a 3.14 venv for a request that never touches it.
     for k in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL"):
         env.pop(k, None)

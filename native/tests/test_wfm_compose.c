@@ -2720,6 +2720,8 @@ test_scene_field_bits (void)
               == NULL
           && why != NULL,
       "the scene's 2^64 - 2048-bit crc is refused (#3321)");
+  DP_CHECK_MSG (why && strstr (why, "below 2^53"),
+                "the wrap scene's refusal names the bound it broke (#3321)");
   why = NULL;
   DP_CHECK_MSG (
       dp_wfm_compose_from_json_why (
@@ -2750,6 +2752,8 @@ test_scene_field_bits (void)
           &why)
           == NULL,
       "an emitting stage that shrinks the frame is refused (#3328)");
+  DP_CHECK_MSG (why && strstr (why, "must not shrink it"),
+                "the shrink scene's refusal names the shrink (#3328)");
   return 0;
 }
 

@@ -453,10 +453,12 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
       || dp_wfm_frame_desc_layout (&desc, &lay) != 0)
     return "this frame description does not lay out: a field that declares a "
            "length but supplies no bits is DERIVED and must name the stage "
-           "that fills it (`derived_by` = the stage's index plus one), a "
-           "derived field must be the last field its stage covers, and an "
-           "emitting stage must be the only one and must cover the whole "
-           "frame";
+           "that fills it (`derived_by` = the stage's index plus one); a "
+           "derived field must be the last field its stage covers; an "
+           "emitting stage must be the only one, must cover the whole frame, "
+           "and must not shrink it (its output is at least the frame's bits); "
+           "and no field, cover, offset or output length may overflow a "
+           "size_t";
 
   /* A frame with a data:LEN field lays out -- the description knows its
      length -- and its bits are a data source's. Without one it is named

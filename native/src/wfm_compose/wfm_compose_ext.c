@@ -4162,6 +4162,39 @@ typedef struct
   size_t                  delay_samples_hi;
 } SegmentObject;
 
+/* gh-2747: a Segment's sources list as a transient wfm_source_t[] (*n_out
+ * elements, never NULL on success). Each element ALIASES its Synth's
+ * buffers: free the array only, and keep the list alive while it is read.
+ * NULL with an exception set on a non-Synth element or out of memory. */
+static wfm_source_t *
+_Segment_sources_c (PyObject *sources, size_t *n_out)
+{
+  /* NULL on an instance whose __init__ never ran (Seg.__new__(Seg), a
+   * subclass that skips it): no sources, not a crash. */
+  Py_ssize_t    ns = sources ? PyList_GET_SIZE (sources) : 0;
+  wfm_source_t *srcs
+      = (wfm_source_t *)calloc ((size_t)(ns ? ns : 1), sizeof *srcs);
+  if (!srcs)
+    {
+      PyErr_NoMemory ();
+      return NULL;
+    }
+  for (Py_ssize_t k = 0; k < ns; k++)
+    {
+      PyObject *it = PyList_GET_ITEM (sources, k);
+      if (!PyObject_TypeCheck (it, &SynthType))
+        {
+          free (srcs);
+          PyErr_Format (PyExc_TypeError, "Segment.sources[%zd] is not a Synth",
+                        k);
+          return NULL;
+        }
+      srcs[k] = ((SynthObject *)it)->src; /* scalars + aliased bits ptr */
+    }
+  *n_out = (size_t)ns;
+  return srcs;
+}
+
 static void
 Segment_dealloc (SegmentObject *self)
 {
@@ -6770,24 +6803,17 @@ _build_dp_wfm_compose_segments (PyObject *seglist, size_t *n_out)
   for (Py_ssize_t i = 0; i < nseg; i++)
     {
       SegmentObject *seg = (SegmentObject *)PyList_GET_ITEM (seglist, i);
-      Py_ssize_t     ns  = PyList_GET_SIZE (seg->sources);
-      wfm_source_t  *srcs
-          = (wfm_source_t *)calloc ((size_t)(ns ? ns : 1), sizeof *srcs);
+      size_t         ns;
+      wfm_source_t  *srcs = _Segment_sources_c (seg->sources, &ns);
       if (!srcs)
         {
           for (Py_ssize_t j = 0; j < i; j++)
             free (segs[j].sources);
           free (segs);
-          PyErr_NoMemory ();
           return NULL;
         }
-      for (Py_ssize_t k = 0; k < ns; k++)
-        {
-          SynthObject *syn = (SynthObject *)PyList_GET_ITEM (seg->sources, k);
-          srcs[k]          = syn->src; /* scalars + aliased bits ptr */
-        }
       segs[i].sources          = srcs;
-      segs[i].n_sources        = (size_t)ns;
+      segs[i].n_sources        = ns;
       segs[i].fs               = seg->fs;
       segs[i].num_samples      = seg->num_samples;
       segs[i].off_samples      = seg->off_samples;

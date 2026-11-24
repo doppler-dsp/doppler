@@ -1,5 +1,5 @@
 # ddc/ddc.pyi — type stubs for the ddc C extension.
-from typing import final
+from typing import Literal, final
 
 import numpy as np
 import numpy.typing as npt

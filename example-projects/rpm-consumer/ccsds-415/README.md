@@ -74,10 +74,10 @@ fields back are the next step; until then nothing here decodes a frame.
 
 `make run` exits non-zero unless, at each carrier:
 
-1. the symbol lock is sustained within the point's lock allocation, 20 s
-    from arrival (`DP_CCSDS_415_LOCK_S`);
+1. the lock is sustained within the point's lock allocation, 20 s from
+    arrival (`DP_CCSDS_415_LOCK_S`);
 1. the BER over the locked stream, scored against the payload that was
-    sent (`dp_ber_lock_symbol()`, `dp_ber_meter`), is not shown to be worse
+    sent (`dp_ber_meter`), is not shown to be worse
     than the BPSK bound at the Es/N0 run less 1.13 dB: it fails when the
     meter's exact 99% interval (`dp_ber_confidence()`) lies wholly above
     `dp_ber_theory_ber()` there. 1.13 dB is the worst settled loss the
@@ -89,6 +89,15 @@ fields back are the next step; until then nothing here decodes a frame.
 1. no call filled its output capacity, so no symbol was dropped;
 1. the capture is complete (`dp_tlm_capture_close()` returns `DP_OK`);
 1. every probe the receiver registers emitted at least once.
+
+The locked stream opens where the symbol lock and the code lock are both
+sustained: the later of the two, each sustained by `dp_ber_lock_symbol()`.
+That is the rule the receiver's certification record scores by (the design
+page's §4.12, "The error-rate window"), applied to the two lock flags
+`dp_async_dsss_receiver_status()` publishes. The record takes the latest
+of five; the other three (carrier, demodulator carrier, sync) are not
+published yet (#3350), so the window here can open before the record's
+would, and the rate counts what settling the record leaves out.
 
 ## Chunks, and why at least 25 samples
 

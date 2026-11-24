@@ -417,10 +417,27 @@ Run::step ()
     {
       syms_.push_back (out_[i]);
       flags_.push_back (static_cast<uint8_t> (st_.locked));
+      code_flags_.push_back (static_cast<uint8_t> (st_.code_locked));
     }
   emitted_.push_back (syms_.size ());
   n_ += o_.chunk;
   return true;
+}
+
+// Where the scored window opens: the later of the symbol lock's and the
+// code lock's sustained symbols, or -1 if either never sustained. The
+// design's rule (async-dsss-receiver.md §4.12, "The error-rate window") is
+// the latest of five flags; status() publishes these two, and the other
+// three are private (#3350), so this is that rule over the public ones.
+int64_t
+Run::window_start () const
+{
+  const int64_t sym = dp_ber_lock_symbol (flags_.data (), flags_.size (),
+                                          LOCK_SUSTAIN, LOCK_MIN_FRAC);
+  const int64_t code
+      = dp_ber_lock_symbol (code_flags_.data (), code_flags_.size (),
+                            LOCK_SUSTAIN, LOCK_MIN_FRAC);
+  return sym < 0 || code < 0 ? -1 : std::max (sym, code);
 }
 
 Result
@@ -449,11 +466,10 @@ Run::finish ()
                  + " emitted nothing");
     }
 
-  // Score: the window opens where the symbol lock is sustained, and the
-  // meter finds where the stream sits in the payload from a marker.
-  const int64_t lo = dp_ber_lock_symbol (flags_.data (), flags_.size (),
-                                         LOCK_SUSTAIN, LOCK_MIN_FRAC);
-  check (lo >= 0, "[" + name_ + "] no sustained symbol lock");
+  // Score: the window opens where the lock is sustained (window_start()),
+  // and the meter finds where the stream sits in the payload from a marker.
+  const int64_t lo = window_start ();
+  check (lo >= 0, "[" + name_ + "] no sustained symbol and code lock");
   size_t at = 0;
   while (emitted_[at] <= static_cast<size_t> (lo))
     at++;
@@ -599,8 +615,7 @@ Run::finish_partial ()
       ok = false;
     }
   // Lock time, if it was reached: the window is the same as finish()'s.
-  const int64_t lo = dp_ber_lock_symbol (flags_.data (), flags_.size (),
-                                         LOCK_SUSTAIN, LOCK_MIN_FRAC);
+  const int64_t lo = window_start ();
   std::string lock = "the lock time (not reached)";
   if (lo >= 0)
     {

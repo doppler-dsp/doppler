@@ -86,14 +86,20 @@ payload_bits (size_t n)
   return bits;
 }
 
-// The first symbol at least LAG_SPAN into the locked stream that is data,
-// never a frame's code-only opening, which is all one symbol.
+// The first symbol at least LAG_SPAN into the locked stream from which the
+// whole BER_SYNC_SYMS-symbol marker is data: never in a frame's code-only
+// opening, which is all one symbol and the same in every frame, so a marker
+// reaching into one matches at more than one lag and the alignment refuses
+// it.
 size_t
 marker_at (size_t lo)
 {
   size_t t0 = lo + LAG_SPAN;
-  if (t0 % DP_CCSDS_415_FRAME_SYM < DP_CCSDS_415_CODE_ONLY_SYM)
-    t0 += DP_CCSDS_415_CODE_ONLY_SYM - t0 % DP_CCSDS_415_FRAME_SYM;
+  const size_t in = t0 % DP_CCSDS_415_FRAME_SYM;
+  if (in < DP_CCSDS_415_CODE_ONLY_SYM)
+    t0 += DP_CCSDS_415_CODE_ONLY_SYM - in;
+  else if (in + BER_SYNC_SYMS > DP_CCSDS_415_FRAME_SYM)
+    t0 += DP_CCSDS_415_FRAME_SYM - in + DP_CCSDS_415_CODE_ONLY_SYM;
   return t0;
 }
 

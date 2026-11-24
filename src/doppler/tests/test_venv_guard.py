@@ -14,6 +14,8 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+import pytest
+
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -53,29 +55,39 @@ def _run(
 
 
 def test_a_nested_make_refuses_a_mismatched_venv(tmp_path: Path) -> None:
-    r = _run(_project(tmp_path, "3.14.4", "3.12"), makelevel="1")
+    """A make run by a make: its recipes see MAKELEVEL=2 (see below)."""
+    r = _run(_project(tmp_path, "3.14.4", "3.12"), makelevel="2")
     assert r.returncode == 2, r.stdout + r.stderr
     assert "the .venv is on Python 3.14; this request is 3.12" in r.stderr
     assert "Run the same make" in r.stderr
     assert "run ran" not in r.stdout
 
 
-def test_a_top_level_make_is_not_refused(tmp_path: Path) -> None:
-    """The top-level make may build the venv it was asked for."""
-    r = _run(_project(tmp_path, "3.14.4", "3.12"), makelevel="0")
+@pytest.mark.parametrize("makelevel", ["0", "1"])
+def test_a_top_level_make_is_not_refused(
+    tmp_path: Path, makelevel: str
+) -> None:
+    """The top-level make may build the venv it was asked for.
+
+    GNU make exports MAKELEVEL one above the make that runs the recipe, so a
+    top-level `make setup` recipe sees "1", not "0". Both spellings are the
+    top level. Sabotage: restore `> 0` in uvg.py and the "1" case goes red
+    with a venv_guard refusal, which is the defect this pins (#3305).
+    """
+    r = _run(_project(tmp_path, "3.14.4", "3.12"), makelevel=makelevel)
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip() == "run ran"
 
 
 def test_a_matching_venv_is_not_refused(tmp_path: Path) -> None:
-    r = _run(_project(tmp_path, "3.12.16", "3.12"), makelevel="1")
+    r = _run(_project(tmp_path, "3.12.16", "3.12"), makelevel="2")
     assert r.returncode == 0, r.stderr
 
 
 def test_the_environment_request_wins_over_the_file(tmp_path: Path) -> None:
     """UV_PYTHON, as uv reads it, is the request when it is set."""
     r = _run(
-        _project(tmp_path, "3.14.4", "3.12"), makelevel="1", uv_python="3.14"
+        _project(tmp_path, "3.14.4", "3.12"), makelevel="2", uv_python="3.14"
     )
     assert r.returncode == 0, r.stderr
 

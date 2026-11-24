@@ -3,9 +3,12 @@
 
 Every `uv` call the Makefile makes goes through this (`UV`, `override UV =
 python3 scripts/uvg.py $(UV_BIN)`), on every platform. It refuses one thing:
-a NESTED make (MAKELEVEL > 0) asking a sync-capable uv command (run,
+a NESTED make (MAKELEVEL > 1) asking a sync-capable uv command (run,
 sync, venv) to rebuild a .venv that is on another Python than the request
-names.
+names. GNU make exports MAKELEVEL one above the make that runs the recipe,
+so a top-level make's recipe sees 1: that is the top level, and only a make
+run by a make (2 or more) is nested. The old `> 0` refused every recipe,
+including a top-level `make setup` that must resync the venv (#3305).
 
 Why (#3305): `uv run` removes and recreates a .venv whose Python disagrees with
 the one it is asked for, and a suite that is still importing from that venv
@@ -90,7 +93,7 @@ def main(argv: list[str]) -> int:
     if not args or args[0] not in SYNCING or "--no-sync" in args:
         return _call(uv_bin, args)
     want, source = _request()
-    nested = int(os.environ.get("MAKELEVEL", "0") or 0) > 0
+    nested = int(os.environ.get("MAKELEVEL", "0") or 0) > 1
     have = _venv_version()
     if want and have and nested:
         req = ".".join(want.split(".")[:2])

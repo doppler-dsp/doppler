@@ -957,8 +957,10 @@ def characterise() -> Data:
         f"20 dB, and the error is bimodal: a seed either tracks "
         f"(near 1e-05) or wanders as at 10 dB (near 1e-03), so whether the "
         f"worst of 8 seeds lands inside {TRACK_TOL:g} is the draw's and "
-        f"the build's. Here it read {_e8[2]:.1e}; on Windows clang-cl one "
-        f"seed did not (#3298). The tracking claim below therefore stops "
+        f"the build's. Here it read {_e8[2]:.1e}. On the Windows clang-cl "
+        f"leg the tracking limit failed as then written (CI run 45313556202, "
+        f"#3298); that log did not print the row or its value, so which "
+        f"seed missed is not known. The tracking claim below therefore stops "
         f"where the statistic still has margin: every M at 20 dB and "
         f"above, and M of 4 and below at 15 dB."
     )
@@ -2145,8 +2147,8 @@ def limits(d: Data) -> None:
             all(b >= a for a, b in zip(v, v[1:]))
             for v in list(d.useed.values()) + [v for _, v in d.useed_snr]
         ),
-        "a longer budget never buys a smaller window, and noise never buys "
-        "a larger one",
+        "a longer budget never buys a smaller window, at every noise level "
+        "measured",
     )
 
     # --- the false lock, in both directions ------------------------------

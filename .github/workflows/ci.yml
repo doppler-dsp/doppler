@@ -96,6 +96,9 @@ jobs:
       pull-requests: read
     outputs:
       scope: ${{ steps.scope.outputs.scope }}
+      # The Linux OS legs this run builds, as JSON (scripts/ci_scope.py):
+      # both glibcs, or the newer one alone on a push without a PR.
+      linux_os: ${{ steps.scope.outputs.linux_os }}
     steps:
     - uses: actions/checkout@v7
     - id: scope
@@ -186,10 +189,13 @@ jobs:
 
   build-and-test-linux:
     # Docs cannot break this: skipped when code=false; see `changes`.
-    # In the minimal set; a push without a PR runs the 24.04 leg alone.
+    # In the minimal set; a push without a PR runs the 24.04 leg alone. The
+    # OS list is scope's (scripts/ci_scope.py, LINUX_OS): a leg the scope does
+    # not list is a skipped leg, and no matrix expression names it.
     if: >-
       needs.changes.outputs.code == 'true' &&
-      needs.scope.outputs.scope != 'skip'
+      needs.scope.outputs.scope != 'skip' &&
+      contains(fromJSON(needs.scope.outputs.linux_os), matrix.os)
     needs: [pin, changes, scope]
     name: Build on ${{ matrix.os }}
     runs-on: ubuntu-latest
@@ -202,18 +208,16 @@ jobs:
         # would leave the matrix naming two environments while testing one.
         # (The 2.28 FLOOR is a different question, answered by the glibc-228
         # job below and by manylinux_2_28 wheels at release.)
-        # A push without a PR runs the newer image alone: the older leg is
-        # excluded when `scope` says minimal. `os` is the base list and
-        # `include` only adds each leg's image to the leg of that name, so
-        # no entry here can add a leg back.
-        os: [ubuntu-22.04, ubuntu-24.04]
+        # A push without a PR builds the newer image alone: `scope` emits the
+        # OS list (scripts/ci_scope.py, LINUX_OS), and the image of each OS is
+        # read from pin's `images` map. No expression inside `exclude`, and no
+        # leg added by `include` (an `include` entry for a leg the list lacks
+        # would add it back).
         include:
           - os: ubuntu-22.04
             image: ${{ needs.pin.outputs.image_2204 }}
           - os: ubuntu-24.04
             image: ${{ needs.pin.outputs.image_2404 }}
-        exclude:
-          - os: ${{ needs.scope.outputs.scope == 'minimal' && 'ubuntu-22.04' || 'none' }}
     container:
       image: ${{ matrix.image }}
       credentials:

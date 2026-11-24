@@ -81,7 +81,7 @@ validate_tracker_through_window         10.1
 validate_acq_block_coherent             21.4  # its Pfa row went 100 -> 400 blocks (doppler#2218 review): +2.8 s here x the 2.35 CI factor, so it DETECTS the native pricing instead of pinning one draw
 validate_costas_pullin                  11.9
 validate_dll_aid_jitter                  1.6  # CI's sweep job on #3104 (the Dll block correlate), two runners: 1.61 and 1.14 s; was 1.6
-validate_rx_battery                      9.0
+validate_rx_battery                      3.5
 validate_rx_coding_gain                  8.4
 validate_refine_bias                     8.0
 validate_carrier_mpsk_jitter             4.4

@@ -59,6 +59,7 @@ struct Options
   std::string out = "."; // directory the captures go to
   bool paced = false;    // the TUI's: hold each chunk to real time
   bool snapshot = false; // the TUI's: no terminal, one frame at the end
+  bool errors = false;   // print where in the scored stream errors fall
 };
 
 // Parse argv into o (whose fields hold the defaults); exits on --help or a
@@ -73,8 +74,12 @@ void check (bool ok, const std::string &why);
 struct Result
 {
   double lock_s = NAN;   // arrival to the sustained symbol lock
+  double esn0_db = NAN;  // the Es/N0 run
   double ber = NAN;      // over the locked stream
-  size_t bits = 0;       // scored
+  double ber_lo = NAN, ber_hi = NAN; // its exact interval (the meter's)
+  double conf = NAN;     // that interval's confidence level
+  size_t errors = 0;     // bit errors scored
+  size_t bits = 0;       // bits scored
   double proc_ns = 0.0;  // processing time per sample, whole run
   double worst_ns = 0.0; // the slowest chunk's
   size_t chunks = 0;
@@ -164,6 +169,7 @@ private:
   uint64_t n_ = 0, total_ns_ = 0;
   double last_ns_ = 0.0, worst_ns_ = 0.0;
   bool filled_ = false; // a call filled its capacity: the run stopped there
+  void print_errors (const dp_ber_meter_state_t *meter, size_t lo) const;
 };
 
 } // namespace ccsds415

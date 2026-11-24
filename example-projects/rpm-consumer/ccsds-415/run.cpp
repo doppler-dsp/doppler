@@ -33,7 +33,13 @@ constexpr unsigned PAYLOAD_SEED = 1, PAYLOAD_PN = 15;
 // own: 0 and 0.0 select its defaults, so this file does not restate them.
 constexpr size_t LOCK_SUSTAIN = 0;
 constexpr double LOCK_MIN_FRAC = 0.0;
-constexpr double MAX_BER = 1e-3;
+// The receiver's allowed implementation loss against the BPSK bound: the
+// worst settled loss the certification record measured at this point, 1.13
+// dB (2.8 GHz, Es/N0 4 dB; 2.2 and 2.8 GHz from 4 to 7 dB read 0.72 to 1.13
+// dB), in src/doppler/dsss/tests/validation/async_dsss_receiver/results.md
+// §2.6. Measured there, not chosen here; the owner's allowed loss is
+// doppler#3157's to set.
+constexpr double LOSS_DB = 1.13;
 constexpr long LAG_SPAN = 1000; // symbols the stream may start into the data
 
 // The mission's code, a 1,023-chip Gold code from the CCSDS command-link
@@ -154,7 +160,9 @@ parse (int argc, char **argv, Options &o, bool tui)
               "  --esn0      Es/N0 at the receiver input, dB (default %g)\n"
               "  --seconds   signal duration after the lead-in (default %g)\n"
               "  --chunk     samples a push, at least %zu (default %zu)\n"
-              "  --out       directory for the captures (default .)\n",
+              "  --out       directory for the captures (default .)\n"
+              "  --errors    print where the bit errors fall in the scored "
+              "stream\n",
               tui ? "ccsds415-tui" : "ccsds415",
               tui ? " [--unpaced] [--snapshot]" : "", o.esn0_db, o.seconds,
               MIN_CHUNK, o.chunk);
@@ -165,6 +173,11 @@ parse (int argc, char **argv, Options &o, bool tui)
                 "frame\n"
                 "  q          quit early, through the same checks\n");
           std::exit (0);
+        }
+      if (a == "--errors")
+        {
+          o.errors = true;
+          continue;
         }
       if (tui && a == "--unpaced")
         {
@@ -454,6 +467,22 @@ Run::finish ()
                                  payload_.size ())
              == 0,
          "the meter takes the payload");
+  // Scoring needs the marker, BER_SYNC_SYMS long, starting LAG_SPAN into
+  // the locked stream, and LAG_SPAN more for the alignment's search.
+  const size_t need
+      = marker_at (static_cast<size_t> (lo)) + BER_SYNC_SYMS + LAG_SPAN;
+  if (need > syms_.size ())
+    {
+      char b[200];
+      std::snprintf (b, sizeof b,
+                     "[%s] the scene is too short to score: scoring needs "
+                     "%zu symbols, %.2f s, and the scene gave %zu; a longer "
+                     "--seconds has them",
+                     name_.c_str (), need,
+                     static_cast<double> (need) / DP_CCSDS_415_SYM,
+                     syms_.size ());
+      fail (b);
+    }
   check (dp_ber_meter_align (meter.get (), c_ptr (syms_), syms_.size (),
                              marker_at (static_cast<size_t> (lo)), 0, 0,
                              LAG_SPAN, 0.0),
@@ -462,8 +491,78 @@ Run::finish ()
                       static_cast<size_t> (lo), syms_.size ());
   const ber_interval_t b = dp_ber_meter_ber (meter.get ());
   r.ber = b.p_hat;
+  r.ber_lo = b.lo;
+  r.ber_hi = b.hi;
+  r.conf = b.conf;
+  r.errors = b.errors;
   r.bits = b.symbols;
+  r.esn0_db = o_.esn0_db;
+  if (o_.errors)
+    print_errors (meter.get (), static_cast<size_t> (lo));
   return r;
+}
+
+// Where the scored stream's bit errors fall, at the meter's own detected lag
+// and phase (symbol i carries stimulus bit i + lag): the first and the last
+// error, the longest run of consecutive errors, and the error rate from the
+// first error on. Random errors are scattered with short runs; a slip or an
+// inverted stream shows as everything after one point at a rate near 0.5
+// or 1. A diagnosis aid, printed, never a check.
+void
+Run::print_errors (const dp_ber_meter_state_t *meter, size_t lo) const
+{
+  const long lag = dp_ber_meter_get_lag (meter);
+  const cf32 rot = std::polar (1.0f,
+                               -static_cast<float> (dp_ber_meter_get_phase (meter)));
+  size_t n = 0, errs = 0, first = 0, last = 0, run = 0, longest = 0;
+  for (size_t i = lo; i < syms_.size (); i++)
+    {
+      const long t = static_cast<long> (i) + lag;
+      if (t < 0 || static_cast<size_t> (t) >= payload_.size ())
+        continue;
+      n++;
+      const uint8_t bit = (syms_[i] * rot).real () < 0.0f ? 1 : 0;
+      if (bit != payload_[static_cast<size_t> (t)])
+        {
+          if (!errs)
+            first = i;
+          last = i;
+          errs++;
+          longest = std::max (longest, ++run);
+        }
+      else
+        run = 0;
+    }
+  size_t after = 0;
+  for (size_t i = first; errs && i < syms_.size (); i++)
+    after++;
+  // The errors in each tenth of the window, to show a rate that moves.
+  size_t tenth[10] = {};
+  const size_t span = syms_.size () > lo ? syms_.size () - lo : 0;
+  for (size_t i = lo; span && i < syms_.size (); i++)
+    {
+      const long t = static_cast<long> (i) + lag;
+      if (t < 0 || static_cast<size_t> (t) >= payload_.size ())
+        continue;
+      const uint8_t bit = (syms_[i] * rot).real () < 0.0f ? 1 : 0;
+      if (bit != payload_[static_cast<size_t> (t)])
+        tenth[std::min<size_t> (9, (i - lo) * 10 / span)]++;
+    }
+  std::printf ("%s errors: %zu in %zu scored symbols from symbol %zu (lag "
+               "%ld, phase %.3f rad)",
+               name_.c_str (), errs, n, lo, lag,
+               dp_ber_meter_get_phase (meter));
+  if (errs)
+    std::printf ("; first at symbol %zu (+%zu into the window), last at %zu; "
+                 "longest run %zu; from the first on, %.3f of symbols are "
+                 "errors",
+                 first, first - lo, last, longest,
+                 static_cast<double> (errs) / static_cast<double> (after));
+  std::printf ("\n%s errors by tenth of the window (%zu symbols each):",
+               name_.c_str (), span / 10);
+  for (const size_t c : tenth)
+    std::printf (" %zu", c);
+  std::printf ("\n");
 }
 
 bool
@@ -532,9 +631,33 @@ report (const std::string &name, const Result &r, size_t chunk)
   // it means, so it cannot be read the wrong way round.
   const double ts = sample_period_ns ();
   const double share = r.proc_ns / ts;
+  // The bound: theory's BER at the Es/N0 run less the allowed loss. The
+  // check fails only when the meter's exact interval lies wholly above it,
+  // so a run too short to tell passes, and a receiver worse than theory by
+  // more than the loss fails once the bits scored show it.
+  const double bound
+      = dp_ber_theory_ber (2, std::pow (10.0, (r.esn0_db - LOSS_DB) / 10.0));
   std::printf ("%s: locked %.2f s after arrival (allocation %.0f s); BER "
-               "%.1e over %zu bits\n",
-               name.c_str (), r.lock_s, DP_CCSDS_415_LOCK_S, r.ber, r.bits);
+               "%.1e (%zu errors in %zu bits; %.0f%% interval %.1e to "
+               "%.1e)\n",
+               name.c_str (), r.lock_s, DP_CCSDS_415_LOCK_S, r.ber, r.errors,
+               r.bits, 100.0 * r.conf, r.ber_lo, r.ber_hi);
+  // The loss the rate implies: the Es/N0 the bound needs for it, less the
+  // Es/N0 run. None with no errors, which no finite Es/N0 gives.
+  const double needs = dp_ber_esn0_db_for_ser (2, r.ber);
+  // With no errors there is none to measure; with a rate past the bound at
+  // -10 dB (near chance), the library reads none either, and says so with
+  // a NaN, which is not "no errors".
+  char loss[64] = "none measurable (no errors)";
+  if (r.errors && std::isfinite (needs))
+    std::snprintf (loss, sizeof loss, "%.2f dB", r.esn0_db - needs);
+  else if (r.errors)
+    std::snprintf (loss, sizeof loss,
+                   "more than %.0f dB (the rate is near chance)",
+                   r.esn0_db + 10.0);
+  std::printf ("  the bound at Es/N0 %.1f dB less the allowed %.2f dB: %.1e; "
+               "the loss this rate implies: %s\n",
+               r.esn0_db, LOSS_DB, bound, loss);
   std::printf ("  processing time per sample %.1f ns, sample period %.1f "
                "ns: %.1f%% of the sample period (%.1f times faster than "
                "real time); slowest chunk %.1f ns a sample; %zu chunks of "
@@ -548,11 +671,15 @@ report (const std::string &name, const Result &r, size_t chunk)
                     name.c_str ());
       ok = false;
     }
-  // Written so a NaN (nothing scored) fails.
-  if (!(r.ber <= MAX_BER))
+  // No bits scored has an interval from 0, which no bound refuses: it
+  // fails on its own.
+  if (r.bits == 0 || !(r.ber_lo <= bound))
     {
-      std::fprintf (stderr, "FAIL: [%s] BER %.2e over %.0e\n", name.c_str (),
-                    r.ber, MAX_BER);
+      std::fprintf (stderr,
+                    "FAIL: [%s] BER %.2e: its %.0f%% interval (%.2e to "
+                    "%.2e) lies above the bound, %.2e\n",
+                    name.c_str (), r.ber, 100.0 * r.conf, r.ber_lo,
+                    r.ber_hi, bound);
       ok = false;
     }
   return ok;

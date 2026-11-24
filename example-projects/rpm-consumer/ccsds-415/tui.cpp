@@ -34,6 +34,7 @@
 #include <ftxui/screen/screen.hpp>
 
 #include <chrono>
+#include <unistd.h>
 #include <cstdio>
 #include <memory>
 #include <string>
@@ -232,7 +233,8 @@ main (int argc, char **argv)
           }
         // Every scene ended: keep the last frame on screen, drawn once more
         // with the hold line, until q.
-        if (!quit && cur)
+        // Only on a terminal: with stdin not one, nothing can send the q.
+        if (!quit && cur && isatty (STDIN_FILENO))
           {
             held = true;
             screen.PostEvent (Event::Custom);

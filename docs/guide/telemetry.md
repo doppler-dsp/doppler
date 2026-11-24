@@ -14,7 +14,7 @@ overrun so a slow reader can never stall the DSP thread. Design:
 [Telemetry](../design/telemetry.md).
 
 Source:
-[`src/doppler/telemetry/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.86.0/src/doppler/telemetry/__init__.py)
+[`src/doppler/telemetry/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.87.0/src/doppler/telemetry/__init__.py)
 
 ## `Telemetry`
 

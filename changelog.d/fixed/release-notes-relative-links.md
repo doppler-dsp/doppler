@@ -1,1 +1,0 @@
-- **Release-page links resolve.** A release body's repo-relative links (`docs/…`) 404'd on the release page, eight of them in v0.86.0. The body now links each one to the blob at its tag, anchor kept, and `make lint` and `make release-pr` refuse a body that still holds a relative link (#3319).

@@ -13,6 +13,60 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.87.0] - 2026-11-24
+
+### Added
+
+- **One period of the 415.1-B-1 stimulus is a frame description:
+    `dp_ccsds_415_frame_desc()`.** The gap, the acquisition sequence, EB90
+    and a 232.0-B-4 TC transfer frame, every header field named, with the
+    FECF as the description's CRC stage over header and data
+    (`doppler/ccsds/ccsds_415_frame.h`).
+
+- **The CCSDS 415.1-B-1 point is installed: `doppler/ccsds/ccsds_415.h`,
+    `Ccsds415Receiver`, `Ccsds415Pool`.** Its numbers, chip rate, C/N0 and a
+    scene's derived rates, computed with fast math off; the chip rate and
+    the scene are the same bits on every compiler. The views are the
+    receiver and pool built from one table of arguments
+    (`dp_ccsds_415_rx()`), each refusal naming its cause. The spec demo, the harnesses
+    and validators read it. The scene's Python face waits on
+    [just-makeit#2755](https://github.com/just-buildit/just-makeit/issues/2755).
+
+- **A frame description reads a named field's received value back:
+    `FrameDesc.read_field()`, `read_field_bits()`.** Most significant bit
+    first, from the place the description gives the field, so a header is
+    read by name with no parser of its own; a CRC trailer reads as
+    received. C: `dp_wfm_frame_desc_field()`, `_field_bits()`
+    ([#3309](https://github.com/doppler-dsp/doppler/issues/3309)).
+
+### Changed
+
+- **just-makeit pin 0.135.1 → 0.137.0.** A `Segment`'s `sources` list
+    refuses a foreign element with a `TypeError`; the stubs type
+    `EventLog.finalize`'s and the SigMF sinks' and writers' `sample_type`
+    and `endian` as `Literal`; `dp_interrupt_guard_procglobal.h` declares
+    its two functions with C linkage, so a C++ caller links them
+    ([just-makeit#2754](https://github.com/just-buildit/just-makeit/issues/2754)).
+
+### Fixed
+
+- **A release that moves the package's ABI token is a version bump, so its PR skips the matrix.** The release bump check accepted only the full version, so the `libdoppler-dsp0.85_0.85.0` package name in `docs/install/c.md` (the ABI major.minor, moved to `0.86` by the release) made the release PR run the full matrix. The Makefile now names the derived token (`CI_DERIVED_VERSION_TOKENS`), and the release diff replays as a bump in a test. The release notes section on the release PR's CI is corrected to what is true ([#3317](https://github.com/doppler-dsp/doppler/issues/3317)).
+
+- **Every installed header compiles and links from C++.** `dp_tlm_core.h`
+    and `dp_lgamma` were declared outside `extern "C"`, so a C++ caller
+    linked mangled names the library does not define. The async DSSS
+    receiver and pool, the despreader, the DSSS and M-PSK receivers, DLL,
+    Costas and `doppler.h` now parse as C++. Their per-sample inlines
+    (`costas_wipeoff`/`_update`, `dll_update`, the M-PSK TED steps) never
+    compiled from C++, so hiding them breaks no caller: one uses the block
+    function (`dp_costas_steps`, `dp_mpsk_receiver_steps`, `dll_steer`).
+    `make cxx-headers-check` reads linkage too
+    ([#3108](https://github.com/doppler-dsp/doppler/issues/3108)).
+
+- **Release-page links resolve.** A release body's repo-relative links (`docs/…`) 404'd on the release page, eight of them in v0.86.0. The body now links each one to the blob at its tag, anchor kept, and `make lint` and `make release-pr` refuse a body that still holds a relative link (#3319).
+
+- **A frame's sizes are checked where they are laid out (#3321, #3328).** A field or derived width near 2^63 bits wrapped the frame's size, and assembly wrote past its buffer, through the C API and through a scene's `"bits"`. An emitting stage that shrinks its frame wrote below its buffer the same way. The layout now refuses a wrapped or shrinking description, the DSSS chip count is checked, and a scene's `"bits"` must be a whole number below 2^53. Frames of any length that fits a `size_t` are unchanged.
+
 ## [0.86.0] - 2026-11-24
 
 ### Breaking
@@ -20103,5 +20157,6 @@ ______________________________________________________________________
 [0.84.0]: https://github.com/doppler-dsp/doppler/compare/v0.83.0...v0.84.0
 [0.85.0]: https://github.com/doppler-dsp/doppler/compare/v0.84.0...v0.85.0
 [0.86.0]: https://github.com/doppler-dsp/doppler/compare/v0.85.0...v0.86.0
+[0.87.0]: https://github.com/doppler-dsp/doppler/compare/v0.86.0...v0.87.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.86.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.87.0...HEAD

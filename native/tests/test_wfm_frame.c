@@ -1083,6 +1083,116 @@ test_desc_rx (void)
   return 0;
 }
 
+/* The Field bound on the C door (#3321): dp_wfm_frame_add_field and
+   dp_wfm_frame_add_derived refuse what the text grammar refuses, so a
+   description the layout sums cannot wrap. Each refusal reason has its own
+   case, and each bound has an accepted case exactly at it and a refused one
+   one bit over, so a bound removed or moved by one is red.
+
+   Prediction (written before the sabotage run): with the bound removed from
+   add_field, the issue's two-field case is accepted and the one-bit-over
+   cases go red without a crash; under test-asan the layout's wrapped write
+   is what the refusal stops, so the test goes red at the return value before
+   any assembly. */
+static int
+test_field_bound (void)
+{
+  const size_t    max     = WFM_FIELD_MAX_BITS;
+  const wfm_seq_t one_bit = { .kind = WFM_SEQ_DOTTED, .len = 1 };
+  const wfm_seq_t big     = { .kind = WFM_SEQ_DOTTED, .len = (size_t)1 << 63 };
+  const wfm_seq_t big16
+      = { .kind = WFM_SEQ_DOTTED, .len = ((size_t)1 << 63) + 16u };
+
+  /* The issue's repro: two generated fields of 2^63 and 2^63 + 16 bits.
+     Before the bound both were accepted, the layout wrapped to 16 bits, and
+     assembly wrote 2^63 bits past the buffer. */
+  {
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&d, "a", &big, 0u) == -1,
+                  "a 2^63-bit field is refused at add_field (#3321)");
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&d, "b", &big16, 0u) == -1,
+                  "a 2^63 + 16-bit field is refused at add_field (#3321)");
+    DP_CHECK_MSG (d.n_fields == 0,
+                  "a refused field is not appended: the description is "
+                  "unchanged");
+  }
+
+  /* LEN alone: exactly the bound is accepted, one bit over is refused. */
+  {
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    const wfm_seq_t at   = { .kind = WFM_SEQ_DOTTED, .len = max };
+    const wfm_seq_t over = { .kind = WFM_SEQ_DOTTED, .len = max + 1u };
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&d, "at", &at, 0u) == 0,
+                  "LEN exactly WFM_FIELD_MAX_BITS is accepted");
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&d, "over", &over, 0u) == -1,
+                  "LEN one bit over WFM_FIELD_MAX_BITS is refused");
+  }
+
+  /* REPS alone: a count of exactly the bound is accepted (with LEN 1 its
+     product is the bound), one over is refused on the count alone. */
+  {
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&d, "at", &one_bit, max) == 0,
+                  "REPS exactly WFM_FIELD_MAX_BITS is accepted");
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&d, "over", &one_bit, max + 1u)
+                      == -1,
+                  "REPS one over WFM_FIELD_MAX_BITS is refused");
+  }
+
+  /* The product LEN * max(REPS, 1): 2 * 130560 is the bound and is accepted,
+     2 * 130561 is one over and refused, though each factor is in range. A
+     LEN of the bound with two repetitions is refused by the product alone,
+     and a REPS of 0 is one repetition, so LEN at the bound is accepted. */
+  {
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    const wfm_seq_t two    = { .kind = WFM_SEQ_DOTTED, .len = 2 };
+    const wfm_seq_t atmost = { .kind = WFM_SEQ_DOTTED, .len = max };
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&d, "exact", &two, max / 2u) == 0,
+                  "LEN * REPS exactly WFM_FIELD_MAX_BITS is accepted");
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&d, "over", &two, max / 2u + 1u)
+                      == -1,
+                  "LEN * REPS one bit over WFM_FIELD_MAX_BITS is refused");
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&d, "twice", &atmost, 2u) == -1,
+                  "LEN at the bound with two repetitions is refused by the "
+                  "product");
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&d, "zero", &atmost, 0u) == 1,
+                  "REPS 0 is one repetition, so LEN at the bound is accepted");
+  }
+
+  /* A derived width is the same bound. */
+  {
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    DP_CHECK_MSG (dp_wfm_frame_add_derived (&d, "at", max) == 0,
+                  "a derived width exactly WFM_FIELD_MAX_BITS is accepted");
+    DP_CHECK_MSG (
+        dp_wfm_frame_add_derived (&d, "over", max + 1u) == -1,
+        "a derived width one bit over WFM_FIELD_MAX_BITS is refused");
+  }
+
+  /* The sum the layout takes cannot wrap: the largest description the
+     bound admits, WFM_FRAME_MAX_FIELDS fields at the bound, lays out to
+     exactly that many bits with no wrap and no refusal. */
+  {
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    const wfm_seq_t full = { .kind = WFM_SEQ_DOTTED, .len = max };
+    for (unsigned i = 0; i < WFM_FRAME_MAX_FIELDS; i++)
+      DP_REQUIRE_MSG (dp_wfm_frame_add_field (&d, "", &full, 0u) == (int)i,
+                      "sixteen fields at the bound are accepted");
+    wfm_frame_desc_layout_t l;
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&d, &l) == 0,
+                  "the largest admitted description lays out");
+    DP_CHECK_MSG (l.frame_bits == (size_t)WFM_FRAME_MAX_FIELDS * max,
+                  "its frame is the sum of its fields, with no wrap");
+  }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -2254,6 +2364,8 @@ main (void)
   if (test_frame_fixed_claims ())
     return 1;
   if (test_desc_rx ())
+    return 1;
+  if (test_field_bound ())
     return 1;
   DP_TEST_END ("wfm_frame");
 }

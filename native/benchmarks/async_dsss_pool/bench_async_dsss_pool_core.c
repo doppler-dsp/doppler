@@ -137,11 +137,19 @@ all_searching (dp_async_dsss_pool_state_t *p, size_t n_rx, uint64_t pushed,
  * spread over +/- 40 kHz, 197 samples apart at 10 MSa/s (98.5 chips),
  * plus the shipped AWGN. "design"
  * puts each at the pool's design C/N0, "+6dB" 6 dB above. A near-far row
- * holds one emitter 20 dB above the design level beside one at it: the deep
- * search takes the weaker only to about +14 dB (async-dsss-receiver.md
- * §7.2, doppler#3067), so one receiver tracks; the row times the search
- * with a strong signal held and a weak one on the air. The stream is made a
- * push at a time, outside the timed call.
+ * holds one emitter 20 dB above the design level beside one at it. The
+ * strong one is always held; the weak one, 20 dB under, is past the deep
+ * search's reach (about +14 dB, async-dsss-receiver.md §7.2,
+ * doppler#3067) but a one-period search takes it on some draws, so the
+ * pool may settle holding {S} or {S, W}, both as designed (air_holds()).
+ * The row times whichever set settles, every timed push holding that same
+ * one, and its printed line names it ("held S" / "held S+W"). WHICH set
+ * settles is the draw's, so a build whose arithmetic moves the draw could
+ * time the other: compare two builds' or two releases' rows only where
+ * their lines name the same set. On this stream gcc and clang, portable
+ * and native, all time {S, W} at D = 1 and {S} at D = 150 (measured at
+ * the async receiver release). The stream is made a push at a time,
+ * outside the timed call.
  *
  * Two depths: D = 150, the design's (a 500-symbol code-only block), and
  * D = 1 (a code-only block of one code period). Every push is the D = 150
@@ -241,10 +249,17 @@ air_src_init (air_src_t *a, const uint8_t *code, const air_row_t *w,
   return dp_air_init (&a->air, e, w->k, fs_in, pt->cn0, 8807u, block);
 }
 
-/* Whether the pool holds what the row says: exactly `expect` receivers
-   tracking, each within 1 kHz of a different emitter's Doppler (emitter 0,
-   the strongest, when fewer are expected than are on the air), so a
-   duplicate, a ghost or a sidelobe held in place of a signal fails it. */
+/* The set of emitters the pool holds (bit j: emitter j), or -1 when it
+   holds anything the row does not expect: every tracking receiver within
+   tol of a different emitter's Doppler, so a duplicate, a ghost, a
+   sidelobe or a track on no emitter held in place of a signal fails it.
+   An ordinary row expects exactly `expect` receivers (emitter 0, the
+   strongest, among them when fewer are expected than are on the air).
+   A near-far row (lead_db > 0) is designed to hold the strong emitter and
+   MAY hold the weak one: a one-period search takes an emitter 20 dB under
+   a stronger one on some draws and not others (async-dsss-receiver.md
+   §7.2, doppler#3067), so both {S} and {S, W} are the pool working as
+   designed, and the row times whichever settles (air_set_name()). */
 static int
 air_holds (dp_async_dsss_pool_state_t *p, const air_row_t *w,
            const air_pt_t *pt, double t)
@@ -262,11 +277,25 @@ air_holds (dp_async_dsss_pool_state_t *p, const air_row_t *w,
                    < pt->tol_hz)
           k = j;
       if (k < 0)
-        return 0;
+        return -1;
       held[k] = 1;
       n++;
     }
-  return n == w->expect && (w->expect >= w->k || held[0]);
+  int set = 0;
+  for (int j = 0; j < w->k; j++)
+    set |= held[j] << j;
+  if (w->lead_db > 0.0)
+    return held[0] ? set : -1;
+  return n == w->expect && (w->expect >= w->k || held[0]) ? set : -1;
+}
+
+/* A near-far row's timed set, for its printed line: "S" or "S+W". */
+static const char *
+air_set_name (const air_row_t *w, int set)
+{
+  if (w->lead_db <= 0.0)
+    return "";
+  return set == 3 ? " held S+W" : " held S";
 }
 
 /* The next `n` samples of the stream into `x`. */
@@ -355,6 +384,7 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
         }
       double   times[AIR_ITERS];
       int      got = 0, pushes = 0, settled = 0, stim_ok = 1;
+      int      set = -1, timed_set = -1;
       uint64_t pushed = 0, released = 0;
       while (got < AIR_ITERS && pushes < AIR_MAX_PUSHES)
         {
@@ -373,14 +403,23 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
           const uint64_t fed = (pushed - p->carry_len) / p->period - fed0;
           const uint64_t rel
               = p->released_duplicate + p->released_ghost + p->released_lost;
-          /* Steady state: the held set right, nothing released since the
-             push before, and one settled push skipped after lock. */
-          const int holds = air_holds (p, w, pt, (double)pushed / fs_in)
-                            && rel == released;
+          /* Steady state: a held set the row expects, the same as the
+             push before, nothing released since it, and one settled push
+             skipped after lock. Every timed push holds ONE set: when it
+             changes, the times taken on the other are dropped, so a row
+             is the cost of holding one known set, never a mix. */
+          const int now   = air_holds (p, w, pt, (double)pushed / fs_in);
+          const int holds = now >= 0 && rel == released;
           released        = rel;
-          settled         = holds ? settled + 1 : 0;
+          settled         = holds && now == set ? settled + 1 : holds;
+          set             = now;
           if (settled >= 2 && p->search_periods - s0 == fed)
-            times[got++] = jm_bench_elapsed_sec (t0, t1);
+            {
+              if (set != timed_set)
+                got = 0;
+              timed_set    = set;
+              times[got++] = jm_bench_elapsed_sec (t0, t1);
+            }
         }
       if (!stim_ok)
         {
@@ -395,8 +434,8 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
           (void)fprintf (
               stderr,
               "bench_async_dsss_pool[%s]: %d of %d pushes in steady "
-              "state (the expected emitters held, nothing released, "
-              "the search on throughout), in %d\n",
+              "state (one expected set held throughout, nothing "
+              "released, the search on throughout), in %d\n",
               w->name, got, AIR_ITERS, pushes);
           ok = 0;
         }
@@ -406,12 +445,13 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
                              JM_BENCH_SAMPLE);
           const double sec = min_sec (times, AIR_ITERS);
           printf ("  %-42s D=%-3zu %7.2f ns/sample  %6.2fx real time  (%d "
-                  "pushes; released dup %llu ghost %llu lost %llu)\n",
+                  "pushes; released dup %llu ghost %llu lost %llu)%s\n",
                   w->name, dp_async_dsss_pool_get_coherent_bins (p),
                   sec / (double)block * 1e9, (double)block / sec / fs_in,
                   pushes, (unsigned long long)p->released_duplicate,
                   (unsigned long long)p->released_ghost,
-                  (unsigned long long)p->released_lost);
+                  (unsigned long long)p->released_lost,
+                  air_set_name (w, timed_set));
         }
       dp_async_dsss_pool_destroy (p);
       air_src_free (&src);

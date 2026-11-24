@@ -37,8 +37,9 @@ constexpr double LOCK_MIN_FRAC = 0.0;
 // worst settled loss the certification record measured at this point, 1.13
 // dB (2.8 GHz, Es/N0 4 dB; 2.2 and 2.8 GHz from 4 to 7 dB read 0.72 to 1.13
 // dB), in src/doppler/dsss/tests/validation/async_dsss_receiver/results.md
-// §2.6. Measured there, not chosen here; the owner's allowed loss is
-// doppler#3157's to set.
+// §2.6. Measured there over unslipped bursts at 4 to 7 dB, not chosen
+// here; above 7 dB it is carried beyond what the record measured. The
+// owner's allowed loss is doppler#3157's to set.
 constexpr double LOSS_DB = 1.13;
 constexpr long LAG_SPAN = 1000; // symbols the stream may start into the data
 
@@ -549,9 +550,15 @@ Run::print_errors (const dp_ber_meter_state_t *meter, size_t lo) const
       else
         run = 0;
     }
+  // The rate from the first error on is over the scored symbols from there,
+  // the same set n counts.
   size_t after = 0;
   for (size_t i = first; errs && i < syms_.size (); i++)
-    after++;
+    {
+      const long t = static_cast<long> (i) + lag;
+      if (t >= 0 && static_cast<size_t> (t) < payload_.size ())
+        after++;
+    }
   // The errors in each tenth of the window, to show a rate that moves.
   size_t tenth[10] = {};
   const size_t span = syms_.size () > lo ? syms_.size () - lo : 0;

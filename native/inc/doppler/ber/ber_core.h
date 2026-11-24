@@ -312,6 +312,53 @@ extern "C"
                               size_t sustain, double min_frac);
 
   /**
+   * @brief How often a lock flag changes after a point, and where it first
+   *        does.
+   *
+   * The second half of "does this link work": dp_ber_lock_symbol() says
+   * when a flag became sustained, and a working link then holds it --
+   * every change after that point is a toggle a user of the flag acts on.
+   * Counts each change of @p flags (nonzero = up) from index @p from on.
+   *
+   * @p count_at chooses which indices are LOOKED AT; NULL looks at all.
+   * An index not looked at is skipped, not compared: the flag is read only
+   * where the caller says it means something (the data symbols of a frame
+   * whose code-only stretch carries no data, say), so a drop and recovery
+   * wholly inside a skipped stretch counts nothing, and a drop there that
+   * is still down at the next index looked at counts once, there.
+   *
+   * @param flags      Per-index lock flags; NULL counts nothing.
+   * @param count_at   Per-index nonzero = look here, same length; or NULL.
+   * @param flags_len  Entries in @p flags (and @p count_at).
+   * @param from       First index considered, usually the sustained-lock
+   *                   index; the flag's value at the first index looked at
+   *                   from here on is the reference, not a change.
+   * @param first      Out, may be NULL: the index of the first change
+   *                   counted, or -1 when there is none.
+   * @return Changes counted.
+   * @code
+   * #include "doppler/ber/ber_core.h"
+   * #include <stdio.h>
+   * int main (void)
+   * {
+   *   const uint8_t up[10]   = { 0, 1, 1, 1, 0, 0, 1, 1, 1, 1 };
+   *   const uint8_t data[10] = { 1, 1, 1, 1, 0, 0, 1, 1, 1, 1 };
+   *   int64_t first;
+   *   // every index: the drop at 4 and the recovery at 6
+   *   size_t all = dp_ber_lock_transitions (up, NULL, 10, 1, &first);
+   *   printf ("%zu %lld\n", all, (long long)first);       // 2 4
+   *   // indices 4 and 5 carry no data: the dip is never seen
+   *   size_t seen = dp_ber_lock_transitions (up, data, 10, 1, &first);
+   *   printf ("%zu %lld\n", seen, (long long)first);      // 0 -1
+   *   return 0;
+   * }
+   * @endcode
+   */
+  size_t dp_ber_lock_transitions (const uint8_t *flags,
+                                  const uint8_t *count_at, size_t flags_len,
+                                  size_t from, int64_t *first);
+
+  /**
    * @brief Self-referenced EVM (dB) over an EXPLICIT window `[lo, hi)`.
    *
    * Scores each symbol against the stream's OWN hard decision, with the

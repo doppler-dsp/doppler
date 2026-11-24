@@ -309,6 +309,102 @@ test_sync_resolves (void)
   }
 }
 
+/* A blind marker that lands in a run of identical symbols can fix no
+ * alignment at any Es/N0: the run correlates alike at every lag. The
+ * stimulus is the async DSSS receiver's at the 415.1-B-1 point: BPSK with
+ * a 275-symbol all-zero code-only window in each 1000-symbol frame, the
+ * frame start drawn. A caller that places its marker at "settle + span"
+ * sits inside that window for some draws -- a clean 10 dB burst read as
+ * unaligned, 281 of 960 in the run that found it. dp_ber_marker_place()
+ * moves it to the first stretch the detector can resolve, and leaves a
+ * resolvable position where it is. */
+static void
+test_marker_skips_a_degenerate_stretch (void)
+{
+  enum
+  {
+    NSYM  = 6000,
+    FRAME = 1000,
+    IDLE  = 275,
+    OFF   = 619 /* the frame start, drawn: the window opens at 381 */
+  };
+  static uint8_t truth[NSYM];
+  static float _Complex rx[NSYM];
+  uint64_t     st     = 2026u;
+  const int    m      = 2;
+  const long   lag    = 37;
+  const double sigma  = sqrt (0.5 / pow (10.0, 10.0 / 10.0));
+  const size_t settle = 185; /* + the span puts the marker at 385 */
+
+  for (int i = 0; i < NSYM; i++)
+    {
+      size_t pos = ((size_t)i + OFF) % FRAME;
+      truth[i]   = pos < IDLE ? 0u : (uint8_t)(dp_xs64 (&st) & 1u);
+    }
+  build (rx, NSYM, truth, NSYM, m, lag, 0.4, sigma, &st);
+
+  /* Where the old rule put it: inside the window, refused. */
+  const size_t    t_old = settle + (size_t)DP_BER_LAG_SPAN;
+  dp_ber_marker_t mk    = { NULL, DP_BER_SYNC_SYMS, t_old, 0, 0 };
+  DP_CHECK ((t_old + OFF) % FRAME < IDLE);
+  dp_ber_sync_t sy = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m,
+                                  DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
+  DP_CHECK (!sy.ok);
+
+  /* Placed: past the window, and the same detector resolves the lag. */
+  size_t t = dp_ber_marker_place (truth, NSYM, m, t_old, 0, DP_BER_LAG_SPAN,
+                                  DP_BER_SYNC_PFA, 1);
+  DP_CHECK (t != SIZE_MAX && t > t_old);
+  mk.t0 = t;
+  sy    = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
+                       DP_BER_SYNC_PFA);
+  DP_CHECK (sy.ok);
+  DP_CHECK (sy.lag == lag);
+
+  /* Backward from the end, the same: the last frame's window is at
+     5381..5655, and a marker asked for at 5400 moves earlier. */
+  t = dp_ber_marker_place (truth, NSYM, m, 5400, 0, DP_BER_LAG_SPAN,
+                           DP_BER_SYNC_PFA, -1);
+  DP_CHECK (t != SIZE_MAX && t < 5400);
+  mk.t0 = t;
+  sy    = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
+                       DP_BER_SYNC_PFA);
+  DP_CHECK (sy.ok && sy.lag == lag);
+
+  /* A resolvable position is left where it is, so no caller that never sat
+     in a degenerate stretch changes the symbols it measures. */
+  DP_CHECK ((2881u + OFF) % FRAME == 500u); /* data either side */
+  DP_CHECK (dp_ber_marker_place (truth, NSYM, m, 2881, 0, DP_BER_LAG_SPAN,
+                                 DP_BER_SYNC_PFA, 1)
+            == 2881);
+
+  /* At the record's end there is no lag span of truth past the marker,
+     and the detector needs none: the last whole marker, on data, stays.
+     (A placement that wanted the span refused here, and a validator's
+     end-of-burst slip check read a clean burst as SLIPPED.) */
+  DP_CHECK (((size_t)NSYM - DP_BER_SYNC_SYMS + OFF) % FRAME == 363u);
+  DP_CHECK (dp_ber_marker_place (truth, NSYM, m, NSYM - DP_BER_SYNC_SYMS, 0,
+                                 DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1)
+            == (size_t)NSYM - DP_BER_SYNC_SYMS);
+
+  /* And the one-call path aligns the burst the old placement lost. */
+  {
+    dp_ber_t        acc;
+    dp_ber_report_t r;
+    dp_ber_init (&acc, m, DP_BER_TARGET_ERRORS);
+    r = dp_ber_measure (&acc, rx, NSYM, truth, NSYM, 10.0, settle, 1, NULL);
+    DP_CHECK (r.aligned);
+    DP_CHECK (r.lag == lag);
+    dp_ber_free (&acc);
+  }
+
+  /* A record that is all one run has nowhere to place one. */
+  memset (truth, 0, sizeof truth);
+  DP_CHECK (dp_ber_marker_place (truth, NSYM, m, t_old, 0, DP_BER_LAG_SPAN,
+                                 DP_BER_SYNC_PFA, 1)
+            == SIZE_MAX);
+}
+
 /* The false-alarm gate: a marker correlated against a stream that does NOT
  * contain it must be rejected. A `min over lag` search cannot fail this test
  * because it never asks the question -- it always returns its best lag. */
@@ -493,6 +589,36 @@ test_settle (void)
   f[2500] = 0;
   DP_CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == 800);
 
+  /* The toggles after it: the late dip is one drop and one recovery,
+     the first at 2500, counted from the sustained lock. */
+  {
+    int64_t first = 0;
+    DP_CHECK (dp_ber_lock_transitions (f, NULL, N, 800, &first) == 2);
+    DP_CHECK (first == 2500);
+    /* The reference is the value at `from`: from inside the dip the flag
+       starts down and the recovery is the one change. */
+    DP_CHECK (dp_ber_lock_transitions (f, NULL, N, 2500, &first) == 1);
+    DP_CHECK (first == 2501);
+    /* Indices not looked at are skipped, not compared. A dip wholly
+       inside them is never seen ... */
+    static unsigned char look[N];
+    memset (look, 1, sizeof look);
+    for (int i = 2450; i < 2550; i++)
+      look[i] = 0;
+    DP_CHECK (dp_ber_lock_transitions (f, look, N, 800, &first) == 0);
+    DP_CHECK (first == -1);
+    /* ... and one still down at the next index looked at counts once,
+       there, not where it happened. */
+    for (int i = 2500; i < 2600; i++)
+      f[i] = 0;
+    DP_CHECK (dp_ber_lock_transitions (f, look, N, 800, &first) == 2);
+    DP_CHECK (first == 2550);
+    for (int i = 2501; i < 2600; i++)
+      f[i] = 1; /* back to the one late dip at 2500 */
+    DP_CHECK (dp_ber_lock_transitions (NULL, NULL, N, 0, &first) == 0);
+    DP_CHECK (first == -1);
+  }
+
   /* A detector that declares early then flaps fails the fraction test. */
   memset (f, 0, sizeof f);
   for (int i = 100; i < 400; i++)
@@ -542,6 +668,36 @@ test_settle (void)
     /* 2600 > the 2000-symbol budget and > the timing lock at 500. */
     DP_CHECK (s == 2600);
     DP_CHECK (s > dp_test_settle_syms (0.01, 0.01));
+  }
+
+  /* The error-rate window (dp_ber_lock_all): the LATEST of every flag's
+     sustained index, refused past the allocation. Three flags DIFFER, so
+     a form that read one, or took the earliest, opens elsewhere. */
+  {
+    static unsigned char a[N], b[N], c[N];
+    const unsigned char *fl[3] = { a, b, c };
+    size_t               w     = 99;
+    memset (a, 0, sizeof a);
+    memset (b, 0, sizeof b);
+    memset (c, 0, sizeof c);
+    for (int i = 300; i < N; i++)
+      a[i] = 1;
+    for (int i = 1700; i < N; i++)
+      b[i] = 1;
+    for (int i = 900; i < N; i++)
+      c[i] = 1;
+    DP_CHECK (dp_ber_lock_all (fl, 3, N, 200, 0.9, N, &w) == 1700);
+    DP_CHECK (w == 1);
+    /* The allocation is inclusive: a start AT the limit is locked, one
+       past it is not, and the late flag is named. */
+    DP_CHECK (dp_ber_lock_all (fl, 3, N, 200, 0.9, 1700, NULL) == 1700);
+    DP_CHECK (dp_ber_lock_all (fl, 3, N, 200, 0.9, 1699, &w) == -1);
+    DP_CHECK (w == 1);
+    /* A flag that never sustains is "not locked", whatever the others do,
+       and is the one named. */
+    memset (c, 0, sizeof c);
+    DP_CHECK (dp_ber_lock_all (fl, 3, N, 200, 0.9, N, &w) == -1);
+    DP_CHECK (w == 2);
   }
 }
 
@@ -709,6 +865,7 @@ main (void)
   test_ci_coverage ();
   test_sync_resolves ();
   test_sync_rejects_garbage ();
+  test_marker_skips_a_degenerate_stretch ();
   test_score_counts_exactly ();
   test_settle ();
   test_sanity_gate ();

@@ -486,11 +486,12 @@ extern "C"
    * @brief Attach (or detach) a telemetry context across the despreader.
    * Pure forwarder — the despreader registers no probes of its own: the
    * carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" /
-   * ".locked" / ".nco" / ".freq_rate" / ".order" and the code loop registers "<prefix>.code.e" /
-   * ".rate" / ".lock" / ".locked" / ".nco" (the ".locked" pair are the
+   * ".locked" / ".nco" / ".freq_rate" / ".order" and the code loop
+   * registers "<prefix>.code.e" / ".rate" / ".lock" / ".locked" / ".nco" /
+   * ".prompt_amp" / ".offset_pwr" (the ".locked" pair are the
    * loops' verify-counted lockdet decisions, 0/1; ".freq" / ".rate" the
    * filters' integrators and ".nco" their complete commands, see
-   * dp_costas_set_telemetry() and dp_dll_set_telemetry()) — twelve probes,
+   * dp_costas_set_telemetry() and dp_dll_set_telemetry()) — fourteen probes,
    * all thinned by @p decim and
    * emitted once per code period (the despreader flushes both loops at
    * its per-period update). Passing NULL detaches both loops.  Setup
@@ -501,7 +502,7 @@ extern "C"
    * @param prefix Probe-name prefix, e.g. "ch0".
    * @param decim  Emit every decim-th code period; >= 1.
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
-   *         twelve probes (the attach fails whole; everything detached).
+   *         fourteen probes (the attach fails whole; everything detached).
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import Despreader
@@ -514,12 +515,12 @@ extern "C"
    * >>> names[:7]
    * ['ch0.car.e', 'ch0.car.freq', 'ch0.car.freq_rate', 'ch0.car.lock', 'ch0.car.locked', 'ch0.car.nco', 'ch0.car.order']
    * >>> names[7:]
-   * ['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.nco', 'ch0.code.rate']
+   * ['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.nco', 'ch0.code.offset_pwr', 'ch0.code.prompt_amp', 'ch0.code.rate']
    * >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
    * >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
    * >>> _ = ch.steps(x)
-   * >>> recs = tlm.read()   # twelve records per code period
-   * >>> len(recs) > 0 and len(recs) % 12 == 0
+   * >>> recs = tlm.read()   # fourteen records per code period
+   * >>> len(recs) > 0 and len(recs) % 14 == 0
    * True
    *
    * @endcode
@@ -533,9 +534,11 @@ extern "C"
 /** FourCC type tag ("DSPR") stamped in a despreader state blob. */
 #define DESPREADER_STATE_MAGIC DP_FOURCC ('D', 'S', 'P', 'R')
 /** Layout version of the despreader state blob; a mismatch is rejected. */
-#define DESPREADER_STATE_VERSION 5u /* v5: dll child grew (output level,     \
-                                        #2495); v4: costas child grew      \
-                                        (lockdet rule) */
+#define DESPREADER_STATE_VERSION 6u /* v6: dll child grew (window sum,     \
+                                        the rate table, the last look's    \
+                                        terms, DLL v16-v18); v5: dll child \
+                                        grew (output level, #2495); v4:    \
+                                        costas child grew (lockdet rule) */
   /**
    * @brief Byte size of the state blob.
    * @param state  Must be non-NULL.

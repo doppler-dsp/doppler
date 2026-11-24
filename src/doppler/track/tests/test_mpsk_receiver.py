@@ -21,12 +21,13 @@ def _seed(foff, m, bn_carrier, sps=8):
     asserted against a loop that had nothing to acquire. A receiver whose
     carrier discriminator was wired to nothing passes all of them.
 
-    So seed one acquisition bound BELOW truth: `bn_carrier / m` cycles per
-    symbol, the `m` because the NDA discriminator is an M-th power. That is
+    So seed one acquisition bound BELOW truth: `bn_carrier / (4 m)` cycles
+    per symbol, the `m` because the NDA discriminator is an M-th power and
+    the 4 because #3224 made `bn_carrier` the loop's real bandwidth. That is
     the same seed-at-the-bound rule the C tests and the validation harnesses
     hold to, and `freq_offset_inside_bw` is the one place it is computed.
-    Measured 2026-08-17, acquisition is reliable out to 4x the bound and
-    collapses by 6x, so seeding at the bound keeps a 4x margin -- these tests
+    Measured 2026-08-17, on the loop before #3224, acquisition was reliable
+    out to 4x the old `bn_carrier / m` and collapsed by 6x -- these tests
     must not be the ones that turn a receiver change into a coin flip.
 
     `bn_carrier` is passed rather than read back off the receiver because the

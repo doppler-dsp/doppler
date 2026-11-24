@@ -21,9 +21,19 @@
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/acc_trace/acc_trace_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct {
+    dp_tlm_t *ctx;      
+    int32_t   id_stat;  
+    int32_t   id_thr;   
+    int32_t   id_hz;    
+    int32_t   id_n;     
+    int32_t   id_ready; 
+} carrier_acq_tlm_t;
 
 typedef struct {
     /* Composed children (owned, by pointer). */
@@ -49,6 +59,7 @@ typedef struct {
     size_t dwell_target;  
     size_t max_n_blocks;  
     size_t nfft;          
+    carrier_acq_tlm_t tlm; 
 } dp_carrier_acq_state_t;
 
 dp_carrier_acq_state_t *dp_carrier_acq_create(
@@ -63,6 +74,10 @@ void dp_carrier_acq_reset(dp_carrier_acq_state_t *state);
 
 void dp_carrier_acq_steps(dp_carrier_acq_state_t *state, const float _Complex *x,
                        size_t x_len);
+
+int dp_carrier_acq_set_telemetry(dp_carrier_acq_state_t *state,
+                                 dp_tlm_t *tlm, const char *prefix,
+                                 uint32_t decim);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Composition: psd + detector children (self-contained sub-blobs) + own

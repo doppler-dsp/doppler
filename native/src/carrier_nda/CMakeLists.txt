@@ -17,7 +17,8 @@ target_link_libraries(carrier_nda_core PUBLIC
     loop_filter_core
     boxcar_core
     lockdet_core
-    dp_tlm_core)
+    dp_tlm_core
+    detection_core)
 
 # The C unit test; `ctest` runs it.
 add_executable(test_carrier_nda_core
@@ -29,6 +30,7 @@ target_link_libraries(test_carrier_nda_core
     boxcar_core
     lockdet_core
     dp_tlm_core
+    detection_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_carrier_nda_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
@@ -45,6 +47,7 @@ target_link_libraries(bench_carrier_nda_core
     boxcar_core
     lockdet_core
     dp_tlm_core
+    detection_core
     ${JM_MATH_LIBRARY})
 target_include_directories(
   bench_carrier_nda_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

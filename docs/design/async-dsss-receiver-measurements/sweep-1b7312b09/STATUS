@@ -1,0 +1,5 @@
+head 1b7312b09 test(validation): the half-bandwidth sweep's draw path on carrier_nda dirty=0 start 13:56:43
+design rc=0 13:57:10
+shards exits:      16 0
+dirty=0
+done 14:11:51

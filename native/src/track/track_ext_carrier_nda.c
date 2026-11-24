@@ -402,6 +402,128 @@ CarrierNdaObj_configure_lock (CarrierNdaObject *self, PyObject *args,
 }
 
 static PyObject *
+CarrierNdaObj_set_update_period (CarrierNdaObject *self, PyObject *args,
+                                 PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "t_upd", NULL };
+  double       t_upd     = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &t_upd))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_carrier_nda_set_update_period (self->handle, t_upd);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "CarrierNda: the update period must be finite and >= 1",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+CarrierNdaObj_set_denominator (CarrierNdaObject *self, PyObject *args,
+                               PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "alpha", "gamma_d", NULL };
+  double       alpha     = 1.0;
+  double       gamma_d   = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|dd", _kwlist, &alpha,
+                                    &gamma_d))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_carrier_nda_set_denominator (self->handle, alpha, gamma_d);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "CarrierNda: the denominator needs alpha in (0, 1] and a "
+                    "finite gamma_d >= 0, and any form but the limiter "
+                    "(alpha 1, gamma_d 0) needs m = 2",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+CarrierNdaObj_set_block_lock (CarrierNdaObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]  = { "len", "pfa", "n_up", "n_down", NULL };
+  long long    len_raw    = 0LL;
+  double       pfa        = 1e-3;
+  long long    n_up_raw   = 2;
+  long long    n_down_raw = 3;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "L|dLL", _kwlist, &len_raw,
+                                    &pfa, &n_up_raw, &n_down_raw))
+    return NULL;
+  if (len_raw < 0 || len_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "len: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)len_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t len = (uint32_t)len_raw;
+  if (n_up_raw < 0 || n_up_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_up: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_up_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t n_up = (uint32_t)n_up_raw;
+  if (n_down_raw < 0 || n_down_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_down: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_down_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t n_down = (uint32_t)n_down_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc
+      = dp_carrier_nda_set_block_lock (self->handle, len, pfa, n_up, n_down);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "CarrierNda: the block lock needs m = 2, len 0 or >= 2 "
+                    "and pfa in (0, 1)",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 CarrierNdaObj_reset (CarrierNdaObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
@@ -574,6 +696,17 @@ CarrierNda_setprop_bn (CarrierNdaObject *self, PyObject *value,
   return 0;
 }
 static PyObject *
+CarrierNda_getprop_block_thresh (CarrierNdaObject *self,
+                                 void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dp_carrier_nda_get_block_thresh (self->handle));
+}
+static PyObject *
 CarrierNda_getprop_m (CarrierNdaObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -609,7 +742,7 @@ static PyGetSetDef CarrierNda_getset[] = {
   { "norm_freq", (getter)CarrierNda_getprop_norm_freq,
     (setter)CarrierNda_setprop_norm_freq,
     "Tracked carrier frequency: the NCO centre plus the loop's integrated "
-    "correction (integrator only, smoothed).\n",
+    "correction (integrator only, smoothed), spread over the update period.\n",
     NULL },
   { "lock", (getter)CarrierNda_getprop_lock, NULL,
     "Lock-signal EMA: Re((z/|z|)^M) smoothed per sample by "
@@ -621,7 +754,7 @@ static PyGetSetDef CarrierNda_getset[] = {
     "below-threshold ones (see configure_lock).\n",
     NULL },
   { "last_error", (getter)CarrierNda_getprop_last_error, NULL,
-    "Last phase error from the M-th-power discriminator.\n", NULL },
+    "Last phase error from the M-th-power discriminator, raw.\n", NULL },
   { "bn", (getter)CarrierNda_getprop_bn, (setter)CarrierNda_setprop_bn,
     "Loop noise bandwidth currently in use.\n"
     "\n"
@@ -633,6 +766,8 @@ static PyGetSetDef CarrierNda_getset[] = {
     "    outside the loop filter's domain (need bn >= 0, finite, whose loop\n"
     "    gains come out finite)``, with the return code appended.\n",
     NULL },
+  { "block_thresh", (getter)CarrierNda_getprop_block_thresh, NULL,
+    "The block lock's threshold on R (0 when the EMA decides).\n", NULL },
   { "m", (getter)CarrierNda_getprop_m, NULL,
     "Constellation order the discriminator strips.\n", NULL },
   { "n", (getter)CarrierNda_getprop_n, NULL,
@@ -723,7 +858,9 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    Number of de-rotated samples written to out (equals x_len).\n"
+    "    Number of de-rotated samples written to out (equals x_len); 0, with\n"
+    "    nothing written, when an update period other than 1 is set\n"
+    "    (dp_carrier_nda_set_update_period()).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -759,12 +896,17 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "set_telemetry(tlm, prefix, decim) -> None\n"
     "\n"
     "Attach (or detach) a telemetry context and register the carrier\n"
-    "loop's probes on it. Registers four probes, emitted once per input\n"
+    "loop's probes on it. Registers five probes, emitted once per input\n"
     "sample (this is a sample-rate loop — use decim to thin the stream):\n"
-    "\"<prefix>.lock\" (the lock-signal EMA, ~1 when phase-locked),\n"
-    "\"<prefix>.e\" (the M-th-power phase discriminator — the loop stress),\n"
-    "\"<prefix>.freq\" (the tracked carrier frequency, cycles/sample) and\n"
-    "\"<prefix>.locked\" (the verify-counted lockdet decision, 0/1). Passing\n"
+    "\"<prefix>.lock\" (the lock statistic: the EMA, ~1 when phase-locked, "
+    "or\n"
+    "the last block's R), \"<prefix>.e\" (the M-th-power phase discriminator "
+    "—\n"
+    "the loop stress), \"<prefix>.freq\" (the tracked carrier frequency,\n"
+    "cycles/sample), \"<prefix>.locked\" (the verify-counted lockdet "
+    "decision,\n"
+    "0/1) and \"<prefix>.nco\" (the full NCO command, cycles/sample). "
+    "Passing\n"
     "NULL detaches. Setup path, never hot: call before the producer thread\n"
     "starts stepping; the context is borrowed and must outlive the\n"
     "attachment (SPSC rules in dp_tlm/dp_tlm_core.h).\n"
@@ -793,7 +935,7 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     ">>> c = CarrierNda(bn=0.01, sps=8, n=4, m=4)\n"
     ">>> c.set_telemetry(tlm, \"car\", decim=8)\n"
     ">>> sorted(tlm.probe_names)\n"
-    "['car.e', 'car.freq', 'car.lock', 'car.locked']\n"
+    "['car.e', 'car.freq', 'car.lock', 'car.locked', 'car.nco']\n"
     ">>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(\n"
     "...     np.complex64)\n"
     ">>> _ = c.steps(x)\n"
@@ -832,7 +974,10 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "input found real false locks at n_up=8; n_up=64 was the smallest verify\n"
     "count that reliably eliminated them -- see carrier_nda_core.c's\n"
     "CARRIER_NDA_LOCK_DEFAULT_* comment for the exact trial data). A live\n"
-    "lock survives the re-tune; the in-flight verify run restarts.\n"
+    "lock survives the re-tune; the in-flight verify run restarts. It\n"
+    "re-tunes the EMA's rule: with a block lock set\n"
+    "(dp_carrier_nda_set_block_lock()), it returns to the EMA first, so\n"
+    "block_thresh and the rule in force never disagree.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -853,6 +998,145 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "False\n"
     ">>> c.configure_lock(0.6, 0.5, 16, 64)   # tighter declare, slower "
     "drop\n" },
+  { "set_update_period", (PyCFunction)(void *)CarrierNdaObj_set_update_period,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_update_period(t_upd) -> None\n"
+    "\n"
+    "Set the loop's update period: t_upd samples a loop update.\n"
+    "\n"
+    "For a composer that updates the loop once a block (carrier_nda_update()\n"
+    "once a sum, carrier_nda_wipeoff() once a sample). The loop is designed\n"
+    "per update: `bn` becomes the noise bandwidth times the update period\n"
+    "(`B_L * t_upd / fs`), and the filter's output, a frequency in cycles an\n"
+    "update, is spread over the update's samples (carrier_nda_steer()). The\n"
+    "frequency readouts follow. The configured `bn` and `zeta` are kept. On\n"
+    "a running loop the integrator, which holds cycles an update, is\n"
+    "rescaled by the new period over the old, so the tracked frequency\n"
+    "(cycles a sample) and the command held for the next sample are\n"
+    "unchanged by the call; the NCO and the lock are not touched.\n"
+    "\n"
+    "dp_carrier_nda_steps() runs the loop once a sample, so it is defined at\n"
+    "the default 1 only: at any other period it writes nothing and returns\n"
+    "0.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "t_upd : float\n"
+    "    Samples an update, finite and >= 1 (it may be fractional: a code\n"
+    "    period of 2,750.4 samples).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``CarrierNda: the update period must be finite and >= 1``, with the\n"
+    "    return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import CarrierNda\n"
+    ">>> c = CarrierNda(bn=0.012, sps=8, n=1, m=2)\n"
+    ">>> c.set_update_period(3500.0)   # once a code period of 3,500 samples\n"
+    ">>> len(c.steps(np.ones(8, dtype=np.complex64)))   # steps() is per "
+    "sample\n"
+    "0\n" },
+  { "set_denominator", (PyCFunction)(void *)CarrierNdaObj_set_denominator,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_denominator(alpha, gamma_d) -> None\n"
+    "\n"
+    "Choose what divides the phase error: the update's power averaged\n"
+    "with weight alpha, less the caller's noise power when gamma_d is set.\n"
+    "\n"
+    "One parametrization covers the three forms:\n"
+    "\n"
+    "- `alpha = 1, gamma_d = 0`: one update's own `|z|^2`, the limiter (the\n"
+    "  default; carrier_nda_disc()'s arithmetic, exactly);\n"
+    "- `alpha < 1, gamma_d = 0`: the average, the averaged form;\n"
+    "- `gamma_d > 0`: the average less the noise, clamped between the design\n"
+    "  point's signal share, `avg * gamma_d/(gamma_d + 1)`, and the average\n"
+    "  itself, the unit form.\n"
+    "\n"
+    "At update SNR `gamma` the limiter's gain falls with the SNR, the\n"
+    "averaged form's is `gamma/(gamma + 1)`, and the unit form's is 1 while\n"
+    "the caller's noise power holds (carrier_nda_update()). The clamp keeps\n"
+    "the unit form's gain at most the design point's 1, and its sign the\n"
+    "average's, at boot or when the noise estimate is off.\n"
+    "\n"
+    "Every form but the limiter is derived at M = 2 only and refused at M =\n"
+    "4 and 8. Setting a form clears the running average; the loop's other\n"
+    "state is untouched.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "alpha : float, default 1.0\n"
+    "    The average's EMA weight an update, in (0, 1]: 1/256 at the\n"
+    "    415.1-B-1 point, 1 for the limiter.\n"
+    "gamma_d : float, default 0.0\n"
+    "    The design update SNR, linear: > 0 for the unit form, 0 otherwise.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``CarrierNda: the denominator needs alpha in (0, 1] and a finite\n"
+    "    gamma_d >= 0, and any form but the limiter (alpha 1, gamma_d 0)\n"
+    "    needs m = 2``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.track import CarrierNda\n"
+    ">>> c = CarrierNda(bn=0.01, sps=8, n=1, m=2)\n"
+    ">>> c.set_denominator(1.0 / 256.0, 2.4)   # the unit form, gamma_d 3.8 "
+    "dB\n"
+    ">>> c.set_denominator(1.0, 0.0)           # back to the limiter\n" },
+  { "set_block_lock", (PyCFunction)(void *)CarrierNdaObj_set_block_lock,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_block_lock(len, pfa, n_up, n_down) -> None\n"
+    "\n"
+    "Decide the lock on a block: the ratio of sums over len updates,\n"
+    "against the exact threshold at pfa.\n"
+    "\n"
+    "`R = sum(I^2 - Q^2) / sum(I^2 + Q^2)` over a block of updates, dumped\n"
+    "once a block. On noise alone `(R + 1)/2` is exactly `Beta(len/2,\n"
+    "len/2)`: the block's own total power is the noise reference, so the\n"
+    "threshold needs no noise estimate. It is that law's upper pfa point,\n"
+    "through dp_det_threshold_f() (`R > r` is `X/Y > (1 + r)/(1 - r)` for\n"
+    "`X, Y` chi-square on len degrees). The decision takes n_up blocks above\n"
+    "it to declare and n_down below it to drop (one threshold, time\n"
+    "hysteresis only). `lock` then reads the last block's R.\n"
+    "\n"
+    "len 0 returns to the per-sample EMA and its default rule\n"
+    "(dp_carrier_nda_configure_lock()'s). M = 2 only. Either way the lock\n"
+    "decision restarts unlocked, and the block in progress is cleared.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "len : int\n"
+    "    Updates a block, 2 to CARRIER_NDA_BLOCK_MAX_LEN; or 0 for the EMA.\n"
+    "pfa : float, default 1e-3\n"
+    "    The false-alarm rate a block, in (0, 1/2): at 1/2 or more the\n"
+    "    threshold is at or under 0 and the lock declares on noise as often\n"
+    "    as not.\n"
+    "n_up : int, default 2\n"
+    "    Blocks above the threshold to declare; clamped >= 1.\n"
+    "n_down : int, default 3\n"
+    "    Blocks below it to drop; clamped >= 1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``CarrierNda: the block lock needs m = 2, len 0 or >= 2 and pfa in\n"
+    "    (0, 1)``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.track import CarrierNda\n"
+    ">>> c = CarrierNda(bn=0.012, sps=8, n=1, m=2)\n"
+    ">>> c.set_block_lock(31, 1e-3, 2, 3)\n"
+    ">>> round(c.block_thresh, 3)   # the Beta(15.5, 15.5) upper 1e-3 point\n"
+    "0.518\n" },
   { "reset", (PyCFunction)CarrierNdaObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

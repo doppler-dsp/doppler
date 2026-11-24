@@ -1,6 +1,8 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include "doppler/detection/detection_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/state_filter/state_filter_core.h"
 #include "doppler/util/util_core.h"
 #include <math.h>
 #include <stdlib.h>
@@ -139,6 +141,289 @@ adr_enter (dp_async_dsss_receiver_state_t *s, int state)
     s->both_down_samples = 0;
 }
 
+/* The carrier loop's design point and block lock, from the design C/N0.
+ * gamma is the update's SNR, C/N0 over a code period. The loop's jitter is
+ * the unit denominator's: its error, divided by the slope, has variance
+ * (1 + 1/(2 gamma)) / (2 gamma) an update, and the closed loop passes 2 B
+ * of it, B the bandwidth it delivers (pin 18 of test_carrier_nda_core.c
+ * measures that law), so phase_var = B (1 + 1/(2 gamma)) / gamma. B is the
+ * rule's bn through the loop filter's gains at the loop's detector delay
+ * (ASYNC_DSSS_RX_CAR_LOOP_DELAY) and unit slope: 1.059 / 1.044 times the
+ * rule's at 2.2 / 2.8 GHz and 4 segments, where the rule's bn alone gives
+ * 1/200 rad^2.
+ * The count is the least whose ratio of sums detects at Pd
+ * ASYNC_DSSS_RX_CAR_LOCK_PD against the exact threshold at Pfa
+ * ASYNC_DSSS_RX_CAR_LOCK_PFA. */
+static double
+adr_carrier_gamma (double cn0_dbhz, double chip_rate, size_t code_len)
+{
+  return pow (10.0, cn0_dbhz / 10.0) * (double)code_len / chip_rate;
+}
+
+double
+dp_async_dsss_receiver_carrier_phase_var (double cn0_dbhz, double chip_rate,
+                                          size_t code_len, size_t segments)
+{
+  const double g = adr_carrier_gamma (cn0_dbhz, chip_rate, code_len);
+  if (!(isfinite (g) && g > 0.0) || segments == 0)
+    return NAN;
+  const double bn
+      = dp_async_dsss_receiver_carrier_bn (cn0_dbhz, chip_rate, code_len);
+  dp_loop_filter_state_t lf;
+  dp_loop_filter_init (&lf, bn, 0.707, 1.0);
+  const double bd = dp_state_filter_loop_bandwidth (
+      2, lf.kp, lf.ki, 0.0, ASYNC_DSSS_RX_CAR_LOOP_DELAY (segments), 1.0);
+  return bd * (1.0 + 1.0 / (2.0 * g)) / g; /* NaN: not stable there */
+}
+
+uint32_t
+dp_async_dsss_receiver_carrier_lock_n_noncoh (double cn0_dbhz,
+                                              double chip_rate,
+                                              size_t code_len, size_t segments)
+{
+  const double g   = adr_carrier_gamma (cn0_dbhz, chip_rate, code_len);
+  const double var = dp_async_dsss_receiver_carrier_phase_var (
+      cn0_dbhz, chip_rate, code_len, segments);
+  if (!(isfinite (var) && var > 0.0))
+    return 0u;
+  const int b = dp_det_ratio_block_len (g, var, ASYNC_DSSS_RX_CAR_LOCK_PFA,
+                                        ASYNC_DSSS_RX_CAR_LOCK_PD,
+                                        (int)CARRIER_NDA_BLOCK_MAX_LEN);
+  return b > 0 ? (uint32_t)b : 0u;
+}
+
+/* The fine check's threshold on PolynomialPhaseEstimator's snr_db (the
+   peak's dB less the spectrum's mean dB) over n sums: the peak must clear
+   the largest of n exponential noise bins at pfa, t = ln(n / pfa) bin
+   means, and an exponential bin's mean dB sits 10 gamma_E / ln 10 (2.51)
+   dB under the dB of its mean. */
+static double
+adr_fine_thr_db (size_t n, double pfa)
+{
+  return 10.0 * log10 (log ((double)n / pfa))
+         + 10.0 * 0.57721566490153286 / log (10.0);
+}
+
+/* The Kaiser window PolynomialPhaseEstimator applies (50 dB), at n points:
+   its peak-bin share p = (sum w)^2 / (n sum w^2) and the frequency
+   estimate's variance over the rectangular bound, eta = sum w^2 m^2 (n^3 /
+   12) / (sum w m^2)^2, with m the centred index. */
+static void
+adr_fine_window (size_t n, double *p, double *eta)
+{
+  float *w = dp_xmallocn (n, sizeof *w);
+  dp_kaiser_window (w, n, (float)dp_kaiser_beta_for_sidelobe (50.0));
+  double sw = 0.0, sw2 = 0.0, sw2m2 = 0.0, swm2 = 0.0;
+  for (size_t i = 0; i < n; i++)
+    {
+      const double m = (double)i - 0.5 * (double)(n - 1), wi = (double)w[i];
+      sw += wi;
+      sw2 += wi * wi;
+      sw2m2 += wi * wi * m * m;
+      swm2 += wi * m * m;
+    }
+  free (w);
+  *p   = sw * sw / ((double)n * sw2);
+  *eta = sw2m2 * ((double)n * (double)n * (double)n / 12.0) / (swm2 * swm2);
+}
+
+/* The window's coherent loss for a tone chirping at r cycles a sample
+   squared over n samples, dB: |sum w e^{j pi r m^2}|^2 / (sum w)^2 with m
+   centred, where the even phase puts the peak at the centre frequency. */
+static double
+adr_fine_chirp_loss_db (size_t n, double r)
+{
+  float *w = dp_xmallocn (n, sizeof *w);
+  dp_kaiser_window (w, n, (float)dp_kaiser_beta_for_sidelobe (50.0));
+  double re = 0.0, im = 0.0, sw = 0.0;
+  for (size_t i = 0; i < n; i++)
+    {
+      const double m = (double)i - 0.5 * (double)(n - 1);
+      re += (double)w[i] * cos (M_PI * r * m * m);
+      im += (double)w[i] * sin (M_PI * r * m * m);
+      sw += (double)w[i];
+    }
+  free (w);
+  return -10.0 * log10 ((re * re + im * im) / (sw * sw));
+}
+
+/* Does a dwell of d blocks meet p_ho at one squared sum's SNR gs? With the
+   rate axis off (max_rate 0) a tone chirping at r loses the window's chirp
+   loss at that length; with it on the estimator searches max_rate and its
+   rows join the union and the check. Fills out's dwell fields when it
+   does. */
+static int
+adr_fine_meets (size_t d, int k, double T, double gs, double r,
+                double max_rate, double block_s, double pfa, double p_ho,
+                int m, async_dsss_receiver_fine_t *out)
+{
+  const size_t n_s = (size_t)llround ((double)k * (double)d * block_s / T);
+  if (n_s < 4)
+    return 0;
+  size_t n_rate = 1;
+  if (max_rate > 0.0)
+    {
+      /* The estimator's own grid at this length. */
+      dp_ppe_state_t *p = dp_ppe_create (n_s, max_rate);
+      if (!p)
+        return 0;
+      n_rate = p->n_rate;
+      dp_ppe_destroy (p);
+    }
+  double pw, eta;
+  adr_fine_window (n_s, &pw, &eta);
+  const double loss_db
+      = max_rate == 0.0 && r > 0.0 ? adr_fine_chirp_loss_db (n_s, r) : 0.0;
+  const double rho   = (double)n_s * gs * pow (10.0, -loss_db / 10.0);
+  const double cells = (double)n_s * (double)n_rate;
+  const double t     = log (cells / pfa);
+  const double p_w   = 0.5 * (cells - 1.0) * exp (-pw * rho / 2.0);
+  const double miss
+      = 1.0 - dp_marcum_q (1, sqrt (2.0 * pw * rho), sqrt (2.0 * t));
+  if (p_w + miss > 1.0 - p_ho)
+    return 0;
+  const double dur = (double)n_s * T / (double)k;
+  out->blocks      = d;
+  out->n_s         = n_s;
+  out->n_rate      = n_rate;
+  out->rho         = rho;
+  out->p_w         = p_w;
+  out->p_miss      = miss;
+  out->thr_db      = adr_fine_thr_db ((size_t)cells, pfa);
+  out->sd_hz = sqrt (6.0 * eta) / (2.0 * M_PI * dur * sqrt (rho)) / (double)m;
+  return 1;
+}
+
+/* The least dwell that meets p_ho, up to max_blocks; 0 if none. Without a
+   chirp loss the rates fall as the dwell grows, so the search doubles to a
+   dwell that meets and bisects for the least. With one (the axis off at a
+   nonzero rate) the loss can outgrow the gain, so it scans, and only up
+   to max_blocks. */
+static size_t
+adr_fine_dwell (int k, double T, double gs, double r, double max_rate,
+                double block_s, double pfa, double p_ho, size_t max_blocks,
+                int m, async_dsss_receiver_fine_t *out)
+{
+  if (max_rate == 0.0 && r > 0.0)
+    {
+      for (size_t d = 1; d <= max_blocks; d++)
+        if (adr_fine_meets (d, k, T, gs, r, max_rate, block_s, pfa, p_ho, m,
+                            out))
+          return d;
+      return 0;
+    }
+  size_t hi = 1;
+  while (
+      !adr_fine_meets (hi, k, T, gs, r, max_rate, block_s, pfa, p_ho, m, out))
+    {
+      if (hi >= max_blocks)
+        return 0;
+      hi = hi > max_blocks / 2 ? max_blocks : 2 * hi;
+    }
+  size_t lo = hi / 2; /* fails, or 0 */
+  while (hi - lo > 1)
+    {
+      const size_t               mid = lo + (hi - lo) / 2;
+      async_dsss_receiver_fine_t tmp = *out;
+      if (adr_fine_meets (mid, k, T, gs, r, max_rate, block_s, pfa, p_ho, m,
+                          &tmp))
+        hi = mid;
+      else
+        lo = mid;
+    }
+  (void)adr_fine_meets (hi, k, T, gs, r, max_rate, block_s, pfa, p_ho, m, out);
+  return hi;
+}
+
+int
+dp_async_dsss_receiver_fine_design (
+    double cn0_dbhz, double chip_rate, size_t code_len, double p_flip,
+    double symbol_rate, int m, size_t refine_segments, double e_hz,
+    double rate_hz_s, double eps_chip, double block_s, double pfa, double p_ho,
+    size_t max_blocks, async_dsss_receiver_fine_t *out)
+{
+  if (m != 2 || !isfinite (cn0_dbhz) || !(chip_rate > 0.0) || code_len == 0
+      || !(p_flip >= 0.0 && p_flip <= 1.0) || !(symbol_rate > 0.0)
+      || refine_segments == 0 || !(e_hz >= 0.0) || !isfinite (e_hz)
+      || !(rate_hz_s >= 0.0) || !isfinite (rate_hz_s)
+      || !(eps_chip >= 0.0 && eps_chip < 1.0) || !(block_s > 0.0)
+      || !(pfa > 0.0 && pfa < 1.0) || !(p_ho > 0.0 && p_ho < 1.0))
+    return DP_ERR_INVALID;
+  const double T = (double)code_len / chip_rate;
+  int          k = 0;
+  for (size_t d = 1; d <= refine_segments; d++)
+    if (refine_segments % d == 0 && (double)d / (2.0 * m * T) > e_hz)
+      {
+        k = (int)d;
+        break;
+      }
+  if (!k)
+    return DP_ERR_INVALID;
+  const double gamma = pow (10.0, cn0_dbhz / 10.0) * T;
+  const double rho_r = 1.0 - p_flip / 4.0, kap = 1.0 - p_flip / 3.0;
+  const double x    = e_hz * T / (double)k;
+  const double sinc = x == 0.0 ? 1.0 : sin (M_PI * x) / (M_PI * x);
+  const double g = gamma / (double)k * rho_r * rho_r / kap * (1.0 - eps_chip)
+                   * (1.0 - eps_chip) * sinc * sinc;
+  const double q = T * symbol_rate / (double)k;
+  const double c = 1.0 - q / 3.0, v = (1.0 - 0.4 * q) - c * c;
+  const double gs = c * c * g * g / (4.0 * g + 2.0 + v * g * g);
+  out->k          = k;
+  out->g          = g;
+  out->gamma_sq   = gs;
+  /* The rate-free dwell's chirp loss, reported; then the two ways to
+     meet p_ho under the rate: the axis off, the loss taken at each length
+     (A), or the axis on with its rows (B). The shorter dwell is the
+     design; a tie keeps the axis off. */
+  const double               r = (double)m * rate_hz_s * (T / k) * (T / k);
+  async_dsss_receiver_fine_t a = *out, bb = *out; /* k, g, gamma_sq */
+  if (!adr_fine_dwell (k, T, gs, 0.0, 0.0, block_s, pfa, p_ho, max_blocks, m,
+                       out))
+    return DP_ERR_INVALID;
+  out->chirp_loss_db = r > 0.0 ? adr_fine_chirp_loss_db (out->n_s, r) : 0.0;
+  out->max_rate      = 0.0;
+  if (r == 0.0)
+    return DP_OK;
+  /* B first: past its dwell A cannot win, so A scans only that far. */
+  const size_t db = adr_fine_dwell (k, T, gs, r, r, block_s, pfa, p_ho,
+                                    max_blocks, m, &bb);
+  const size_t da = adr_fine_dwell (k, T, gs, r, 0.0, block_s, pfa, p_ho,
+                                    db ? db : max_blocks, m, &a);
+  if (!da && !db)
+    return DP_ERR_INVALID;
+  const double chirp = out->chirp_loss_db;
+  if (da && (!db || da <= db))
+    {
+      *out          = a;
+      out->max_rate = 0.0;
+      out->n_rate   = 1;
+    }
+  else
+    {
+      *out          = bb;
+      out->max_rate = r;
+    }
+  out->chirp_loss_db = chirp;
+  return DP_OK;
+}
+
+double
+dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
+                                   size_t code_len)
+{
+  /* rho = C/N0 T, T one code period: the update's coherent SNR. The rule's
+     loop SNR rho S_L / (2 bn) at ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB is the
+     ceiling, counting the squaring loss S_L = 1 / (1 + 1/(2 rho)) of the
+     M = 2 detector (the owner's ruling, 2026-11-22); the release's
+     bandwidth is the widest taken. */
+  const double rho
+      = pow (10.0, cn0_dbhz / 10.0) * (double)code_len / chip_rate;
+  const double bn
+      = rho / (1.0 + 1.0 / (2.0 * rho))
+        / (2.0 * pow (10.0, ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB / 10.0));
+  return bn < ASYNC_DSSS_RX_BN_CARRIER ? bn : ASYNC_DSSS_RX_BN_CARRIER;
+}
+
 /* Allocate a fresh refine-stage chain (frozen carrier + collection Dll +
  * RateConverter + CarrierAcquisition, plus their scratch buffers) from
  * the given hand-off phase/frequency, without touching `s`'s existing
@@ -164,7 +449,7 @@ adr_build_refine_chain (
    * is ever touched. bn_fll = 0: no FLL anywhere in this object (see the
    * ASYNC_DSSS_RX_BN_CARRIER comment). */
   double front_end_rate = s->chip_rate * (double)s->spc;
-  dp_costas_init (car_frozen_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
+  dp_costas_init (car_frozen_out, s->bn_carrier, 0.707,
                   doppler_hz_est / front_end_rate, s->tsamps, 0.0);
 
   dp_dll_state_t *refine_dll = dp_xnn (
@@ -194,18 +479,25 @@ adr_build_refine_chain (
    * is used as-is rather than re-derived). */
   dp_carrier_acq_state_t *ca = adr_new_carrier_acq (s, target_rate);
 
-  float _Complex *dll_out_buf
-      = dp_xmallocn (s->refine_segments, sizeof (*dll_out_buf));
+  /* The refine Dll's output, sized at the most one call can emit:
+     adr_refine_period() feeds a code period's samples a call, and such a
+     call holds two epoch ends whenever the boundary sits on its edge, so
+     two periods' dumps. dp_dll_steps() stops emitting at max_out and drops
+     the rest silently (#3282), so one period's capacity lost a whole period
+     of partials there (#3281). Sized as the tracking path's is
+     (adr_size_track_scratch()): tsamps, at most one dump a sample. */
+  float _Complex *dll_out_buf = dp_xmallocn (s->tsamps, sizeof (*dll_out_buf));
 
-  size_t rc_out_cap
-      = (size_t)((double)s->refine_segments * refine_rc->rate) + 64;
+  /* The converter's output for that many dumps in one call, its rate times
+     the input plus its own margin, as the tracking path's. */
+  size_t rc_out_cap = (size_t)((double)s->tsamps * refine_rc->rate) + 64;
   float _Complex *rc_out_buf = dp_xmallocn (rc_out_cap, sizeof (*rc_out_buf));
 
   *refine_dll_out  = refine_dll;
   *refine_rc_out   = refine_rc;
   *ca_out          = ca;
   *dll_out_buf_out = dll_out_buf;
-  *dll_out_cap_out = s->refine_segments;
+  *dll_out_cap_out = s->tsamps;
   *rc_out_buf_out  = rc_out_buf;
   *rc_out_cap_out  = rc_out_cap;
 }
@@ -230,6 +522,8 @@ adr_free_refine_chain (dp_async_dsss_receiver_state_t *s)
  * discipline applied at the call site. Also resets refine_samples_fed
  * and the shared carry buffer (fresh chain: no leftover partial-period
  * tail). Cannot fail (the sub-object allocations are trusted). */
+static int adr_tlm_attach (dp_async_dsss_receiver_state_t *s);
+
 static void
 adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
                           double doppler_hz_est)
@@ -261,19 +555,23 @@ adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   s->car_carry_len      = 0;
   s->refine_hist_len    = 0;
   s->refine_hist_head   = 0;
+  s->fine_n             = 0;
+  s->ho_src             = ASYNC_DSSS_RX_HO_NONE;
+  /* The new estimators report under the old names, as the track chain's
+     loops do after their rebuild. */
+  if (s->tlm)
+    (void)adr_tlm_attach (s);
 }
 
 /* Allocate a fresh live-tracking chain (Dll/RateConverter/MpskReceiver +
- * the pre-despread carrier loop), mirroring dsss_receiver_core.c's own
- * dsss_rx_build_chain: dp_costas_init()'s tsamps is one whole code period, and
- * costas_update() is called once per period from a non-data-aided
- * (squaring) combine of that period's emitted coherent-I&D partials (see
- * adr_track_period()) -- not once per partial (see this function's own
- * comment on dp_costas_init() below for why). */
+ * the pre-despread carrier loop). The carrier loop is carrier_nda at M = 2,
+ * its update period one code period: carrier_nda_update() runs once a
+ * period on the Dll's window sum (see adr_track_period()), not once a
+ * partial, so each update integrates the whole period. */
 static void
 adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
                        double doppler_hz_est, size_t segments, size_t sps,
-                       int n, dp_costas_state_t *car_out,
+                       int n, dp_carrier_nda_state_t *car_out,
                        dp_dll_state_t           **dll_out,
                        dp_RateConverter_state_t **rc_out,
                        dp_mpsk_receiver_state_t **rx_out)
@@ -334,7 +632,7 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
 
   /* MpskReceiver's own carrier loop is seeded at 0, NOT doppler_hz_est
    * again -- same reasoning as dsss_receiver_core.c's own
-   * dsss_rx_build_chain(): the pre-despread Costas loop below already removes
+   * dsss_rx_build_chain(): the pre-despread carrier loop below already removes
    * the FULL physical Doppler, so only a small residual should reach
    * MpskReceiver. Re-seeding it with the full doppler_hz_est (evaluated at
    * target_rate=sps*symbol_rate, a much smaller rate than the front end)
@@ -365,11 +663,30 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
    * integration by `segments`, too weak/noisy to steer a clean carrier
    * estimate. Pure PLL, no FLL (bn_fll = 0 below). */
   double front_end_rate = s->chip_rate * (double)s->spc;
-  /* bn_fll = 0: pure PLL, no FLL (see ASYNC_DSSS_RX_BN_CARRIER's comment --
-     the FLL cross-product is too noisy on the despread-symbol input and
-     drives the carrier wander that causes the residual slips). */
-  dp_costas_init (car_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
-                  doppler_hz_est / front_end_rate, s->tsamps, 0.0);
+  /* carrier_nda at M = 2 through its composition API: the receiver wipes
+     each sample (carrier_nda_wipeoff) and hands it the Dll's window sum
+     once a period (carrier_nda_update), so its update period is the
+     period's samples, and its arm (sps 8, n 1) is never stepped. The unit
+     denominator divides the error by the window sum's signal power,
+     averaged at ASYNC_DSSS_RX_CAR_DEN_ALPHA less the Dll's window noise,
+     clamped below at the design point's share (car_gamma). The lock is the
+     ratio of sums of I^2 - Q^2 over I^2 + Q^2 on blocks of car_blk
+     updates (never 0: create() refuses a design it cannot size), at Pfa
+     ASYNC_DSSS_RX_CAR_LOCK_PFA, with the code lock's verify counts. Every
+     option is a valid configuration create() vouched for, so a refusal
+     here is a defect. */
+  dp_carrier_nda_init (car_out, s->bn_carrier, 0.707,
+                       doppler_hz_est / front_end_rate, 8, 1, 2);
+  if (dp_carrier_nda_set_update_period (car_out, (double)s->tsamps) != DP_OK
+      || dp_carrier_nda_set_denominator (car_out, ASYNC_DSSS_RX_CAR_DEN_ALPHA,
+                                         s->car_gamma)
+             != DP_OK
+      || dp_carrier_nda_set_block_lock (
+             car_out, s->car_blk, ASYNC_DSSS_RX_CAR_LOCK_PFA,
+             (uint32_t)dp_det_verify_count (ASYNC_DSSS_RX_CAR_LOCK_PFA, 1e-6),
+             (uint32_t)dp_det_verify_count (0.01, 1e-6))
+             != DP_OK)
+    abort ();
 
   *dll_out = dll;
   *rc_out  = rc;
@@ -409,7 +726,14 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
   char        car[DP_TLM_NAME_MAX], code[DP_TLM_NAME_MAX], rc[DP_TLM_NAME_MAX],
       demod[DP_TLM_NAME_MAX], acq[DP_TLM_NAME_MAX], sym_lock[DP_TLM_NAME_MAX],
       sym_locked[DP_TLM_NAME_MAX], st[DP_TLM_NAME_MAX],
-      handover[DP_TLM_NAME_MAX], refused[DP_TLM_NAME_MAX];
+      sym_num[DP_TLM_NAME_MAX], sym_den[DP_TLM_NAME_MAX],
+      code_steer[DP_TLM_NAME_MAX], sync[DP_TLM_NAME_MAX],
+      handover[DP_TLM_NAME_MAX], refused[DP_TLM_NAME_MAX],
+      ref[DP_TLM_NAME_MAX], ph_car[DP_TLM_NAME_MAX], ph_code[DP_TLM_NAME_MAX],
+      cn0[DP_TLM_NAME_MAX], ho_src[DP_TLM_NAME_MAX], had_lock[DP_TLM_NAME_MAX],
+      coast[DP_TLM_NAME_MAX], hold[DP_TLM_NAME_MAX], release[DP_TLM_NAME_MAX],
+      fine_hz[DP_TLM_NAME_MAX], fine_snr[DP_TLM_NAME_MAX],
+      fine_n[DP_TLM_NAME_MAX];
   if (dp_tlm_name_join (car, p, "car") != DP_OK
       || dp_tlm_name_join (code, p, "code") != DP_OK
       || dp_tlm_name_join (rc, p, "rc") != DP_OK
@@ -417,9 +741,25 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       || dp_tlm_name_join (acq, p, "acq") != DP_OK
       || dp_tlm_name_join (sym_lock, p, "sym.lock") != DP_OK
       || dp_tlm_name_join (sym_locked, p, "sym.locked") != DP_OK
+      || dp_tlm_name_join (sym_num, p, "sym.num") != DP_OK
+      || dp_tlm_name_join (sym_den, p, "sym.den") != DP_OK
+      || dp_tlm_name_join (code_steer, p, "code.steer") != DP_OK
+      || dp_tlm_name_join (sync, p, "demod.sync") != DP_OK
       || dp_tlm_name_join (st, p, "state") != DP_OK
       || dp_tlm_name_join (handover, p, "handover_hz") != DP_OK
-      || dp_tlm_name_join (refused, p, "refused") != DP_OK)
+      || dp_tlm_name_join (refused, p, "refused") != DP_OK
+      || dp_tlm_name_join (ref, p, "ref") != DP_OK
+      || dp_tlm_name_join (ph_car, p, "phase.car") != DP_OK
+      || dp_tlm_name_join (ph_code, p, "phase.code") != DP_OK
+      || dp_tlm_name_join (cn0, p, "cn0") != DP_OK
+      || dp_tlm_name_join (ho_src, p, "ho_src") != DP_OK
+      || dp_tlm_name_join (had_lock, p, "had_lock") != DP_OK
+      || dp_tlm_name_join (coast, p, "coast") != DP_OK
+      || dp_tlm_name_join (hold, p, "hold") != DP_OK
+      || dp_tlm_name_join (release, p, "release") != DP_OK
+      || dp_tlm_name_join (fine_hz, p, "ref_fine.hz") != DP_OK
+      || dp_tlm_name_join (fine_snr, p, "ref_fine.snr_db") != DP_OK
+      || dp_tlm_name_join (fine_n, p, "ref_fine.n") != DP_OK)
     return DP_ERR_INVALID;
   /* The searcher first: it is the one child whose attach allocates (a
      scratch context of its own, checked before it registers anything), so
@@ -428,22 +768,36 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
   int r
       = s->acq ? dp_correlator_set_telemetry (s->acq, t, acq, d, NULL) : DP_OK;
   if (r == DP_OK)
-    r = dp_costas_set_telemetry (&s->car, t, car, d);
+    r = dp_carrier_nda_set_telemetry (&s->car, t, car, d);
   if (r == DP_OK)
-    r = dp_costas_set_telemetry (&s->car_held, t, car, d);
+    r = dp_carrier_nda_set_telemetry (&s->car_held, t, car, d);
   if (r == DP_OK)
     r = dp_dll_set_telemetry (s->dll, t, code, d);
+  /* The code loop's filter at its own cadence, each steer of the symbol
+     aid (async-dsss-receiver-measurements.md §4.11 (as planned), B). */
+  if (r == DP_OK)
+    r = dp_dll_set_steer_telemetry (s->dll, t, code_steer, d);
   if (r == DP_OK)
     r = dp_RateConverter_set_telemetry (s->rc, t, rc, d);
   if (r == DP_OK)
     r = dp_mpsk_receiver_set_telemetry (s->rx, t, demod, d);
+  /* The timing loop's two filter terms, beside its six probes. */
+  if (r == DP_OK)
+    r = dp_ratesync_loop_set_filter_telemetry (&s->rx->l.timing, t, sync, d);
+  /* The refine's estimator: each test beside its threshold, while
+     refining (dp_carrier_acq_set_telemetry()). */
+  if (r == DP_OK)
+    r = dp_carrier_acq_set_telemetry (s->ca, t, ref, d);
   /* The receiver's own decision, the one its users act on: the symbol-lock
      metric and the lockdet's flag, once per emitted symbol. */
   if (r == DP_OK)
     {
       s->tlm_sym_lock   = dp_tlm_probe (t, sym_lock, d);
       s->tlm_sym_locked = dp_tlm_probe (t, sym_locked, d);
-      if (s->tlm_sym_lock < 0 || s->tlm_sym_locked < 0)
+      s->tlm_sym_num    = dp_tlm_probe (t, sym_num, d);
+      s->tlm_sym_den    = dp_tlm_probe (t, sym_den, d);
+      if (s->tlm_sym_lock < 0 || s->tlm_sym_locked < 0 || s->tlm_sym_num < 0
+          || s->tlm_sym_den < 0)
         r = DP_ERR_INVALID;
     }
   /* Where the receiver is in its lifecycle, the Doppler its chain was built
@@ -458,6 +812,41 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       if (s->tlm_state < 0 || s->tlm_handover < 0 || s->tlm_refused < 0)
         r = DP_ERR_INVALID;
     }
+  /* With them, once a call: the hand-over's source, the seed's C/N0, and
+     the loops' NCO phases at the call's first sample. */
+  if (r == DP_OK)
+    {
+      s->tlm_ho_src     = dp_tlm_probe (t, ho_src, d);
+      s->tlm_cn0        = dp_tlm_probe (t, cn0, d);
+      s->tlm_phase_car  = dp_tlm_probe (t, ph_car, d);
+      s->tlm_phase_code = dp_tlm_probe (t, ph_code, d);
+      if (s->tlm_ho_src < 0 || s->tlm_cn0 < 0 || s->tlm_phase_car < 0
+          || s->tlm_phase_code < 0)
+        r = DP_ERR_INVALID;
+    }
+  /* The loop control the two flags drive: had_lock, the coast and the
+     hold point's re-mark, once a code period where it is decided; and the
+     release clock against its confirm interval, once a call. */
+  if (r == DP_OK)
+    {
+      s->tlm_had_lock = dp_tlm_probe (t, had_lock, d);
+      s->tlm_coast    = dp_tlm_probe (t, coast, d);
+      s->tlm_hold     = dp_tlm_probe (t, hold, d);
+      s->tlm_release  = dp_tlm_probe (t, release, d);
+      if (s->tlm_had_lock < 0 || s->tlm_coast < 0 || s->tlm_hold < 0
+          || s->tlm_release < 0)
+        r = DP_ERR_INVALID;
+    }
+  /* The fine hand-over's estimate, its snr_db and its sums, once at the
+     refine's decision. */
+  if (r == DP_OK)
+    {
+      s->tlm_fine_hz  = dp_tlm_probe (t, fine_hz, d);
+      s->tlm_fine_snr = dp_tlm_probe (t, fine_snr, d);
+      s->tlm_fine_n   = dp_tlm_probe (t, fine_n, d);
+      if (s->tlm_fine_hz < 0 || s->tlm_fine_snr < 0 || s->tlm_fine_n < 0)
+        r = DP_ERR_INVALID;
+    }
   return r;
 }
 
@@ -466,15 +855,22 @@ static void
 adr_tlm_detach (dp_async_dsss_receiver_state_t *s)
 {
   const char *p = s->tlm_prefix;
-  (void)dp_costas_set_telemetry (&s->car, NULL, p, 1);
-  (void)dp_costas_set_telemetry (&s->car_held, NULL, p, 1);
+  (void)dp_carrier_nda_set_telemetry (&s->car, NULL, p, 1);
+  (void)dp_carrier_nda_set_telemetry (&s->car_held, NULL, p, 1);
   (void)dp_dll_set_telemetry (s->dll, NULL, p, 1);
+  (void)dp_dll_set_steer_telemetry (s->dll, NULL, p, 1);
   (void)dp_RateConverter_set_telemetry (s->rc, NULL, p, 1);
   (void)dp_mpsk_receiver_set_telemetry (s->rx, NULL, p, 1);
+  (void)dp_ratesync_loop_set_filter_telemetry (&s->rx->l.timing, NULL, p, 1);
   if (s->acq)
     (void)dp_correlator_set_telemetry (s->acq, NULL, p, 1, NULL);
+  (void)dp_carrier_acq_set_telemetry (s->ca, NULL, p, 1);
   s->tlm_sym_lock = s->tlm_sym_locked = -1;
+  s->tlm_sym_num = s->tlm_sym_den = -1;
   s->tlm_state = s->tlm_handover = s->tlm_refused = -1;
+  s->tlm_ho_src = s->tlm_cn0 = s->tlm_phase_car = s->tlm_phase_code = -1;
+  s->tlm_had_lock = s->tlm_coast = s->tlm_hold = s->tlm_release = -1;
+  s->tlm_fine_hz = s->tlm_fine_snr = s->tlm_fine_n = -1;
 }
 
 /* Size the track chain's per-period scratch for the chain just built. One
@@ -506,10 +902,13 @@ adr_rebuild_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
                          double doppler_hz_est, size_t segments, size_t sps,
                          int n)
 {
-  dp_costas_state_t         car;
-  dp_dll_state_t           *dll = NULL;
-  dp_RateConverter_state_t *rc  = NULL;
-  dp_mpsk_receiver_state_t *rx  = NULL;
+  dp_carrier_nda_state_t car;
+  dp_dll_state_t        *dll = NULL;
+  /* Zeroed first, padding included: the loop is copied into car and
+     car_held whole, and their blobs are whole-struct snapshots. */
+  memset (&car, 0, sizeof car);
+  dp_RateConverter_state_t *rc = NULL;
+  dp_mpsk_receiver_state_t *rx = NULL;
   adr_build_track_chain (s, chip_phase, doppler_hz_est, segments, sps, n, &car,
                          &dll, &rc, &rx);
   adr_free_track_chain (s);
@@ -559,6 +958,9 @@ adr_new_carrier_acq (const dp_async_dsss_receiver_state_t *s,
       s->refine_sequential, s->refine_max_n_blocks));
   if (ca->dwell_target < s->refine_min_blocks)
     ca->dwell_target = s->refine_min_blocks;
+  /* The fine hand-over's dwell, when it is the longer. */
+  if (s->fine_on && ca->dwell_target < s->fine.blocks)
+    ca->dwell_target = s->fine.blocks;
   if (ca->dwell_target > ca->max_n_blocks)
     ca->dwell_target = ca->max_n_blocks;
   return ca;
@@ -593,6 +995,30 @@ adr_refine_period (dp_async_dsss_receiver_state_t *s,
                                s->refine_dll_out_buf, s->refine_dll_out_cap);
   if (n_dll == 0)
     return;
+  /* The fine hand-over's sums: the Dll's dumps (refine_segments an epoch,
+     disjoint, adding up to the window) summed in groups to fine.k a
+     period, raised to the M-th power (M = 2: squared), buffered. The
+     summation is the anti-alias filter and the dump the decimator. */
+  if (s->fine_on)
+    {
+      const size_t grp = s->refine_segments / (size_t)s->fine.k;
+      const size_t add = n_dll / grp;
+      if (s->fine_n + add > s->fine_cap)
+        {
+          /* Full: drop the oldest, so the buffer is the latest dwell. */
+          const size_t drop = s->fine_n + add - s->fine_cap;
+          memmove (s->fine_buf, s->fine_buf + drop,
+                   (s->fine_n - drop) * sizeof *s->fine_buf);
+          s->fine_n -= drop;
+        }
+      for (size_t i = 0; i + grp <= n_dll; i += grp)
+        {
+          float _Complex z = 0.0f;
+          for (size_t j = 0; j < grp; j++)
+            z += s->refine_dll_out_buf[i + j];
+          s->fine_buf[s->fine_n++] = z * z;
+        }
+    }
 
   size_t n_rc
       = dp_RateConverter_execute (s->refine_rc, s->refine_dll_out_buf, n_dll,
@@ -611,7 +1037,25 @@ adr_refine_decided (const dp_async_dsss_receiver_state_t *s)
 {
   const dp_carrier_acq_state_t *ca = s->ca;
   size_t cap = ca->sequential ? ca->max_n_blocks : ca->dwell_target;
-  return ca->ready || ca->n_blocks >= cap;
+  if (ca->n_blocks >= cap)
+    return 1;
+  /* A sequential estimator that fires early still waits out the fine
+     dwell. Once ready it counts no more blocks (dp_carrier_acq_steps()
+     returns early), so the dwell is also read off the fine buffer, which
+     keeps filling: it holds the dwell's sums once it is full but for its
+     spare period (fine_cap). Without it a refine that fired early never
+     decided. A non-sequential estimator is ready only at its dwell target,
+     which is at least the fine dwell, so its decision is unchanged. */
+  return ca->ready
+         && (!s->fine_on || ca->n_blocks >= s->fine.blocks
+             || s->fine_n + (size_t)s->fine.k >= s->fine_cap);
+}
+
+int
+dp__async_dsss_receiver_refine_decided (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return adr_refine_decided (state);
 }
 
 /* The first sample a live chain can start on at or past @p at: the smallest
@@ -717,27 +1161,15 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
   return x_len;
 }
 
-/* One carrier-wiped code period through dll -> ONE costas_update() call per
- * period, driven by a NON-DATA-AIDED (squaring) carrier discriminator over
- * that period's emitted coherent-I&D partials. A code period spans ~0.9 data
- * symbols at the specification's async ratio, so a data transition lands
- * inside nearly (docs/design/async-dsss-receiver.md) every period; the earlier
- * decision-directed combine (sign-align each partial by its own real part,
- * then sum) was corrupted by exactly those transitions -- direct measurement
- * showed a +/-57deg discriminator that averaged to zero, so the loop never
- * tracked and the whole carrier burden silently fell to the post-despread
- * MpskReceiver loop (which then held the Type-II ramp phase error). Squaring
- * removes the +/-1 BPSK data with NO per-partial sign decision (dll_out[i]^2 =
- * A^2 exp(j2phi) regardless of the data bit); a partial straddling a
- * transition merely loses amplitude, not phase. This is the SAME
- * non-data-aided principle the downstream MpskReceiver carrier loop already
- * uses, applied PRE-despread on the transition-free windows so despreading
- * stays coherent (no residual carrier rotating within the correlation) -- the
- * "unfreeze and track loop 1" step of coarse -> freeze -> refine -> track. The
- * dll_out partials are the actual despread symbol stream this object also
- * hands to RateConverter/mpsk_ receiver, so this squaring lives here in the
- * consumer, not in dll_core.c. Writes emitted partials into dll_out (capacity
- * max_out); returns count. */
+/* One carrier-wiped code period through the Dll -> at most ONE
+ * carrier_nda_update() a period, on the period's code-period window (the
+ * coherent sum the look-back picked, dp_dll_get_window_sum()): the M = 2
+ * error removes the data with no sign decision, and the window does not
+ * span a data transition. It runs PRE-despread, so despreading stays coherent:
+ * the "unfreeze and track loop 1" step of coarse -> freeze -> refine -> track.
+ * The Dll's emitted partials are the despread symbol stream this object
+ * hands to RateConverter/MpskReceiver; they go to dll_out (capacity
+ * max_out), and the count is returned. */
 static size_t
 adr_track_period (dp_async_dsss_receiver_state_t *s,
                   const float _Complex *period, float _Complex *dll_out,
@@ -778,58 +1210,64 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
     }
   const int car_coast = s->had_lock && !code_up && !sym_up;
   if (car_coast && !s->car_coasting)
-    s->car = s->car_held;
+    {
+      /* The hold point, run on its integrator: car_held's command still
+         carries its last update's proportional step, which the NCO would
+         otherwise repeat every update interval of the coast. */
+      s->car = s->car_held;
+      dp_carrier_nda_hold (&s->car);
+    }
   s->car_coasting = car_coast;
   dp_dll_set_coast (s->dll, s->had_lock && !code_up && !sym_up);
+  if (s->tlm && s->tlm_coast >= 0)
+    {
+      dp_tlm_emit (s->tlm, s->tlm_had_lock, (double)s->had_lock);
+      dp_tlm_emit (s->tlm, s->tlm_coast, (double)car_coast);
+      dp_tlm_emit (s->tlm, s->tlm_hold, (double)(code_up && sym_up));
+    }
   for (size_t i = 0; i < s->tsamps; i++)
-    s->car_wiped_buf[i] = costas_wipeoff (&s->car, period[i]);
+    s->car_wiped_buf[i] = carrier_nda_wipeoff (&s->car, period[i]);
   size_t n_out
       = dp_dll_steps (s->dll, s->car_wiped_buf, s->tsamps, dll_out, max_out);
-  if (n_out > 0 && !car_coast)
+  /* The Dll emits nothing until an epoch closes, then that epoch's dumps
+     (or, with one segment, one output), so n_out > 0 is exactly "a new
+     window sum exists" (dll_core.c's epoch close). A block that closes two
+     epochs updates once, on the later sum. */
+  const int update = n_out > 0 && !car_coast;
+  if (update)
     {
-      /* NON-DATA-AIDED carrier discriminator on the despread coherent-I&D
-       * windows. Each emitted partial is dll_out[i] = A * d * exp(j*phi),
-       * d = +/-1 BPSK data, phi = residual carrier phase. Squaring removes
-       * the data (d^2 = 1) with NO per-partial sign DECISION -- the failure
-       * mode of the old decision-directed sum, which at the specification's
-       * async ratio
-       * (~0.9 symbols/code period) straddles a data transition almost every
-       * period, giving a garbage +/-57deg discriminator that averages to
-       * zero so the loop never tracks. The dp_dll_steps() windows are short
-       * (dp_dll_lookback_segments oversampling, the same transition-free I&D
-       * the refine PSDMF consumes): a window entirely within one symbol
-       * squares cleanly; one straddling a transition merely loses amplitude,
-       * not phase -- exactly why NDA is transition-robust where the sign-wipe
-       * is not. Sum the squares and halve the angle for the carrier phase (mod
-       * pi, the harmless BPSK sign ambiguity). Feed it to the existing Costas
-       * loop via a unit phasor (Re = cos(phi) >= 0, so its own data- wipe
-       * never flips it, and its discriminator reads sin(phi)). This is the
-       * same NDA principle the downstream MpskReceiver carrier loop uses,
-       * applied PRE-despread so despreading stays coherent (no residual
-       * carrier rotating within the correlation) instead of leaving the whole
-       * carrier burden to the post-despread loop. */
-      float _Complex sq = 0.0f;
-      for (size_t i = 0; i < n_out; i++)
-        sq += dll_out[i] * dll_out[i];
-      double phi       = 0.5 * atan2 (cimag (sq), creal (sq));
-      float _Complex P = (float)cos (phi) + (float)sin (phi) * I;
-      costas_update (&s->car, P);
-      /* costas_update() emits nothing: the composing caller flushes
-         the loop's probes once per update (costas_core.h). */
+      /* The carrier loop's update: the one coherent sum over the
+         code-period window the Dll's look-back picked this period
+         (dp_dll_get_window_sum()), a transition-free window whenever a
+         symbol is at least a code period, which create() requires. Its
+         M = 2 error Im(w^2) removes the BPSK data (d^2 = 1) with no sign
+         decision, and is divided by the window's signal power: the
+         running average of |w|^2 less the Dll's noise on the window
+         sum's scale (dp_dll_get_window_noise()). The lock's ratio of sums
+         is formed on the same w. */
+      carrier_nda_update (&s->car, dp_dll_get_window_sum (s->dll),
+                          dp_dll_get_window_noise (s->dll));
+      /* carrier_nda_update() emits nothing: the composing caller flushes
+         the loop's probes once per update. */
       if (s->car.tlm.ctx)
-        dp_costas_tlm_flush (&s->car);
-      /* Continuous carrier->code aiding: the pre-despread Costas tracks the
-         FULL carrier offset (including the 500 Hz/s ramp), so refresh the
-         code NCO's rate bias from it every period. This keeps the initial
-         build-time seed (dp_dll_set_rate_aid in adr_build_track_chain) fresh
-         as the ramp drifts, and applies at the next period boundary
-         (dll_set_rate_ aid only stores the field, never clobbers phase_inc).
-         Off when carrier_freq_hz == 0. */
+        dp_carrier_nda_tlm_flush (&s->car);
+      /* Continuous carrier->code aiding: the pre-despread loop tracks the
+         FULL carrier offset (including the use case's Doppler rate, R_env,
+         11 Hz/s), so refresh the code NCO's rate bias from it every period.
+         This keeps the initial build-time seed (dp_dll_set_rate_aid in
+         adr_build_track_chain) fresh as the ramp drifts, and applies at the
+         next period boundary (dll_set_rate_ aid only stores the field, never
+         clobbers phase_inc). Off when carrier_freq_hz == 0. */
       if (s->carrier_freq_hz > 0.0)
-        dp_dll_set_rate_aid (s->dll, dp_costas_get_norm_freq (&s->car)
+        dp_dll_set_rate_aid (s->dll, dp_carrier_nda_get_norm_freq (&s->car)
                                          * (s->chip_rate * (double)s->spc)
                                          / s->carrier_freq_hz);
     }
+  else
+    /* No update this period (a coast, or no epoch closed): the next
+       period's wipe runs on the integrator, not on a repeat of the last
+       update's proportional step. */
+    dp_carrier_nda_hold (&s->car);
   return n_out;
 }
 
@@ -908,6 +1346,8 @@ adr_track_chain (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
           dp_tlm_emit (s->tlm, s->tlm_sym_lock, s->lock_metric);
           dp_tlm_emit (s->tlm, s->tlm_sym_locked,
                        (double)s->sym_lockdet.locked);
+          dp_tlm_emit (s->tlm, s->tlm_sym_num, s->lock_num);
+          dp_tlm_emit (s->tlm, s->tlm_sym_den, s->lock_den);
         }
     }
   return emitted;
@@ -1162,7 +1602,7 @@ dp_async_dsss_receiver_create (
     double refine_design_margin_db, size_t refine_n_fft,
     size_t refine_zero_pad, bool refine_sequential, size_t refine_max_n_blocks,
     double carrier_freq_hz, double lost_confirm_s, bool reacquire,
-    double code_only_s, double doppler_rate)
+    double code_only_s, double doppler_rate, bool refine)
 {
   /* symbol_rate becomes the carrier estimator's sample rate, which PSD
      refuses unless finite: refused here, at create, because that estimator
@@ -1205,6 +1645,11 @@ dp_async_dsss_receiver_create (
      refused here, at create (doppler#2103). */
   if (!(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0))
     return NULL;
+  /* The carrier error's code-period window holds only while a symbol is at
+     least a code period: then some window of one period is free of
+     transitions, which the look-back finds (dp_dll_get_window_sum()). */
+  if (!(symbol_rate * (double)code_len <= chip_rate))
+    return NULL;
   /* The code-only window in whole epochs, design async-dsss-receiver.md §2.3:
      floor(W * chip_rate / sf) - 1 epochs fit at ANY chip phase, and under
      two (no window, or less than two epochs of one) is the epoch-by-epoch
@@ -1235,9 +1680,36 @@ dp_async_dsss_receiver_create (
       return NULL;
   }
 
+  /* The carrier loop, from the design C/N0 alone, decided before anything
+     is built: its bandwidth by the loop-SNR rule
+     (dp_async_dsss_receiver_carrier_bn()), its update SNR and its block
+     lock's non-coherent count
+     (dp_async_dsss_receiver_carrier_lock_n_noncoh()). A design C/N0 whose
+     update SNR is not finite and positive (an absurd finite cn0_dbhz overflows
+     or underflows it), whose rule bandwidth the loop filter refuses, or at
+     which no block up to CARRIER_NDA_BLOCK_MAX_LEN reaches
+     ASYNC_DSSS_RX_CAR_LOCK_PD against ASYNC_DSSS_RX_CAR_LOCK_PFA, builds no
+     receiver: the receiver chooses the lock's rates, so it does not accept
+     an unsized flag (carrier_nda's own EMA lock stays that object's
+     default). Refused here, before the search is sized, so a refused
+     design is refused at once. */
+  const double car_bn
+      = dp_async_dsss_receiver_carrier_bn (cn0_dbhz, chip_rate, code_len);
+  const double   car_gamma = adr_carrier_gamma (cn0_dbhz, chip_rate, code_len);
+  const uint32_t car_blk   = dp_async_dsss_receiver_carrier_lock_n_noncoh (
+      cn0_dbhz, chip_rate, code_len, segments);
+  if (!(isfinite (car_gamma) && car_gamma > 0.0)
+      || !dp_loop_filter_params_ok (car_bn, 0.707, 1.0) || car_blk == 0u)
+    return NULL;
+
   dp_async_dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
   obj->tlm_sym_lock = obj->tlm_sym_locked = -1; /* detached */
+  obj->tlm_sym_num = obj->tlm_sym_den = -1;
   obj->tlm_state = obj->tlm_handover = obj->tlm_refused = -1;
+  obj->tlm_fine_hz = obj->tlm_fine_snr = obj->tlm_fine_n = -1;
+  obj->tlm_ho_src = obj->tlm_cn0 = obj->tlm_phase_car = obj->tlm_phase_code
+      = -1;
+  obj->tlm_had_lock = obj->tlm_coast = obj->tlm_hold = obj->tlm_release = -1;
 
   obj->code = dp_xmalloc (code_len);
   memcpy (obj->code, code, code_len);
@@ -1305,6 +1777,26 @@ dp_async_dsss_receiver_create (
   /* A dwell's whole peak list, for adr_pick() to rank. Its first entry is
      the one-peak detector's pick, so rank 0 with no exclusions takes what
      max_peaks 1 took. */
+  /* The carrier loop, as decided above: the refine rule below and every
+     chain this receiver builds read it. */
+  obj->bn_carrier = car_bn;
+  obj->car_gamma  = car_gamma;
+  obj->car_blk    = car_blk;
+  /* With no refine the search's Doppler is the hand-over, and the carrier
+     loop pulls in from it only while half the search's Doppler row is
+     inside the loop's acquisition bound (async-dsss-receiver.md §4.4).
+     Both are fixed here: the row is chip_rate / (code_len * D) and the
+     bound bn * chip_rate / (2 * code_len) (ASYNC_DSSS_RX_CARRIER_PULLIN_HZ),
+     so the rule is D >= 1 / bn at any chip rate, compared in whole bins
+     because at D = 1 / bn the two are equal. Outside it a seed would hand
+     the loop a residual it cannot pull in, so the receiver is not built. */
+  if (!refine
+      && obj->acq->search->coherent_bins
+             < ASYNC_DSSS_RX_NO_REFINE_MIN_BINS (obj->bn_carrier))
+    {
+      dp_async_dsss_receiver_destroy (obj);
+      return NULL;
+    }
   (void)dp_correlator_set_max_peaks (obj->acq, ASYNC_DSSS_RX_MAX_PEAKS, NULL);
   /* One emitter, one listed peak: a zone over every Doppler bin of every
      roll, so a strong emitter's own lag -- its slow-time sidelobes, its
@@ -1338,6 +1830,7 @@ dp_async_dsss_receiver_create (
 
   obj->lost_confirm_s       = lost_confirm_s;
   obj->reacquire            = reacquire;
+  obj->refine               = refine;
   obj->lost_confirm_samples = lost_confirm_samples;
   obj->code_only_s          = code_only_s;
   obj->doppler_rate         = doppler_rate;
@@ -1372,6 +1865,55 @@ dp_async_dsss_receiver_create (
   obj->car_carry_buf = dp_xmallocn (obj->tsamps, sizeof (*obj->car_carry_buf));
   obj->car_carry_len = 0;
 
+  /* The fine hand-over, designed at the design point: the code's share of
+     sign-changing boundaries (the replica's loss), the seed's error bound
+     (below: the right emitter's seed error, capped by the span), the
+     code error the search's grid leaves (half a search sample), a refine
+     block's length, the receiver's pfa and ASYNC_DSSS_RX_FINE_P_HO. Off
+     where the design refuses (M other than 2, a bound no divisor of
+     refine_segments covers, or no dwell under the cap). */
+  {
+    size_t flips = 0;
+    for (size_t i = 0; i < code_len; i++)
+      flips += (code[i] & 1u) != (code[(i + 1) % code_len] & 1u);
+    const double block_s = (double)refine_n_fft
+                           / ((double)refine_samples_per_symbol * symbol_rate);
+    /* The seed's error bound, for a hit on the right emitter: the data
+       spectrum's main lobe (a dwell partly in data smears the peak to
+       anywhere inside +-symbol_rate, its first nulls) plus the search's
+       row, capped by the span's worst pair (the seed and the truth each
+       inside +-doppler_uncertainty), which bounds any peak. Not the span
+       alone: a span bound asks a wide span for a K no divisor of
+       refine_segments covers, and turns the fine hand-over off where the
+       coarse seed is worst (docs/design/async-dsss-receiver.md, "The
+       seed's error bound"). A seed further off than this aliases by
+       K / (M T); the tone check passes it, and the carrier loop never
+       locks (doppler#3262). */
+    double row = 0.0;
+    (void)dp_correlator_get_doppler_res_hz (obj->acq, &row);
+    const double e_seed = fmin (2.0 * doppler_uncertainty, symbol_rate + row);
+    obj->fine_on
+        = dp_async_dsss_receiver_fine_design (
+              cn0_dbhz, chip_rate, code_len, (double)flips / (double)code_len,
+              symbol_rate, m, obj->refine_segments, e_seed, doppler_rate,
+              0.5 / (spc * (obj->srch_rs ? obj->srch_ratio : 1.0)), block_s,
+              pfa, ASYNC_DSSS_RX_FINE_P_HO, refine_max_n_blocks, &obj->fine)
+          == DP_OK;
+    obj->fine_hz = obj->fine_snr_db = NAN;
+    if (obj->fine_on)
+      {
+        const double T = (double)code_len / chip_rate;
+        /* The dwell's sums and a period's spare. A refine that runs
+           longer (CarrierAcquisition's dwell the longer) slides the
+           buffer, so the estimate is the latest dwell's, never older. */
+        obj->fine_cap
+            = (size_t)ceil ((double)obj->fine.blocks * block_s / T + 1.0)
+              * (size_t)obj->fine.k;
+        obj->fine_buf = dp_xmallocn (obj->fine_cap, sizeof *obj->fine_buf);
+        obj->fine_ppe
+            = dp_xnn (dp_ppe_create (obj->fine_cap, obj->fine.max_rate));
+      }
+  }
   /* Placeholder chains (phase 0, no Doppler) -- always allocated, seeded
    * for real the moment a hit fires (fixed shape, same rationale
    * dsss_receiver_core.c's own state struct doc comment gives). */
@@ -1383,6 +1925,11 @@ dp_async_dsss_receiver_create (
 
   adr_build_track_chain (obj, 0.0, 0.0, segments, sps, adr_m_out (sps),
                          &obj->car, &obj->dll, &obj->rc, &obj->rx);
+  /* The hold's copy starts as the loop itself, as every rebuild leaves it
+     (adr_rebuild_track_chain): a zeroed carrier_nda is no loop its own
+     state check accepts, so a blob taken before the first seed would be
+     refused on restore. */
+  obj->car_held      = obj->car;
   obj->segments      = segments;
   obj->sps           = sps;
   obj->n             = adr_m_out (sps);
@@ -1436,6 +1983,8 @@ dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state)
   free (state->srch_buf);
   free (state->srch_hist);
   free (state->refine_hist);
+  free (state->fine_buf);
+  dp_ppe_destroy (state->fine_ppe);
   free (state->code);
   free (state);
 }
@@ -1568,9 +2117,23 @@ dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
   if (!dp_async_dsss_receiver_seed_ok (state, chip_phase, doppler_hz_est))
     return DP_ERR_INVALID;
 
-  adr_rebuild_refine_chain (state, chip_phase, doppler_hz_est);
-
-  adr_enter (state, ASYNC_DSSS_RX_REFINING);
+  /* With no refine the seed is the hand-over: the live chain is built at
+     the seed's own sample, the next one this receiver is fed, from the
+     seed's phase and Doppler -- the hand-over at zero samples of refine
+     (adr_handover_phase()) -- and the refine chain is neither rebuilt nor
+     run. */
+  if (!state->refine)
+    {
+      adr_rebuild_track_chain (state, chip_phase, doppler_hz_est,
+                               state->segments, state->sps, state->n);
+      adr_enter (state, ASYNC_DSSS_RX_TRACKING);
+      state->ho_src = ASYNC_DSSS_RX_HO_SEED; /* the seed is the hand-over */
+    }
+  else
+    {
+      adr_rebuild_refine_chain (state, chip_phase, doppler_hz_est);
+      adr_enter (state, ASYNC_DSSS_RX_REFINING);
+    }
   state->seed_chip_phase     = chip_phase;
   state->seed_doppler_hz_est = doppler_hz_est;
   state->doppler_hz_est      = doppler_hz_est;
@@ -1618,21 +2181,39 @@ adr_unheld (const dp_async_dsss_receiver_state_t *s)
   return s->pooled ? ASYNC_DSSS_RX_IDLE : ASYNC_DSSS_RX_SEARCHING;
 }
 
+/* Pick k's phase carried from its sample (pick_at) to `to`, as adr_pick()
+   carries a hit: dilated with a carrier, and exactly the stored phase when
+   the two samples are the same. */
+static double
+adr_pick_phase_at (const dp_async_dsss_receiver_state_t *s, size_t k,
+                   uint64_t to)
+{
+  const double shift = (double)(to - s->pick_at[k]) / s->spc;
+  if (shift == 0.0)
+    return s->pick_phase[k];
+  double g = shift;
+  if (s->carrier_freq_hz > 0.0)
+    g *= 1.0 + s->pick_doppler[k] / s->carrier_freq_hz;
+  return dp_fmod_pos (s->pick_phase[k] + g, (double)s->code_len);
+}
+
 /* A search-only receiver's dwell (set_search_only()): the pick for ranks 0
  * … pick_want - 1, each survivor kept with its phase at the sample after
  * this call. The hits' phases are carried there from the dwell's end, t,
- * by adr_pick()'s own shift; the exclusions, read at this call's first
- * sample in0 (the controller sets them between calls), are carried there
- * too, nominally -- a holder's own Doppler dilation over one call is a
- * hundredth of a chip at 20 ppm, far inside the one-chip key. */
+ * by adr_pick()'s own shift; the exclusions, from the sample they were
+ * set at (excl_at), are carried there too, nominally -- a holder's own
+ * Doppler dilation over one call is a hundredth of a chip at 20 ppm, far
+ * inside the one-chip key. */
 static void
 adr_collect_picks (dp_async_dsss_receiver_state_t *s,
-                   const dp_correlator_hit_t *hits, size_t n_hits, double t,
-                   uint64_t in0)
+                   const dp_correlator_hit_t *hits, size_t n_hits, double t)
 {
-  const double L     = (double)s->code_len;
-  const double end   = (double)s->samples_in; /* the sample after the call */
-  const double ex_sh = (end - (double)in0) / s->spc;
+  const double L   = (double)s->code_len;
+  const double end = (double)s->samples_in; /* the sample after the call */
+  /* The exclusions name the sample they were set at (excl_at), which a
+     controller setting them before every call makes this call's first;
+     one set calls earlier is carried over those calls too. */
+  const double ex_sh = (end - (double)s->excl_at) / s->spc;
   double       saved[ASYNC_DSSS_RX_MAX_EXCLUSIONS];
   memcpy (saved, s->excl, sizeof saved);
   for (size_t k = 0; k < s->n_excl; k++)
@@ -1651,10 +2232,20 @@ adr_collect_picks (dp_async_dsss_receiver_state_t *s,
           s->refused_hits++;
           continue;
         }
-      s->pick_phase[s->n_picks]   = ho.chip_phase;
-      s->pick_doppler[s->n_picks] = ho.doppler_hz_est;
-      s->pick_cn0[s->n_picks]     = ho.cn0_dbhz_est;
-      s->n_picks++;
+      /* A dwell before this one, not yet taken, may have picked the same
+         signal: its slot takes this dwell's fresher estimate, so a list
+         taken after several dwells holds each signal once. */
+      size_t slot = s->n_picks;
+      for (size_t q = 0; q < s->n_picks && slot == s->n_picks; q++)
+        if (adr_same_code_phase (adr_pick_phase_at (s, q, s->samples_in),
+                                 ho.chip_phase, s->code_len))
+          slot = q;
+      s->pick_phase[slot]   = ho.chip_phase;
+      s->pick_doppler[slot] = ho.doppler_hz_est;
+      s->pick_cn0[slot]     = ho.cn0_dbhz_est;
+      s->pick_at[slot]      = s->samples_in; /* `end`'s sample */
+      if (slot == s->n_picks)
+        s->n_picks++;
     }
   s->rank = rank;
   memcpy (s->excl, saved, sizeof saved);
@@ -1763,7 +2354,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
           if (state->pick_want)
             {
               /* The controller's search: report, never seed (§5). */
-              adr_collect_picks (state, hits, n_hits, t, in0);
+              adr_collect_picks (state, hits, n_hits, t);
               state->srch_n += taken;
               yp += taken;
               continue;
@@ -1826,6 +2417,44 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
       double refined_doppler_hz_est
           = state->seed_doppler_hz_est
             + (ca->ready ? ca->residual_hz : 0.0); /* give-up: unrefined */
+      int ho_src = ca->ready ? ASYNC_DSSS_RX_HO_DATA : ASYNC_DSSS_RX_HO_SEED;
+      /* The fine estimate, when its check passes: the squared sums' tone
+         is at M times the residual against the frozen carrier (the seed),
+         located by PolynomialPhaseEstimator, in cycles a sum, at fine.k
+         sums a code period. The check is the peak's peak-to-mean against
+         the largest of n noise bins at the receiver's pfa. A refusal
+         falls back to CarrierAcquisition's estimate, or the seed. */
+      state->fine_hz = state->fine_snr_db = NAN;
+      if (state->fine_on && state->fine_n >= 4)
+        {
+          const ppe_result_t r = dp_ppe_estimate (
+              state->fine_ppe, state->fine_buf, state->fine_n);
+          const double T = (double)state->code_len / state->chip_rate;
+          /* The check's cells are the sums times the rate rows; the
+             frequency handed over is the tone's at the buffer's end (the
+             estimator's rate is the chirp's, cycles a sum squared, from
+             the first sum). */
+          const double thr = adr_fine_thr_db (
+              state->fine_n * state->fine_ppe->n_rate, state->pfa);
+          const double f_end
+              = r.freq_norm + r.rate_norm * (double)(state->fine_n - 1);
+          state->fine_hz
+              = f_end * (double)state->fine.k / T / (double)state->m;
+          state->fine_snr_db = r.snr_db;
+          if (state->tlm)
+            {
+              dp_tlm_emit (state->tlm, state->tlm_fine_hz, state->fine_hz);
+              dp_tlm_emit (state->tlm, state->tlm_fine_snr, r.snr_db);
+              dp_tlm_emit (state->tlm, state->tlm_fine_n,
+                           (double)state->fine_n);
+            }
+          if (r.snr_db >= thr)
+            {
+              refined_doppler_hz_est
+                  = state->seed_doppler_hz_est + state->fine_hz;
+              ho_src = ASYNC_DSSS_RX_HO_FINE;
+            }
+        }
       /* samples_consumed_refine: freq_refine.refine_seed_carrier_acq()'s
        * own elapsed-time formula, ported verbatim -- a resampled chain
        * has no exact raw-sample-to-block correspondence to track through
@@ -1954,6 +2583,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
           || handover_chip_phase >= (double)state->code_len)
         {
           refined_doppler_hz_est = state->seed_doppler_hz_est;
+          ho_src                 = ASYNC_DSSS_RX_HO_SEED;
           handover_chip_phase    = adr_handover_phase (
               state, refined_doppler_hz_est, samples_consumed_refine);
         }
@@ -1979,6 +2609,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
                                    state->sps, state->n);
           adr_enter (state, ASYNC_DSSS_RX_TRACKING);
           state->doppler_hz_est = refined_doppler_hz_est;
+          state->ho_src         = ho_src;
         }
       const size_t n_out = adr_steps (state, tail, tail_len, out, max_out);
       free (join);
@@ -1998,6 +2629,16 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
   /* Counted up front: every tail adr_steps() recurses on ends where this
      call's input ends, so a tail of t samples starts at samples_in - t. */
   state->samples_in += x_len;
+  /* The loops' NCO phases at this call's first sample, before it runs:
+     the chain still holds car_carry_len samples it has not wiped, so the
+     first new sample is that many past the NCOs' next one. */
+  double ph_car = 0.0, ph_code = 0.0;
+  if (state->tlm && x_len)
+    {
+      ph_car  = dp_carrier_nda_get_nco_phase_ahead (&state->car,
+                                                    state->car_carry_len);
+      ph_code = dp_dll_get_code_phase_ahead (state->dll, state->car_carry_len);
+    }
   size_t n_out = adr_steps (state, x, x_len, out, max_out);
   /* The lifecycle, once a call and after it, on the block's stamp: where
      the receiver ended up, the Doppler its chain was built from, and the
@@ -2009,6 +2650,15 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
       dp_tlm_emit (state->tlm, state->tlm_handover, state->doppler_hz_est);
       dp_tlm_emit (state->tlm, state->tlm_refused,
                    (double)state->refused_hits);
+      dp_tlm_emit (state->tlm, state->tlm_ho_src, (double)state->ho_src);
+      dp_tlm_emit (state->tlm, state->tlm_cn0, state->cn0_dbhz_est);
+      dp_tlm_emit (state->tlm, state->tlm_phase_car, ph_car);
+      dp_tlm_emit (state->tlm, state->tlm_phase_code, ph_code);
+      dp_tlm_emit (state->tlm, state->tlm_release,
+                   state->lost_confirm_samples
+                       ? (double)state->both_down_samples
+                             / (double)state->lost_confirm_samples
+                       : 0.0);
     }
   return n_out;
 }
@@ -2069,7 +2719,9 @@ dp_async_dsss_receiver_take_picks (dp_async_dsss_receiver_state_t *state,
   const size_t n = state->n_picks < max ? state->n_picks : max;
   for (size_t k = 0; k < n; k++)
     {
-      chip_phase[k] = state->pick_phase[k];
+      /* Carried from its call's end to the sample after the last fed:
+         nothing when it is taken right after that call. */
+      chip_phase[k] = adr_pick_phase_at (state, k, state->samples_in);
       doppler_hz[k] = state->pick_doppler[k];
       cn0_dbhz[k]   = state->pick_cn0[k];
     }
@@ -2077,6 +2729,7 @@ dp_async_dsss_receiver_take_picks (dp_async_dsss_receiver_state_t *state,
   memset (state->pick_phase, 0, sizeof state->pick_phase);
   memset (state->pick_doppler, 0, sizeof state->pick_doppler);
   memset (state->pick_cn0, 0, sizeof state->pick_cn0);
+  memset (state->pick_at, 0, sizeof state->pick_at);
   return n;
 }
 
@@ -2111,7 +2764,8 @@ dp_async_dsss_receiver_set_exclusions (dp_async_dsss_receiver_state_t *state,
     state->excl[i] = dp_fmod_pos (phases[i], cl);
   for (size_t i = phases_len; i < ASYNC_DSSS_RX_MAX_EXCLUSIONS; i++)
     state->excl[i] = 0.0;
-  state->n_excl = phases_len;
+  state->n_excl  = phases_len;
+  state->excl_at = state->samples_in; /* the sample they name */
   return DP_OK;
 }
 
@@ -2127,6 +2781,13 @@ dp_async_dsss_receiver_get_threads (
     const dp_async_dsss_receiver_state_t *state)
 {
   return state->acq->search->threads;
+}
+
+size_t
+dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return (size_t)state->car_blk;
 }
 
 size_t
@@ -2155,7 +2816,7 @@ dp_async_dsss_receiver_configure_lock_raw (
 }
 
 /* The whole carrier the live chain holds, Hz: loop 1's (the pre-despread
- * Costas, in cycles per front-end sample) plus what loop 2 -- the
+ * carrier loop, in cycles per front-end sample) plus what loop 2 -- the
  * post-despread MpskReceiver, at sps * symbol_rate -- has taken up beyond
  * it, its loop-filter integrator. status() reports it and
  * configure_chain_raw() re-seeds a rebuilt chain from it (doppler#1261,
@@ -2163,7 +2824,7 @@ dp_async_dsss_receiver_configure_lock_raw (
 static double
 adr_tracked_doppler_hz (const dp_async_dsss_receiver_state_t *s)
 {
-  return dp_costas_get_norm_freq (&s->car) * s->chip_rate * (double)s->spc
+  return dp_carrier_nda_get_norm_freq (&s->car) * s->chip_rate * (double)s->spc
          + dp_mpsk_receiver_get_norm_freq (s->rx)
                * ((double)s->sps * s->symbol_rate);
 }
@@ -2232,20 +2893,21 @@ dp_async_dsss_receiver_status (const dp_async_dsss_receiver_state_t *s)
       doppler_hz = 0.0;
     }
   async_dsss_receiver_status_t r = {
-    .state             = s->state,
-    .doppler_hz        = doppler_hz,
-    .chip_phase        = dp_async_dsss_receiver_get_chip_phase (s),
-    .code_rate         = dp_async_dsss_receiver_get_code_rate (s),
-    .cn0_dbhz_est      = s->cn0_dbhz_est,
-    .code_locked       = dp_async_dsss_receiver_get_code_locked (s),
-    .locked            = dp_async_dsss_receiver_get_locked (s),
-    .lock_metric       = s->lock_metric,
-    .lock_threshold    = dp_async_dsss_receiver_get_lock_threshold (s),
-    .car_last_error    = dp_async_dsss_receiver_get_car_last_error (s),
-    .mpsk_last_error   = dp_async_dsss_receiver_get_mpsk_last_error (s),
-    .state_samples     = s->state_samples,
-    .both_down_samples = s->both_down_samples,
-    .refused_hits      = s->refused_hits,
+    .state                 = s->state,
+    .doppler_hz            = doppler_hz,
+    .chip_phase            = dp_async_dsss_receiver_get_chip_phase (s),
+    .code_rate             = dp_async_dsss_receiver_get_code_rate (s),
+    .cn0_dbhz_est          = s->cn0_dbhz_est,
+    .code_locked           = dp_async_dsss_receiver_get_code_locked (s),
+    .locked                = dp_async_dsss_receiver_get_locked (s),
+    .lock_metric           = s->lock_metric,
+    .lock_threshold        = dp_async_dsss_receiver_get_lock_threshold (s),
+    .car_last_error        = dp_async_dsss_receiver_get_car_last_error (s),
+    .mpsk_last_error       = dp_async_dsss_receiver_get_mpsk_last_error (s),
+    .state_samples         = s->state_samples,
+    .both_down_samples     = s->both_down_samples,
+    .refused_hits          = s->refused_hits,
+    .carrier_lock_n_noncoh = s->car_blk,
   };
   return r;
 }
@@ -2341,6 +3003,48 @@ dp_async_dsss_receiver_get_lock_threshold (
   return state->sym_lockdet.up_thresh;
 }
 
+dp_lockdet_rule_t
+dp_async_dsss_receiver_get_sym_lock_rule (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return dp_lockdet_rule (&state->sym_lockdet);
+}
+
+dp_lockdet_rule_t
+dp_async_dsss_receiver_get_car_lock_rule (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return dp_carrier_nda_get_lock_rule (&state->car);
+}
+
+dp_lockdet_rule_t
+dp_async_dsss_receiver_get_code_lock_rule (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return dp_dll_get_lock_rule (state->dll);
+}
+
+dp_lockdet_rule_t
+dp_async_dsss_receiver_get_demod_lock_rule (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return dp_mpsk_receiver_get_lock_rule (state->rx);
+}
+
+dp_lockdet_rule_t
+dp_async_dsss_receiver_get_demod_sync_lock_rule (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return dp_mpsk_receiver_get_sync_lock_rule (state->rx);
+}
+
+int
+dp_async_dsss_receiver_get_handover_source (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return state->ho_src;
+}
+
 int
 dp_async_dsss_receiver_get_code_locked (
     const dp_async_dsss_receiver_state_t *state)
@@ -2352,14 +3056,14 @@ double
 dp_async_dsss_receiver_get_car_last_error (
     const dp_async_dsss_receiver_state_t *state)
 {
-  return dp_costas_get_last_error (&state->car);
+  return carrier_nda_loop_error (dp_carrier_nda_get_last_error (&state->car));
 }
 
 double
 dp_async_dsss_receiver_get_car_nco_freq (
     const dp_async_dsss_receiver_state_t *state)
 {
-  return dp_costas_get_nco_freq (&state->car);
+  return dp_carrier_nda_get_nco_freq (&state->car);
 }
 
 double
@@ -2377,14 +3081,16 @@ dp_async_dsss_receiver_state_bytes (const dp_async_dsss_receiver_state_t *s)
          + dp_costas_state_bytes (&s->car_frozen)
          + dp_dll_state_bytes (s->refine_dll)
          + dp_RateConverter_state_bytes (s->refine_rc)
-         + dp_carrier_acq_state_bytes (s->ca) + dp_costas_state_bytes (&s->car)
-         + dp_costas_state_bytes (&s->car_held) + dp_dll_state_bytes (s->dll)
-         + dp_RateConverter_state_bytes (s->rc)
+         + dp_carrier_acq_state_bytes (s->ca)
+         + dp_carrier_nda_state_bytes (&s->car)
+         + dp_carrier_nda_state_bytes (&s->car_held)
+         + dp_dll_state_bytes (s->dll) + dp_RateConverter_state_bytes (s->rc)
          + dp_mpsk_receiver_state_bytes (s->rx)
          + (s->srch_rs ? dp_resamp_state_bytes (s->srch_rs) : 0)
          + s->srch_hist_cap * sizeof (float _Complex)
          + s->tsamps * sizeof (float _Complex)
-         + s->refine_hist_cap * sizeof (float _Complex);
+         + s->refine_hist_cap * sizeof (float _Complex)
+         + s->fine_cap * sizeof (float _Complex);
 }
 
 void
@@ -2428,7 +3134,11 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     .n_picks             = (uint64_t)s->n_picks,
     .refine_hist_cap     = (uint64_t)s->refine_hist_cap,
     .refine_hist_len     = (uint64_t)s->refine_hist_len,
+    .excl_at             = s->excl_at,
+    .ho_src              = (uint64_t)s->ho_src,
+    .fine_n              = (uint64_t)s->fine_n,
   };
+  memcpy (extra.pick_at, s->pick_at, sizeof extra.pick_at);
   memcpy (extra.excl, s->excl, sizeof extra.excl); /* tail kept zeroed */
   memcpy (extra.pick_phase, s->pick_phase, sizeof extra.pick_phase);
   memcpy (extra.pick_doppler, s->pick_doppler, sizeof extra.pick_doppler);
@@ -2439,8 +3149,8 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
   DP_W_CHILD (&_w, dp_dll, s->refine_dll);
   DP_W_CHILD (&_w, dp_RateConverter, s->refine_rc);
   DP_W_CHILD (&_w, dp_carrier_acq, s->ca);
-  DP_W_CHILD (&_w, dp_costas, &s->car);
-  DP_W_CHILD (&_w, dp_costas, &s->car_held);
+  DP_W_CHILD (&_w, dp_carrier_nda, &s->car);
+  DP_W_CHILD (&_w, dp_carrier_nda, &s->car_held);
   DP_W_CHILD (&_w, dp_dll, s->dll);
   DP_W_CHILD (&_w, dp_RateConverter, s->rc);
   DP_W_CHILD (&_w, dp_mpsk_receiver, s->rx);
@@ -2466,6 +3176,41 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     dp_w_cf32 (&_w, s->refine_hist, len - first);
     dp_w_zeros (&_w, (cap - len) * sizeof (float _Complex));
   }
+  /* The fine hand-over's sums, then zeros. */
+  dp_w_cf32 (&_w, s->fine_buf, s->fine_n);
+  dp_w_zeros (&_w, (s->fine_cap - s->fine_n) * sizeof (float _Complex));
+}
+
+/* Is c the carrier loop create() builds for s (adr_build_track_chain)? The
+   blob's reject keys for the carrier children. bn is compared to the rule's
+   value: a caller that retuned the live loop's bandwidth through
+   dp_carrier_nda_set_bn() (the pull-in harness's --bn-carrier) has a loop
+   this receiver did not build, and its blob is refused. */
+static int
+adr_carrier_is_built (const dp_async_dsss_receiver_state_t *s,
+                      const dp_carrier_nda_state_t         *c)
+{
+  return c->m == 2 && c->t_upd == (double)s->tsamps
+         && c->den == CARRIER_NDA_DEN_UNIT
+         && c->den_alpha == ASYNC_DSSS_RX_CAR_DEN_ALPHA
+         && c->den_gamma == s->car_gamma && c->blk_len == s->car_blk
+         && c->blk_pfa == ASYNC_DSSS_RX_CAR_LOCK_PFA && c->bn == s->bn_carrier
+         && c->zeta == 0.707;
+}
+
+/* Skip one child sub-blob on a peek reader, checking its envelope (magic,
+   version, endian, size) as the child's own set_state would open: a
+   clobbered header is refused here, before any child commits. The child's
+   own set_state is the authority on its envelope; this restates its
+   MAGIC and VERSION as a pre-check (no child exposes a validate-only
+   entry), and must be kept in step with it. A payload the child refuses
+   after its envelope passes is the composite case, doppler#2104. */
+static int
+adr_peek_child (dp_reader_t *pk, size_t bytes, uint32_t magic,
+                uint16_t version)
+{
+  const void *c = dp_r_reserve (pk, bytes);
+  return c && dp_state_validate (c, bytes, magic, version) == DP_OK;
 }
 
 int
@@ -2482,6 +3227,7 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.refine_segments != (uint64_t)s->refine_segments
       || extra.car_carry_len >= (uint64_t)s->tsamps
       || extra.state > ASYNC_DSSS_RX_LOST || extra.pooled > 1
+      || extra.ho_src > ASYNC_DSSS_RX_HO_FINE || extra.fine_n > s->fine_cap
       || (extra.state == ASYNC_DSSS_RX_IDLE && !extra.pooled)
       || (extra.state == ASYNC_DSSS_RX_SEARCHING && extra.pooled)
       || extra.pick_want > ASYNC_DSSS_RX_MAX_PEAKS
@@ -2496,6 +3242,14 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
                      ? extra.refine_samples_fed
                      : extra.refine_hist_cap))
     return DP_ERR_INVALID;
+  /* The samples the exclusions and picks name are ones already fed, and an
+     untaken slot's is zero, as take_picks() leaves it. */
+  if (extra.excl_at > extra.samples_in)
+    return DP_ERR_INVALID;
+  for (size_t i = 0; i < ASYNC_DSSS_RX_MAX_PEAKS; i++)
+    if (i < extra.n_picks ? extra.pick_at[i] > extra.samples_in
+                          : extra.pick_at[i] != 0)
+      return DP_ERR_INVALID;
   /* Only what set_exclusions() can leave: folded phases, a zeroed tail. */
   for (size_t i = 0; i < ASYNC_DSSS_RX_MAX_EXCLUSIONS; i++)
     if (i < extra.n_excl
@@ -2517,6 +3271,9 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
      it out: refused, as a state the object cannot reach. */
   if (s->reacquire && extra.state == ASYNC_DSSS_RX_LOST)
     return DP_ERR_INVALID;
+  /* Likewise refining, for a receiver built without the refine. */
+  if (!s->refine && extra.state == ASYNC_DSSS_RX_REFINING)
+    return DP_ERR_INVALID;
   /* The seed fields are only ever what seed() accepted (or the zeros reset
      leaves), so a blob outside the seed domain is forged. Refused here,
      before any child is decoded: a NaN phase reached dp_xnn in the refine
@@ -2524,13 +3281,62 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   if (!dp_async_dsss_receiver_seed_ok (s, extra.seed_chip_phase,
                                        extra.seed_doppler_hz_est))
     return DP_ERR_INVALID;
+  /* The two carrier children decode into copies and commit only when each
+     is the loop create() builds: M = 2, an update a period, the unit
+     denominator at the design point's gamma, the block lock create()
+     sized, and the rule's bn and the build's zeta. Their configuration is
+     not this blob's to change (car_gamma, car_blk and bn_carrier are
+     create()'s, restored by it): a blob from a receiver built at another
+     C/N0 has the same size and would restore a different loop, and one
+     with an update a sample would run the control tsamps times too large.
+     They are checked BEFORE any child commits, on a peek reader that also
+     checks every other child's envelope on its way past, so a carrier the
+     receiver did not build, or any child sub-blob with a clobbered header,
+     is refused with the receiver as it was. A child whose envelope passes
+     and whose own payload check refuses still commits the children ahead
+     of it: the composite case, doppler#2104. */
+  dp_carrier_nda_state_t car = s->car, held = s->car_held;
+  {
+    dp_reader_t pk = _r;
+    if (!adr_peek_child (&pk, dp_correlator_state_bytes (s->acq),
+                         CORRELATOR_STATE_MAGIC, CORRELATOR_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_costas_state_bytes (&s->car_frozen),
+                            COSTAS_STATE_MAGIC, COSTAS_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_dll_state_bytes (s->refine_dll),
+                            DLL_STATE_MAGIC, DLL_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_RateConverter_state_bytes (s->refine_rc),
+                            RC_STATE_MAGIC, RC_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_carrier_acq_state_bytes (s->ca),
+                            CARRIER_ACQ_STATE_MAGIC,
+                            CARRIER_ACQ_STATE_VERSION))
+      return DP_ERR_INVALID;
+    DP_R_CHILD (&pk, dp_carrier_nda, &car);
+    DP_R_CHILD (&pk, dp_carrier_nda, &held);
+    if (!adr_carrier_is_built (s, &car) || !adr_carrier_is_built (s, &held))
+      return DP_ERR_INVALID;
+    if (!adr_peek_child (&pk, dp_dll_state_bytes (s->dll), DLL_STATE_MAGIC,
+                         DLL_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_RateConverter_state_bytes (s->rc),
+                            RC_STATE_MAGIC, RC_STATE_VERSION)
+        || !adr_peek_child (&pk, dp_mpsk_receiver_state_bytes (s->rx),
+                            MPSK_RECEIVER_STATE_MAGIC,
+                            MPSK_RECEIVER_STATE_VERSION)
+        || (s->srch_rs
+            && !adr_peek_child (&pk, dp_resamp_state_bytes (s->srch_rs),
+                                RESAMP_STATE_MAGIC, RESAMP_STATE_VERSION)))
+      return DP_ERR_INVALID;
+  }
   DP_R_CHILD (&_r, dp_correlator, s->acq);
   DP_R_CHILD (&_r, dp_costas, &s->car_frozen);
   DP_R_CHILD (&_r, dp_dll, s->refine_dll);
   DP_R_CHILD (&_r, dp_RateConverter, s->refine_rc);
   DP_R_CHILD (&_r, dp_carrier_acq, s->ca);
-  DP_R_CHILD (&_r, dp_costas, &s->car);
-  DP_R_CHILD (&_r, dp_costas, &s->car_held);
+  /* The carrier pair, already decoded and checked: skipped here. */
+  if (!dp_r_reserve (&_r, dp_carrier_nda_state_bytes (&s->car))
+      || !dp_r_reserve (&_r, dp_carrier_nda_state_bytes (&s->car_held)))
+    return DP_ERR_INVALID;
+  s->car      = car;
+  s->car_held = held;
   DP_R_CHILD (&_r, dp_dll, s->dll);
   DP_R_CHILD (&_r, dp_RateConverter, s->rc);
   DP_R_CHILD (&_r, dp_mpsk_receiver, s->rx);
@@ -2540,6 +3346,9 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
     dp_r_cf32 (&_r, s->srch_hist, s->srch_hist_cap);
   dp_r_cf32 (&_r, s->car_carry_buf, s->tsamps);
   dp_r_cf32 (&_r, s->refine_hist, s->refine_hist_cap);
+  if (s->fine_cap)
+    dp_r_cf32 (&_r, s->fine_buf, s->fine_cap);
+  s->fine_n              = (size_t)extra.fine_n;
   s->refine_hist_len     = (size_t)extra.refine_hist_len;
   s->refine_hist_head    = s->refine_hist_len % s->refine_hist_cap;
   s->state               = extra.state;
@@ -2574,5 +3383,8 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   memcpy (s->pick_phase, extra.pick_phase, sizeof s->pick_phase);
   memcpy (s->pick_doppler, extra.pick_doppler, sizeof s->pick_doppler);
   memcpy (s->pick_cn0, extra.pick_cn0, sizeof s->pick_cn0);
+  memcpy (s->pick_at, extra.pick_at, sizeof s->pick_at);
+  s->excl_at = extra.excl_at;
+  s->ho_src  = (int)extra.ho_src;
   return DP_OK;
 }

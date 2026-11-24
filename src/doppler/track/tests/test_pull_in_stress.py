@@ -29,7 +29,7 @@ from doppler.track.tests.characterization.pull_in.characterize import (
 
 @pytest.mark.parametrize("m", ORDERS)
 def test_carrier_acquires_at_the_bound(m):
-    """At 1.0x `bn_carrier / m` the carrier loop acquires, at every order.
+    """At 1.0x `bn_carrier / (4 m)` the carrier loop acquires, at every order.
 
     This is the rule the tests and validators are held to, so it is the one
     point that must hold per push rather than per campaign.
@@ -42,14 +42,17 @@ def test_carrier_acquires_at_the_bound(m):
 
 
 def test_carrier_fails_far_outside_the_bound():
-    """And it does NOT acquire at 8x, which is what makes the fractions real.
+    """And it does NOT acquire at 32x, which is what makes the fractions real.
+
+    32x the bound is 8x the bound before #3224 (`bn_carrier / m`, four times
+    wider), where the sweep read the loop dead by 5x: past it on either loop.
 
     Without this the sweep's criterion could be satisfied by anything and
     every success fraction in the full run would read 1.00 — the reject half
     of the pair, and the one that stops the twin passing vacuously.
     """
-    assert not run_carrier(4, 8, 8.0, 700), (
-        "seeded at 8x the bound the carrier loop reported acquisition; the "
+    assert not run_carrier(4, 8, 32.0, 700), (
+        "seeded at 32x the bound the carrier loop reported acquisition; the "
         "criterion cannot distinguish pull-in from failure, so no success "
         "fraction the full sweep prints means anything"
     )

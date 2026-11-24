@@ -1,0 +1,5 @@
+head 77547aa86 test(async_dsss_receiver): the error-rate window opens at the observed lock dirty=0
+built 12:13:53; dirty=0
+controls start 12:13:53
+verdicts 13 present, 13 pass (13 expected)
+done 12:18:20

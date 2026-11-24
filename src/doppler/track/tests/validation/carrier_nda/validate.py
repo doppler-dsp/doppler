@@ -75,9 +75,16 @@ NS = (8, 4, 2, 1)
 BN = 0.01
 ZETA = 0.707
 
-#: The standard carrier offset. Small enough to be inside capture at every
-#: `bn` swept, so a table about something else is never also a pull-in test.
-F0 = 0.001
+#: The standard carrier offset. Small enough to be inside the seeding window
+#: (§2.5, `|df| <= bn/(4M)`) at the shipped `bn` and every M -- u = 0.24 at
+#: M = 8 -- so a table about something else is never also a pull-in test. It
+#: was 0.001 while the loop ran 1.67 times wider than `bn` said (#3224): u =
+#: 0.8 at M = 8, past the corrected loop's window.
+F0 = 0.0003
+
+#: "Tracks": the mean tracked-frequency error under half the offset, a
+#: relative test, so it means the same thing at whatever F0 the report runs.
+TRACK_TOL = F0 / 2.0
 
 #: `snr >= 100` is Synth's "clean" sentinel — no AWGN at all. Named rather
 #: than written as a literal because a stray 99 silently adds noise to a
@@ -874,7 +881,8 @@ def characterise() -> Data:
         f"`|freq error|` is the worst seed's mean tracked-frequency error "
         f"over the second half of the record, read from the object's own "
         f"`car.freq` probe; a point TRACKS only if every seed is inside "
-        f"5e-4. `locked` counts the seeds that declare, and a point DECLARES "
+        f"{TRACK_TOL:g}, half the offset. `locked` counts the seeds that "
+        f"declare, and a point DECLARES "
         f"only if every seed does; near the threshold that count is a "
         f"probability, so it is reported as one. `lock` is the median "
         f"end-of-record statistic. One seed's last sample is not a verdict: "
@@ -895,7 +903,7 @@ def characterise() -> Data:
                 stats.append(c.lock)
                 decl.append(bool(c.locked))
             err = max(errs)
-            tracks = err < 5e-4
+            tracks = err < TRACK_TOL
             lock = float(np.median(stats))
             locked = all(decl)
             d.esno.append((m, e, err, lock, locked, tracks))
@@ -939,6 +947,20 @@ def characterise() -> Data:
         f"never control**; this table is the measurement that rule needs to "
         "be more than an assertion "
         f"(**{R.ref('track_vs_declare_envelopes')}**)."
+    )
+    R.md()
+    _e8 = next(r for r in d.esno if r[0] == 8 and r[1] == 15.0)
+    _e8_20 = next(r for r in d.esno if r[0] == 8 and r[1] == 20.0)
+    R.md(
+        f"**M = 8 meets its tracking edge at 15 dB.** Its lock statistic "
+        f"there is {_e8[3]:+.2f}, near zero, against {_e8_20[3]:+.2f} at "
+        f"20 dB, and the error is bimodal: a seed either tracks "
+        f"(near 1e-05) or wanders as at 10 dB (near 1e-03), so whether the "
+        f"worst of 8 seeds lands inside {TRACK_TOL:g} is the draw's and "
+        f"the build's. Here it read {_e8[2]:.1e}; on Windows clang-cl one "
+        f"seed did not (#3298). The tracking claim below therefore stops "
+        f"where the statistic still has margin: every M at 20 dB and "
+        f"above, and M of 4 and below at 15 dB."
     )
     R.md()
 
@@ -1110,7 +1132,7 @@ def characterise() -> Data:
         "constants (`T * bn`), both M and `bn` drop out."
     )
     R.md()
-    d.ptime_fracs = US = (0.5, 1.0, 1.5, 2.0, 4.0, 8.0, 11.0)
+    d.ptime_fracs = US = (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0)
     rows = []
     for m in MS:
         for bn in (0.02, 0.01, 0.005):
@@ -1150,7 +1172,13 @@ def characterise() -> Data:
         ),
     )
     _lin = [d.ptime[k][i] for k in d.ptime for i in (0, 1)]
-    _u4 = [d.ptime[(m, bn)][4] for m in MS for bn in (0.02, 0.01, 0.005)]
+    _u4 = [d.ptime[(m, bn)][5] for m in MS for bn in (0.02, 0.01, 0.005)]
+    _u8 = [
+        d.ptime[(m, bn)][6]
+        for m in MS
+        for bn in (0.02, 0.01, 0.005)
+        if not np.isnan(d.ptime[(m, bn)][6])
+    ]
     R.md(
         "Nine (M, bn) pairs spanning a factor of four in both, and one "
         "curve — M drops out to the third decimal, and `bn` to within a "
@@ -1158,9 +1186,10 @@ def characterise() -> Data:
     )
     R.md()
     R.md(
-        f"**Two regimes, and the boundary is at `u = 1`.** Inside it the "
-        f"settling time does not depend on the offset at all: every cell "
-        f"at `u <= 1` reads between {min(_lin):.2f} and {max(_lin):.2f} "
+        f"**Two regimes, and the boundary is near `u = 1/3`.** Inside it "
+        f"the settling time does not depend on the offset at all: every "
+        f"cell at `u <= 1/4` reads between {min(_lin):.2f} and "
+        f"{max(_lin):.2f} "
         f"loop time constants, which is simply the loop's own step "
         f"response — a linear second-order loop settles in a fixed number "
         f"of time constants whatever the size of the step. That is the "
@@ -1171,7 +1200,8 @@ def characterise() -> Data:
     R.md(
         f"Outside it the beat-note term takes over and the cost is "
         f"quadratic: {min(_u4):.0f} to {max(_u4):.0f} constants at "
-        f"`u = 4`, and 145 to 298 at `u = 11`. That is the classical "
+        f"`u = 4`, and {min(_u8):.0f} to {max(_u8):.0f} at `u = 8` where "
+        f"the record reaches it. That is the classical "
         f"type-2 pull-in law, and it is why `bn` is not buying time "
         f"INSTEAD of range — it sets the scale on which range is measured, "
         f"so doubling `bn` doubles the offset reachable in the same number "
@@ -1179,14 +1209,14 @@ def characterise() -> Data:
     )
     R.md()
     R.md(
-        "The dashes are where that law meets the OTHER limit. §2.4's "
-        "ceiling is an absolute frequency — the arm's, not the loop's — so "
-        "in these normalised units it MOVES with `bn`: at `bn = 0.02` it "
-        "sits at `u = 6.1` and the `u = 8` and `u = 11` columns are past "
-        "the wall at any record length, while at `bn = 0.005` the same wall "
-        "is at `u = 24.5` and the loop's own quadratic is what binds. Two "
-        "limits in two different units, and which one a caller meets first "
-        "depends on `bn`."
+        f"The dashes are where that law meets the OTHER limit. §2.4's "
+        f"ceiling is an absolute frequency — the arm's, not the loop's — so "
+        f"in these normalised units it MOVES with `bn`: at `bn = 0.02` it "
+        f"sits at `u = {d.edges[SPS // N_ARM][1] * 4 / 0.02:.1f}`, and at "
+        f"`bn = 0.005` at `u = {d.edges[SPS // N_ARM][1] * 4 / 0.005:.1f}`, "
+        f"where the loop's own quadratic is what binds. Two limits in two "
+        f"different units, and which one a caller meets first depends on "
+        f"`bn`."
     )
     R.md()
     R.md(
@@ -1242,15 +1272,19 @@ def characterise() -> Data:
     )
     _u2 = [v[0] for v in d.useed.values()]
     R.md(
-        f"**Seed within `|df| <= bn/M` and the loop is settled inside two "
-        f"loop time constants — `2/bn` samples — at every M and every `bn` "
-        f"measured.** The measured worst case is {min(_u2):.2f} and the "
-        f"best {max(_u2):.2f}, across a factor of four in each, so `u = 1` "
-        f"is the design value with margin rather than a fitted edge. That "
-        f"is the header's `k*bn/M` with `k` measured, and it is the number "
-        f"a coarse acquisition has to hit: its frequency bin must be no "
-        f"wider than `2*bn/M`, so that whichever bin wins leaves the "
-        f"residual inside `+-bn/M`."
+        f"**Seed within `|df| <= bn/(4M)` and the loop is settled inside "
+        f"two loop time constants — `2/bn` samples — at every M and every "
+        f"`bn` measured.** The measured worst case is {min(_u2):.2f} and "
+        f"the best {max(_u2):.2f}, across a factor of four in each, so "
+        f"`u = 1/4` is the design value with margin rather than a fitted "
+        f"edge. That is the header's `k*bn/M` with `k` measured, and it is "
+        f"the number a coarse acquisition has to hit: its frequency bin "
+        f"must be no wider than `bn/(2M)`, so that whichever bin wins "
+        f"leaves the residual inside `+-bn/(4M)`. A residual inside `bn/M` "
+        f"settles within five constants (worst "
+        f"{min(v[1] for v in d.useed.values()):.2f}). Until #3224 the loop "
+        f"ran 1.67 times wider than `bn` said, and the same table read "
+        f"`u = 1.42` within two constants: the rule was `bn/M` then."
     )
     R.md()
     R.md(
@@ -1306,7 +1340,7 @@ def characterise() -> Data:
     R.md(
         f"Noise erodes the window rather than the law: at 6 dB the "
         f"two-constant window is {_n6:.2f} against {min(_u2):.2f} clean, so "
-        f"a seed inside `bn/M` still lands, with less margin. The erosion "
+        f"a seed inside `bn/(4M)` still lands, with less margin. The erosion "
         f"is the reason to seed rather than to rely on the outer range at "
         f"all — the slow beat-note grind that a perfect integrator makes "
         f"possible in principle is exactly the part of acquisition noise "
@@ -1331,8 +1365,12 @@ def characterise() -> Data:
     for m in MS:
         gains, cms = [], []
         for n in NS:
-            c, _, _ = run(psk(m, F0, NSYM), m, n=n)
-            gains.append(c.lock)
+            # The lock probe's mean over the record's second half, not the
+            # EMA's last sample: one sample of a 39-look EMA on data spreads
+            # by a few thousandths, enough to reorder two window lengths.
+            _, _, t = run(psk(m, F0, NSYM), m, n=n, decim=ESNO_DECIM)
+            lk = np.asarray(t["car.lock"])
+            gains.append(float(np.mean(lk[len(lk) // 2 :])))
             cc, _, _ = run(tone(F0, 64_000), m, n=n)
             cms.append(cc.lock)
         d.arm_cost[m] = gains
@@ -1809,12 +1847,13 @@ def review(d: Data) -> None:
         f"the scale the loop's whole acquisition behaviour collapses onto "
         f"(§2.5: nine (M, bn) pairs spanning 4x in each land on one curve "
         f"of settling time against `u = |df|*M/bn`), and inverting it gives "
-        f"the number a composer needs: seed within `|df| <= bn/M` and the "
+        f"the number a composer needs: seed within `|df| <= bn/(4M)` and the "
         f"loop is settled within two loop time constants at every M and "
         f"`bn` measured, worst case {min(_u2):.2f} clean and "
-        f"{d.useed_snr[-1][1][0]:.2f} at 6 dB. So `k = 1` is the design "
-        f"value, and a coarse acquisition ahead of this loop needs a "
-        f"frequency bin no wider than `2*bn/M`. The omission is the ARM's "
+        f"{d.useed_snr[-1][1][0]:.2f} at 6 dB, in units of `bn/M`. So "
+        f"`k = 1/4` is the design value, and a coarse acquisition ahead of "
+        f"this loop needs a frequency bin no wider than `bn/(2M)`. The "
+        f"omission is the ARM's "
         f"absolute wall: pull-in also stops at a frequency that does not "
         f"scale with `bn` at all — {d.edges[1][1]:.5f} at a 1-sample arm "
         f"against {d.edges[8][1]:.5f} at an 8-sample one (M = 4), "
@@ -1936,7 +1975,7 @@ def limits(d: Data) -> None:
 
     # --- the headline capability ---------------------------------------
     R.limit(
-        all(abs(r[4] - F0) < 5e-4 for r in d.cold),
+        all(abs(r[4] - F0) < TRACK_TOL for r in d.cold),
         f"every M acquires the carrier from a cold start at every stimulus "
         f"— unmodulated, rect M-PSK and RRC M-PSK — with NO symbol timing "
         f"(worst error {max(abs(r[4] - F0) for r in d.cold):.1e})",
@@ -1982,9 +2021,14 @@ def limits(d: Data) -> None:
         f"whether the loop is working ({R.ref('track_vs_declare_envelopes')})",
     )
     R.limit(
-        all(r[5] for r in d.esno if r[1] >= 15.0),
-        "and every M tracks to better than 5e-4 cycles/sample at Es/N0 of "
-        "15 dB and above",
+        all(
+            r[5]
+            for r in d.esno
+            if r[1] >= 20.0 or (r[1] >= 15.0 and r[0] <= 4)
+        ),
+        f"and every M tracks to better than {TRACK_TOL:g} cycles/sample (half "
+        f"the offset) at Es/N0 of 20 dB and above, and M of 4 and below at "
+        f"15 dB (M = 8's edge is 15 dB, §2.2)",
     )
 
     # --- the acquisition contract ---------------------------------------
@@ -2012,14 +2056,15 @@ def limits(d: Data) -> None:
         "every geometry, so pulling in can never reach the aliasing bound — "
         "a caller reaches it only by being SEEDED near an alias",
     )
-    # The widest bn swept in §2.5, which is the row already at its ceiling
-    # on the shortest record: short budget against long budget.
-    _short, _, _long = d.edge_bn[0][1]
+    # The widest bn swept in §2.5, which is the row at its ceiling on the
+    # middle record (the corrected loop, #3224, needs more than 100k
+    # samples to reach it): middle budget against long budget.
+    _, _mid, _long = d.edge_bn[0][1]
     R.limit(
-        abs(_short - _long) < 0.02 * _long,
+        abs(_mid - _long) < 0.02 * _long,
         f"the pull-in RANGE is bn-independent: at "
-        f"`bn = {d.edge_bn[0][0]:g}` a 100k budget and a 1.6M budget give "
-        f"the same edge to {abs(_short - _long) / _long:.1%}",
+        f"`bn = {d.edge_bn[0][0]:g}` a 400k budget and a 1.6M budget give "
+        f"the same edge to {abs(_mid - _long) / _long:.1%}",
     )
     R.limit(
         all(
@@ -2032,8 +2077,8 @@ def limits(d: Data) -> None:
     )
     # --- the loop's own scale, and the seeding rule that falls out -------
     #
-    # The linear regime is the first two columns (u = 0.5, 1.0) and the
-    # nonlinear one is everything from u = 2; they are asserted separately
+    # The linear regime is the first two columns (u = 0.125, 0.25) and the
+    # nonlinear one is everything from u = 1; they are asserted separately
     # because they are different claims. A single "monotone in u" limit
     # spanned both and FAILED -- correctly, and for the interesting reason:
     # inside the lock-in region settling does not grow with the offset at
@@ -2041,7 +2086,7 @@ def limits(d: Data) -> None:
     _lin = [d.ptime[k][i] for k in d.ptime for i in (0, 1)]
     R.limit(
         max(_lin) / min(_lin) < 1.15 and max(_lin) < 2.5,
-        f"inside `u = |df|*M/bn <= 1` the settling time does not depend on "
+        f"inside `u = |df|*M/bn <= 1/4` the settling time does not depend on "
         f"the offset: every (M, bn) pair reads {min(_lin):.2f} to "
         f"{max(_lin):.2f} loop time constants, which is the loop's own step "
         f"response — predictable in the strongest sense, CONSTANT rather "
@@ -2051,12 +2096,12 @@ def limits(d: Data) -> None:
     R.limit(
         all(all(b > a for a, b in zip(v, v[1:])) for v in _nl if len(v) > 1),
         "and outside it the beat-note term takes over: settling grows "
-        "strictly with `u` at every (M, bn) from `u = 2` upward",
+        "strictly with `u` at every (M, bn) from `u = 1` upward",
     )
     _quad = [
-        d.ptime[k][4] / d.ptime[k][3]
+        d.ptime[k][5] / d.ptime[k][4]
         for k in d.ptime
-        if not np.isnan(d.ptime[k][4])
+        if not np.isnan(d.ptime[k][5])
     ]
     R.limit(
         all(v > 3.0 for v in _quad),
@@ -2081,18 +2126,18 @@ def limits(d: Data) -> None:
     )
     _u2 = [v[0] for v in d.useed.values()]
     R.limit(
-        all(v >= 1.0 for v in _u2),
-        f"**the seeding rule**: a residual inside `|df| <= bn/M` settles "
+        all(v >= 0.25 for v in _u2),
+        f"**the seeding rule**: a residual inside `|df| <= bn/(4M)` settles "
         f"within two loop time constants (`2/bn` samples) at every M and "
         f"`bn` measured — worst case {min(_u2):.2f}, best "
-        f"{max(_u2):.2f}, so `u = 1` carries margin",
+        f"{max(_u2):.2f}, so `u = 1/4` carries margin",
     )
     _n6 = d.useed_snr[-1][1][0]
     R.limit(
-        _n6 >= 0.7,
+        _n6 >= 0.25,
         f"and it survives noise: at 6 dB the two-constant window is still "
         f"{_n6:.2f} in the same units, so a coarse acquisition placing the "
-        f"residual inside `bn/M` hands over a loop that locks promptly "
+        f"residual inside `bn/(4M)` hands over a loop that locks promptly "
         f"rather than one that grinds",
     )
     R.limit(
@@ -2168,11 +2213,26 @@ def limits(d: Data) -> None:
     R.limit(
         all(
             b <= a + 1e-3
-            for m in MS
+            for m in (4, 8)
             for a, b in zip(d.arm_cost[m], d.arm_cost[m][1:])
         ),
         "and with data present the coherent gain falls monotonically as the "
-        "window widens, at every M — the header's direction, measured",
+        "window widens at M = 4 and 8 — the header's direction, measured",
+    )
+    # At M = 2 the statistic is limited, (z/|z|)^2: a window straddling a
+    # sign change off its centre keeps unit magnitude and the carrier's
+    # phase, so it costs nothing; only a window centred on a transition
+    # sums to zero. At 8 samples a symbol that is one position in 8, half of
+    # them a sign change: 1/16 of looks at EVERY even window, a gain of
+    # 15/16 whatever the length. The old loop's data happened to fall in
+    # order; the claim was never M = 2's.
+    _m2 = d.arm_cost[2][1:]
+    R.limit(
+        max(_m2) - min(_m2) < 0.03 and max(_m2) <= 15.0 / 16.0 + 0.005,
+        f"and at M = 2 it is flat, {min(_m2):.3f} to {max(_m2):.3f} over "
+        f"windows of 2 to 8: the limited statistic loses only the looks "
+        f"centred on a transition, 1/16 at every even length, so 15/16 is "
+        f"its ceiling and the loop's jitter takes the rest",
     )
     R.limit(
         all(d.arm_cost[m][0] > 0.999 for m in MS),
@@ -2275,8 +2335,9 @@ def limits(d: Data) -> None:
         "and clears the integrator",
     )
     R.limit(
-        d.life["probes"] == ["car.e", "car.freq", "car.lock", "car.locked"],
-        f"the loop publishes exactly four probes "
+        d.life["probes"]
+        == ["car.e", "car.freq", "car.lock", "car.locked", "car.nco"],
+        f"the loop publishes exactly five probes "
         f"({', '.join(d.life['probes'])})",
     )
     R.limit(
@@ -2316,13 +2377,14 @@ def executive(d: Data) -> None:
     R.executive(
         "CarrierNda",
         [
-            f"**Seed it.** A residual inside `|df| <= bn/M` is locked "
+            f"**Seed it.** A residual inside `|df| <= bn/(4M)` is locked "
             f"within `2/bn` samples, and inside that window the settling "
             f"time does not depend on the offset at all — constant, not "
             f"merely bounded (worst case measured {seed_u:.2f} in units of "
             f"`bn/M`, {d.useed_snr[-1][1][0]:.2f} at 6 dB Es/N0). So a "
             f"coarse acquisition in front of this loop needs a frequency "
-            f"bin no wider than `2*bn/M` (§2.5).",
+            f"bin no wider than `bn/(2M)` (§2.5). `bn` is the closed "
+            f"loop's own noise bandwidth (#3224).",
             f"**Its worst failure is silent, and reproducible.** Every "
             f"`k/M` is a stable lock of the same width as the true one: "
             f"the loop sits there reporting a lock statistic of "

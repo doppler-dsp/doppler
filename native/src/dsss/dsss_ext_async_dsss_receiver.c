@@ -71,6 +71,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                                              "reacquire",
                                              "code_only_s",
                                              "doppler_rate",
+                                             "refine",
                                              NULL };
   PyObject          *code_obj            = NULL;
   double             chip_rate           = 1000000.0;
@@ -102,15 +103,17 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   int                reacquire_raw                 = false;
   double             code_only_s                   = 0.0;
   double             doppler_rate                  = 0.0;
+  int                refine_raw                    = true;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|dddiddddOOidOdOOpOddpdd", kwlist, &code_obj,
+          args, kwds, "O|dddiddddOOidOdOOpOddpddp", kwlist, &code_obj,
           &chip_rate, &symbol_rate, &sample_rate, &m, &cn0_dbhz, &pfa, &pd,
           &doppler_uncertainty, &segments_obj, &sps_obj, &differential,
           &refine_max_error_db, &refine_samples_per_symbol_obj,
           &refine_design_margin_db, &refine_n_fft_obj, &refine_zero_pad_obj,
           &refine_sequential_raw, &refine_max_n_blocks_obj, &carrier_freq_hz,
-          &lost_confirm_s, &reacquire_raw, &code_only_s, &doppler_rate))
+          &lost_confirm_s, &reacquire_raw, &code_only_s, &doppler_rate,
+          &refine_raw))
     return -1;
   if (segments_obj != NULL)
     {
@@ -240,6 +243,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
     }
   size_t         refine_max_n_blocks = (size_t)refine_max_n_blocks_raw;
   bool           reacquire           = (int)reacquire_raw;
+  bool           refine              = (int)refine_raw;
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
@@ -253,23 +257,33 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
       segments, sps, differential, refine_max_error_db,
       refine_samples_per_symbol, refine_design_margin_db, refine_n_fft,
       refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-      lost_confirm_s, reacquire, code_only_s, doppler_rate);
+      lost_confirm_s, reacquire, code_only_s, doppler_rate, refine);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "AsyncDsssReceiver: invalid parameter (need a code of "
-                       "at least 2 chips, a finite chip_rate > 0, a finite "
-                       "symbol_rate > 0 and <= chip_rate, sample_rate >= "
-                       "chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, "
+                       "AsyncDsssReceiver: refused: either the carrier lock "
+                       "cannot be sized at this cn0_dbhz (the design's "
+                       "update SNR, C/N0 x T, is too low for any count up to "
+                       "10^7 updates to reach Pd 0.99 against Pfa 1e-3): "
+                       "raise cn0_dbhz; or a parameter is invalid (need a "
+                       "code of at least 2 chips, a finite chip_rate > 0, a "
+                       "finite symbol_rate > 0 and <= chip_rate, sample_rate "
+                       ">= chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, "
                        "carrier_freq_hz 0 or finite and above sample_rate / "
                        "2, lost_confirm_s >= 0 (and at least one input "
                        "sample with reacquire), refine_samples_per_symbol >= "
                        "1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol "
                        "of at most 2^20 Dll partials, segments * chip_rate / "
                        "(code_len * symbol_rate) <= 1048576; and for the "
-                       "searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, "
-                       "a finite doppler_uncertainty >= 0)");
+                       "searcher a finite cn0_dbhz whose update SNR over a "
+                       "code period is finite and positive with a carrier "
+                       "bandwidth the loop filter accepts, 0 < pfa < 1, 0 < "
+                       "pd < 1, a finite doppler_uncertainty >= 0; refine "
+                       "false needs a search at least 1 / bn code periods "
+                       "deep, bn the carrier loop's (about 101 / 135 at the "
+                       "415.1-B-1 floor); a symbol of at least a code "
+                       "period)");
       return -1;
     }
   return 0;
@@ -544,7 +558,7 @@ static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
   { "locked", "Health flag: the symbol-lock detector." },
   { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
   { "lock_threshold", "`locked` declares strictly above this." },
-  { "car_last_error", "Pre-despread Costas residual, rad." },
+  { "car_last_error", "Pre-despread loop's residual, rad (slope 1)." },
   { "mpsk_last_error", "Post-despread carrier residual, rad." },
   { "state_samples", "Input samples since `state` was entered." },
   { "both_down_samples",
@@ -554,6 +568,9 @@ static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
   { "refused_hits",
     "Searching hits refused as seeds by the seed domain (a Doppler at or past "
     "fs/2), since create or reset. The search went on over each one's tail." },
+  { "carrier_lock_n_noncoh",
+    "The carrier lock's non-coherent count, the updates one decision sums "
+    "(dp_async_dsss_receiver_get_carrier_lock_n_noncoh()): fixed at create." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc
@@ -561,7 +578,7 @@ static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc
         "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 "
         "tracking, 4 lost), the live estimates, both lock flags, and the two "
         "clocks in input samples.",
-        AsyncDsssReceiverObj_status_fields, 14 };
+        AsyncDsssReceiverObj_status_fields, 15 };
 static PyTypeObject *AsyncDsssReceiverObj_status_type = NULL;
 
 static PyObject *
@@ -610,6 +627,10 @@ AsyncDsssReceiverObj_status (AsyncDsssReceiverObject *self,
   PyStructSequence_SET_ITEM (
       _o, 13,
       PyLong_FromUnsignedLongLong ((unsigned long long)_r.refused_hits));
+  PyStructSequence_SET_ITEM (
+      _o, 14,
+      PyLong_FromUnsignedLongLong (
+          (unsigned long long)_r.carrier_lock_n_noncoh));
   return _o;
 }
 
@@ -1241,6 +1262,19 @@ AsyncDsssReceiver_getprop_coherent_bins (AsyncDsssReceiverObject *self,
           self->handle));
 }
 static PyObject *
+AsyncDsssReceiver_getprop_carrier_lock_n_noncoh (AsyncDsssReceiverObject *self,
+                                                 void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
+          self->handle));
+}
+static PyObject *
 AsyncDsssReceiver_getprop_lifecycle (AsyncDsssReceiverObject *self,
                                      void *Py_UNUSED (closure))
 {
@@ -1521,7 +1555,12 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
   { "n_exclusions", (getter)AsyncDsssReceiver_getprop_n_exclusions, NULL,
     "Code phases set_exclusions() holds.\n", NULL },
   { "coherent_bins", (getter)AsyncDsssReceiver_getprop_coherent_bins, NULL,
-    "The searcher's slow-time depth D: epochs per coherent block.\n", NULL },
+    "The searcher's slow-time depth D: epochs per coherent dwell.\n", NULL },
+  { "carrier_lock_n_noncoh",
+    (getter)AsyncDsssReceiver_getprop_carrier_lock_n_noncoh, NULL,
+    "The carrier lock's non-coherent count this receiver was built with, "
+    "dp_async_dsss_receiver_carrier_lock_n_noncoh() at its `cn0_dbhz`.\n",
+    NULL },
   { "lifecycle", (getter)AsyncDsssReceiver_getprop_lifecycle, NULL,
     "Where the receiver is in its lifecycle, by name: `\"searching\"`, "
     "`\"refining\"`, `\"tracking\"`, `\"idle\"` (a pooled receiver with no "
@@ -1548,9 +1587,12 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     "`lost_confirm_s = 0`.\n",
     NULL },
   { "doppler_hz", (getter)AsyncDsssReceiver_getprop_doppler_hz, NULL,
-    "The Doppler estimate the chain was built from, Hz: the seed's while "
-    "refining, the CarrierAcquisition-refined value once tracking. The live "
-    "carrier is status().doppler_hz.\n",
+    "The HAND-OVER's Doppler, Hz: what the live chain was built from, frozen "
+    "for the track's whole tenure -- the seed's while refining, the refine's "
+    "estimate from the hand-over on. It does not follow the carrier: under a "
+    "400 Hz/s ramp it is 400 Hz stale a second later. Where the emitter is "
+    "now is status().doppler_hz, a field of the same name with the other "
+    "meaning.\n",
     NULL },
   { "cn0_dbhz_est", (getter)AsyncDsssReceiver_getprop_cn0_dbhz_est, NULL,
     "The seed's C/N0 estimate, dB-Hz, unchanged until reset().\n", NULL },
@@ -1609,11 +1651,14 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     "debug.\n",
     NULL },
   { "car_last_error", (getter)AsyncDsssReceiver_getprop_car_last_error, NULL,
-    "Pre-despread Costas phase discriminator (rad): the residual carrier "
-    "phase LOOP 1 (which de-rotates before the Dll) is not nulling.\n",
+    "The pre-despread carrier loop's last phase error (rad): the residual "
+    "carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling, "
+    "as its loop filter takes it -- carrier_nda's discriminator divided by "
+    "its slope (carrier_nda_loop_error()), so radians near lock. The "
+    "\".car.e\" probe is the raw discriminator, twice this.\n",
     NULL },
   { "car_nco_freq", (getter)AsyncDsssReceiver_getprop_car_nco_freq, NULL,
-    "LOOP 1 (pre-despread Costas) loop-filter output = NCO frequency command, "
+    "LOOP 1 (the pre-despread carrier loop) output = NCO frequency command, "
     "cycles/sample of the front-end (chip_rate*spc) rate.\n",
     NULL },
   { "mpsk_last_error", (getter)AsyncDsssReceiver_getprop_mpsk_last_error, NULL,
@@ -1702,9 +1747,9 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "lets it go -- or, at the default lost_confirm_s of 0, until reset() --\n"
     "and symbol lock (`locked`) is what says the symbols are a signal's, so\n"
     "read it rather than the count (#2439). Under the specification's\n"
-    "coupled offset + 500 Hz/s Doppler ramp the pre-despread Costas removes\n"
-    "the full carrier dynamics before the code loop, so the recovered\n"
-    "constellation lands cleanly on the BPSK real axis.\n"
+    "coupled offset + 500 Hz/s Doppler ramp the pre-despread carrier loop\n"
+    "removes the full carrier dynamics before the code loop, so the\n"
+    "recovered constellation lands cleanly on the BPSK real axis.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1767,12 +1812,13 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "\n"
     "The output capacity steps() needs beyond the input's.\n"
     "\n"
-    "Returns 0, which is NOT a bound. A call that completes a code period\n"
-    "carried over from earlier calls emits all of that period's symbols\n"
-    "(code_len times symbol_rate over chip_rate of them), even if it brings\n"
-    "one sample. At more than one symbol per period a call can therefore\n"
-    "emit more symbols than its `x_len`, and those past `max_out` are\n"
-    "dropped (see dp_async_dsss_receiver_steps()). A true bound is #2469.\n"
+    "Returns 0, which is NOT a bound. A call runs more samples than its\n"
+    "`x_len` through the tracking chain at a hand-over: the hand-over ring's\n"
+    "tail (up to refine_hist_cap samples) or the search history's, through a\n"
+    "fresh chain. Their symbols can outnumber `x_len`, and those past\n"
+    "`max_out` are dropped (see dp_async_dsss_receiver_steps()). A call that\n"
+    "completes a carried code period adds at most one symbol: create()\n"
+    "refuses a symbol shorter than a code period. A true bound is #2469.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1852,7 +1898,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "status() -> ReceiverStatus record (state, doppler_hz, chip_phase, "
     "code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
     "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
-    "both_down_samples, refused_hits)\n"
+    "both_down_samples, refused_hits, carrier_lock_n_noncoh)\n"
     "\n"
     "Read the status record, by value: the state; where the emitter is\n"
     "now (the live carrier), its chip phase, code rate and C/N0; both lock\n"
@@ -2138,14 +2184,46 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "  (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the\n"
     "  seed's while refining, the refined value from the hand-over on, and 0\n"
     "  again after a refused hand-over or a reset(), which return the\n"
-    "  receiver to searching. A record is a float, so it resolves about 0.5\n"
-    "  Hz near 5 MHz. Not the live carrier: status().doppler_hz reads that,\n"
-    "  and \".car.freq\" and \".car.nco\" are the carrier loop's own view of "
-    "it,\n"
-    "  in cycles a sample at the input rate, so times chip_rate * spc for\n"
-    "  Hz;\n"
+    "  receiver to searching (idle in a pool). A record is a float, so it\n"
+    "  resolves about 0.5 Hz near 5 MHz. Not the live carrier:\n"
+    "  status().doppler_hz reads that, and \".car.freq\" and \".car.nco\" "
+    "are\n"
+    "  the carrier loop's own view of it, in cycles a sample at the input\n"
+    "  rate, so times chip_rate * spc for Hz;\n"
     "- \"<prefix>.refused\" -- the hits refused as seeds so far\n"
-    "  (status().refused_hits).\n"
+    "  (status().refused_hits);\n"
+    "- \"<prefix>.ho_src\" -- which estimate the live chain was built from, "
+    "an\n"
+    "  ASYNC_DSSS_RX_HO_* value (0 none since the seed, 1 the seed's, 2 the\n"
+    "  data template's, 3 the fine estimate's);\n"
+    "- \"<prefix>.ref_fine.hz\", \".snr_db\", \".n\" -- the fine hand-over's\n"
+    "  estimate (Hz, against the seed), its peak-to-mean and its sums, once\n"
+    "  at the refine's decision, whether or not its check passed;\n"
+    "- \"<prefix>.cn0\" -- the seed's C/N0 estimate, dB-Hz\n"
+    "  (status().cn0_dbhz_est): constant over a tenure, since the receiver\n"
+    "  keeps no running estimate while tracking;\n"
+    "- \"<prefix>.phase.car\" -- the pre-despread carrier NCO's phase at the\n"
+    "  call's FIRST sample, cycles in [0, 1)\n"
+    "  (dp_carrier_nda_get_nco_phase_ahead() past the samples the chain\n"
+    "  still carries), exact: the loop steers only at a period's end. The\n"
+    "  phase of the tracking chain; while searching or refining it is the\n"
+    "  placeholder chain's, and \".state\" says which;\n"
+    "- \"<prefix>.phase.code\" -- the code NCO's prompt phase at the call's\n"
+    "  first sample, chips (dp_dll_get_code_phase_ahead()), exact to within\n"
+    "  a code-loop update inside the carried samples. It is the code NCO's\n"
+    "  word, the START of a sample's dwell; the Dll takes its prompt at the\n"
+    "  dwell's CENTRE, half an increment later (dll_tap_base(),\n"
+    "  nco_dwell_center(): the zero-order-hold rule). So a prompt on the\n"
+    "  continuous code phase reads here half a sample BEFORE it (0.5\n"
+    "  chip_rate / fs chips), with no correlation lost -- measured in the\n"
+    "  pull-in captures, -0.186 chip at 2.69 samples a chip (0.500 sample)\n"
+    "  and -0.148 at 3.42 (0.505).\n"
+    "\n"
+    "The two phases are stamped at the call's first sample, which is the\n"
+    "stamp the caller set (dp_tlm_set_now()) for this block, so a caller who\n"
+    "knows the transmitted carrier and code phase at that sample subtracts\n"
+    "them for the loops' true errors -- the stress the discriminator outputs\n"
+    "\".car.e\" and \".code.e\" only estimate.\n"
     "\n"
     "Feed blocks of about a code period, as the examples do, and these read\n"
     "as a time series of the lifecycle: when the search hit, how long the\n"
@@ -2154,18 +2232,30 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "Each loop reports under the prefix, at its own update rate:\n"
     "\n"
     "- \"<prefix>.car\" -- the chip-domain carrier loop\n"
-    "  (dp_costas_set_telemetry(): \".lock\", \".e\", \".freq\", "
+    "  (dp_carrier_nda_set_telemetry(): \".lock\", \".e\", \".freq\", "
     "\".locked\",\n"
-    "  \".nco\", \".freq_rate\", \".order\"), once per carrier update: once a "
-    "code\n"
-    "  period, except while it coasts, when loop 1 is held;\n"
+    "  \".nco\"; \".e\" is the raw discriminator, slope 2, so twice the "
+    "phase\n"
+    "  error in radians near lock, and \".lock\" the last block's ratio of\n"
+    "  sums), once per carrier update: once a code period, except while it\n"
+    "  coasts, when loop 1 is held;\n"
     "- \"<prefix>.code\" -- the code loop (dp_dll_set_telemetry(): \".e\",\n"
-    "  \".rate\", \".lock\", \".locked\", \".nco\"), once per discriminator "
-    "update;\n"
+    "  \".rate\", \".lock\", \".locked\", \".nco\", and the lock statistic's "
+    "two\n"
+    "  terms \".prompt_amp\" and \".offset_pwr\"), once per code period "
+    "(with\n"
+    "  the symbol aid on, the last steer held);\n"
+    "- \"<prefix>.code.steer\" -- the code loop's filter at each steer of "
+    "the\n"
+    "  symbol aid (dp_dll_set_steer_telemetry(): \".e\", \".prop\", "
+    "\".integ\",\n"
+    "  \".ctrl\", \".aid\"), the loop's own cadence;\n"
     "- \"<prefix>.demod\" -- the symbol-domain demodulator\n"
     "  (dp_mpsk_receiver_set_telemetry(): its lock, its carrier and timing\n"
     "  loops, the symbols, its AGC), once per recovered symbol (the AGC's\n"
-    "  pair once per gain update);\n"
+    "  pair once per gain update), and the timing loop's two filter terms\n"
+    "  beside them, \".demod.sync.prop\" and \".demod.sync.integ\"\n"
+    "  (dp_ratesync_loop_set_filter_telemetry());\n"
     "- \"<prefix>.acq\" -- the acquisition engine\n"
     "  (dp_correlator_set_telemetry()), once per decided dwell;\n"
     "- \"<prefix>.rc\" -- the rate converter between the code loop and the\n"
@@ -2176,7 +2266,34 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "own\n"
     "  symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and its\n"
     "  decision (dp_async_dsss_receiver_get_locked()), the one its users act\n"
-    "  on, once per emitted symbol.\n"
+    "  on, once per emitted symbol; \"<prefix>.sym.num\" and\n"
+    "  \"<prefix>.sym.den\", the metric's two EMAs (their ratio is\n"
+    "  \".sym.lock\"), on the same symbols;\n"
+    "- \"<prefix>.ref\" -- the refine's estimator, the data template's\n"
+    "  (dp_carrier_acq_set_telemetry(): \".stat\", \".thr\", \".hz\", "
+    "\".n\",\n"
+    "  \".ready\"), once per tested block while refining.\n"
+    "- \"<prefix>.state\", \"<prefix>.handover_hz\", \"<prefix>.refused\",\n"
+    "  \"<prefix>.ho_src\", \"<prefix>.cn0\", \"<prefix>.phase.car\" and\n"
+    "  \"<prefix>.phase.code\" -- the lifecycle (an async_dsss_rx_state_t),\n"
+    "  the Doppler the chain was built from (Hz), the refused hits, the\n"
+    "  hand-over's source (ASYNC_DSSS_RX_HO_*), the seed's C/N0 (dB-Hz) and\n"
+    "  the loops' NCO phases (cycles, chips) at the call's first sample,\n"
+    "  once per steps() call;\n"
+    "- \"<prefix>.had_lock\", \"<prefix>.coast\" and \"<prefix>.hold\" -- the "
+    "loop\n"
+    "  control the receiver decides once a code period from the code and\n"
+    "  symbol flags, each 0 or 1: whether both have been up together since\n"
+    "  the seed (from then on the loops coast rather than run free), whether\n"
+    "  this period coasts (both down: the carrier restored to its hold point\n"
+    "  and frozen, the code loop dead-reckoning -- one decision drives both\n"
+    "  loops), and whether this period re-marked the hold point (both up);\n"
+    "  once per code period while tracking;\n"
+    "- \"<prefix>.release\" -- the release clock: how long both flags have\n"
+    "  been down (the symbol flag alone with reacquire), as a fraction of\n"
+    "  the confirm interval, so the receiver is released once it passes 1; 0\n"
+    "  while a flag is up and when there is no release rule. Once per\n"
+    "  steps() call.\n"
     "\n"
     "The carrier and code loops report their filters two ways: \".car.freq\"\n"
     "and \".code.rate\" (and the demodulator's \".demod.car.freq\") are the\n"
@@ -2229,15 +2346,24 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "doppler_uncertainty=500.0)\n"
     ">>> tlm = Telemetry(1 << 12)\n"
     ">>> rx.set_telemetry(tlm, \"rx\")\n"
-    ">>> sorted(p for p in tlm.probe_names if p.startswith(\"rx.c\"))\n"
-    "['rx.car.e', 'rx.car.freq', 'rx.car.freq_rate', 'rx.car.lock', "
-    "'rx.car.locked', 'rx.car.nco', 'rx.car.order', 'rx.code.e', "
-    "'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']\n"
+    ">>> sorted(p for p in tlm.probe_names if p.startswith((\"rx.car\",\n"
+    "...                                                    \"rx.code\")))\n"
+    "['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', "
+    "'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', "
+    "'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', "
+    "'rx.code.rate', 'rx.code.steer.aid', 'rx.code.steer.ctrl', "
+    "'rx.code.steer.e', 'rx.code.steer.integ', 'rx.code.steer.prop']\n"
     ">>> sorted(p for p in tlm.probe_names if p.startswith((\"rx.s\", "
     "\"rx.h\",\n"
-    "...                                                    \"rx.r\")))\n"
-    "['rx.handover_hz', 'rx.refused', 'rx.state', 'rx.sym.lock', "
-    "'rx.sym.locked']\n"
+    "...                                                    \"rx.refu\")))\n"
+    "['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', "
+    "'rx.state', 'rx.sym.den', 'rx.sym.lock', 'rx.sym.locked', 'rx.sym.num']\n"
+    ">>> sorted(p for p in tlm.probe_names if p.startswith((\"rx.ph\", "
+    "\"rx.cn\")))\n"
+    "['rx.cn0', 'rx.phase.car', 'rx.phase.code']\n"
+    ">>> sorted(p for p in tlm.probe_names if p.startswith(\"rx.ref\"))\n"
+    "['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', "
+    "'rx.ref_fine.hz', 'rx.ref_fine.n', 'rx.ref_fine.snr_db', 'rx.refused']\n"
     ">>> rx.set_telemetry(None, \"rx\")      # detach\n" },
   { "set_threads", (PyCFunction)(void *)AsyncDsssReceiverObj_set_threads,
     METH_VARARGS | METH_KEYWORDS,
@@ -2353,11 +2479,12 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "\n"
     "Replaces the list. A peak within one chip, circularly, of any of them\n"
     "is dropped from a dwell's list at any Doppler, before ranking\n"
-    "(set_rank()). Phases are chips in status().chip_phase's convention and\n"
-    "are folded into [0, code_len). An empty list (the default) excludes\n"
-    "nothing. A tracking receiver is not affected: the list applies to its\n"
-    "next search. A mutator's value, so it travels in the state blob\n"
-    "(#2022).\n"
+    "(set_rank()). Phases are chips in status().chip_phase's convention, at\n"
+    "the sample after the last one fed when they are set, and are folded\n"
+    "into [0, code_len); a dwell decided calls later carries them from that\n"
+    "sample to its own. An empty list (the default) excludes nothing. A\n"
+    "tracking receiver is not affected: the list applies to its next search.\n"
+    "A mutator's value, so it travels in the state blob (#2022).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -2618,26 +2745,78 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    (dp_correlator_create_continuous()). Default 0: the window is the "
     "only\n"
     "    bound.\n"
+    "refine : bool, default True\n"
+    "    Whether a seed refines its Doppler before tracking. True (the "
+    "default):\n"
+    "    a seed enters refining, CarrierAcquisition estimates the residual "
+    "over\n"
+    "    its dwell, and tracking starts from the refined Doppler (the "
+    "`refine_*`\n"
+    "    parameters). False: a seed builds the tracking chain at once, at "
+    "the\n"
+    "    seed's own sample, from the seed's code phase and Doppler; the "
+    "receiver\n"
+    "    goes from searching (or idle) to tracking and never reads refining, "
+    "and\n"
+    "    the `refine_*` parameters are unused. The Doppler handed over is "
+    "the\n"
+    "    search's: the block's mean, within one Doppler row of it, since the\n"
+    "    peak is one of the rows bracketing it and at a near tie noise "
+    "decides\n"
+    "    which, not always the nearer one; so within a row plus "
+    "`doppler_rate`\n"
+    "    times half the dwell (`coherent_bins` code periods) of the Doppler "
+    "at\n"
+    "    the hand-over sample. Past half a row, the carrier loop meets it\n"
+    "    outside its budgeted edge, and its lock time is the pull-in's, not "
+    "the\n"
+    "    budget's (the design page, §2.3). False is sized on the nearer row: "
+    "it\n"
+    "    is accepted only while half the search's Doppler row, `chip_rate /\n"
+    "    (code_len * coherent_bins)`, is inside the carrier loop's "
+    "acquisition\n"
+    "    bound, ASYNC_DSSS_RX_CARRIER_PULLIN_HZ: that is `coherent_bins >=\n"
+    "    ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn)`, with `bn` the receiver's "
+    "carrier\n"
+    "    bandwidth (dp_async_dsss_receiver_carrier_bn()): 25 at 0.04, at any\n"
+    "    chip rate. A receiver configured outside it (a one-epoch search, D = "
+    "1,\n"
+    "    among them) is refused, and a blob in the refining state is refused "
+    "by\n"
+    "    set_state(). The name is a placeholder (async-dsss-receiver.md "
+    "§4.4).\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    If construction fails. The exception message is "
     "``AsyncDsssReceiver:\n"
-    "    invalid parameter (need a code of at least 2 chips, a finite "
-    "chip_rate\n"
-    "    > 0, a finite symbol_rate > 0 and <= chip_rate, sample_rate >=\n"
-    "    chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 "
-    "or\n"
-    "    finite and above sample_rate / 2, lost_confirm_s >= 0 (and at least "
-    "one\n"
-    "    input sample with reacquire), refine_samples_per_symbol >= 1,\n"
+    "    refused: either the carrier lock cannot be sized at this cn0_dbhz "
+    "(the\n"
+    "    design's update SNR, C/N0 x T, is too low for any count up to 10^7\n"
+    "    updates to reach Pd 0.99 against Pfa 1e-3): raise cn0_dbhz; or a\n"
+    "    parameter is invalid (need a code of at least 2 chips, a finite\n"
+    "    chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, "
+    "sample_rate\n"
+    "    >= chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz "
+    "0\n"
+    "    or finite and above sample_rate / 2, lost_confirm_s >= 0 (and at "
+    "least\n"
+    "    one input sample with reacquire), refine_samples_per_symbol >= 1,\n"
     "    refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20 "
     "Dll\n"
     "    partials, segments * chip_rate / (code_len * symbol_rate) <= "
     "1048576;\n"
-    "    and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a\n"
-    "    finite doppler_uncertainty >= 0)``.\n"
+    "    and for the searcher a finite cn0_dbhz whose update SNR over a code\n"
+    "    period is finite and positive with a carrier bandwidth the loop "
+    "filter\n"
+    "    accepts, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= "
+    "0;\n"
+    "    refine false needs a search at least 1 / bn code periods deep, bn "
+    "the\n"
+    "    carrier loop's (about 101 / 135 at the 415.1-B-1 floor); a symbol of "
+    "at\n"
+    "    least a code period)``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -2649,7 +2828,30 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "...                        sample_rate=6.138e6, "
     "doppler_uncertainty=500.0)\n"
     ">>> (rx.tracking, rx.refining, rx.lost)       # searching\n"
-    "(0, 0, 0)\n",
+    "(0, 0, 0)\n"
+    "\n"
+    "With `refine` false a seed goes straight to tracking; that needs a\n"
+    "search at least 1 / bn code periods deep (bn the carrier loop's;\n"
+    "ASYNC_DSSS_RX_NO_REFINE_MIN_BINS), here a 0.1 s code-only window:\n"
+    "\n"
+    ">>> fast = AsyncDsssReceiver(code, chip_rate=3.069e6, "
+    "symbol_rate=2700.0,\n"
+    "...                          sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0,\n"
+    "...                          code_only_s=0.1, refine=False)\n"
+    ">>> fast.coherent_bins\n"
+    "150\n"
+    ">>> fast.seed(chip_phase=512.25, doppler_hz_est=-150.0, "
+    "cn0_dbhz_est=48.0)\n"
+    ">>> (fast.tracking, fast.refining, fast.doppler_hz)\n"
+    "(1, 0, -150.0)\n"
+    ">>> try:                                       # one epoch deep: "
+    "refused\n"
+    "...     AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
+    "...                       sample_rate=6.138e6, refine=False)\n"
+    "... except ValueError:\n"
+    "...     print(\"refused\")\n"
+    "refused\n",
   .tp_methods = AsyncDsssReceiverObj_methods,
   .tp_getset  = AsyncDsssReceiver_getset,
   .tp_new     = AsyncDsssReceiverObj_new,

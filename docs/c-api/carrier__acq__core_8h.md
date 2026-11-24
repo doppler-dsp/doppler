@@ -19,6 +19,7 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 * `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/fft/fft_core.h"`
 * `#include "doppler/acc_trace/acc_trace_core.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
 
 
 
@@ -38,6 +39,7 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 
 | Type | Name |
 | ---: | :--- |
+| struct | [**carrier\_acq\_tlm\_t**](structcarrier__acq__tlm__t.md) <br>_Telemetry attachment: a borrowed context and this object's probe ids. NULL ctx (the default) means detached: every probe site is one predicted-not-taken branch per tested block. Not part of the state blob, and kept across reset() and set\_state()._  |
 | struct | [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) <br>_CarrierAcquisition state: owned PSD and detector children, scratch, config and the running detection result._  |
 
 
@@ -70,6 +72,7 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 |  void | [**dp\_carrier\_acq\_get\_state**](#function-dp_carrier_acq_get_state) (const [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, void \* blob) <br>_Serialize the running state into a caller-owned blob._  |
 |  void | [**dp\_carrier\_acq\_reset**](#function-dp_carrier_acq_reset) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state) <br>_Reset to the post-create state: discard the running PSD average and detection state; n\_blocks/ready/residual\_hz return to their initial values. Config (psd/detector/dwell\_target) is untouched._  |
 |  int | [**dp\_carrier\_acq\_set\_state**](#function-dp_carrier_acq_set_state) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, const void \* blob) <br>_Restore the running state from a_ [_**dp\_carrier\_acq\_get\_state()**_](carrier__acq__core_8h.md#function-dp_carrier_acq_get_state) _blob._ |
+|  int | [**dp\_carrier\_acq\_set\_telemetry**](#function-dp_carrier_acq_set_telemetry) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the estimator's probes on it._  |
 |  size\_t | [**dp\_carrier\_acq\_state\_bytes**](#function-dp_carrier_acq_state_bytes) (const [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state) <br>_Size of this instance's serialized state blob._  |
 |  void | [**dp\_carrier\_acq\_steps**](#function-dp_carrier_acq_steps) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Fold raw complex samples into the running PSD average and test for a detection. Accepts any chunk size across repeated calls_  _a partial trailing block is carried to the next call. A no-op once ready is true or the give-up cap (max\_n\_blocks in sequential mode, dwell\_target otherwise) has been reached._ |
 
@@ -367,6 +370,85 @@ The instance must have been created with the same configuration as the one that 
 **Returns:**
 
 DP\_OK on success; DP\_ERR\_INVALID when the envelope does not match, nfft / dwell\_target / max\_n\_blocks differ from this instance, carry\_len &gt;= psd-&gt;k.n, residual\_hz is NaN or beyond +/- sample\_rate\_hz/2, or a child blob is rejected. A child rejection can leave the psd child already restored. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_carrier\_acq\_set\_telemetry 
+
+_Attach (or detach) a telemetry context and register the estimator's probes on it._ 
+```C++
+int dp_carrier_acq_set_telemetry (
+    dp_carrier_acq_state_t * state,
+    dp_tlm_t * tlm,
+    const char * prefix,
+    uint32_t decim
+) 
+```
+
+
+
+Five probes, emitted once per TESTED block  every block in sequential mode, once at dwell\_target otherwise  and thinned by decim:
+* "&lt;prefix&gt;.stat": the test statistic the decision compares, the correlator's peak over its noise estimate (dimensionless);
+* "&lt;prefix&gt;.thr": the threshold it was compared against at this block count (the ratio a detection must exceed; it falls as blocks accrue);
+* "&lt;prefix&gt;.hz": the frequency of the correlation peak, Hz, refined to a sub-bin as the decision's residual\_hz is  so on the block that decides, it IS residual\_hz;
+* "&lt;prefix&gt;.n": blocks folded so far (n\_blocks);
+* "&lt;prefix&gt;.ready": the decision, 0 or 1.
+
+
+
+
+A dwell that reaches its give-up cap without deciding shows as a last record with ".ready" 0 at ".n" equal to the cap. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)). Passing NULL detaches.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `tlm` Telemetry context to attach, or NULL to detach. 
+* `prefix` Probe-name prefix; NULL means "ca". 
+* `decim` Emit every decim-th tested block; &gt;= 1. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID on decim 0, a prefix too long for a probe's name, or a probe table without room for all five (the attach fails whole; the object stays as it was). 
+```C++
+>>> import numpy as np
+>>> from doppler.acquire import CarrierAcquisition
+>>> from doppler.telemetry import Telemetry
+>>> tlm = Telemetry(1 << 12)
+>>> ca = CarrierAcquisition(
+...     sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
+...     psd_template=np.array([], dtype=np.float32))
+>>> ca.set_telemetry(tlm, "ca")
+>>> sorted(tlm.probe_names)
+['ca.hz', 'ca.n', 'ca.ready', 'ca.stat', 'ca.thr']
+>>> rng = np.random.default_rng(12345)
+>>> bits = np.where(rng.integers(0, 2, 4000), 1.0, -1.0)
+>>> data = np.repeat(bits, 8)
+>>> t = np.arange(len(data))
+>>> ca.steps((data * np.exp(2j * np.pi * 123.0 * t / 8000.0)).astype(
+...     np.complex64))
+>>> recs = tlm.read()        # five records per tested block
+>>> len(recs) % 5
+0
+>>> name = {i: n for n, i in tlm.probe_names.items()}
+>>> last = {name[int(r["probe"])]: float(r["value"]) for r in recs[-5:]}
+>>> last["ca.ready"], round(last["ca.hz"]), last["ca.stat"] > last["ca.thr"]
+(1.0, 123, True)
+```
+ 
 
 
 

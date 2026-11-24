@@ -1,0 +1,10 @@
+# never G 2.2 10 empty
+# changes R 2.2 10 empty
+# never R 2.2 10 empty
+# slips R 2.2 10 empty
+# works G 2.8 4 empty
+# works R 2.8 4 empty
+# never R 2.8 4 empty
+# never G 2.8 10 empty
+# never R 2.8 10 empty
+# slips R 2.8 10 empty

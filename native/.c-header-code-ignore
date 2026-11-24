@@ -12,7 +12,7 @@
 
 doppler/adc/adc_core.h::dp_adc_create
 doppler/agc/agc_core.h::agc_exp10_
-doppler/async_dsss_receiver/async_dsss_receiver_core.h::ASYNC_DSSS_RX_CARRIER_PULLIN_HZ
+doppler/async_dsss_receiver/async_dsss_receiver_core.h::ASYNC_DSSS_RX_CAR_DEN_ALPHA
 doppler/awgn/awgn_core.h::dp_awgn
 doppler/ber_meter/ber_meter_core.h::DP_FOURCC
 doppler/buffer/buffer.h::DECLARE_DP_BUFFER_VIEW
@@ -21,7 +21,7 @@ doppler/buffer/buffer.h::_write_some
 doppler/burst_capture/burst_capture_core.h::DP_FOURCC
 doppler/carrier_acq/carrier_acq_core.h::dp_carrier_acq_create
 doppler/carrier_mpsk/carrier_mpsk_core.h::dp_carrier_mpsk_init
-doppler/carrier_nda/carrier_nda_core.h::carrier_nda_disc
+doppler/carrier_nda/carrier_nda_core.h::carrier_nda_loop_error
 doppler/ccsds_tm/ccsds_tm_frame.h::dp_ccsds_tm_frame_decode
 doppler/ccsds_tm/ccsds_tm.h::ccsds_tm_conv_max_out
 doppler/cic/cic_core.h::dp_cic_create

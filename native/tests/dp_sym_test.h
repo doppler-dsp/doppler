@@ -250,12 +250,17 @@ dp_test_settle_syms (double bn_timing, double bn_carrier)
  *
  * **Returned in the same units the loop bandwidth is stated in, and there is
  * no @c sps in it.** `bn_carrier` is normalised to the symbol rate, so the
- * bound is `bn_carrier / m` cycles per symbol and this returns a fraction of
- * it. Converting to cycles per SAMPLE happens once, at the constructor that
- * wants it — `dp_rx_mpsk.h` states why: *"foff is cycles per SYMBOL (so one
- * value means one thing at every rate); the ctor wants cycles per SAMPLE.
- * Mixing them is an sps-sized error, and at sps=8 it asked the loop for 8x
- * its design envelope."*
+ * bound is `bn_carrier / (4 m)` cycles per symbol and this returns a fraction
+ * of it. The 4 is #3224's: `bn_carrier` is the NDA loop's real noise
+ * bandwidth since the discriminator's slope is divided out, and on that loop
+ * the prompt-lock window is `bn / (4M)` (CarrierNda's report, §2.5). It was
+ * `bn_carrier / m` while the loop ran 1.67 times wider. For the NDA loops
+ * only: Costas's own bound (`costas_pullin.c`) is its own. Converting to
+ * cycles per SAMPLE happens once, at the constructor that wants it —
+ * `dp_rx_mpsk.h` states why: *"foff is cycles per SYMBOL (so one value means
+ * one thing at every rate); the ctor wants cycles per SAMPLE. Mixing them is
+ * an sps-sized error, and at sps=8 it asked the loop for 8x its design
+ * envelope."*
  *
  * **The @p m is the part that was missing everywhere before this existed.**
  * The NDA discriminator is an M-th power, so it sees @p m times the offset and
@@ -264,17 +269,17 @@ dp_test_settle_syms (double bn_timing, double bn_carrier)
  * twice it at 8PSK, while reading identically at every order.
  *
  * @p frac is the fraction of the bound: 1.0 seeds exactly at
- * `bn_carrier / m`. **Tests seed at or under the bound.**
+ * `bn_carrier / (4 m)`. **Tests seed at or under the bound.**
  *
  * **The envelope is measured, not quoted here.** The Python subject
  * `doppler.track.tests.characterization.pull_in` sweeps the success fraction
  * against multiples of this bound across every order and two oversampling
- * ratios, and `make characterize` re-derives it. As it stands the carrier
- * loop is reliable out to 4x the bound (3x at 8PSK) and dead by 5x, so
- * seeding AT the bound keeps a 3-4x margin. The figures live in that sweep
- * rather than in this comment because a number nothing re-runs is prose, and
- * two findings were once filed against the receiver on the strength of one
- * (doppler#843, doppler#849).
+ * ratios, and `make characterize` re-derives it. Before #3224 it read the
+ * carrier loop reliable out to 4x the old `bn_carrier / m` bound (3x at
+ * 8PSK) and dead by 5x; it has not been re-run on the corrected loop. The
+ * figures live in that sweep rather than in this comment because a number
+ * nothing re-runs is prose, and two findings were once filed against the
+ * receiver on the strength of one (doppler#843, doppler#849).
  *
  * Pull-in BEYOND the bound is a real property and worth measuring — as a
  * characterization sweep with a reported success fraction,
@@ -291,7 +296,7 @@ dp_test_settle_syms (double bn_timing, double bn_carrier)
 static inline double
 dp_test_freq_offset_inside_bw (double bn_carrier, int m, double frac)
 {
-  return frac * bn_carrier / (double)m;
+  return frac * bn_carrier / (4.0 * (double)m);
 }
 
 /**

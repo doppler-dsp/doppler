@@ -99,6 +99,7 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  void | [**dp\_ratesync\_loop\_init**](#function-dp_ratesync_loop_init) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, double sps, size\_t m, double bn, double zeta, int ted) <br>_Initialise a standalone timing loop._  |
 |  void | [**dp\_ratesync\_loop\_reset**](#function-dp_ratesync_loop_reset) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Re-seed the loop: integrator, strobe ring, lock detector and the prime countdown. Configuration and cascade geometry are kept._  |
 |  void | [**dp\_ratesync\_loop\_set\_cascade**](#function-dp_ratesync_loop_set_cascade) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, double term\_rate, size\_t prime\_taps) <br>_Tell the loop the geometry of the accumulator it steers._  |
+|  int | [**dp\_ratesync\_loop\_set\_filter\_telemetry**](#function-dp_ratesync_loop_set_filter_telemetry) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) the timing loop-filter set: "&lt;prefix&gt;.prop" (kp \* e) and "&lt;prefix&gt;.integ" (the filter's integrator), once a recovered symbol, beside the six probes._  |
 |  int | [**dp\_ratesync\_loop\_set\_state**](#function-dp_ratesync_loop_set_state) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, const void \* blob) <br>_Restore the loop's mutable state from_ `blob` _._ |
 |  int | [**dp\_ratesync\_loop\_set\_telemetry**](#function-dp_ratesync_loop_set_telemetry) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Register the six timing probes; see_ [_**dp\_ratesync\_set\_telemetry()**_](ratesync__core_8h.md#function-dp_ratesync_set_telemetry) _, which forwards here. NULL_`tlm` _detaches._ |
 |  size\_t | [**dp\_ratesync\_loop\_state\_bytes**](#function-dp_ratesync_loop_state_bytes) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Bytes_ [_**dp\_ratesync\_loop\_get\_state()**_](ratesync__core_8h.md#function-dp_ratesync_loop_get_state) _writes (envelope + payload + the loop filter's child blob)._ |
@@ -979,6 +980,46 @@ void dp_ratesync_loop_set_cascade (
 * `l` Loop. Must be non-NULL. 
 * `term_rate` The terminal stage's own rate. `ctrl` is referenced to this, not to the overall cascade rate — they differ by the whole integer decimation in front, which would under-drive the loop by exactly that factor. 
 * `prime_taps` The terminal bank's tap count; the loop discards `prime_taps + 1` outputs before closing, because those are the delay lines filling rather than signal. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_set\_filter\_telemetry 
+
+_Attach (or detach) the timing loop-filter set: "&lt;prefix&gt;.prop" (kp \* e) and "&lt;prefix&gt;.integ" (the filter's integrator), once a recovered symbol, beside the six probes._ 
+```C++
+int dp_ratesync_loop_set_filter_telemetry (
+    ratesync_loop_t * l,
+    dp_tlm_t * tlm,
+    const char * prefix,
+    uint32_t decim
+) 
+```
+
+
+
+".ctrl" is the filter's output times the terminal stage's rate and ".rate" is `sps / (1 + integ)`, clamped, so neither shows the two terms apart; this set does. It is emitted from [**dp\_ratesync\_loop\_tlm\_flush()**](ratesync__core_8h.md#function-dp_ratesync_loop_tlm_flush), so it reports only while the six-probe set is attached too. Its own context, so a composer that does not ask for it (MpskReceiver's own attach) registers nothing more. Observation only: no decision reads it. 
+
+**Parameters:**
+
+
+* `l` Must be non-NULL. 
+* `tlm` Telemetry context (borrowed), or NULL to detach this set. 
+* `prefix` Probe-name prefix; NULL means "sync". 
+* `decim` Emit every decim-th symbol. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID (an overlong prefix or a full probe table), the set then detached. 
+
 
 
 

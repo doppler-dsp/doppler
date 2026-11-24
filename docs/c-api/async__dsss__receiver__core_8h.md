@@ -8,12 +8,14 @@
 
 [Go to the source code of this file](async__dsss__receiver__core_8h_source.md)
 
-_Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcquisition refine -&gt; Costas/Dll/RateConverter/ MpskReceiver track, one object._ [More...](#detailed-description)
+_Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcquisition refine -&gt; carrier\_nda/Dll/RateConverter/ MpskReceiver track, one object._ [More...](#detailed-description)
 
 * `#include "doppler/RateConverter/RateConverter_core.h"`
 * `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/carrier_acq/carrier_acq_core.h"`
 * `#include "doppler/cic/cic_core.h"`
+* `#include "doppler/carrier_nda/carrier_nda_core.h"`
+* `#include "doppler/ppe/ppe_core.h"`
 * `#include "doppler/costas/costas_core.h"`
 * `#include "doppler/dll/dll_core.h"`
 * `#include "doppler/dp_state.h"`
@@ -33,6 +35,8 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 * `#include "doppler/ber/ber_core.h"`
 * `#include "doppler/doppler_channel/doppler_channel_core.h"`
 * `#include "doppler/dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/loop_filter/loop_filter_core.h"`
+* `#include "doppler/state_filter/state_filter_core.h"`
 
 
 
@@ -53,6 +57,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 | Type | Name |
 | ---: | :--- |
 | struct | [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md) <br>_The receiver's own fields in its state blob, after the envelope and before the children._  |
+| struct | [**async\_dsss\_receiver\_fine\_t**](structasync__dsss__receiver__fine__t.md) <br> |
 | struct | [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) <br>_One consistent picture of what the receiver is doing, by value._  |
 | struct | [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) <br>_Composed receiver state._  |
 
@@ -86,20 +91,30 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 
 | Type | Name |
 | ---: | :--- |
+|  double | [**dp\_async\_dsss\_receiver\_carrier\_bn**](#function-dp_async_dsss_receiver_carrier_bn) (double cn0\_dbhz, double chip\_rate, size\_t code\_len) <br>_The pre-despread carrier loop's bandwidth at a design C/N0: the loop-SNR rule (async-dsss-receiver.md §1.3), no wider than ASYNC\_DSSS\_RX\_BN\_CARRIER._  |
+|  uint32\_t | [**dp\_async\_dsss\_receiver\_carrier\_lock\_n\_noncoh**](#function-dp_async_dsss_receiver_carrier_lock_n_noncoh) (double cn0\_dbhz, double chip\_rate, size\_t code\_len, size\_t segments) <br>_The pre-despread carrier lock's non-coherent count at a design C/N0: the updates one lock decision sums._  |
+|  double | [**dp\_async\_dsss\_receiver\_carrier\_phase\_var**](#function-dp_async_dsss_receiver_carrier_phase_var) (double cn0\_dbhz, double chip\_rate, size\_t code\_len, size\_t segments) <br>_The pre-despread carrier loop's phase variance at a design C/N0, the one the carrier lock is sized at._  |
 |  int | [**dp\_async\_dsss\_receiver\_configure\_chain\_raw**](#function-dp_async_dsss_receiver_configure_chain_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t segments, size\_t sps, int n) <br>_Pin the live-tracking despread/resample/demod grid directly. The escape hatch for the composition-specific knob:_ `segments` _(the live Dll's tracking parameter) and_`sps` _/_`n` _(MpskReceiver's samples and terminal outputs per symbol) are independently overridable, still bridged by a freshly-sized_`RateConverter` _and never coupled to each other. While searching/refining it re-pins the grid used to build the next tracking chain; once tracking it rebuilds_`dll` _/_`rc` _/_`rx` _in place, allocating every replacement before adopting it, and re-seeds the rebuilt chain from the whole carrier_ _loop 1 plus loop 2's integrator, the sum status() reports_ _so a retune keeps the signal it was tracking._ |
 |  void | [**dp\_async\_dsss\_receiver\_configure\_lock\_raw**](#function-dp_async_dsss_receiver_configure_lock_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, size\_t n\_looks, double alpha, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the live-tracking Dll's code-lock detector directly. Forwards to_ `dp_dll_configure_lock_raw()` _on the live tracking Dll (the one behind_`get_code_locked()` _), NOT the refine-stage collection Dll. It retunes the Dll the receiver holds now; every chain build (a seed, the hand-over, reset() or configure\_chain\_raw()) replaces that Dll with a freshly sized one, so call it once tracking. The detector is the hysteretic lockdet over the DLL's per-N-look CFAR statistic — the levels and verify counts trade declare latency against false-alarm rate._ |
 |  int | [**dp\_async\_dsss\_receiver\_configure\_search\_raw**](#function-dp_async_dsss_receiver_configure_search_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded search's grid directly. Forwards to_ `dp_correlator_configure_search_raw()` __ _the escape hatch under this object's_`symbol_rate` _-driven auto-sizing, for a power user who wants a specific_`(doppler_bins, n_noncoh)` _. The pin replaces the whole auto-sized grid, the window-tiled search included. Only meaningful while searching; the search does not run again until the next_`reset()` _._ |
-|  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* | [**dp\_async\_dsss\_receiver\_create**](#function-dp_async_dsss_receiver_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, double sample\_rate, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks, double carrier\_freq\_hz, double lost\_confirm\_s, bool reacquire, double code\_only\_s, double doppler\_rate) <br>_Create an AsyncDsssReceiver in the searching state._  |
+|  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* | [**dp\_async\_dsss\_receiver\_create**](#function-dp_async_dsss_receiver_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, double sample\_rate, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks, double carrier\_freq\_hz, double lost\_confirm\_s, bool reacquire, double code\_only\_s, double doppler\_rate, bool refine) <br>_Create an AsyncDsssReceiver in the searching state._  |
 |  void | [**dp\_async\_dsss\_receiver\_destroy**](#function-dp_async_dsss_receiver_destroy) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Destroy a receiver and release every child._  |
-|  double | [**dp\_async\_dsss\_receiver\_get\_car\_last\_error**](#function-dp_async_dsss_receiver_get_car_last_error) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Pre-despread Costas phase discriminator (rad): the residual carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling._  |
-|  double | [**dp\_async\_dsss\_receiver\_get\_car\_nco\_freq**](#function-dp_async_dsss_receiver_get_car_nco_freq) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_LOOP 1 (pre-despread Costas) loop-filter output = NCO frequency command, cycles/sample of the front-end (chip\_rate\*spc) rate._  |
+|  int | [**dp\_async\_dsss\_receiver\_fine\_design**](#function-dp_async_dsss_receiver_fine_design) (double cn0\_dbhz, double chip\_rate, size\_t code\_len, double p\_flip, double symbol\_rate, int m, size\_t refine\_segments, double e\_hz, double rate\_hz\_s, double eps\_chip, double block\_s, double pfa, double p\_ho, size\_t max\_blocks, [**async\_dsss\_receiver\_fine\_t**](structasync__dsss__receiver__fine__t.md) \* out) <br>_Design the fine hand-over at a design point: K, the dwell and its rates._  |
+|  double | [**dp\_async\_dsss\_receiver\_get\_car\_last\_error**](#function-dp_async_dsss_receiver_get_car_last_error) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The pre-despread carrier loop's last phase error (rad): the residual carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling, as its loop filter takes it_  _carrier\_nda's discriminator divided by its slope (_[_**carrier\_nda\_loop\_error()**_](carrier__nda__core_8h.md#function-carrier_nda_loop_error) _), so radians near lock. The ".car.e" probe is the raw discriminator, twice this._ |
+|  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_async\_dsss\_receiver\_get\_car\_lock\_rule**](#function-dp_async_dsss_receiver_get_car_lock_rule) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The carrier loop's lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._ |
+|  double | [**dp\_async\_dsss\_receiver\_get\_car\_nco\_freq**](#function-dp_async_dsss_receiver_get_car_nco_freq) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_LOOP 1 (the pre-despread carrier loop) output = NCO frequency command, cycles/sample of the front-end (chip\_rate\*spc) rate._  |
+|  size\_t | [**dp\_async\_dsss\_receiver\_get\_carrier\_lock\_n\_noncoh**](#function-dp_async_dsss_receiver_get_carrier_lock_n_noncoh) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The carrier lock's non-coherent count this receiver was built with,_ [_**dp\_async\_dsss\_receiver\_carrier\_lock\_n\_noncoh()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_lock_n_noncoh) _at its_`cn0_dbhz` _._ |
 |  double | [**dp\_async\_dsss\_receiver\_get\_chip\_phase**](#function-dp_async_dsss_receiver_get_chip_phase) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The code phase, chips, at the sample after the last one fed, in the Dll's instantaneous convention_  _the mirror of dp\_correlator\_hit\_t::code\_phase's correlation-lag convention (_[_**dp\_correlator\_build\_handoff()**_](correlator__core_8h.md#function-dp_correlator_build_handoff) _). Tracking, it is the live Dll's phase carried over the partial period the chain holds (it runs whole periods), so it names the same sample a search's picks are carried to at any sample rate (#3063). While refining there is no live Dll: it is the seed's phase advanced by the clock dilation since, the phase the hand-over starts the live chain from._ |
 |  double | [**dp\_async\_dsss\_receiver\_get\_cn0\_dbhz\_est**](#function-dp_async_dsss_receiver_get_cn0_dbhz_est) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The seed's C/N0 estimate, dB-Hz, unchanged until reset()._  |
+|  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_async\_dsss\_receiver\_get\_code\_lock\_rule**](#function-dp_async_dsss_receiver_get_code_lock_rule) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The code loop's lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._ |
 |  int | [**dp\_async\_dsss\_receiver\_get\_code\_locked**](#function-dp_async_dsss_receiver_get_code_locked) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Binary code-lock flag from the live tracking Dll's own verify-counted (pfa-tuned) lock detector — the fundamental DSSS "am I
 despreading" lock, de-chattered by up/down hysteresis._  |
 |  double | [**dp\_async\_dsss\_receiver\_get\_code\_rate**](#function-dp_async_dsss_receiver_get_code_rate) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The Dll's code rate, chips per nominal chip (~1.0 at lock), without the carrier aid; a coasting Dll reports its held rate._  |
-|  size\_t | [**dp\_async\_dsss\_receiver\_get\_coherent\_bins**](#function-dp_async_dsss_receiver_get_coherent_bins) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The searcher's slow-time depth D: epochs per coherent block._  |
-|  double | [**dp\_async\_dsss\_receiver\_get\_doppler\_hz**](#function-dp_async_dsss_receiver_get_doppler_hz) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The Doppler estimate the chain was built from, Hz: the seed's while refining, the CarrierAcquisition-refined value once tracking. The live carrier is status().doppler\_hz._  |
+|  size\_t | [**dp\_async\_dsss\_receiver\_get\_coherent\_bins**](#function-dp_async_dsss_receiver_get_coherent_bins) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The searcher's slow-time depth D: epochs per coherent dwell._  |
+|  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_async\_dsss\_receiver\_get\_demod\_lock\_rule**](#function-dp_async_dsss_receiver_get_demod_lock_rule) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The demodulator's carrier lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._ |
+|  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_async\_dsss\_receiver\_get\_demod\_sync\_lock\_rule**](#function-dp_async_dsss_receiver_get_demod_sync_lock_rule) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The demodulator's timing lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._ |
+|  double | [**dp\_async\_dsss\_receiver\_get\_doppler\_hz**](#function-dp_async_dsss_receiver_get_doppler_hz) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The HAND-OVER's Doppler, Hz: what the live chain was built from, frozen for the track's whole tenure_  _the seed's while refining, the refine's estimate from the hand-over on. It does not follow the carrier: under a 400 Hz/s ramp it is 400 Hz stale a second later. Where the emitter is now is status().doppler\_hz, a field of the same name with the other meaning._ |
+|  int | [**dp\_async\_dsss\_receiver\_get\_handover\_source**](#function-dp_async_dsss_receiver_get_handover_source) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Which estimate the live chain's Doppler came from: ASYNC\_DSSS\_RX\_HO\_NONE until a hand-over, then \_SEED, \_DATA or \_FINE (the refine's choice), or \_SEED at the seed itself with refine false; NONE again at the next seed that refines._  |
 |  double | [**dp\_async\_dsss\_receiver\_get\_lock**](#function-dp_async_dsss_receiver_get_lock) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The carrier lock statistic of the MpskReceiver this receiver tracks with: the EMA of its M-th-power lock signal, near 1 when locked and near 0 on noise._  |
 |  double | [**dp\_async\_dsss\_receiver\_get\_lock\_metric**](#function-dp_async_dsss_receiver_get_lock_metric) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Symbol-lock metric = SNR-weighted EMA of (I^2-Q^2)/(I^2+Q^2) = cos(2\*phi) over the emitted symbols (locked -&gt; ~+1). Drives_ `locked` _._ |
 |  double | [**dp\_async\_dsss\_receiver\_get\_lock\_threshold**](#function-dp_async_dsss_receiver_get_lock_threshold) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The lock-metric threshold_ `locked` _is declared strictly above (0.5, ASYNC\_DSSS\_RX\_LOCK\_UP); exposed alongside lock\_metric for engineering debug._ |
@@ -115,6 +130,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_get\_segments**](#function-dp_async_dsss_receiver_get_segments) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The live-tracking Dll's partial correlations per code period._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_get\_sps**](#function-dp_async_dsss_receiver_get_sps) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_MpskReceiver's samples per symbol._  |
 |  void | [**dp\_async\_dsss\_receiver\_get\_state**](#function-dp_async_dsss_receiver_get_state) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, void \* blob) <br>_Serialize the receiver: its own fields, then each child, then the carrier carry (live samples, zero-padded to tsamps)._  |
+|  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule**](#function-dp_async_dsss_receiver_get_sym_lock_rule) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The rules behind the receiver's five lock decisions, each its levels and verify counts (_ [_**dp\_lockdet\_rule\_t**_](structdp__lockdet__rule__t.md) _), for a caller that draws a lock statistic beside the line it is decided against._ |
 |  int | [**dp\_async\_dsss\_receiver\_get\_threads**](#function-dp_async_dsss_receiver_get_threads) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Workers the searcher runs, the calling thread included; 1 = serial. Set with_ [_**dp\_async\_dsss\_receiver\_set\_threads()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_threads) _._ |
 |  int | [**dp\_async\_dsss\_receiver\_get\_tracking**](#function-dp_async_dsss_receiver_get_tracking) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_1 once the live tracking chain is built and demodulating; 0 in every other state._  |
 |  void | [**dp\_async\_dsss\_receiver\_reset**](#function-dp_async_dsss_receiver_reset) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Return to the searching state. Resets the embedded search and rebuilds the refine-stage chain and the live tracking chain back to their placeholder seed (phase 0, no Doppler). A receiver that has locked cannot be "reset back to tracking the same signal," only back to searching_  _every object's reset() semantics in this codebase._ |
@@ -162,9 +178,14 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | Type | Name |
 | ---: | :--- |
 | define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_MAGIC**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'R', 'X')`<br>_Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob._  |
-| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `18u /\* v18: no threads, the search's own blob carries set\_threads()'s request (#3055); v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples\_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br>_Layout version of the AsyncDsssReceiver blob (history below)._  |
+| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `23u /\* v23: the fine hand-over's buffer and count (ho\_src 3); v22: the pre-despread carrier loop is carrier\_nda ('CNDA' children for car and car\_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set\_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples\_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br>_Layout version of the AsyncDsssReceiver blob (history below)._  |
 | define  | [**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier)  `0.04`<br> |
-| define  | [**ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_pullin_hz) (chip\_rate, code\_len) `([**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier) \* (chip\_rate) / (2.0 \* (double)(code\_len)))`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_CARRIER\_LOOP\_SNR\_DB**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_loop_snr_db)  `20.0`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_pullin_hz) (bn, chip\_rate, code\_len) `((bn) \* (chip\_rate) / (2.0 \* (double)(code\_len)))`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_CAR\_DEN\_ALPHA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_car_den_alpha)  `(1.0 / 256.0)`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_CAR\_LOCK\_PD**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_car_lock_pd)  `0.99`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_CAR\_LOCK\_PFA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_car_lock_pfa)  `1e-3`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_CAR\_LOOP\_DELAY**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_car_loop_delay) (segments) `(2.0 - 1.0 / (double)(segments))`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DEMOD\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_bn_carrier)  `0.01`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DEMOD\_BN\_TIMING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_bn_timing)  `0.005`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DEMOD\_LOCK\_THRESH**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_lock_thresh)  `0.3`<br> |
@@ -174,6 +195,11 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_BN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_bn)  `0.002`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_SPACING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_spacing)  `0.5`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_ZETA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_zeta)  `0.707`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_FINE\_P\_HO**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_fine_p_ho)  `0.99`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_HO\_DATA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_data)  `2`<br>_The hand-over took the data-template estimator's._  |
+| define  | [**ASYNC\_DSSS\_RX\_HO\_FINE**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_fine)  `3`<br>_The hand-over took the fine estimate: the refine's squared pair sums located by PolynomialPhaseEstimator, divided by M._  |
+| define  | [**ASYNC\_DSSS\_RX\_HO\_NONE**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_none)  `0`<br>_Where the last hand-over's Doppler came from (".ho\_src" and_ [_**dp\_async\_dsss\_receiver\_get\_handover\_source()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_handover_source) _): none since the last seed (searching or refining), the seed's own (with refine false, where the seed is the hand-over; or the refine gave up, or its estimates failed the hand-over's checks), CarrierAcquisition's (§4.7), or the fine estimate's._ |
+| define  | [**ASYNC\_DSSS\_RX\_HO\_SEED**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_seed)  `1`<br>_The hand-over took the seed's own Doppler._  |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_DOWN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_down)  `0.3`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_DWELL**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_dwell)  `30u`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_N\_DOWN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_n_down)  `15u`<br> |
@@ -181,6 +207,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_UP**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_up)  `0.5`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_MAX\_EXCLUSIONS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_exclusions)  `64u`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_MAX\_PEAKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_peaks)  `16u`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_NO\_REFINE\_MIN\_BINS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_no_refine_min_bins) (bn) `((size\_t)ceil (1.0 / (bn) - 1e-9))`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_REFINE\_DLL\_SPACING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_refine_dll_spacing)  `0.5`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_REFINE\_MIN\_BLOCKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_refine_min_blocks)  `7u`<br> |
 
@@ -192,8 +219,9 @@ Unlike `DsssReceiver`, which goes straight from an acquisition hit to tracking o
 
 
 * **searching** (the start): samples feed the embedded continuous search (the `Correlator` flavor). A hit is made into a seed by `dp_correlator_build_handoff()` and taken through `dp_async_dsss_receiver_seed()`, and the unconsumed tail of the same call goes straight on. The refine chain is a FROZEN carrier wipe (`costas_wipeoff()` at the coarse estimate, `costas_update()` never called) feeding a collection `Dll` whose `dp_dll_lookback_segments(refine_max_error_db)` windows oversample each epoch  the asynchronous data's residual carrier rides a ~symbol\_rate-wide spectrum a single per-epoch dump would alias (see `refine_max_error_db` on `dp_async_dsss_receiver_create()`)  then a `RateConverter` to `CarrierAcquisition`'s rate, then `CarrierAcquisition` itself.
-* **refining**: samples feed the refine chain until `CarrierAcquisition` is ready or gives up; then the live tracking chain is built FRESH, from the hand-off's chip phase advanced by the clock dilation over the refine (not wherever the refine-stage `Dll` drifted) and the refined  on a give-up, the seed's  Doppler. It starts at the refine's estimate of where it stopped, `ceil(k * period)` samples from the hand-off (k whole code periods, the fraction carried in its phase), on the same input sample at any chunking (doppler#2974). The refine decides up to its chain's lag past that estimate, so the receiver keeps its last refine samples in a ring sized at create for that lag (`refine_hist_cap`, from [**dp\_RateConverter\_get\_count\_lag()**](RateConverter__core_8h.md#function-dp_rateconverter_get_count_lag)), and the start is read from it when it is behind the call. A start the input has not reached yet is waited for, the receiver still refining. A refine that decides further past than the ring holds (a refine Dll drifting on noise; no signal geometry measured) starts at the first such point the ring still holds, still the same at any chunking. The ring is held for the receiver's lifetime  up to ~38 KiB (Gold-1023 at 2 samples a chip)  and carried in every blob, a pool member's included.
-* **tracking**: the pre-despread carrier loop (`costas_wipeoff`/ `costas_update`) -&gt; `Dll` -&gt; `RateConverter` -&gt; `MpskReceiver`. The carrier loop updates once per code period from a NON-DATA-AIDED (squaring) discriminator over that period's coherent-I&D partials (`adr_track_period()`): a code period spans ~0.9 data symbols at the specification's ratio, so a transition lands inside nearly every period, and (docs/design/async-dsss-receiver.md) squaring is what makes the error transition-robust. At `ASYNC_DSSS_RX_BN_CARRIER` the loop pulls the refined seed in and removes the full coupled Doppler (offset and 500 Hz/s ramp) before despreading, so `MpskReceiver` is left a small residual. A pure PLL: no FLL.
+* **refining**: samples feed the refine chain until `CarrierAcquisition` is ready or gives up; then the live tracking chain is built FRESH, from the hand-off's chip phase advanced by the clock dilation over the refine (not wherever the refine-stage `Dll` drifted) and the refined  on a give-up, the seed's  Doppler. It starts at the refine's estimate of where it stopped, `ceil(k * period)` samples from the hand-off (k whole code periods, the fraction carried in its phase), on the same input sample at any chunking (doppler#2974). The refine decides up to its chain's lag past that estimate, so the receiver keeps its last refine samples in a ring sized at create for that lag (`refine_hist_cap`, from [**dp\_RateConverter\_get\_count\_lag()**](RateConverter__core_8h.md#function-dp_rateconverter_get_count_lag)), and the start is read from it when it is behind the call. A start the input has not reached yet is waited for, the receiver still refining. A start older than the ring holds starts the live chain at the first whole period the ring still holds, the same at any chunking. With `refine_sequential` that is the ordinary hand-over: an estimator that fires early leaves its block count short of the fine dwell, so the start it estimates lies behind the ring. Without it no geometry measured reaches it (0 of 1,089 noise geometries, docs/design/async-dsss-receiver-measurements/fallback-454049484/). The ring is held for the receiver's lifetime  up to ~38 KiB (Gold-1023 at 2 samples a chip)  and carried in every blob, a pool member's included.
+* **tracking**: the pre-despread carrier loop (`carrier_nda_wipeoff`/ `carrier_nda_update`) -&gt; `Dll` -&gt; `RateConverter` -&gt; `MpskReceiver`. The carrier loop is carrier\_nda at M = 2. It updates once a code period on the Dll's despread window sum (`adr_track_period()`): the look-back's window does not span a data transition, and its M = 2 error `Im(w^2)` removes the data with no sign decision. The error is divided by the window's signal power (the unit denominator: the averaged `|w|^2` less the Dll's window noise), and the lock is the ratio of sums of `I^2 - Q^2` over `I^2 + Q^2` on blocks sized by det\_ratio\_block\_len() (docs/design/async-dsss-receiver.md, "The
+    loop's lock statistic"). It removes the coupled Doppler (offset and 500 Hz/s ramp) before despreading, so `MpskReceiver` is left a small residual. A pure PLL: no FLL.
 * **lost**: the emitter is gone. Without `reacquire`, entered from tracking when BOTH lock flags have been down, without a break, for longer than `lost_confirm_s` (docs/design/async-dsss-receiver.md §10, §11.2); the loops stop and samples are discarded until `reset()`. `lost_confirm_s = 0` (the default) never enters it. With `reacquire` the release is symbol lock alone and returns the receiver to searching instead, so it never reads lost (docs/design/async-dsss-receiver.md §10). While the confirm interval runs the loops HOLD what they settled on with both flags up rather than run on noise ([**dp\_dll\_set\_coast()**](dll__core_8h.md#function-dp_dll_set_coast); docs/design/async-dsss-receiver.md §10; docs/design/async-dsss-receiver-measurements.md §12.19, doppler#1271), so a departed emitter's receiver stands where the emitter left it, and neither sweeps onto a neighbour's code nor restarts its release clock on one it followed. One flag down is a degrade: reported, and the loops run, which is what rides out two live emitters crossing each other's code phase.
 
 
@@ -207,16 +235,35 @@ The refine and track stages share ONE carrier-wipe scratch/carry buffer set (`ca
 
 
 ```C++
-dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create(
-    code, code_len, 3.0e6, 2100.0,   // chip_rate, symbol_rate
-    2, 2,                            // spc, m (BPSK)
-    55.0, 1e-3, 0.9, 100.0,          // cn0_dbhz, pfa, pd,
-                                     // doppler_uncertainty
-    4, 8, 0,                         // segments, sps, differential
-    0.5, 4, 14.0, 64, 8, false, 100000,  // refine_* tuning
-    0.0,                             // carrier_freq_hz (0 = aiding off)
-    0.0,                             // lost_confirm_s (0 = never lost)
-    false);                          // reacquire (off: lost waits)
+// 3 Mcps, 2,100 sym/s, BPSK at 2 samples a chip; a one-epoch search.
+const double chip_rate           = 3.0e6;
+const double symbol_rate         = 2100.0;
+const double sample_rate         = 6.0e6;  // 2 samples a chip
+const int    m                   = 2;      // BPSK
+const double cn0_dbhz            = 55.0;
+const double pfa                 = 1e-3;
+const double pd                  = 0.9;
+const double doppler_uncertainty = 100.0;  // Hz, one-sided
+const size_t segments = 4, sps = 8;
+const int    differential        = 0;
+const double refine_max_error_db = 0.5;    // the refine_* tuning
+const size_t refine_sps = 4, refine_n_fft = 64, refine_zero_pad = 8;
+const double refine_margin_db    = 14.0;
+const bool   refine_sequential   = false;
+const size_t refine_max_blocks   = 100000;
+const double carrier_freq_hz     = 0.0;    // 0 = aiding off
+const double lost_confirm_s      = 0.0;    // 0 = never lost
+const bool   reacquire           = false;  // lost waits for reset()
+const double code_only_s         = 0.0;    // no window: D = 1
+const double doppler_rate        = 0.0;
+const bool   refine              = true;   // D = 1 needs the refine
+
+dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+    code, code_len, chip_rate, symbol_rate, sample_rate, m, cn0_dbhz, pfa,
+    pd, doppler_uncertainty, segments, sps, differential,
+    refine_max_error_db, refine_sps, refine_margin_db, refine_n_fft,
+    refine_zero_pad, refine_sequential, refine_max_blocks, carrier_freq_hz,
+    lost_confirm_s, reacquire, code_only_s, doppler_rate, refine);
 float _Complex syms[4096];
 size_t n = dp_async_dsss_receiver_steps(rx, x, x_len, syms, 4096);
 dp_async_dsss_receiver_destroy(rx);
@@ -252,6 +299,145 @@ The state machine's values (`state` below, also the first byte of a serialized b
 <hr>
 ## Public Functions Documentation
 
+
+
+
+### function dp\_async\_dsss\_receiver\_carrier\_bn 
+
+_The pre-despread carrier loop's bandwidth at a design C/N0: the loop-SNR rule (async-dsss-receiver.md §1.3), no wider than ASYNC\_DSSS\_RX\_BN\_CARRIER._ 
+```C++
+double dp_async_dsss_receiver_carrier_bn (
+    double cn0_dbhz,
+    double chip_rate,
+    size_t code_len
+) 
+```
+
+
+
+The loop updates once a code period, `T = code_len / chip_rate`, on a coherent sum whose SNR is `rho = C/N0 T`. Its loop SNR, counting the M = 2 detector's squaring loss `S_L = 1 / (1 + 1/(2 rho))`, is `rho S_L / (2 bn)`, so ASYNC\_DSSS\_RX\_CARRIER\_LOOP\_SNR\_DB of it asks `bn <= rho S_L / 200`. The bandwidth is that, or ASYNC\_DSSS\_RX\_BN\_CARRIER where the rule allows more: the rule is a ceiling, and the release's 0.04 is the widest the loop has been designed at. At the 415.1-B-1 floor (C/N0 38.77 dB-Hz) it is 0.00993 at 2.2 GHz and 0.00744 at 2.8 GHz: about 30 Hz of loop noise bandwidth (`bn / T`) and an acquisition bound of about 15 Hz (ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ) at both carriers, the two carriers differing only through the squaring loss. create() sizes the receiver's carrier loop with it, at `cn0_dbhz`.
+
+
+
+
+**Parameters:**
+
+
+* `cn0_dbhz` Design C/N0, dB-Hz. 
+* `chip_rate` Chips per second, &gt; 0. 
+* `code_len` Chips a code period, &gt; 0. 
+
+
+
+**Returns:**
+
+The bandwidth, per update. 
+```C++
+#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include <stdio.h>
+int main (void)
+{
+  double chip = 2.2e9 * 31.0 / 21216.0;  // 415.1-B-1 at 2.2 GHz
+  printf ("%.4f\n", dp_async_dsss_receiver_carrier_bn (38.77, chip, 1023));
+  printf ("%.2f\n", dp_async_dsss_receiver_carrier_bn (70.0, chip, 1023));
+  return 0;  // prints 0.0099 then 0.04
+}
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_carrier\_lock\_n\_noncoh 
+
+_The pre-despread carrier lock's non-coherent count at a design C/N0: the updates one lock decision sums._ 
+```C++
+uint32_t dp_async_dsss_receiver_carrier_lock_n_noncoh (
+    double cn0_dbhz,
+    double chip_rate,
+    size_t code_len,
+    size_t segments
+) 
+```
+
+
+
+The lock is the ratio of sums of `I^2 - Q^2` over `I^2 + Q^2` over a run of updates (one a code period), decided against its exact threshold at Pfa ASYNC\_DSSS\_RX\_CAR\_LOCK\_PFA. The count is the least whose decision detects at Pd ASYNC\_DSSS\_RX\_CAR\_LOCK\_PD ([**dp\_det\_ratio\_block\_len()**](detection__core_8h.md#function-dp_det_ratio_block_len)) at the update SNR `gamma = C/N0 T` and the loop's phase variance, [**dp\_async\_dsss\_receiver\_carrier\_phase\_var()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_phase_var): at the bandwidth the loop delivers at its detector delay, wider than the rule's by that delay. At the 415.1-B-1 floor (C/N0 38.77 dB-Hz), 4 segments, it is 34 at 2.2 GHz and 43 at 2.8 GHz. It grows fast as C/N0 falls: 712 at 30 dB-Hz at 2.8 GHz. 0 when the design's update SNR, C/N0 x T, is too low for any count up to CARRIER\_NDA\_BLOCK\_MAX\_LEN to reach Pd, and [**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create) refuses that design: raise cn0\_dbhz.
+
+
+
+
+**Parameters:**
+
+
+* `cn0_dbhz` Design C/N0, dB-Hz. 
+* `chip_rate` Chips per second, &gt; 0. 
+* `code_len` Chips a code period, &gt; 0. 
+* `segments` The Dll's segments a code period (create()'s), &gt;= 1. 
+
+
+
+**Returns:**
+
+The count, updates; 0 as above, for an update SNR that is not finite and positive, or for segments 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_carrier\_phase\_var 
+
+_The pre-despread carrier loop's phase variance at a design C/N0, the one the carrier lock is sized at._ 
+```C++
+double dp_async_dsss_receiver_carrier_phase_var (
+    double cn0_dbhz,
+    double chip_rate,
+    size_t code_len,
+    size_t segments
+) 
+```
+
+
+
+`B_d (1 + 1/(2 gamma)) / gamma` rad^2, `gamma = C/N0 T` the update's SNR and `B_d` the bandwidth the loop delivers: the rule's bandwidth ([**dp\_async\_dsss\_receiver\_carrier\_bn()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_bn)) through [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init)'s gains at the detector delay [**ASYNC\_DSSS\_RX\_CAR\_LOOP\_DELAY(segments)**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_car_loop_delay) and unit slope ([**dp\_state\_filter\_loop\_bandwidth()**](state__filter__core_8h.md#function-dp_state_filter_loop_bandwidth)). The unit denominator's error, divided by its slope, has variance `(1 + 1/(2 gamma)) / (2 gamma)` an update, and the closed loop passes `2 B_d` of it. At the 415.1-B-1 floor and 4 segments `B_d` is 1.059 / 1.044 times the rule's at 2.2 / 2.8 GHz, where the rule's alone gives 1/200 rad^2. Its callers: [**dp\_async\_dsss\_receiver\_carrier\_lock\_n\_noncoh()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_lock_n_noncoh), which sizes the lock at it; validate\_async\_dsss\_receiver\_pullin design's `# carrier_lock` and `# carrier_lock_segments`, which print it; and the design page's carrier-lock section, which quotes it.
+
+
+
+
+**Parameters:**
+
+
+* `cn0_dbhz` Design C/N0, dB-Hz. 
+* `chip_rate` Chips per second, &gt; 0. 
+* `code_len` Chips a code period, &gt; 0. 
+* `segments` The Dll's segments a code period, &gt;= 1. 
+
+
+
+**Returns:**
+
+The variance, rad^2; NaN for an update SNR that is not finite and positive, segments 0, or a loop not stable at that delay. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -444,7 +630,8 @@ dp_async_dsss_receiver_state_t * dp_async_dsss_receiver_create (
     double lost_confirm_s,
     bool reacquire,
     double code_only_s,
-    double doppler_rate
+    double doppler_rate,
+    bool refine
 ) 
 ```
 
@@ -483,12 +670,13 @@ Only `code`/`chip_rate`/`symbol_rate` describe the signal itself. The `refine_*`
 * `reacquire` Release on symbol lock alone, and search again by itself. With it set, the release clock counts samples of tracking with the SYMBOL lock flag down (code lock is not consulted), and when it passes lost\_confirm\_s the receiver resets itself to searching instead of entering lost: it never waits for reset(). A pool of receivers that are always online uses it. The clock runs from the first tracking sample, as above, so a track that never locks (a noise false alarm) is released too; size lost\_confirm\_s past the pull-in time to symbol lock, or a slow lock is released before it comes. Requires a lost\_confirm\_s of at least one input sample, since a release that never fires would never search again; a blob in the lost state is refused by set\_state(). Default false: the release rule above. 
 * `code_only_s` Seconds of code-only signal the waveform holds at any chip phase (a symbol-free window; design async-dsss-receiver.md §2.3), &gt;= 0 and finite. The receiver hands its searcher `code_only_epochs = floor(code_only_s * chip_rate / code_len) - 1` (at least 1), and the searcher's slow-time depth follows: `coherent_bins = D`, at most `(code_only_epochs + 1)/2`, rounded down to a 7-smooth length ([**dp\_correlator\_create\_continuous()**](correlator__core_8h.md#function-dp_correlator_create_continuous)). Default 0: no window, D = 1. 
 * `doppler_rate` Doppler rate in Hz/s, &gt;= 0 and finite, that the slow-time depth is bounded against: at most `f_epoch / sqrt(2 * doppler_rate)` epochs ([**dp\_correlator\_create\_continuous()**](correlator__core_8h.md#function-dp_correlator_create_continuous)). Default 0: the window is the only bound. 
+* `refine` Whether a seed refines its Doppler before tracking. True (the default): a seed enters refining, CarrierAcquisition estimates the residual over its dwell, and tracking starts from the refined Doppler (the `refine_*` parameters). False: a seed builds the tracking chain at once, at the seed's own sample, from the seed's code phase and Doppler; the receiver goes from searching (or idle) to tracking and never reads refining, and the `refine_*` parameters are unused. The Doppler handed over is the search's: the block's mean, within one Doppler row of it, since the peak is one of the rows bracketing it and at a near tie noise decides which, not always the nearer one; so within a row plus `doppler_rate` times half the dwell (`coherent_bins` code periods) of the Doppler at the hand-over sample. Past half a row, the carrier loop meets it outside its budgeted edge, and its lock time is the pull-in's, not the budget's (the design page, §2.3). False is sized on the nearer row: it is accepted only while half the search's Doppler row, `chip_rate / (code_len * coherent_bins)`, is inside the carrier loop's acquisition bound, ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ: that is `coherent_bins >=  ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn)`, with `bn` the receiver's carrier bandwidth ([**dp\_async\_dsss\_receiver\_carrier\_bn()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_bn)): 25 at 0.04, at any chip rate. A receiver configured outside it (a one-epoch search, D = 1, among them) is refused, and a blob in the refining state is refused by set\_state(). The name is a placeholder (async-dsss-receiver.md §4.4). 
 
 
 
 **Returns:**
 
-A new receiver, searching; NULL on an invalid argument, including reacquire with a lost\_confirm\_s under one sample. 
+A new receiver, searching; NULL on an invalid argument, including reacquire with a lost\_confirm\_s under one sample, refine false with coherent\_bins under 25, and a symbol shorter than a code period (`symbol_rate * code_len > chip_rate`): the pre-despread carrier loop forms its error, once a code period, from one coherent sum over the code-period window the Dll's look-back picks ([**dp\_dll\_get\_window\_sum()**](dll__core_8h.md#function-dp_dll_get_window_sum)), which is free of data transitions only while a symbol spans a code period (async-dsss-receiver.md §4.4). 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import AsyncDsssReceiver
@@ -498,6 +686,25 @@ A new receiver, searching; NULL on an invalid argument, including reacquire with
 ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
 >>> (rx.tracking, rx.refining, rx.lost)       # searching
 (0, 0, 0)
+
+With `refine` false a seed goes straight to tracking; that needs a
+search at least 1 / bn code periods deep (bn the carrier loop's;
+ASYNC_DSSS_RX_NO_REFINE_MIN_BINS), here a 0.1 s code-only window:
+
+>>> fast = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+...                          sample_rate=6.138e6, doppler_uncertainty=500.0,
+...                          code_only_s=0.1, refine=False)
+>>> fast.coherent_bins
+150
+>>> fast.seed(chip_phase=512.25, doppler_hz_est=-150.0, cn0_dbhz_est=48.0)
+>>> (fast.tracking, fast.refining, fast.doppler_hz)
+(1, 0, -150.0)
+>>> try:                                       # one epoch deep: refused
+...     AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+...                       sample_rate=6.138e6, refine=False)
+... except ValueError:
+...     print("refused")
+refused
 ```
  
 
@@ -538,9 +745,80 @@ void dp_async_dsss_receiver_destroy (
 
 
 
+### function dp\_async\_dsss\_receiver\_fine\_design 
+
+_Design the fine hand-over at a design point: K, the dwell and its rates._ 
+```C++
+int dp_async_dsss_receiver_fine_design (
+    double cn0_dbhz,
+    double chip_rate,
+    size_t code_len,
+    double p_flip,
+    double symbol_rate,
+    int m,
+    size_t refine_segments,
+    double e_hz,
+    double rate_hz_s,
+    double eps_chip,
+    double block_s,
+    double pfa,
+    double p_ho,
+    size_t max_blocks,
+    async_dsss_receiver_fine_t * out
+) 
+```
+
+
+
+One pair sum's SNR is `g = (gamma/K) rho^2/kappa (1 - eps)^2 sinc^2(e T / K)`, with `gamma = C/N0 T` (T a code period), the replica's `rho^2/kappa` from the code's share of sign-changing boundaries `p_flip` (`rho = 1 - p/4`, `kappa = 1 - p/3`), the code error `eps` chips and the carrier error `e` Hz. Squared (M = 2) it is `gamma_sq = c^2 g^2 / (4 g + 2 + v g^2)`, where a sum straddles a symbol edge with probability `q = T symbol_rate / K`, `c = 1 - q/3` and `v = 1 - 0.4 q - c^2`. Over a dwell of `D` refine blocks of `block_s` seconds the estimate sees `n_s = K D block_s / T` sums at `rho = n_s gamma_sq`, through PolynomialPhaseEstimator's Kaiser window (50 dB), whose peak-bin share `p` and variance ratio `eta` are computed from the window itself. A wrong peak is `(n_s - 1)/2 exp(-p rho/2)`. The check refuses the right one with `1 - Q1(sqrt(2 p rho), sqrt(2 ln(n_s/pfa)))`. The dwell is the least `D` at which the two sum to at most `1 - p_ho`.
+
+
+**The rate axis.** A carrier changing at `rate_hz_s` Hz/s puts a chirp of `M rate (T/K)^2` cycles a sum squared on the tone. Over the dwell found above, the window's coherent sum loses `chirp_loss_db` at max\_rate 0. The axis turns on exactly when that loss would leave the dwell short of `p_ho`; the estimator then searches that half-span, its rows (PolynomialPhaseEstimator's own grid at the buffer's length) join the union bound and the check's cells, and the dwell is designed again with them. Derived, not a threshold.
+
+
+At the 415.1-B-1 floor (C/N0 38.77 dB-Hz, Gold-1023, 3,000 symbols a second, refine\_segments 10, e 3,000 Hz, eps 0.25, blocks of 5.33 ms, pfa 1e-3) K is 5 and the dwell is 39 blocks at 2.2 GHz and 42 at 2.8 GHz, at p\_ho 0.99; 29 / 32 at 0.9 and 47 / 51 at 0.999, with no rate.
+
+
+
+
+**Parameters:**
+
+
+* `cn0_dbhz` Design C/N0, dB-Hz. 
+* `chip_rate` Chips a second, &gt; 0. 
+* `code_len` Chips a code period, &gt; 0. 
+* `p_flip` The code's share of sign-changing chip boundaries, from 0 to 1. 
+* `symbol_rate` Data symbols a second, &gt; 0. 
+* `m` Constellation order; the loss law is M = 2's. 
+* `refine_segments` The refine Dll's dumps a code period. 
+* `e_hz` The seed's design carrier error bound, Hz. 
+* `rate_hz_s` The carrier rate the receiver is designed to, Hz/s, &gt;= 0 (its doppler\_rate). 
+* `eps_chip` The design code error, chips, in [0, 1). 
+* `block_s` One refine block, seconds. 
+* `pfa` The check's false-alarm rate, in (0, 1). 
+* `p_ho` The hand-over's probability, in (0, 1). 
+* `max_blocks` The longest dwell to consider. 
+* `out` Receives the design. 
+
+
+
+**Returns:**
+
+DP\_OK; DP\_ERR\_INVALID for M other than 2, an argument out of range, no divisor of refine\_segments that covers `e_hz`, or no dwell up to `max_blocks` that reaches `p_ho`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_async\_dsss\_receiver\_get\_car\_last\_error 
 
-_Pre-despread Costas phase discriminator (rad): the residual carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling._ 
+_The pre-despread carrier loop's last phase error (rad): the residual carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling, as its loop filter takes it_  _carrier\_nda's discriminator divided by its slope (_[_**carrier\_nda\_loop\_error()**_](carrier__nda__core_8h.md#function-carrier_nda_loop_error) _), so radians near lock. The ".car.e" probe is the raw discriminator, twice this._
 ```C++
 double dp_async_dsss_receiver_get_car_last_error (
     const dp_async_dsss_receiver_state_t * state
@@ -572,9 +850,43 @@ Phase error, radians.
 
 
 
+### function dp\_async\_dsss\_receiver\_get\_car\_lock\_rule 
+
+_The carrier loop's lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._
+```C++
+dp_lockdet_rule_t dp_async_dsss_receiver_get_car_lock_rule (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The rule. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_async\_dsss\_receiver\_get\_car\_nco\_freq 
 
-_LOOP 1 (pre-despread Costas) loop-filter output = NCO frequency command, cycles/sample of the front-end (chip\_rate\*spc) rate._ 
+_LOOP 1 (the pre-despread carrier loop) output = NCO frequency command, cycles/sample of the front-end (chip\_rate\*spc) rate._ 
 ```C++
 double dp_async_dsss_receiver_get_car_nco_freq (
     const dp_async_dsss_receiver_state_t * state
@@ -595,6 +907,43 @@ double dp_async_dsss_receiver_get_car_nco_freq (
 **Returns:**
 
 NCO command, cycles/sample at chip\_rate \* spc. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_get\_carrier\_lock\_n\_noncoh 
+
+_The carrier lock's non-coherent count this receiver was built with,_ [_**dp\_async\_dsss\_receiver\_carrier\_lock\_n\_noncoh()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_lock_n_noncoh) _at its_`cn0_dbhz` _._
+```C++
+size_t dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+A decision sums that many updates, one a code period, and the flag declares after dp\_det\_verify\_count(ASYNC\_DSSS\_RX\_CAR\_LOCK\_PFA, 1e-6) decisions in a row: so the carrier flag's least time to declare is the count times the code period times that declare count, which the application holds against its own lock-time allocation.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The count, updates (never 0: create() refuses that). 
 
 
 
@@ -674,6 +1023,40 @@ C/N0, dB-Hz; 0 after create and reset().
 
 
 
+### function dp\_async\_dsss\_receiver\_get\_code\_lock\_rule 
+
+_The code loop's lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._
+```C++
+dp_lockdet_rule_t dp_async_dsss_receiver_get_code_lock_rule (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The rule. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_async\_dsss\_receiver\_get\_code\_locked 
 
 _Binary code-lock flag from the live tracking Dll's own verify-counted (pfa-tuned) lock detector — the fundamental DSSS "am I
@@ -686,7 +1069,7 @@ int dp_async_dsss_receiver_get_code_locked (
 
 
 
-
+This is the flag 415.1-B-1 §7.4.1's "short-code PN lock" names: its acquisition requirement, PN lock with probability at least 0.9 within 20 s of the signal's arrival, anywhere in +/-1,500 Hz of best lock, is read on it (validate\_async\_dsss\_receiver\_pullin, whose cells assert the requirement is not refuted at 95%). 
 
 **Parameters:**
 
@@ -745,7 +1128,7 @@ Code rate, chips per nominal chip.
 
 ### function dp\_async\_dsss\_receiver\_get\_coherent\_bins 
 
-_The searcher's slow-time depth D: epochs per coherent block._ 
+_The searcher's slow-time depth D: epochs per coherent dwell._ 
 ```C++
 size_t dp_async_dsss_receiver_get_coherent_bins (
     const dp_async_dsss_receiver_state_t * state
@@ -796,9 +1179,77 @@ D, &gt;= 1.
 
 
 
+### function dp\_async\_dsss\_receiver\_get\_demod\_lock\_rule 
+
+_The demodulator's carrier lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._
+```C++
+dp_lockdet_rule_t dp_async_dsss_receiver_get_demod_lock_rule (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The rule. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_get\_demod\_sync\_lock\_rule 
+
+_The demodulator's timing lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._
+```C++
+dp_lockdet_rule_t dp_async_dsss_receiver_get_demod_sync_lock_rule (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The rule. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_async\_dsss\_receiver\_get\_doppler\_hz 
 
-_The Doppler estimate the chain was built from, Hz: the seed's while refining, the CarrierAcquisition-refined value once tracking. The live carrier is status().doppler\_hz._ 
+_The HAND-OVER's Doppler, Hz: what the live chain was built from, frozen for the track's whole tenure_  _the seed's while refining, the refine's estimate from the hand-over on. It does not follow the carrier: under a 400 Hz/s ramp it is 400 Hz stale a second later. Where the emitter is now is status().doppler\_hz, a field of the same name with the other meaning._
 ```C++
 double dp_async_dsss_receiver_get_doppler_hz (
     const dp_async_dsss_receiver_state_t * state
@@ -819,6 +1270,40 @@ double dp_async_dsss_receiver_get_doppler_hz (
 **Returns:**
 
 Doppler, Hz; 0 after create, reset() or a refused hand-over. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_get\_handover\_source 
+
+_Which estimate the live chain's Doppler came from: ASYNC\_DSSS\_RX\_HO\_NONE until a hand-over, then \_SEED, \_DATA or \_FINE (the refine's choice), or \_SEED at the seed itself with refine false; NONE again at the next seed that refines._ 
+```C++
+int dp_async_dsss_receiver_get_handover_source (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+One of the ASYNC\_DSSS\_RX\_HO\_\* values. 
 
 
 
@@ -1338,6 +1823,49 @@ Scratch buffers, the telemetry attachment and the refine\_periods diagnostic are
 
 
 
+### function dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule 
+
+_The rules behind the receiver's five lock decisions, each its levels and verify counts (_ [_**dp\_lockdet\_rule\_t**_](structdp__lockdet__rule__t.md) _), for a caller that draws a lock statistic beside the line it is decided against._
+```C++
+dp_lockdet_rule_t dp_async_dsss_receiver_get_sym_lock_rule (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+
+* sym: the symbol-lock decision (`locked`) on the lock metric, always ASYNC\_DSSS\_RX\_LOCK\_UP / \_DOWN / \_N\_UP / \_N\_DOWN; telemetry ".sym.lock";
+* car: the pre-despread carrier loop's decision on its lock metric ([**dp\_carrier\_nda\_get\_lock\_rule()**](carrier__nda__core_8h.md#function-dp_carrier_nda_get_lock_rule)); ".car.lock";
+* code: the Dll's decision on its statistic R ([**dp\_dll\_get\_lock\_rule()**](dll__core_8h.md#function-dp_dll_get_lock_rule)), as configure\_lock\_raw() last retuned it on the Dll held now; ".code.lock";
+* demod, demod\_sync: the demodulator's carrier and timing decisions ([**dp\_mpsk\_receiver\_get\_lock\_rule()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_get_lock_rule), \_get\_sync\_lock\_rule()); ".demod.lock" and ".demod.sync.lock".
+
+
+
+
+The tracking chain is rebuilt at every seed, so read them after the hand-over; each rebuild sets the same rules. 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The rule. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_async\_dsss\_receiver\_get\_threads 
 
 _Workers the searcher runs, the calling thread included; 1 = serial. Set with_ [_**dp\_async\_dsss\_receiver\_set\_threads()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_threads) _._
@@ -1535,7 +2063,7 @@ int dp_async_dsss_receiver_seed_ok (
 `chip_phase` must be finite and inside `[0, code_len)`, and `doppler_hz_est` must be strictly inside `(-fs/2, fs/2)`, where `fs` is `chip_rate * spc`. A Doppler at or past half the sample rate is not reportable ([**dp\_correlator\_carrier\_freq\_ok()**](correlator__core_8h.md#function-dp_correlator_carrier_freq_ok) relies on this bound), and a seed there sent the hand-off's phase to NaN (doppler#2103).
 
 
-seed() refuses by this predicate, set\_state() restores the seed fields only inside it, the searching receiver's hit path does not seed from a hit it fails, and the hand-over holds the REFINED Doppler to it too: a seed in range whose residual carries it to or past fs/2 is refused at the hand-over, counted in refused\_hits, and the receiver searches again rather than track a Doppler it cannot report. It reads only the receiver's fixed config (code length, chip rate, spc), so any receiver built from the same config gives the same answer.
+seed() refuses by this predicate, set\_state() restores the seed fields only inside it, the searching receiver's hit path does not seed from a hit it fails, and the hand-over holds the REFINED Doppler to it too: a seed in range whose residual carries it to or past fs/2 is refused at the hand-over, counted in refused\_hits, and the receiver searches again (idle, in a pool, for the pool's search to re-seed) rather than track a Doppler it cannot report. It reads only the receiver's fixed config (code length, chip rate, spc), so any receiver built from the same config gives the same answer.
 
 
 
@@ -1576,7 +2104,7 @@ int dp_async_dsss_receiver_set_exclusions (
 
 
 
-Replaces the list. A peak within one chip, circularly, of any of them is dropped from a dwell's list at any Doppler, before ranking (set\_rank()). Phases are chips in status().chip\_phase's convention and are folded into [0, code\_len). An empty list (the default) excludes nothing. A tracking receiver is not affected: the list applies to its next search. A mutator's value, so it travels in the state blob (#2022).
+Replaces the list. A peak within one chip, circularly, of any of them is dropped from a dwell's list at any Doppler, before ranking (set\_rank()). Phases are chips in status().chip\_phase's convention, at the sample after the last one fed when they are set, and are folded into [0, code\_len); a dwell decided calls later carries them from that sample to its own. An empty list (the default) excludes nothing. A tracking receiver is not affected: the list applies to its next search. A mutator's value, so it travels in the state blob (#2022).
 
 
 
@@ -1770,22 +2298,35 @@ int dp_async_dsss_receiver_set_telemetry (
 
 The receiver reports under the prefix, once per steps() call that carries samples, after the call, so on the time axis at the stamp the caller set for that block (dp\_tlm\_set\_now()):
 * "&lt;prefix&gt;.state"  where the call left the receiver, the ASYNC\_DSSS\_RX\_\* value: 0 searching, 1 refining, 2 tracking, 3 idle (a pooled receiver holding nothing), 4 lost (status().state);
-* "&lt;prefix&gt;.handover\_hz"  the Doppler the chain was built from, Hz ([**dp\_async\_dsss\_receiver\_get\_doppler\_hz()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_doppler_hz)): 0 before a seed, the seed's while refining, the refined value from the hand-over on, and 0 again after a refused hand-over or a reset(), which return the receiver to searching. A record is a float, so it resolves about 0.5 Hz near 5 MHz. Not the live carrier: status().doppler\_hz reads that, and ".car.freq" and ".car.nco" are the carrier loop's own view of it, in cycles a sample at the input rate, so times chip\_rate \* spc for Hz;
-* "&lt;prefix&gt;.refused"  the hits refused as seeds so far (status().refused\_hits).
+* "&lt;prefix&gt;.handover\_hz"  the Doppler the chain was built from, Hz ([**dp\_async\_dsss\_receiver\_get\_doppler\_hz()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_doppler_hz)): 0 before a seed, the seed's while refining, the refined value from the hand-over on, and 0 again after a refused hand-over or a reset(), which return the receiver to searching (idle in a pool). A record is a float, so it resolves about 0.5 Hz near 5 MHz. Not the live carrier: status().doppler\_hz reads that, and ".car.freq" and ".car.nco" are the carrier loop's own view of it, in cycles a sample at the input rate, so times chip\_rate \* spc for Hz;
+* "&lt;prefix&gt;.refused"  the hits refused as seeds so far (status().refused\_hits);
+* "&lt;prefix&gt;.ho\_src"  which estimate the live chain was built from, an ASYNC\_DSSS\_RX\_HO\_\* value (0 none since the seed, 1 the seed's, 2 the data template's, 3 the fine estimate's);
+* "&lt;prefix&gt;.ref\_fine.hz", ".snr\_db", ".n"  the fine hand-over's estimate (Hz, against the seed), its peak-to-mean and its sums, once at the refine's decision, whether or not its check passed;
+* "&lt;prefix&gt;.cn0"  the seed's C/N0 estimate, dB-Hz (status().cn0\_dbhz\_est): constant over a tenure, since the receiver keeps no running estimate while tracking;
+* "&lt;prefix&gt;.phase.car"  the pre-despread carrier NCO's phase at the call's FIRST sample, cycles in [0, 1) ([**dp\_carrier\_nda\_get\_nco\_phase\_ahead()**](carrier__nda__core_8h.md#function-dp_carrier_nda_get_nco_phase_ahead) past the samples the chain still carries), exact: the loop steers only at a period's end. The phase of the tracking chain; while searching or refining it is the placeholder chain's, and ".state" says which;
+* "&lt;prefix&gt;.phase.code"  the code NCO's prompt phase at the call's first sample, chips ([**dp\_dll\_get\_code\_phase\_ahead()**](dll__core_8h.md#function-dp_dll_get_code_phase_ahead)), exact to within a code-loop update inside the carried samples. It is the code NCO's word, the START of a sample's dwell; the Dll takes its prompt at the dwell's CENTRE, half an increment later ([**dll\_tap\_base()**](dll__core_8h.md#function-dll_tap_base), [**nco\_dwell\_center()**](nco__core_8h.md#function-nco_dwell_center): the zero-order-hold rule). So a prompt on the continuous code phase reads here half a sample BEFORE it (0.5 chip\_rate / fs chips), with no correlation lost  measured in the pull-in captures, -0.186 chip at 2.69 samples a chip (0.500 sample) and -0.148 at 3.42 (0.505).
 
 
+
+
+The two phases are stamped at the call's first sample, which is the stamp the caller set (dp\_tlm\_set\_now()) for this block, so a caller who knows the transmitted carrier and code phase at that sample subtracts them for the loops' true errors  the stress the discriminator outputs ".car.e" and ".code.e" only estimate.
 
 
 Feed blocks of about a code period, as the examples do, and these read as a time series of the lifecycle: when the search hit, how long the refine took, what it handed over, when the release came.
 
 
 Each loop reports under the prefix, at its own update rate:
-* "&lt;prefix&gt;.car"  the chip-domain carrier loop ([**dp\_costas\_set\_telemetry()**](costas__core_8h.md#function-dp_costas_set_telemetry): ".lock", ".e", ".freq", ".locked", ".nco", ".freq\_rate", ".order"), once per carrier update: once a code period, except while it coasts, when loop 1 is held;
-* "&lt;prefix&gt;.code"  the code loop ([**dp\_dll\_set\_telemetry()**](dll__core_8h.md#function-dp_dll_set_telemetry): ".e", ".rate", ".lock", ".locked", ".nco"), once per discriminator update;
-* "&lt;prefix&gt;.demod"  the symbol-domain demodulator ([**dp\_mpsk\_receiver\_set\_telemetry()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_telemetry): its lock, its carrier and timing loops, the symbols, its AGC), once per recovered symbol (the AGC's pair once per gain update);
+* "&lt;prefix&gt;.car"  the chip-domain carrier loop ([**dp\_carrier\_nda\_set\_telemetry()**](carrier__nda__core_8h.md#function-dp_carrier_nda_set_telemetry): ".lock", ".e", ".freq", ".locked", ".nco"; ".e" is the raw discriminator, slope 2, so twice the phase error in radians near lock, and ".lock" the last block's ratio of sums), once per carrier update: once a code period, except while it coasts, when loop 1 is held;
+* "&lt;prefix&gt;.code"  the code loop ([**dp\_dll\_set\_telemetry()**](dll__core_8h.md#function-dp_dll_set_telemetry): ".e", ".rate", ".lock", ".locked", ".nco", and the lock statistic's two terms ".prompt\_amp" and ".offset\_pwr"), once per code period (with the symbol aid on, the last steer held);
+* "&lt;prefix&gt;.code.steer"  the code loop's filter at each steer of the symbol aid ([**dp\_dll\_set\_steer\_telemetry()**](dll__core_8h.md#function-dp_dll_set_steer_telemetry): ".e", ".prop", ".integ", ".ctrl", ".aid"), the loop's own cadence;
+* "&lt;prefix&gt;.demod"  the symbol-domain demodulator ([**dp\_mpsk\_receiver\_set\_telemetry()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_telemetry): its lock, its carrier and timing loops, the symbols, its AGC), once per recovered symbol (the AGC's pair once per gain update), and the timing loop's two filter terms beside them, ".demod.sync.prop" and ".demod.sync.integ" ([**dp\_ratesync\_loop\_set\_filter\_telemetry()**](ratesync__core_8h.md#function-dp_ratesync_loop_set_filter_telemetry));
 * "&lt;prefix&gt;.acq"  the acquisition engine ([**dp\_correlator\_set\_telemetry()**](correlator__core_8h.md#function-dp_correlator_set_telemetry)), once per decided dwell;
 * "&lt;prefix&gt;.rc"  the rate converter between the code loop and the demodulator ([**dp\_RateConverter\_set\_telemetry()**](RateConverter__core_8h.md#function-dp_rateconverter_set_telemetry)). It reports only an AGC, and this receiver builds it without one, so it registers no probes;
-* "&lt;prefix&gt;.sym.lock" and "&lt;prefix&gt;.sym.locked"  the receiver's own symbol-lock metric ([**dp\_async\_dsss\_receiver\_get\_lock\_metric()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_lock_metric)) and its decision ([**dp\_async\_dsss\_receiver\_get\_locked()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_locked)), the one its users act on, once per emitted symbol.
+* "&lt;prefix&gt;.sym.lock" and "&lt;prefix&gt;.sym.locked"  the receiver's own symbol-lock metric ([**dp\_async\_dsss\_receiver\_get\_lock\_metric()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_lock_metric)) and its decision ([**dp\_async\_dsss\_receiver\_get\_locked()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_locked)), the one its users act on, once per emitted symbol; "&lt;prefix&gt;.sym.num" and "&lt;prefix&gt;.sym.den", the metric's two EMAs (their ratio is ".sym.lock"), on the same symbols;
+* "&lt;prefix&gt;.ref"  the refine's estimator, the data template's ([**dp\_carrier\_acq\_set\_telemetry()**](carrier__acq__core_8h.md#function-dp_carrier_acq_set_telemetry): ".stat", ".thr", ".hz", ".n", ".ready"), once per tested block while refining.
+* "&lt;prefix&gt;.state", "&lt;prefix&gt;.handover\_hz", "&lt;prefix&gt;.refused", "&lt;prefix&gt;.ho\_src", "&lt;prefix&gt;.cn0", "&lt;prefix&gt;.phase.car" and "&lt;prefix&gt;.phase.code"  the lifecycle (an async\_dsss\_rx\_state\_t), the Doppler the chain was built from (Hz), the refused hits, the hand-over's source (ASYNC\_DSSS\_RX\_HO\_\*), the seed's C/N0 (dB-Hz) and the loops' NCO phases (cycles, chips) at the call's first sample, once per steps() call;
+* "&lt;prefix&gt;.had\_lock", "&lt;prefix&gt;.coast" and "&lt;prefix&gt;.hold"  the loop control the receiver decides once a code period from the code and symbol flags, each 0 or 1: whether both have been up together since the seed (from then on the loops coast rather than run free), whether this period coasts (both down: the carrier restored to its hold point and frozen, the code loop dead-reckoning  one decision drives both loops), and whether this period re-marked the hold point (both up); once per code period while tracking;
+* "&lt;prefix&gt;.release"  the release clock: how long both flags have been down (the symbol flag alone with reacquire), as a fraction of the confirm interval, so the receiver is released once it passes 1; 0 while a flag is up and when there is no release rule. Once per steps() call.
 
 
 
@@ -1824,11 +2365,16 @@ DP\_OK, or DP\_ERR\_INVALID on decim 0, a prefix too long for some probe's name 
 ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
 >>> tlm = Telemetry(1 << 12)
 >>> rx.set_telemetry(tlm, "rx")
->>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
-['rx.car.e', 'rx.car.freq', 'rx.car.freq_rate', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.car.order', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
+>>> sorted(p for p in tlm.probe_names if p.startswith(("rx.car",
+...                                                    "rx.code")))
+['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', 'rx.code.rate', 'rx.code.steer.aid', 'rx.code.steer.ctrl', 'rx.code.steer.e', 'rx.code.steer.integ', 'rx.code.steer.prop']
 >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
-...                                                    "rx.r")))
-['rx.handover_hz', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
+...                                                    "rx.refu")))
+['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', 'rx.state', 'rx.sym.den', 'rx.sym.lock', 'rx.sym.locked', 'rx.sym.num']
+>>> sorted(p for p in tlm.probe_names if p.startswith(("rx.ph", "rx.cn")))
+['rx.cn0', 'rx.phase.car', 'rx.phase.code']
+>>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref"))
+['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', 'rx.ref_fine.hz', 'rx.ref_fine.n', 'rx.ref_fine.snr_db', 'rx.refused']
 >>> rx.set_telemetry(None, "rx")      # detach
 ```
  
@@ -1999,7 +2545,7 @@ size_t dp_async_dsss_receiver_steps (
 
 
 
-Drives the state machine. It emits nothing while searching or refining (an empty return is normal, not an error): a hit seeds the frozen-carrier refine chain, `CarrierAcquisition` sharpens the coarse Doppler estimate, and only once it is ready (or gives up) is the live tracking chain built and demodulation begins. A hit inside a call hands the rest of the call straight to the refine chain, so no sample is dropped there; at the refine's end, what the refine did not consume of the last call goes on to the live chain. Accepts any block size; state carries across calls, so a capture can be fed in frames of any length with no seam. Lost (after the release rule fires) consumes the samples and emit nothing, so the feeding loop is the same in every state; while tracking, the release clock runs on the two lock flags after every call, or on the symbol lock flag alone with `reacquire` (see `lost_confirm_s`). Tracking emits symbols whether or not they are data: a noise false alarm can reach tracking and emit until the release rule lets it go  or, at the default lost\_confirm\_s of 0, until reset()  and symbol lock (`locked`) is what says the symbols are a signal's, so read it rather than the count (#2439). Under the specification's coupled offset + 500 Hz/s Doppler ramp the pre-despread Costas removes the full carrier dynamics before the code loop, so the recovered constellation lands cleanly on the BPSK real axis.
+Drives the state machine. It emits nothing while searching or refining (an empty return is normal, not an error): a hit seeds the frozen-carrier refine chain, `CarrierAcquisition` sharpens the coarse Doppler estimate, and only once it is ready (or gives up) is the live tracking chain built and demodulation begins. A hit inside a call hands the rest of the call straight to the refine chain, so no sample is dropped there; at the refine's end, what the refine did not consume of the last call goes on to the live chain. Accepts any block size; state carries across calls, so a capture can be fed in frames of any length with no seam. Lost (after the release rule fires) consumes the samples and emit nothing, so the feeding loop is the same in every state; while tracking, the release clock runs on the two lock flags after every call, or on the symbol lock flag alone with `reacquire` (see `lost_confirm_s`). Tracking emits symbols whether or not they are data: a noise false alarm can reach tracking and emit until the release rule lets it go  or, at the default lost\_confirm\_s of 0, until reset()  and symbol lock (`locked`) is what says the symbols are a signal's, so read it rather than the count (#2439). Under the specification's coupled offset + 500 Hz/s Doppler ramp the pre-despread carrier loop removes the full carrier dynamics before the code loop, so the recovered constellation lands cleanly on the BPSK real axis.
 
 
 
@@ -2083,7 +2629,7 @@ size_t dp_async_dsss_receiver_steps_max_out (
 
 
 
-Returns 0, which is NOT a bound. A call that completes a code period carried over from earlier calls emits all of that period's symbols (code\_len times symbol\_rate over chip\_rate of them), even if it brings one sample. At more than one symbol per period a call can therefore emit more symbols than its `x_len`, and those past `max_out` are dropped (see [**dp\_async\_dsss\_receiver\_steps()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps)). A true bound is #2469.
+Returns 0, which is NOT a bound. A call runs more samples than its `x_len` through the tracking chain at a hand-over: the hand-over ring's tail (up to refine\_hist\_cap samples) or the search history's, through a fresh chain. Their symbols can outnumber `x_len`, and those past `max_out` are dropped (see [**dp\_async\_dsss\_receiver\_steps()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps)). A call that completes a carried code period adds at most one symbol: create() refuses a symbol shorter than a code period. A true bound is #2469.
 
 
 
@@ -2130,7 +2676,7 @@ _Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob._
 
 _Layout version of the AsyncDsssReceiver blob (history below)._ 
 ```C++
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION `18u /* v18: no threads, the search's own blob carries set_threads()'s request (#3055); v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION `23u /* v23: the fine hand-over's buffer and count (ho_src 3); v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
 ```
 
 
@@ -2148,16 +2694,27 @@ _Layout version of the AsyncDsssReceiver blob (history below)._
 
 
 
-The pre-despread Costas's loop bandwidth (not a constructor parameter). The refine stage's frozen carrier never calls [**costas\_update()**](costas__core_8h.md#function-costas_update), so its own bn/zeta are irrelevant  only its tsamps and init\_norm\_freq matter.
+The widest bandwidth the pre-despread carrier loop takes, per update (a code period): the receiver's own is [**dp\_async\_dsss\_receiver\_carrier\_bn()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_bn) at its design C/N0, which is this value wherever the loop-SNR rule allows it and narrower where it does not. The refine stage's frozen carrier (a Costas whose update is never called) reads only its seed frequency and update length.
 
 
-0.04 is set by pull-in and dynamics, not jitter: the refined seed leaves a residual the loop must pull in, and tracking the specification's 500 Hz/s ramp with a per-period Type-II loop needs the bandwidth to keep the velocity lag (~ramp/omega\_n^2) small. It rides the ramp with a clean despread constellation; about 0.03 is the least that works. The phase detector is \|P\|-normalized, so this is the true noise bandwidth, and the ~5 dB Es/N0 floor is still met.
+0.04 is the widest the loop has been designed at: tracking the specification's 500 Hz/s ramp with a per-period Type-II loop needs the bandwidth to keep the velocity lag (~ramp/omega\_n^2) small, and at the design C/N0's rule the loop is narrower. bn is the closed loop's noise bandwidth (carrier\_nda divides out its detector's slope, #3224). No FLL. 
 
 
-The pull-in range is measured: native/validation/costas\_pullin.c sweeps it in multiples of the `bn/m` bound (`m = 2`, the squaring discriminator), its spot check on every push (CI's sweep job, `make test-sweep`). At bn = 0.04 over a 2046-sample code period the bound is 9.775e-6 cycles/sample, 60 Hz at the specification's 6.138 MHz front end; the loop acquires 100% inside it on both signs, is reliable to 2x and dead by 4x. The receiver's hand-off residual was measured at -54..+375 Hz, routinely 2-6x the bound (doppler#982): check the hand-off against the bound before widening bn.
+        
+
+<hr>
 
 
-No FLL: the cross-product frequency discriminator is far too noisy on this loop's data-modulated input, and the squaring phase discriminator is immune to the transitions, so the plain PLL tracks the coupled Doppler. The FLL is not exposed at all. 
+
+### define ASYNC\_DSSS\_RX\_CARRIER\_LOOP\_SNR\_DB 
+
+```C++
+#define ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB `20.0`
+```
+
+
+
+The pre-despread carrier loop's least loop SNR at the design C/N0, dB (async-dsss-receiver.md §1.3): `rho S_L / (2 bn)` with `rho = C/N0 T` the update's SNR and `S_L = 1 / (1 + 1/(2 rho))` the M = 2 detector's squaring loss, which the 20 dB counts, so `bn <= rho S_L / 200`. 
 
 
         
@@ -2170,14 +2727,89 @@ No FLL: the cross-product frequency discriminator is far too noisy on this loop'
 
 ```C++
 #define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (
+    bn,
     chip_rate,
     code_len
-) `( ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))`
+) `((bn) * (chip_rate) / (2.0 * (double)(code_len)))`
 ```
 
 
 
-The pre-despread carrier loop's acquisition bound, Hz: `bn / m` cycles per sample over its one-code-period update (`m = 2`, the squaring discriminator), `native/validation/costas_pullin.c`'s measured 100% line  reliable to twice it, dead by four. 97.8 Hz at 5 Mcps over Gold-1023. 
+The pre-despread carrier loop's acquisition bound, Hz, at `bn:` half its noise bandwidth, `B_L / 2 = bn / (2 T)` (0.5 bn an update), T a code period; 97.8 Hz at 5 Mcps over Gold-1023 and bn 0.04. Empirical: a frequency step inside it pulls a second-order loop in within its normal lock time, about 5 / bn updates; past it the lock time is the pull-in's and grows (the lock-time rows of sweep-1b7312b09, on carrier\_nda). It is not the no-slip reach, which the same sweep measures lower, 0.25 `B_L` at the 4 dB floor (unit form): a step at this bound may slip while it pulls in, and slips during pull-in are allowed. 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_CAR\_DEN\_ALPHA 
+
+```C++
+#define ASYNC_DSSS_RX_CAR_DEN_ALPHA `(1.0 / 256.0)`
+```
+
+
+
+The pre-despread carrier loop's unit denominator: the EMA weight an update of the window sum's power (docs/design/async-dsss-receiver.md, "The averaging length": 81 / 64 ms at the floor, 10 to 12 times the loop's memory). 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_CAR\_LOCK\_PD 
+
+```C++
+#define ASYNC_DSSS_RX_CAR_LOCK_PD `0.99`
+```
+
+
+
+The carrier block lock's detection probability a block at the design C/N0, the code lock's. 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_CAR\_LOCK\_PFA 
+
+```C++
+#define ASYNC_DSSS_RX_CAR_LOCK_PFA `1e-3`
+```
+
+
+
+The carrier block lock's false-alarm rate a block, the code lock's. 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_CAR\_LOOP\_DELAY 
+
+```C++
+#define ASYNC_DSSS_RX_CAR_LOOP_DELAY (
+    segments
+) `(2.0 - 1.0 / (double)(segments))`
+```
+
+
+
+The pre-despread carrier loop's detector delay, updates, at `segments` Dll segments a code period: `2 - 1/segments`, a worst case and not a typical value. It is the delay of [**dp\_state\_filter\_loop\_bandwidth()**](state__filter__core_8h.md#function-dp_state_filter_loop_bandwidth)'s model, past that model's own one-update loop (at delay 0 a control reaches the next update's detector). Two terms, each a bound:
+* **the window's age at the update**, under one update: the loop updates once a code period, at the period's end, on the window the Dll's look-back picked, and that window ends at most a period before the update (less than 1; the lag instrument's `lag.epoch_T`, the Dll's code phase at the update in periods, reads it);
+* **the look-back's borrow**: the window may start in the previous period, by at most `segments - 1` of its `segments` chunks (the candidate loop in dll\_core.c, `best_widx <= w - 1`), so at most `(segments - 1)/segments` of a period. Their sum is under `1 + (segments - 1)/segments = 2 - 1/segments`: 1.75 at the receiver's 4. The carrier lock is sized at the loop's delivered bandwidth at this delay (the delay widens it). [**dp\_async\_dsss\_receiver\_carrier\_lock\_n\_noncoh()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_lock_n_noncoh). 
+
+
 
 
         
@@ -2339,6 +2971,79 @@ Damping factor of both Dlls (the tracker and the refine collector).
 
 
 
+### define ASYNC\_DSSS\_RX\_FINE\_P\_HO 
+
+```C++
+#define ASYNC_DSSS_RX_FINE_P_HO `0.99`
+```
+
+
+
+The fine hand-over's probability, the dwell's target: a design choice, 0.99 (docs/design/async-dsss-receiver.md, "The dwell, derived"). 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_HO\_DATA 
+
+_The hand-over took the data-template estimator's._ 
+```C++
+#define ASYNC_DSSS_RX_HO_DATA `2`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_HO\_FINE 
+
+_The hand-over took the fine estimate: the refine's squared pair sums located by PolynomialPhaseEstimator, divided by M._ 
+```C++
+#define ASYNC_DSSS_RX_HO_FINE `3`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_HO\_NONE 
+
+_Where the last hand-over's Doppler came from (".ho\_src" and_ [_**dp\_async\_dsss\_receiver\_get\_handover\_source()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_handover_source) _): none since the last seed (searching or refining), the seed's own (with refine false, where the seed is the hand-over; or the refine gave up, or its estimates failed the hand-over's checks), CarrierAcquisition's (§4.7), or the fine estimate's._
+```C++
+#define ASYNC_DSSS_RX_HO_NONE `0`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_HO\_SEED 
+
+_The hand-over took the seed's own Doppler._ 
+```C++
+#define ASYNC_DSSS_RX_HO_SEED `1`
+```
+
+
+
+
+<hr>
+
+
+
 ### define ASYNC\_DSSS\_RX\_LOCK\_DOWN 
 
 ```C++
@@ -2450,6 +3155,25 @@ Most code phases [**dp\_async\_dsss\_receiver\_set\_exclusions()**](async__dsss_
 
 
 Peaks the searcher reports per dwell ([**dp\_correlator\_set\_max\_peaks()**](correlator__core_8h.md#function-dp_correlator_set_max_peaks)): the list the receiver filters by exclusion, de-duplicates and ranks ([**dp\_async\_dsss\_receiver\_set\_rank()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_rank)). A rank is below this. 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_NO\_REFINE\_MIN\_BINS 
+
+```C++
+#define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS (
+    bn
+) `((size_t)ceil (1.0 / (bn) - 1e-9))`
+```
+
+
+
+The least search depth, `coherent_bins`, a receiver built with `refine` false takes at carrier bandwidth `bn:` half the search's Doppler row, `chip_rate / (2 * code_len * coherent_bins)`, is then inside ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ, which is `coherent_bins >= 1 / bn` at any chip rate (async-dsss-receiver.md §4.4): the ceiling of `1 / bn`, a reciprocal within 1e-9 of a whole number taken as that number (so bn 0.04 asks 25, and 1/25.4 asks 26). 
 
 
         

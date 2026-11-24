@@ -15,19 +15,24 @@
  *   7. bn is n-invariant: settling does not scale with the arm dumps
  *   8. set_bn reconfigures the loop filter
  *   9. Amplitude invariance, at any scale and every M (there is no AGC)
- *      — telemetry: four sample-rate probes, attachment-independent blobs
+ *      — telemetry: five sample-rate probes, attachment-independent blobs
  *  14. The lock signal is BOUNDED in +-1, at every M and every input
  *  15. The derived threshold chain, as arithmetic
- *  16. The SEEDING RULE: |df| <= bn/M settles within 2/bn samples
+ *  16. The SEEDING RULE: |df| <= bn/(4M) settles within 2/bn samples
+ *  18. bn is the closed loop's: measured noise bandwidth, every M and form
+ *  17. The composer's options: the update period, the denominator
+ *      (averaged, unit with its clamp), the block lock, and their blob
  *
  * This list was stale at "1-6" while the file carried sixteen sections —
  * the file's own index is a claim like any other.
  */
 #include "doppler/carrier_nda/carrier_nda_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 #include "doppler/mpsk/mpsk_core.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
+#include "dp_stats_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stddef.h>
@@ -96,6 +101,773 @@ static size_t
 settle_idx (int n, double bn, double f0, const float _Complex *rx, size_t N)
 {
   return track_settle (8, n, 4, bn, f0, rx, N, 0.1, 50, 0);
+}
+
+/* ── 17. The composer's options (docs/design/async-dsss-receiver.md,
+ * "The pre-despread carrier loop"): the update period, the
+ * denominator and the block lock, each off by default. Every check names
+ * the value the option ignored would give, so it can fail. ───────────── */
+
+/* One update of a composer's drive: T samples of x through the wipe-off,
+   summed (the integrate-and-dump), then carrier_nda_update(). */
+static float _Complex nda_window (dp_carrier_nda_state_t *c, double df,
+                                  double data, uint64_t *n0, size_t T)
+{
+  float _Complex acc = 0.0f;
+  for (size_t k = 0; k < T; k++, (*n0)++)
+    {
+      const double ph = TWOPI * df * (double)*n0;
+      acc += carrier_nda_wipeoff (c, (float _Complex) (data * cos (ph))
+                                         + I * (float)(data * sin (ph)));
+    }
+  return acc;
+}
+
+/* A drive of `n_upd` updates of T samples at df cycles/sample with random
+   BPSK data, noise-free; the tracked frequency at the end. */
+static double
+nda_drive (dp_carrier_nda_state_t *c, double df, size_t T, size_t n_upd)
+{
+  uint32_t st = 17u;
+  uint64_t n0 = 0;
+  for (size_t u = 0; u < n_upd; u++)
+    carrier_nda_update (
+        c, nda_window (c, df, dp_bit (&st) ? 1.0 : -1.0, &n0, T), 0.0);
+  return dp_carrier_nda_get_norm_freq (c);
+}
+
+static int
+test_composer_options (void)
+{
+  /* 17a. The update period. */
+  {
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    DP_REQUIRE (c != NULL);
+    /* Refused, and nothing changes: under 1, NaN, infinite. */
+    DP_CHECK (dp_carrier_nda_set_update_period (c, 0.5) == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_update_period (c, NAN) == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_update_period (c, INFINITY)
+              == DP_ERR_INVALID);
+    DP_CHECK (c->t_upd == 1.0);
+    DP_CHECK (dp_carrier_nda_set_update_period (c, 100.0) == DP_OK);
+    /* The steer spreads the filter's output, cycles an update, over the
+       update's 100 samples: against an independent filter at the same bn
+       (per update) and zeta, with config_loop()'s 1/2pi fold. */
+    /* init leaves integ alone: zeroed here, as a fresh object's is */
+    dp_loop_filter_state_t ref = { 0 };
+    dp_loop_filter_init (&ref, 0.02, 0.707, 1.0);
+    ref.kp *= CARRIER_NDA_INV_2PI;
+    ref.ki *= CARRIER_NDA_INV_2PI;
+    /* The filter takes the error over the discriminator's slope (#3224). */
+    const double out
+        = dp_loop_filter_step (&ref, 0.25 / CARRIER_NDA_DISC_SLOPE);
+    carrier_nda_steer (c, 0.25);
+    DP_CHECK (c->ctl_cyc == out / 100.0);
+    DP_CHECK (c->ctl_cyc != out); /* the period ignored */
+    DP_CHECK (dp_carrier_nda_get_norm_freq (c)
+              == c->nco.norm_freq + ref.integ / 100.0);
+    /* steps() is the per-sample loop: at any other period it writes
+       nothing. */
+    float _Complex x[16], y[16];
+    for (int i = 0; i < 16; i++)
+      {
+        x[i] = 1.0f;
+        y[i] = 7.0f;
+      }
+    DP_CHECK (dp_carrier_nda_steps (c, x, 16, y, 16) == 0);
+    DP_CHECK (y[0] == 7.0f && y[15] == 7.0f);
+    DP_CHECK (dp_carrier_nda_set_update_period (c, 1.0) == DP_OK);
+    DP_CHECK (dp_carrier_nda_steps (c, x, 16, y, 16) == 16);
+    dp_carrier_nda_destroy (c);
+  }
+  /* The loop closed on a composer's sums: a step of 0.2 B_L an update
+     (0.004 cycles an update over 64 samples), BPSK data, noise-free, bn 0.02
+     an update. With the period set it settles on the step; left at 1, the
+     command it applies a sample is the one meant for a whole update, 64
+     times too large, and it does not. */
+  {
+    const size_t            T  = 64;
+    const double            df = 0.004 / (double)T;
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    dp_carrier_nda_state_t *w
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    DP_REQUIRE (c != NULL && w != NULL);
+    DP_REQUIRE (dp_carrier_nda_set_update_period (c, (double)T) == DP_OK);
+    const double fc = nda_drive (c, df, T, 4000);
+    const double fw = nda_drive (w, df, T, 4000);
+    DP_CHECK (fabs (fc - df) < 1e-3 * df);
+    DP_CHECK (fabs (fw - df) > 0.1 * df);
+    dp_carrier_nda_destroy (c);
+    dp_carrier_nda_destroy (w);
+  }
+
+  /* 17c. A level step the running average has not followed: a loop on
+     unit amplitude for 1000 updates, then one update 40 dB up at 45
+     degrees, where 2IQ is its whole power. Without the floor the unit
+     form divides 10^4 by the running average, which has taken the burst
+     at weight 1/256 before it is read: 1 + 9999/256 = 40.1, so the error
+     is about 250; with it
+     the error is CARRIER_NDA_DEN_STEP exactly, the floor's ratio, and the
+     samples before it are unchanged by the floor (their error matches
+     2IQ over the average). */
+  {
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    DP_REQUIRE (c != NULL);
+    DP_REQUIRE (dp_carrier_nda_set_denominator (c, 1.0 / 256.0, 10.0)
+                == DP_OK);
+    DP_REQUIRE (c->den == CARRIER_NDA_DEN_UNIT);
+    for (int k = 0; k < 1000; k++)
+      carrier_nda_update (c, 1.0f, 0.0);
+    DP_CHECK (dp_carrier_nda_get_last_error (c) == 0.0);
+    const float _Complex burst = 100.0f * cexpf (I * (float)(M_PI / 4.0));
+    carrier_nda_update (c, burst, 0.0);
+    const double e = dp_carrier_nda_get_last_error (c);
+    printf ("  a 40 dB step: the unit denominator's error %.4f (floor "
+            "%.4f)\n",
+            e, CARRIER_NDA_DEN_STEP);
+    DP_CHECK (fabs (e - CARRIER_NDA_DEN_STEP) < 1e-3 * CARRIER_NDA_DEN_STEP);
+    dp_carrier_nda_destroy (c);
+    /* How often the floor engages without a step: on noise alone e^-x, the
+       chosen 1e-6; with a signal at update SNR gamma, |z|^2 over the unit
+       form's A^2 past x is the noncentral chi-square tail Q_1(sqrt(2
+       gamma), sqrt(2 x gamma)), and over the averaged form's A^2 + N,
+       Q_1(sqrt(2 gamma), sqrt(2 x (gamma + 1))). At the 415.1-B-1 floor's
+       window sums, both under the noise-only rate. */
+    const double x = CARRIER_NDA_DEN_STEP;
+    DP_CHECK (fabs (dp_marcum_q (1, 0.0, sqrt (2.0 * x)) - 1e-6) < 1e-12);
+    static const double gs[2] = { 2.397, 1.884 };
+    for (int k = 0; k < 2; k++)
+      {
+        const double u
+            = dp_marcum_q (1, sqrt (2.0 * gs[k]), sqrt (2.0 * x * gs[k]));
+        const double a = dp_marcum_q (1, sqrt (2.0 * gs[k]),
+                                      sqrt (2.0 * x * (gs[k] + 1.0)));
+        printf ("  the floor engages at gamma %.3f: unit %.2e, averaged "
+                "%.2e an update (noise alone 1e-6)\n",
+                gs[k], u, a);
+        DP_CHECK (u < 1e-6 && a < u);
+      }
+  }
+
+  /* 17b. The denominator: an exact quotient on known inputs. */
+  {
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    dp_carrier_nda_state_t *q
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 4);
+    DP_REQUIRE (c != NULL && q != NULL);
+    /* Refused, and nothing changes: alpha outside (0, 1], gamma_d negative
+       or not finite. */
+    DP_CHECK (dp_carrier_nda_set_denominator (c, 0.0, 0.0) == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_denominator (c, 1.5, 0.0) == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_denominator (c, 1.0 / 256.0, -1.0)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_denominator (c, 1.0 / 256.0, NAN)
+              == DP_ERR_INVALID);
+    /* M = 4 and 8: only the limiter, whose law is the one derived there. */
+    DP_CHECK (dp_carrier_nda_set_denominator (q, 1.0 / 256.0, 0.0)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_denominator (q, 1.0, 0.0) == DP_OK);
+    DP_CHECK (c->den == CARRIER_NDA_DEN_LIMITER
+              && q->den == CARRIER_NDA_DEN_LIMITER);
+
+    /* Averaged: ten updates of |z|^2 = 4 boot the cumulative mean to 4
+       exactly; the eleventh, |z| = 1 at pi/8, takes it to 4 - 3/11 (weight
+       1/11, over alpha = 1/256) and divides Im(z^2) by that, to the float
+       input's rounding. */
+    const float _Complex u = cexpf (I * (float)(M_PI / 8.0));
+    DP_REQUIRE (dp_carrier_nda_set_denominator (c, 1.0 / 256.0, 0.0) == DP_OK);
+    DP_CHECK (c->den == CARRIER_NDA_DEN_AVERAGED);
+    carrier_nda_update (c, 2.0f, 0.0);
+    double pe1 = c->last_error; /* boot: the first average is |z|^2 */
+    DP_CHECK (pe1 == 0.0);
+    for (int k = 1; k < 10; k++)
+      carrier_nda_update (c, 2.0f, 0.0);
+    DP_CHECK (c->pow_avg == 4.0);
+    carrier_nda_update (c, u, 0.0);
+    const double im2 = 2.0 * (double)crealf (u) * (double)cimagf (u);
+    const double avg = 4.0 - 3.0 / 11.0;
+    DP_CHECK_NEAR (c->pow_avg, avg, 1e-7 * avg);
+    DP_CHECK_NEAR (c->last_error, im2 / avg, 1e-6 * im2 / avg);
+    double lim, lk;
+    carrier_nda_disc (u, 2, &lim, &lk);
+    DP_CHECK (fabs (lim - im2 / avg) > 0.5 * lim); /* the limiter's value */
+
+    /* The gain against level: the same sequence 1e-3 and 1e3 times as
+       large gives the same error (the quotient is degree zero). */
+    for (int e = -3; e <= 3; e += 6)
+      {
+        dp_carrier_nda_state_t *s
+            = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+        DP_REQUIRE (s != NULL);
+        DP_REQUIRE (dp_carrier_nda_set_denominator (s, 1.0 / 256.0, 0.0)
+                    == DP_OK);
+        const float g = powf (10.0f, (float)e);
+        for (int k = 0; k < 10; k++)
+          carrier_nda_update (s, 2.0f * g, 0.0);
+        carrier_nda_update (s, u * g, 0.0);
+        DP_CHECK_NEAR (s->last_error, im2 / avg, 1e-6 * im2 / avg);
+        dp_carrier_nda_destroy (s);
+      }
+
+    /* Unit, gamma_d 2.4: the average less the noise, clamped to
+       [avg * 2.4/3.4, avg]. Ten updates of 2 boot the average to 4; then
+       z = 2 e^{j pi/8} keeps it at 4, so Im(z^2) = 4 sin(pi/4). */
+    dp_carrier_nda_state_t *v
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    DP_REQUIRE (v != NULL);
+    DP_REQUIRE (dp_carrier_nda_set_denominator (v, 1.0 / 256.0, 2.4) == DP_OK);
+    DP_CHECK (v->den == CARRIER_NDA_DEN_UNIT);
+    for (int k = 0; k < 10; k++)
+      carrier_nda_update (v, 2.0f, 0.0);
+    const float _Complex z2 = 2.0f * u;
+    const double n4         = 2.0 * (double)crealf (z2) * (double)cimagf (z2);
+    const double lo         = 4.0 * 2.4 / 3.4;
+    /* inside the clamp: noise 1, so 4 - 1 */
+    carrier_nda_update (v, z2, 1.0);
+    DP_CHECK_NEAR (v->last_error, n4 / 3.0, 1e-6);
+    DP_CHECK (fabs (v->last_error - n4 / 4.0) > 0.1); /* the averaged form */
+    /* below it: noise 3.9 leaves 0.1, held at the design point's share */
+    carrier_nda_update (v, z2, 3.9);
+    DP_CHECK_NEAR (v->last_error, n4 / lo, 1e-6);
+    DP_CHECK (n4 / 0.1 > 10.0 * v->last_error); /* unclamped */
+    /* a noise past the power (boot, or a bad estimate) keeps the sign */
+    carrier_nda_update (v, z2, 10.0);
+    DP_CHECK_NEAR (v->last_error, n4 / lo, 1e-6);
+    DP_CHECK (n4 / (4.0 - 10.0) < 0.0); /* unclamped: the sign turns */
+    /* above it: a negative noise is held at the averaged form */
+    carrier_nda_update (v, z2, -1.0);
+    DP_CHECK_NEAR (v->last_error, n4 / 4.0, 1e-6);
+    dp_carrier_nda_destroy (v);
+    /* Back to the limiter: the error is carrier_nda_disc()'s again. */
+    DP_REQUIRE (dp_carrier_nda_set_denominator (c, 1.0, 0.0) == DP_OK);
+    DP_CHECK (c->den == CARRIER_NDA_DEN_LIMITER);
+    carrier_nda_update (c, z2, 0.0);
+    carrier_nda_disc (z2, 2, &lim, &lk);
+    DP_CHECK (c->last_error == lim);
+    dp_carrier_nda_destroy (c);
+    dp_carrier_nda_destroy (q);
+  }
+
+  /* 17c. The block lock. */
+  {
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    dp_carrier_nda_state_t *q
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 4);
+    DP_REQUIRE (c != NULL && q != NULL);
+    DP_CHECK (dp_carrier_nda_set_block_lock (q, 31, 1e-3, 2, 3)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_block_lock (c, 1, 1e-3, 2, 3)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_block_lock (c, 31, 0.0, 2, 3)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_block_lock (c, 31, 0.5, 2, 3)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_block_lock (c, 31, 1.0, 2, 3)
+              == DP_ERR_INVALID);
+    DP_CHECK (c->blk_len == 0);
+    /* The design's thresholds (async-dsss-receiver.md, the loop's lock
+       statistic): 0.518 at 31 updates and 0.463 at 40, Pfa 1e-3. */
+    DP_REQUIRE (dp_carrier_nda_set_block_lock (c, 40, 1e-3, 2, 3) == DP_OK);
+    DP_CHECK_NEAR (dp_carrier_nda_get_block_thresh (c), 0.463, 5e-4);
+    DP_REQUIRE (dp_carrier_nda_set_block_lock (c, 31, 1e-3, 2, 3) == DP_OK);
+    const double thr = dp_carrier_nda_get_block_thresh (c);
+    DP_CHECK_NEAR (thr, 0.518, 5e-4);
+
+    /* On noise alone R crosses it at its Pfa: 200,000 blocks, Wilson 99%.
+       The same count at 0.1 under it is far outside (the check can
+       fail). */
+    uint32_t     st   = 4242u;
+    const size_t nb   = 200000;
+    size_t       over = 0, over_lo = 0;
+    for (size_t b = 0; b < nb; b++)
+      {
+        for (int k = 0; k < 31; k++)
+          carrier_nda_update (c, dp_cgauss (&st), 0.0);
+        over += c->lock > thr;
+        over_lo += c->lock > thr - 0.1;
+      }
+    double wl, wh;
+    dp_wilson ((double)over, (double)nb, &wl, &wh);
+    printf ("  block lock: R over %.3f on noise %zu / %zu (Pfa 1e-3)\n", thr,
+            over, nb);
+    DP_CHECK (wl <= 1e-3 && 1e-3 <= wh);
+    dp_wilson ((double)over_lo, (double)nb, &wl, &wh);
+    DP_CHECK (wl > 1e-3);
+
+    /* The decision: lock reads the block's ratio of sums; 2 blocks to
+       declare, 3 to drop, at a ratio over the 4-update threshold. */
+    DP_REQUIRE (dp_carrier_nda_set_block_lock (c, 4, 1e-3, 2, 3) == DP_OK);
+    DP_CHECK (!dp_carrier_nda_get_locked (c));
+    DP_CHECK (dp_carrier_nda_get_block_thresh (c) < 0.99);
+    for (int k = 0; k < 4; k++)
+      carrier_nda_update (c, 1.0f + 0.05f * I, 0.0);
+    DP_CHECK_NEAR (c->lock, (1.0 - 0.0025) / 1.0025, 1e-7);
+    DP_CHECK (!dp_carrier_nda_get_locked (c)); /* one block: not yet */
+    for (int k = 0; k < 4; k++)
+      carrier_nda_update (c, 1.0f + 0.05f * I, 0.0);
+    DP_CHECK (dp_carrier_nda_get_locked (c));
+    for (int b = 0; b < 2; b++)
+      for (int k = 0; k < 4; k++)
+        carrier_nda_update (c, 0.05f + 1.0f * I, 0.0);
+    DP_CHECK_NEAR (c->lock, -(1.0 - 0.0025) / 1.0025, 1e-7);
+    DP_CHECK (dp_carrier_nda_get_locked (c)); /* two below: still */
+    for (int k = 0; k < 4; k++)
+      carrier_nda_update (c, 0.05f + 1.0f * I, 0.0);
+    DP_CHECK (!dp_carrier_nda_get_locked (c));
+    /* 0 returns to the EMA and its default rule. */
+    DP_REQUIRE (dp_carrier_nda_set_block_lock (c, 0, 0.0, 0, 0) == DP_OK);
+    DP_CHECK (c->blk_len == 0 && c->lockdet.up_thresh == 0.5
+              && c->lockdet.down_thresh == 0.4);
+    dp_carrier_nda_destroy (c);
+    dp_carrier_nda_destroy (q);
+  }
+
+  /* 17e. The period's change on a running loop keeps the tracked
+     frequency: the integrator (cycles an update) is rescaled by new/old.
+     Read unscaled it would be 64 times low and the loop would drop. */
+  {
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 1, 2);
+    DP_REQUIRE (c != NULL);
+    enum
+    {
+      N = 20000
+    };
+    static float _Complex x[N], y[N];
+    for (int i = 0; i < N; i++)
+      x[i] = cexpf (I * (float)(TWOPI * 0.004 * (double)i));
+    DP_REQUIRE (dp_carrier_nda_steps (c, x, N, y, N) == N);
+    const double f1 = dp_carrier_nda_get_norm_freq (c);
+    const double i1 = c->lf.integ, k1 = c->ctl_cyc;
+    DP_REQUIRE (fabs (f1 - 0.004) < 1e-4);
+    DP_REQUIRE (dp_carrier_nda_set_update_period (c, 64.0) == DP_OK);
+    DP_CHECK_NEAR (dp_carrier_nda_get_norm_freq (c), f1, 1e-15);
+    DP_CHECK (c->ctl_cyc == k1);
+    DP_CHECK (fabs (c->nco.norm_freq + i1 / 64.0 - f1) > 0.5 * f1);
+    /* and back, to the value it had */
+    DP_REQUIRE (dp_carrier_nda_set_update_period (c, 1.0) == DP_OK);
+    DP_CHECK_NEAR (c->lf.integ, i1, 1e-15);
+    dp_carrier_nda_destroy (c);
+  }
+
+  /* 17f. The average past its boot: the weight is alpha once 1/n falls
+     under it. 300 updates of |z|^2 = 4, then |z|^2 = |u|^2: 4 + alpha
+     (|u|^2 - 4), against the boot's 1/301 a sabotage to always-1/n gives. */
+  {
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    DP_REQUIRE (c != NULL);
+    DP_REQUIRE (dp_carrier_nda_set_denominator (c, 1.0 / 256.0, 0.0) == DP_OK);
+    for (int k = 0; k < 300; k++)
+      carrier_nda_update (c, 2.0f, 0.0);
+    const float _Complex u = cexpf (I * (float)(M_PI / 8.0));
+    const double p         = (double)crealf (u) * (double)crealf (u)
+                             + (double)cimagf (u) * (double)cimagf (u);
+    carrier_nda_update (c, u, 0.0);
+    DP_CHECK_NEAR (c->pow_avg, 4.0 + (p - 4.0) / 256.0, 1e-12);
+    DP_CHECK (fabs (4.0 + (p - 4.0) / 301.0 - c->pow_avg) > 1e-3);
+    dp_carrier_nda_destroy (c);
+  }
+
+  /* 17g. reset() keeps the options and clears their running sums; 17h. a
+     setter clears what it owns on an object that has run. */
+  {
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    DP_REQUIRE (c != NULL);
+    DP_REQUIRE (dp_carrier_nda_set_update_period (c, 64.0) == DP_OK);
+    DP_REQUIRE (dp_carrier_nda_set_denominator (c, 1.0 / 256.0, 2.4) == DP_OK);
+    DP_REQUIRE (dp_carrier_nda_set_block_lock (c, 31, 1e-3, 2, 3) == DP_OK);
+    const double thr = c->blk_thr;
+    (void)nda_drive (c, 0.001, 64, 45);
+    DP_REQUIRE (c->pow_n == 45.0 && c->pow_avg > 0.0 && c->blk_n == 14
+                && c->blk_den > 0.0);
+    dp_carrier_nda_reset (c);
+    DP_CHECK (c->t_upd == 64.0 && c->den == CARRIER_NDA_DEN_UNIT
+              && c->den_alpha == 1.0 / 256.0 && c->den_gamma == 2.4
+              && c->blk_len == 31 && c->blk_thr == thr);
+    DP_CHECK (c->pow_avg == 0.0 && c->pow_n == 0.0 && c->blk_n == 0
+              && c->blk_num == 0.0 && c->blk_den == 0.0);
+    (void)nda_drive (c, 0.001, 64, 45);
+    DP_REQUIRE (c->pow_avg > 0.0 && c->blk_n == 14);
+    DP_REQUIRE (dp_carrier_nda_set_denominator (c, 1.0 / 128.0, 0.0) == DP_OK);
+    DP_CHECK (c->pow_avg == 0.0 && c->pow_n == 0.0);
+    DP_CHECK (c->blk_n == 14); /* the block is not the denominator's */
+    DP_REQUIRE (dp_carrier_nda_set_block_lock (c, 40, 1e-3, 2, 3) == DP_OK);
+    DP_CHECK (c->blk_n == 0 && c->blk_num == 0.0 && c->blk_den == 0.0);
+    /* configure_lock() re-tunes the EMA's rule: a block lock gives way, so
+       block_thresh and the rule deciding agree. */
+    dp_carrier_nda_configure_lock (c, 0.6, 0.5, 16, 64);
+    DP_CHECK (c->blk_len == 0 && dp_carrier_nda_get_block_thresh (c) == 0.0
+              && c->lockdet.up_thresh == 0.6);
+    dp_carrier_nda_destroy (c);
+  }
+
+  /* 17i. .nco and get_nco_freq at a period other than 1: the command a
+     sample, the filter's output over the period. */
+  {
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.02, 0.707, 0.001, 8, 1, 2);
+    dp_tlm_t *tlm = dp_tlm_create (1 << 10);
+    DP_REQUIRE (c != NULL && tlm != NULL);
+    DP_REQUIRE (dp_carrier_nda_set_update_period (c, 64.0) == DP_OK);
+    DP_REQUIRE (dp_carrier_nda_set_telemetry (c, tlm, "car", 1) == DP_OK);
+    /* init leaves integ alone: zeroed here, as a fresh object's is */
+    dp_loop_filter_state_t ref = { 0 };
+    dp_loop_filter_init (&ref, 0.02, 0.707, 1.0);
+    ref.kp *= CARRIER_NDA_INV_2PI;
+    ref.ki *= CARRIER_NDA_INV_2PI;
+    const float _Complex z = cexpf (I * 0.3f);
+    double pe, lk;
+    carrier_nda_disc (z, 2, &pe, &lk);
+    const double out = dp_loop_filter_step (&ref, pe / CARRIER_NDA_DISC_SLOPE);
+    carrier_nda_update (c, z, 0.0);
+    dp_carrier_nda_tlm_flush (c);
+    const double ctr = c->nco.norm_freq; /* the NCO's centre, as it holds it */
+    DP_CHECK (dp_carrier_nda_get_nco_freq (c) == ctr + out / 64.0);
+    DP_CHECK (dp_carrier_nda_get_nco_freq (c) != ctr + out); /* unspread */
+    dp_tlm_rec_t recs[16];
+    const size_t n = dp_tlm_read (tlm, 16, recs, 16);
+    DP_REQUIRE (n == 5);
+    DP_CHECK (recs[4].probe == (uint16_t)c->tlm.id_nco);
+    DP_CHECK (recs[4].value == (float)(ctr + out / 64.0));
+    dp_carrier_nda_destroy (c);
+    dp_tlm_destroy (tlm);
+  }
+
+  /* 17j. The gains under noise, at update SNR gamma = 2.4 (3.8 dB):
+     averaged gamma/(gamma + 1) = 0.706, unit 1 with the true noise power,
+     against the limiter's lower one. The mean error at a phase of 0.1 rad
+     over 200,000 updates, divided by sin(0.2); sd about 0.009 on each. */
+  {
+    const double gam = 2.4, ph = 0.1, A = sqrt (gam);
+    const int    nu = 200000;
+    double       g[3];
+    for (int f = 0; f < 3; f++)
+      {
+        dp_carrier_nda_state_t *c
+            = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+        DP_REQUIRE (c != NULL);
+        DP_REQUIRE (dp_carrier_nda_set_denominator (
+                        c, f == 0 ? 1.0 : 1.0 / 256.0, f == 2 ? 1.0 : 0.0)
+                    == DP_OK);
+        uint32_t st  = 99u;
+        double   sum = 0.0;
+        for (int k = 0; k < nu; k++)
+          {
+            const float _Complex z = (float)(A * cos (ph))
+                                     + I * (float)(A * sin (ph))
+                                     + dp_cgauss (&st);
+            carrier_nda_update (c, z, 1.0);
+            sum += c->last_error;
+          }
+        g[f] = sum / (double)nu / sin (2.0 * ph);
+        dp_carrier_nda_destroy (c);
+      }
+    printf ("  gains at gamma 2.4: limiter %.3f, averaged %.3f (%.3f), "
+            "unit %.3f (1)\n",
+            g[0], g[1], gam / (gam + 1.0), g[2]);
+    DP_CHECK_NEAR (g[1], gam / (gam + 1.0), 0.03);
+    DP_CHECK_NEAR (g[2], 1.0, 0.03);
+    DP_CHECK (g[1] - g[0] > 0.05); /* the limiter's gain is lower */
+  }
+
+  /* 17k. M = 8: only the limiter and the EMA. */
+  {
+    dp_carrier_nda_state_t *e
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 8);
+    DP_REQUIRE (e != NULL);
+    DP_CHECK (dp_carrier_nda_set_denominator (e, 1.0 / 256.0, 0.0)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_denominator (e, 1.0 / 256.0, 2.4)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_block_lock (e, 31, 1e-3, 2, 3)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_denominator (e, 1.0, 0.0) == DP_OK);
+    dp_carrier_nda_destroy (e);
+  }
+
+  /* 17l. The block's length is bounded where its threshold holds. */
+  {
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    DP_REQUIRE (c != NULL);
+    DP_CHECK (dp_carrier_nda_set_block_lock (c, CARRIER_NDA_BLOCK_MAX_LEN,
+                                             1e-3, 2, 3)
+              == DP_OK);
+    DP_CHECK (dp_carrier_nda_get_block_thresh (c) > 0.0);
+    DP_CHECK (dp_carrier_nda_set_block_lock (c, CARRIER_NDA_BLOCK_MAX_LEN + 1u,
+                                             1e-3, 2, 3)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_block_lock (c, 0x80000000u, 1e-3, 2, 3)
+              == DP_ERR_INVALID);
+    DP_CHECK (c->blk_len == CARRIER_NDA_BLOCK_MAX_LEN); /* unchanged */
+    dp_carrier_nda_destroy (c);
+  }
+
+  /* 17d. The options in the blob: a driven object with all three set
+     round-trips, and a blob an object could not hold is refused. */
+  {
+    dp_carrier_nda_state_t *a
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    dp_carrier_nda_state_t *b
+        = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    DP_REQUIRE (a != NULL && b != NULL);
+    DP_REQUIRE (dp_carrier_nda_set_update_period (b, 64.0) == DP_OK);
+    DP_REQUIRE (dp_carrier_nda_set_denominator (b, 1.0 / 256.0, 2.4) == DP_OK);
+    DP_REQUIRE (dp_carrier_nda_set_block_lock (b, 31, 1e-3, 2, 3) == DP_OK);
+    (void)nda_drive (b, 0.001, 64, 45); /* mid-block: blk_n = 14 */
+    DP_CHECK (b->blk_n == 14);
+    DP_STATE_ROUNDTRIP_TEST (dp_carrier_nda, a, b);
+    dp_carrier_nda_destroy (b);
+    /* The round trip leaves b as a was; the forgeries need the options
+       set, so a fresh one, configured and driven the same way. */
+    b = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+    DP_REQUIRE (b != NULL);
+    DP_REQUIRE (dp_carrier_nda_set_update_period (b, 64.0) == DP_OK);
+    DP_REQUIRE (dp_carrier_nda_set_denominator (b, 1.0 / 256.0, 2.4) == DP_OK);
+    DP_REQUIRE (dp_carrier_nda_set_block_lock (b, 31, 1e-3, 2, 3) == DP_OK);
+    (void)nda_drive (b, 0.001, 64, 45);
+    DP_REQUIRE (b->blk_n == 14 && b->blk_len == 31);
+    const double   half = 0.5, bad_thr = 0.4;
+    const int      den7 = 7;
+    const uint32_t full = 31;
+    const size_t   h    = sizeof (dp_state_hdr_t);
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        h + offsetof (dp_carrier_nda_state_t, t_upd), &half, sizeof half);
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        h + offsetof (dp_carrier_nda_state_t, den), &den7, sizeof den7);
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        h + offsetof (dp_carrier_nda_state_t, blk_n), &full, sizeof full);
+    DP_STATE_FORGE_TEST (dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION,
+                         h + offsetof (dp_carrier_nda_state_t, blk_thr),
+                         &bad_thr, sizeof bad_thr);
+    /* What the setters and an update could not leave: a weight out of
+       range, an averaged form at M = 4, a block of 1, a negative average,
+       sums the block's updates could not give, sums with the block off,
+       the padding word set, and a threshold off its (len, pfa) by more
+       than 1e-9. */
+    const double   bad_alpha = 2.0, neg = -1.0, big = 1e9;
+    const uint32_t one = 1, opt = 1;
+    const int      m4 = 4;
+    DP_STATE_FORGE_TEST (dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION,
+                         h + offsetof (dp_carrier_nda_state_t, den_alpha),
+                         &bad_alpha, sizeof bad_alpha);
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        h + offsetof (dp_carrier_nda_state_t, m), &m4, sizeof m4);
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        h + offsetof (dp_carrier_nda_state_t, blk_len), &one, sizeof one);
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        h + offsetof (dp_carrier_nda_state_t, pow_avg), &neg, sizeof neg);
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        h + offsetof (dp_carrier_nda_state_t, blk_num), &big, sizeof big);
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        h + offsetof (dp_carrier_nda_state_t, blk_den), &neg, sizeof neg);
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        h + offsetof (dp_carrier_nda_state_t, opt_zero), &opt, sizeof opt);
+    const double up9 = 0.9; /* the lock rule apart from the block's */
+    DP_STATE_FORGE_TEST (dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION,
+                         h + offsetof (dp_carrier_nda_state_t, lockdet)
+                             + offsetof (dp_lockdet_state_t, up_thresh),
+                         &up9, sizeof up9);
+    /* A block lock's pfa of 1/2, which set_block_lock() refuses (its
+       threshold is 0, deciding on noise as often as not): refused on
+       restore too. */
+    const double pfa_half = 0.5;
+    DP_STATE_FORGE_TEST (dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION,
+                         h + offsetof (dp_carrier_nda_state_t, blk_pfa),
+                         &pfa_half, sizeof pfa_half);
+    const double off = b->blk_thr * (1.0 + 1e-8);
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        h + offsetof (dp_carrier_nda_state_t, blk_thr), &off, sizeof off);
+    /* A threshold an ulp from its (len, pfa), with the lock detector's rule
+       moved with it, is what another libm writes: restored. */
+    {
+      const size_t   nb = dp_carrier_nda_state_bytes (b);
+      unsigned char *g  = malloc (nb);
+      DP_REQUIRE (g != NULL);
+      dp_carrier_nda_get_state (b, g);
+      dp_carrier_nda_state_t t;
+      memcpy (&t, g + h, sizeof t);
+      t.blk_thr             = nextafter (t.blk_thr, 1.0);
+      t.lockdet.up_thresh   = t.blk_thr;
+      t.lockdet.down_thresh = t.blk_thr;
+      memcpy (g + h, &t, sizeof t);
+      DP_CHECK (dp_carrier_nda_set_state (b, g) == DP_OK);
+      DP_CHECK (b->blk_thr == t.blk_thr);
+      /* A v5 blob (the layout before the options) is refused whole. */
+      ((dp_state_hdr_t *)g)->version = 5;
+      DP_CHECK (dp_carrier_nda_set_state (b, g) == DP_ERR_INVALID);
+      free (g);
+    }
+    /* With the block off, no sum may be left. */
+    {
+      dp_carrier_nda_state_t *o
+          = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 1, 2);
+      DP_REQUIRE (o != NULL);
+      const double tiny = 1.0;
+      DP_STATE_FORGE_TEST (dp_carrier_nda, o, CARRIER_NDA_STATE_MAGIC,
+                           CARRIER_NDA_STATE_VERSION,
+                           h + offsetof (dp_carrier_nda_state_t, blk_den),
+                           &tiny, sizeof tiny);
+      DP_STATE_FORGE_TEST (dp_carrier_nda, o, CARRIER_NDA_STATE_MAGIC,
+                           CARRIER_NDA_STATE_VERSION,
+                           h + offsetof (dp_carrier_nda_state_t, pow_avg),
+                           &tiny, sizeof tiny);
+      dp_carrier_nda_destroy (o);
+    }
+    dp_carrier_nda_destroy (a);
+    dp_carrier_nda_destroy (b);
+  }
+  return 0;
+}
+
+/* ── 18. bn is the closed loop's (#3224): the measured noise bandwidth
+ * against bn at every M and every denominator. Input a unit phasor with
+ * white phase noise of variance s^2 (small: the linear region), one update
+ * a sample; the NCO's phase then has variance 2 bn s^2 when bn is the
+ * loop's noise bandwidth. With the discriminator's slope (2) not divided
+ * out, the loop's gain is 2: wn and zeta each rise by sqrt 2 (zeta 0.707 ->
+ * 1.0), and the continuous-time noise bandwidth by 5/3. Measured with the
+ * division sabotaged it reads 1.75 to 1.79 at bn 0.01 (the digital loop's
+ * few percent over 5/3; the correct loop reads 1.00 to 1.04 here). Not pi/2
+ * (1.57) or 2 pi: the units are cycles and radians, and the factor is the
+ * slope. ──────────────────────────────── */
+static int
+test_bn_is_the_loops (void)
+{
+  const double bn = 0.01, s = 0.02;
+  const int    ms[3] = { 2, 4, 8 };
+  for (int mi = 0; mi < 3; mi++)
+    for (int f = 0; f < 3; f++)
+      {
+        if (ms[mi] != 2 && f > 0)
+          continue; /* the averaged and unit forms are M = 2 only */
+        dp_carrier_nda_state_t *c
+            = dp_carrier_nda_create (bn, 0.707, 0.0, 8, 1, ms[mi]);
+        DP_REQUIRE (c != NULL);
+        DP_REQUIRE (dp_carrier_nda_set_denominator (
+                        c, f == 0 ? 1.0 : 1.0 / 256.0, f == 2 ? 1.0 : 0.0)
+                    == DP_OK);
+        uint32_t  st    = 4321u + (uint32_t)(10 * mi + f);
+        const int nwarm = 5000, n = 400000;
+        double    s1 = 0.0, s2 = 0.0;
+        for (int k = 0; k < nwarm + n; k++)
+          {
+            const double ph = s * dp_gauss (&st);
+            const float _Complex z
+                = carrier_nda_wipeoff (c, cexpf (I * (float)ph));
+            carrier_nda_update (c, z, 0.0);
+            if (k >= nwarm)
+              {
+                /* The NCO's phase, radians, folded about 0. */
+                double th = TWOPI * (double)c->nco.phase / 4294967296.0;
+                th -= TWOPI * floor (th / TWOPI + 0.5);
+                s1 += th;
+                s2 += th * th;
+              }
+          }
+        const double var   = s2 / n - (s1 / n) * (s1 / n);
+        const double ratio = var / (2.0 * bn * s * s);
+        printf ("  bn is the loop's: M = %d, %s: measured / bn %.3f\n", ms[mi],
+                f == 0   ? "limiter"
+                : f == 1 ? "averaged"
+                         : "unit",
+                ratio);
+        /* 400,000 updates against the loop's ~1/(4 bn) memory: the
+           estimate's sd is a few percent. 0.85 to 1.15 holds it and refuses
+           the slope-2 loop's ~1.67. */
+        DP_CHECK (ratio > 0.85 && ratio < 1.15);
+        dp_carrier_nda_destroy (c);
+      }
+  return 0;
+}
+
+/* ── 19. get_nco_phase_ahead() and get_lock_rule() ─────────────────────
+ * After a steer the NCO advances by its centre increment plus the loop's
+ * control a sample; the phase ahead k samples is read, then k samples are
+ * wiped, and the phase word the NCO then holds is the answer, exactly, for
+ * k from 0 to 3,000 (past one 2^32 wrap of the product at this rate). The
+ * lock rule is the one set_block_lock() configured. Sabotage: drop the
+ * control from the increment -> the answer is off by k * ctl, red. ───── */
+static int
+test_phase_ahead_and_rule (void)
+{
+  dp_carrier_nda_state_t *c
+      = dp_carrier_nda_create (0.02, 0.707, 0.013, 8, 1, 2);
+  DP_REQUIRE (c != NULL);
+  DP_REQUIRE (dp_carrier_nda_set_update_period (c, 64.0) == DP_OK);
+  DP_REQUIRE (dp_carrier_nda_set_block_lock (c, 31, 1e-3, 2, 3) == DP_OK);
+  /* One update off the seed, so the control is not zero. */
+  for (int k = 0; k < 64; k++)
+    (void)carrier_nda_wipeoff (c, 1.0f);
+  carrier_nda_update (c, cexpf (I * 0.3f), 0.0);
+  DP_CHECK (c->ctl_cyc != 0.0);
+  const size_t ks[4] = { 0, 1, 777, 3000 };
+  for (int i = 0; i < 4; i++)
+    {
+      dp_carrier_nda_state_t t = *c;
+      const double ans = dp_carrier_nda_get_nco_phase_ahead (&t, ks[i]);
+      for (size_t k = 0; k < ks[i]; k++)
+        (void)carrier_nda_wipeoff (&t, 1.0f);
+      DP_CHECK (ans == (double)t.nco.phase / 4294967296.0);
+    }
+  const dp_lockdet_rule_t rl = dp_carrier_nda_get_lock_rule (c);
+  DP_CHECK (rl.up_thresh == dp_carrier_nda_get_block_thresh (c) && rl.n_up == 2
+            && rl.n_down == 3);
+  dp_carrier_nda_destroy (c);
+  return 0;
+}
+
+/* ── 20. dp_carrier_nda_hold(): a held loop runs on its integrator ───────
+ * An update with a large error (0.6 rad), then a hold: the NCO's command
+ * is integ / t_upd exactly, and over the next 3 update intervals of wipes
+ * the phase advances by exactly that frequency's increment a sample, with
+ * no repeat of the proportional step. Sabotage: a hold that leaves the
+ * command -> the frequency check and the phase advance are red. ──────── */
+static int
+test_hold_runs_on_the_integrator (void)
+{
+  dp_carrier_nda_state_t *c
+      = dp_carrier_nda_create (0.02, 0.707, 0.001, 8, 1, 2);
+  DP_REQUIRE (c != NULL);
+  DP_REQUIRE (dp_carrier_nda_set_update_period (c, 64.0) == DP_OK);
+  for (int k = 0; k < 64; k++)
+    (void)carrier_nda_wipeoff (c, 1.0f);
+  carrier_nda_update (c, cexpf (I * 0.6f), 0.0);
+  const double kick = c->ctl_cyc - c->lf.integ / c->t_upd;
+  DP_CHECK (fabs (kick) > 1e-6); /* the update did leave a proportional term */
+  dp_carrier_nda_hold (c);
+  DP_CHECK (c->ctl_cyc == c->lf.integ / c->t_upd);
+  DP_CHECK (dp_carrier_nda_get_nco_freq (c)
+            == c->nco.norm_freq + c->lf.integ / c->t_upd);
+  const uint32_t ph0 = c->nco.phase;
+  const uint32_t inc
+      = c->nco.phase_inc + nco_norm_freq_to_inc (c->lf.integ / c->t_upd);
+  for (int k = 0; k < 3 * 64; k++)
+    (void)carrier_nda_wipeoff (c, 1.0f);
+  DP_CHECK (c->nco.phase == (uint32_t)(ph0 + (uint32_t)(3 * 64) * inc));
+  dp_carrier_nda_destroy (c);
+  return 0;
 }
 
 int
@@ -503,7 +1275,7 @@ main (void)
     free (rx);
   }
 
-  /* telemetry attach — four sample-rate probes; blobs stay
+  /* telemetry attach — five sample-rate probes; blobs stay
    * attachment-independent (the attachment is zeroed in the bytes). */
   {
     enum
@@ -523,18 +1295,25 @@ main (void)
     DP_CHECK (dp_tlm_probe_id (tlm, "car.e") == c->tlm.id_e);
     DP_CHECK (dp_tlm_probe_id (tlm, "car.freq") == c->tlm.id_freq);
     DP_CHECK (dp_tlm_probe_id (tlm, "car.locked") == c->tlm.id_locked);
-    /* The retired arm AGC used to forward a fifth probe here (gh-657). */
-    DP_CHECK (dp_tlm_probe_count (tlm) == 4);
+    DP_CHECK (dp_tlm_probe_id (tlm, "car.nco") == c->tlm.id_nco);
+    /* The retired arm AGC used to forward a probe here (gh-657); the fifth
+       is now the full NCO command. */
+    DP_CHECK (dp_tlm_probe_count (tlm) == 5);
 
     size_t k = dp_carrier_nda_steps (c, rx, N, out, N);
     DP_CHECK (k == N);
     size_t n_rec = dp_tlm_read (tlm, 8192, recs, 8192);
-    DP_CHECK (n_rec == 4 * N); /* four per sample, nothing else */
-    /* Per-sample emit order is lock, e, freq, locked -- the last record is
-     * the lockdet decision; the one before it mirrors the tracked carrier. */
-    DP_CHECK (recs[n_rec - 1].probe == (uint16_t)c->tlm.id_locked);
-    DP_CHECK (recs[n_rec - 1].value == (float)c->lockdet.locked);
-    DP_CHECK (recs[n_rec - 2].value
+    DP_CHECK (n_rec == 5 * N); /* five per sample, nothing else */
+    /* Per-sample emit order is lock, e, freq, locked, nco -- the last
+     * record is the full command (centre + integ + kp*e: the proportional
+     * term makes it differ from .freq, which is the integrator alone), the
+     * one before it the lockdet decision, then the tracked carrier. */
+    DP_CHECK (recs[n_rec - 1].probe == (uint16_t)c->tlm.id_nco);
+    DP_CHECK (recs[n_rec - 1].value == (float)(c->nco.norm_freq + c->ctl_cyc));
+    DP_CHECK (recs[n_rec - 1].value != recs[n_rec - 3].value);
+    DP_CHECK (recs[n_rec - 2].probe == (uint16_t)c->tlm.id_locked);
+    DP_CHECK (recs[n_rec - 2].value == (float)c->lockdet.locked);
+    DP_CHECK (recs[n_rec - 3].value
               == (float)(c->nco.norm_freq + c->lf.integ));
 
     /* Blobs zero the attachment (deterministic) and set_state into an
@@ -684,12 +1463,13 @@ main (void)
    *    (src/doppler/track/tests/validation/carrier_nda, section 2.5)    *
    *    measured it across three M and three bn:                         *
    *                                                                    *
-   *      seed within |df| <= bn/M  ->  settled within 2/bn samples      *
+   *      seed within |df| <= bn/(4M)  ->  settled within 2/bn samples   *
    *                                                                    *
    *    and found the behaviour splits into two regimes about that       *
    *    point. Normalising the offset as u = |df|*M/bn and the time as   *
-   *    T*bn, nine (M, bn) pairs collapse onto ONE curve: flat at        *
-   *    1.76-1.92 loop constants for u <= 1, then quadratic.             *
+   *    T*bn, nine (M, bn) pairs collapse onto ONE curve: flat for       *
+   *    u <= 1/4, then quadratic (bn/M while the loop ran 1.67x wide,    *
+   *    before #3224 made bn the closed loop's).                        *
    *                                                                    *
    *    Three separate claims, because they fail in different ways:      *
    *      (a) the BUDGET holds at the window edge, at every M;           *
@@ -719,8 +1499,8 @@ main (void)
     for (int mi = 0; mi < 3; mi++)
       {
         const int m = ms[mi];
-        /* u = 0.25, 1.0 (the window edge) and 4.0 (well outside it). */
-        const double us[3]  = { 0.25, 1.0, 4.0 };
+        /* u = 1/16, 1/4 (the window edge) and 4.0 (well outside it). */
+        const double us[3]  = { 0.0625, 0.25, 4.0 };
         size_t      *dst[3] = { &s_in[mi], &s_edge[mi], &s_out[mi] };
         for (int ui = 0; ui < 3; ui++)
           {
@@ -897,6 +1677,15 @@ main (void)
     dp_carrier_nda_destroy (a);
     dp_carrier_nda_destroy (b);
   }
+
+  if (test_composer_options () != 0)
+    return 1;
+  if (test_bn_is_the_loops () != 0)
+    return 1;
+  if (test_phase_ahead_and_rule () != 0)
+    return 1;
+  if (test_hold_runs_on_the_integrator () != 0)
+    return 1;
 
   DP_TEST_END ("test_carrier_nda_core");
 }

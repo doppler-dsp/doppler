@@ -11,6 +11,7 @@
  * noise the detector's reference is zero, which is not the idle case a
  * receiver has.
  */
+#include "doppler/awgn/awgn_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dsss_receiver/dsss_receiver_core.h"
 #include "jm_bench.h"
@@ -23,23 +24,6 @@
 #define ITERATIONS 50
 
 static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
-
-static float _Complex cgauss (uint32_t *st)
-{
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  uint32_t a = *st;
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  uint32_t b   = *st;
-  double   u1  = ((double)a + 1.0) / 4294967297.0;
-  double   u2  = ((double)b + 1.0) / 4294967297.0;
-  double   mag = sqrt (-log (u1));
-  double   th  = 6.283185307179586 * u2;
-  return (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
-}
 
 int
 main (void)
@@ -68,12 +52,21 @@ main (void)
     for (size_t i = 0; i < sf; i++)
       csign[i] = CODE7[i] & 1 ? -1.0f : 1.0f;
 
-    uint32_t        st      = 7;
-    float _Complex *x       = calloc (total, sizeof *x);
-    double          amp_snr = sqrt (pow (10.0, 90.0 / 10.0) / fs);
-    double          sigma   = 1.0 / amp_snr;
+    /* The shipped noise at 90 dB-Hz (#689: a private Gaussian scaled by a
+       hand sigma / sqrt(2) ran 3 dB under its label; at 90 dB-Hz neither
+       level touches what this times). */
+    float _Complex  *x  = calloc (total, sizeof *x);
+    float _Complex  *nz = malloc (total * sizeof *nz);
+    dp_awgn_state_t *g  = dp_awgn_create (
+        7u,
+        dp_awgn_amplitude_for_snr ((float)(90.0 - 10.0 * log10 (fs)), 1.0f));
+    if (!x || !nz || !g)
+      return 1;
+    (void)dp_awgn_generate (g, total, nz, total);
     for (size_t i = 0; i < total; i++)
-      x[i] = (float _Complex) (sigma / sqrt (2.0)) * cgauss (&st);
+      x[i] = nz[i];
+    free (nz);
+    dp_awgn_destroy (g);
     for (size_t idx = 0; idx < n_track; idx++)
       {
         double si  = (((size_t)((double)idx / tsym)) % 2 == 0) ? 1.0 : -1.0;

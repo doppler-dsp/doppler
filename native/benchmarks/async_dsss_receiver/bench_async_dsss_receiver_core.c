@@ -41,6 +41,8 @@
 #include "doppler/dp_complex.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "dp_air_test.h"
+#include "dp_s415_test.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdint.h>
@@ -169,7 +171,7 @@ run_searching (jm_bench_t *bench, const uint8_t *code)
   float _Complex                 *x  = malloc (n * sizeof *x);
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, sf, chip, sym, chip * (double)spc, 2, cn0, 1e-3, 0.9, span, 4, 8,
-      0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
+      0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
   float _Complex *out = malloc ((size_t)BLOCK * sizeof *out);
   if (!g || !x || !rx || !out)
     {
@@ -237,7 +239,7 @@ run_create (jm_bench_t *bench, const uint8_t *code)
       dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
           code, sf, chip, sym, chip * (double)spc, 2, cn0, 1e-3, 0.9, 5000.0,
           4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false,
-          CODE_ONLY_S, 0.0);
+          CODE_ONLY_S, 0.0, true);
       uint64_t t1 = jm_bench_now_ns ();
       if (!rx || rx->acq->search->window_bins != 5
           || !(rx->acq->search->coherent_bins > 1))
@@ -332,7 +334,7 @@ run_tracking (jm_bench_t *bench, const uint8_t *code)
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, w.sf, w.chip_rate, w.sym_rate, w.chip_rate * (double)w.spc, 2, cn0,
       1e-3, 0.9, span, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
-      false, 0.0, 0.0);
+      false, 0.0, 0.0, true);
   float _Complex *out = malloc ((size_t)BLOCK * sizeof *out);
   if (!x || !nz || !g || !rx || !out
       || dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) != DP_OK)
@@ -419,7 +421,9 @@ run_tracking (jm_bench_t *bench, const uint8_t *code)
  * 1,023-chip code at fc x 31/21216 chips a second (the CCSDS 415.1-B-1
  * forward-link coherence ratio), 3,000 sym/s, fed 11 MSa/s directly (its
  * search resamples to the 2,048-sample epoch; refine and tracking run at
- * 11 MSa/s), +/-1,500 Hz, a 400 Hz/s rate bound, a 275-symbol code-only
+ * 11 MSa/s), +/-1,500 Hz, the residual's rate R_env as the rate bound
+ * (dp_s415_r_env(), 11 Hz/s; v0.85.0 and earlier measured a 400 Hz/s
+ * bound, which searched shallower), a 275-symbol code-only
  * window and the carrier set, so the code rate is aided from the carrier.
  * The design C/N0 is 4 dB Es/N0 (38.77 dB-Hz), the shipped awgn. Two
  * carriers, the band's ends: 2.2 GHz (3.215 Mcps) and 2.8 GHz (4.091 Mcps).
@@ -442,9 +446,6 @@ run_tracking (jm_bench_t *bench, const uint8_t *code)
  * no state change, as run_tracking(). */
 #define SPEC_MAX_LOCK_S 3.0
 #define SPEC_ITERS 10
-#define SPEC_CHUNK 16384u
-#define SPEC_CODE_ONLY_SYM 275u
-#define SPEC_FRAME_SYM 1000u
 
 typedef struct
 {
@@ -452,95 +453,46 @@ typedef struct
   double      carrier_hz;
 } spec_pt_t;
 
-/* The spec-point stream at 11 MSa/s, a block at a time, by the on-air pool
-   rows' chain (bench_async_dsss_pool_core.c's air_src_*): the library's
-   continuous DSSS synth at 2 samples a chip with PRBS data and a 275-symbol
-   code-only window opening every 1,000-symbol frame (the window the
-   search's depth is sized for), a RateConverter to 11 MSa/s, a
-   DopplerChannel, plus the shipped AWGN; `amp` 0 is noise alone. */
+/* The spec-point stream at 11 MSa/s, a block at a time: the use-case
+   scene (native/tests/dp_air_test.h -- the library's continuous DSSS synth
+   with PRBS data and a 275-symbol code-only window opening every
+   1,000-symbol frame, the front end's converter to 11 MSa/s, a
+   DopplerChannel 1 kHz off, the shipped AWGN); `amp` 0 is noise alone. */
 typedef struct
 {
-  float                       amp;
-  dp_wfm_synth_state_t       *syn;
-  dp_RateConverter_state_t   *rc;
-  dp_doppler_channel_state_t *ch;
-  dp_awgn_state_t            *noise;
-  float _Complex             *r2, *r11, *buf;
-  size_t                      r11_cap, cap, len;
+  dp_air_t air;
 } spec_src_t;
 
 static void
 spec_src_free (spec_src_t *s)
 {
-  dp_wfm_synth_destroy (s->syn);
-  dp_RateConverter_destroy (s->rc);
-  dp_doppler_channel_destroy (s->ch);
-  dp_awgn_destroy (s->noise);
-  free (s->r2);
-  free (s->r11);
-  free (s->buf);
+  dp_air_free (&s->air);
 }
 
 static int
-spec_src_init (spec_src_t *s, const uint8_t *code, double chip, double sym,
-               double fc, double cn0, double fs_in, float amp, size_t block)
+spec_src_init (spec_src_t *s, const uint8_t *code, double fc, double cn0,
+               double fs_in, float amp, size_t block)
 {
-  const double fs2 = 2.0 * chip;
-  *s               = (spec_src_t){ 0 };
-  s->amp           = amp;
-  s->r11_cap       = 2 * SPEC_CHUNK;
-  s->cap           = block + 4 * SPEC_CHUNK;
-  s->syn = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs2, 0.0, WFM_SYNTH_SNR_CLEAN,
-                                1, 100u, 2, 15, 0, 0, 0.0);
-  s->rc  = dp_RateConverter_create (fs_in / fs2, 0);
-  s->ch  = dp_doppler_channel_create (fs_in, fc, -1000.0 / fc * 1e6, 0.0);
-  s->noise = dp_awgn_create (
-      7919u,
-      dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (fs_in)), 1.0f));
-  s->r2  = malloc (SPEC_CHUNK * sizeof *s->r2);
-  s->r11 = malloc (s->r11_cap * sizeof *s->r11);
-  s->buf = malloc (s->cap * sizeof *s->buf);
-  return s->syn && s->rc && s->ch && s->noise && s->r2 && s->r11 && s->buf
-         && dp_wfm_synth_set_dsss_cont (s->syn, code, 1023, chip / sym,
-                                        WFM_DSSS_DATA_PRBS, NULL, 0)
-                == 0
-         && dp_wfm_synth_set_dsss_window (s->syn, SPEC_CODE_ONLY_SYM,
-                                          SPEC_FRAME_SYM)
-                == 0;
+  dp_air_emitter_t e = dp_s415_emitter (
+      code, fc, -1000.0, 0.0,
+      cn0 + (amp > 0.0f ? 20.0 * log10 ((double)amp) : 0.0), 0.0, 100u);
+  return dp_air_init (&s->air, &e, amp > 0.0f ? 1 : 0, fs_in, cn0, 7919u,
+                      block);
 }
 
 static int
 spec_src_next (spec_src_t *s, float _Complex *x, size_t n)
 {
-  (void)dp_awgn_generate (s->noise, n, x, n);
-  if (s->amp == 0.0f)
-    return 1;
-  while (s->len < n)
-    {
-      dp_wfm_synth_steps (s->syn, s->r2, SPEC_CHUNK);
-      const size_t r = dp_RateConverter_execute (s->rc, s->r2, SPEC_CHUNK,
-                                                 s->r11, s->r11_cap);
-      if (s->cap - s->len < 2 * r + 64)
-        return 0;
-      s->len += dp_doppler_channel_execute (s->ch, s->r11, r, s->buf + s->len,
-                                            s->cap - s->len);
-    }
-  for (size_t i = 0; i < n; i++)
-    x[i] += s->amp * s->buf[i];
-  s->len -= n;
-  memmove (s->buf, s->buf + n, s->len * sizeof *s->buf);
-  return 1;
+  return dp_air_next (&s->air, x, n);
 }
 
 /* On ONE thread: the receiver's speed goal is one thread, and a search
    that fans its block across a worker pool would otherwise turn these
    rows into wall-time rows on a many-core box. */
 static dp_async_dsss_receiver_state_t *
-spec_rx (const uint8_t *code, double chip, double fc, double cn0)
+spec_rx (const uint8_t *code, double fc)
 {
-  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, 1023, chip, 3000.0, 11e6, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5,
-      4, 14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / 3000.0, 400.0);
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, true);
   if (rx)
     (void)dp_async_dsss_receiver_set_threads (rx, 1);
   return rx;
@@ -557,10 +509,9 @@ spec_print (const char *name, double sec, size_t n, double fs_in)
 static int
 run_spec_search (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 {
-  const double fs_in = 11e6, chip = pt->carrier_hz * 31.0 / 21216.0;
-  const double cn0 = 4.0 + 10.0 * log10 (3000.0);
-  dp_async_dsss_receiver_state_t *rx
-      = spec_rx (code, chip, pt->carrier_hz, cn0);
+  const double fs_in = DP_S415_FS, chip = dp_s415_chip_rate (pt->carrier_hz);
+  const double cn0                   = dp_s415_cn0 (DP_S415_FLOOR_DB);
+  dp_async_dsss_receiver_state_t *rx = spec_rx (code, pt->carrier_hz);
   if (!rx)
     return 1;
   const size_t    D     = dp_async_dsss_receiver_get_coherent_bins (rx);
@@ -569,8 +520,7 @@ run_spec_search (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
   float _Complex *out   = malloc (block * sizeof *out);
   spec_src_t      src;
   if (!x || !out
-      || !spec_src_init (&src, code, chip, 3000.0, pt->carrier_hz, cn0, fs_in,
-                         0.0f, block))
+      || !spec_src_init (&src, code, pt->carrier_hz, cn0, fs_in, 0.0f, block))
     {
       (void)fprintf (stderr,
                      "bench_async_dsss_receiver[spec search %s]: "
@@ -614,17 +564,15 @@ run_spec_search (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 static int
 run_spec_track (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 {
-  const double fs_in = 11e6, chip = pt->carrier_hz * 31.0 / 21216.0;
-  const double cn0  = 4.0 + 10.0 * log10 (3000.0);
-  const size_t maxb = (size_t)(SPEC_MAX_LOCK_S * fs_in) / BLOCK;
-  dp_async_dsss_receiver_state_t *rx
-      = spec_rx (code, chip, pt->carrier_hz, cn0);
-  float _Complex *x   = malloc ((size_t)BLOCK * sizeof *x);
-  float _Complex *out = malloc ((size_t)BLOCK * sizeof *out);
-  spec_src_t      src;
+  const double fs_in = DP_S415_FS;
+  const double cn0   = dp_s415_cn0 (DP_S415_FLOOR_DB);
+  const size_t maxb  = (size_t)(SPEC_MAX_LOCK_S * fs_in) / BLOCK;
+  dp_async_dsss_receiver_state_t *rx  = spec_rx (code, pt->carrier_hz);
+  float _Complex                 *x   = malloc ((size_t)BLOCK * sizeof *x);
+  float _Complex                 *out = malloc ((size_t)BLOCK * sizeof *out);
+  spec_src_t                      src;
   if (!rx || !x || !out
-      || !spec_src_init (&src, code, chip, 3000.0, pt->carrier_hz, cn0, fs_in,
-                         1.0f, BLOCK))
+      || !spec_src_init (&src, code, pt->carrier_hz, cn0, fs_in, 1.0f, BLOCK))
     {
       (void)fprintf (stderr,
                      "bench_async_dsss_receiver[spec track %s]: "
@@ -730,7 +678,8 @@ main (void)
     return 1;
   printf ("\n=== at the 415.1-B-1 specification point: 11 MSa/s in, "
           "3,000 sym/s, 4 dB Es/N0 ===\n");
-  static const spec_pt_t pts[] = { { "2.2GHz", 2.2e9 }, { "2.8GHz", 2.8e9 } };
+  static const spec_pt_t pts[]
+      = { { "2.2GHz", DP_S415_FC_LO }, { "2.8GHz", DP_S415_FC_HI } };
   /* The CCSDS default Gold code, as wfm.Gold() makes it. */
   static uint8_t   gold[1023];
   dp_gold_state_t *gs = dp_gold_create (934, 350, 567, 73, 10);

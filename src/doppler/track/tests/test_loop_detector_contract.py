@@ -29,8 +29,9 @@ yet, each with its reason.
 
 The numbers behind the rows came from this matrix's own probes on main:
 ``Costas`` and ``CarrierMpsk`` read 1.000 per radian at every level;
-``CarrierNda`` reads 2.000 (doppler#3224); the closed loops read 0.99 to 1.02,
-1.00 and, for ``CarrierNda``, 1.7 times ``2 * bn * t * s**2``.
+``CarrierNda`` reads 2.000 (doppler#3224); the closed loops read 0.99 to 1.02
+and 1.00 times ``2 * bn * t * s**2``, and ``CarrierNda``'s, whose loop divides
+the raw error by that slope, inside ``BAND``.
 """
 
 from __future__ import annotations
@@ -246,9 +247,10 @@ def _nda_error(phi, *, m, a):
 @pytest.mark.xfail(
     raises=AssertionError,
     strict=True,
-    reason="doppler#3224: the detector's slope is 2 at every M and level; "
-    "test_theory_carrier_nda.py and carrier_nda_core.h pin 2 and flip with "
-    "the fix on integ/async-rx",
+    reason="doppler#3224: the detector's raw error has slope 2 at every M "
+    "and level (test_theory_carrier_nda.py and carrier_nda_core.h pin 2); "
+    "the loop divides it by CARRIER_NDA_DISC_SLOPE, so the closed-loop row "
+    "passes and this one does not flip",
 )
 @pytest.mark.parametrize("a", LEVELS)
 @pytest.mark.parametrize("m", [2, 4, 8])
@@ -342,24 +344,18 @@ def test_carrier_mpsk_closed_loop_reads_the_stated_bandwidth(m):
     assert BAND[0] < r < BAND[1], (m, r)
 
 
-@pytest.mark.xfail(
-    raises=AssertionError,
-    strict=True,
-    reason="doppler#3224: the detector's slope of 2 makes the loop 5/3 of "
-    "bn wide",
-)
 @pytest.mark.parametrize("m", [2, 4, 8])
 def test_carrier_nda_closed_loop_reads_the_stated_bandwidth(m):
-    """What the reading should be is not fitted. The detector's slope is 2,
-    so the loop gain is K = 2, and by the contract (``LoopFilter``) the
-    bandwidth is ``(4*K*zeta^2 + 1) / (4*zeta^2 + 1)`` times ``bn``: at zeta
-    0.707, ``4*zeta^2 = 2``, so ``(2*2 + 1) / (2 + 1) = 5/3 = 1.667``. The
-    row divides the variance by ``2 * bn * t * s^2`` with t = the arm
-    length, 2 samples, the loop's update period, so it reads that 1.667
-    plus the small discrete excess the filter header states (about
-    ``16*zeta^2/(4*zeta^2+1)^2 * bn*t`` = 0.9% at bn*t = 0.01); the
-    measured 1.70 (1.68 to 1.74 over 3 seeds and 3 M) is that, so the
-    expectation is derived, not fitted. A loop with slope 1 reads 1.00."""
+    """What the reading should be is not fitted. The detector's raw error
+    has slope 2 (the open-loop row above), and the loop divides it by
+    ``CARRIER_NDA_DISC_SLOPE`` before the filter (``carrier_nda_loop_error``,
+    doppler#3224), so the loop gain is K = 1 and by the contract
+    (``LoopFilter``) the bandwidth is ``bn``. The row divides the variance
+    by ``2 * bn * t * s^2`` with t = the arm length, 2 samples, the loop's
+    update period, so it reads 1 plus the small discrete excess the filter
+    header states (about ``16*zeta^2/(4*zeta^2+1)^2 * bn*t`` = 0.9% at
+    bn*t = 0.01). Before the division the same row read 1.70, the contract's
+    5/3 at K = 2 plus that excess."""
     r = _mean_ratio(
         lambda: CarrierNda(
             bn=BN, zeta=0.707, init_norm_freq=0.0, sps=_SPS, n=_N, m=m

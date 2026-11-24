@@ -16,6 +16,8 @@ shared parts live in the `dp_*_test.h` family rather than in each file.
 | `dp_state_test.h` | the serialize → restore → reject round trip; every byte written   |
 | `dp_tx_test.h`    | stimulus: one shaped symbol stream, one place                     |
 | `dp_dsss_test.h`  | stimulus: the code-spread BPSK capture, fixed or ramped           |
+| `dp_air_test.h`   | stimulus: emitters on the air at any input rate, and their truth  |
+| `dp_s415_test.h`  | the 415.1-B-1 point, once: geometry, receiver, pool, emitter      |
 | `dp_sym_test.h`   | truth-free symbol-quality verdicts for receiver tests             |
 | `dp_ber_test.h`   | error-rate measurement: settling, alignment, sampling, the CI     |
 | `dp_mf_test.h`    | matched-filter fixtures (RRC-BPSK on a carrier, EVM)              |
@@ -43,6 +45,8 @@ Every member has a self-test, registered in CTest and run by `make test`:
 | `dp_state_test.h` | `test_dp_state.c`                        |
 | `dp_tx_test.h`    | `test_dp_tx.c`                           |
 | `dp_dsss_test.h`  | `test_dp_dsss.c`                         |
+| `dp_air_test.h`   | `test_dp_air.c`                          |
+| `dp_s415_test.h`  | `test_dp_air.c` §0                       |
 | `dp_sym_test.h`   | `test_dp_sym.c`                          |
 | `dp_ber_test.h`   | `test_dp_ber.c`                          |
 | `dp_mf_test.h`    | `test_dp_mf.c`                           |

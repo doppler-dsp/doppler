@@ -1,0 +1,5 @@
+head 6b54f4a54 test(async_dsss_receiver): the long-dropout row, reacquired against re dirty=0 start 08:18:22
+build rc=0 08:18:27
+check rc=0 08:18:32
+longdrop done 08:19:02 exits:      10 0
+done 08:19:02

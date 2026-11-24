@@ -57,10 +57,11 @@ BLOCK = 256
 # The Doppler profile, in cycles/sample. A STEP the cold-started loop has to
 # find, then a ramp UP, then a ramp DOWN of the same rate — so the frequency
 # comes back to where it started — then flat.
-# The step has to be one a COLD loop can actually find: an M-th-power NDA
-# loop pulls in |df| up to about bn/M per symbol, which is 0.00125 here, and
-# pull-in time grows as df^2/bn^3 past it. 0.001 cycles/symbol is 0.8 of that
-# bound — a real acquisition, not a seeded one.
+# The step has to be one a COLD loop can actually find inside its settling
+# budget: an M-th-power NDA loop settles from |df| up to about bn/M per
+# symbol (0.00125 here) within 5/bn, locks promptly from bn/(4M), and past
+# bn/M its pull-in time grows as df^2/bn^3. 0.001 cycles/symbol is 0.8 of bn/M
+# — a real acquisition, not a seeded one.
 F0_SYM = 0.001  # cycles/SYMBOL
 F0 = F0_SYM / SPS  # cycles/sample
 RATE_SYM = 2.0e-6  # Doppler RATE, cycles/symbol^2
@@ -99,14 +100,18 @@ with MemoryCapture(tlm, BLOCK, SampleClock(FS)) as cap:
         rx.steps(iq[i : i + BLOCK])
 series = cap.read_dict(index=True)  # {name: (sample_index, values)}
 
-n_e, err = series["rx.car.e"]  # phase error (book-keeping, see below)
+n_e, err_m = series["rx.car.e"]  # the discriminator's M-th-power error
+# The discriminator reads the M-th power's error, slope 2 at lock at every M
+# (CARRIER_NDA_DISC_SLOPE); the loop's own phase error, the one the lag law
+# is stated in, is that over 2 -- what the loop filter takes since #3224.
+err = err_m / 2.0
 n_f, fhat = series["rx.car.nco"]  # the SUM that drives the LO: integ + kp*e
 n_i, fint = series["rx.car.freq"]  # the integrator alone — the freq MEMORY
 n_l, lock = series["rx.lock"]
 
 # Sizing: acquisition time against bn. The same ASK at every bandwidth (a
-# step at 0.8 of the bn/M seeding bound), so the only thing varying is the
-# loop. This is the middle panel and the practical result.
+# step at 0.8 of bn/(4M), the prompt-lock window), so the only thing varying
+# is the loop. This is the middle panel and the practical result.
 BN_GRID = (0.002, 0.005, 0.01, 0.02, 0.04)
 
 
@@ -117,7 +122,7 @@ def acquire_in(bn: float, nsym: int = 20000) -> int:
     t2 = np.exp(1j * (2 * np.pi * i2 / M + np.pi / M)).astype(np.complex64)
     t2 = np.repeat(t2, SPS)
     k2 = np.arange(t2.size)
-    f_step = 0.8 * bn / M / SPS  # 0.8 of the seeding bound, in cyc/sample
+    f_step = 0.8 * bn / (4 * M) / SPS  # 0.8 of bn/(4M), in cyc/sample
     x2 = (t2 * np.exp(2j * np.pi * f_step * k2)).astype(np.complex64)
     r = MpskReceiver(m=M, sps=SPS, m_out=4, bn_carrier=bn, bn_timing=0.005)
     r.steps(x2)

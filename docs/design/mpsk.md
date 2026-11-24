@@ -218,10 +218,11 @@ in every case the gate a reader would expect is deliberately absent.
     lock EMA and its verify-counted decision (`car_lock`) are computed beside
     it and read by nobody inside the receiver. Measured where that could still
     fail: at the last symbol before the decision declares, the loop has
-    already acquired a non-zero fraction of the true offset — 0.376 at
-    `bn_carrier = 0.02`, and 0.72–1.06 across M at 0.02 with the derived
-    threshold — where a steer gated on the decision would read exactly 0.0.
-    Do not read those fractions as a statement about convergence: the
+    already acquired more than a quarter of the true offset at
+    `bn_carrier = 0.02` (`test_mpsk_receiver_core.c`, section 1c, "ONE
+    discriminator, and nothing gates it", asserts it), where a steer gated on
+    the decision would read exactly 0.0.
+    Do not read that fraction as a statement about convergence: the
     statistic's H1 mean is a function of Es/N0 alone, so the decision instant
     carries no frequency information (`docs/design/lock-detect.md` §1).
 

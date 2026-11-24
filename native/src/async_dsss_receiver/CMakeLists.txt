@@ -33,6 +33,9 @@ target_link_libraries(async_dsss_receiver_core PUBLIC
     costas_core
     lo_core
     state_filter_core
+    carrier_nda_core
+    boxcar_core
+    ppe_core
     RateConverter_core
     resamp_core
     hbdecim_core
@@ -76,6 +79,9 @@ target_link_libraries(test_async_dsss_receiver_core
     costas_core
     lo_core
     state_filter_core
+    carrier_nda_core
+    boxcar_core
+    ppe_core
     RateConverter_core
     resamp_core
     hbdecim_core
@@ -124,6 +130,9 @@ target_link_libraries(bench_async_dsss_receiver_core
     costas_core
     lo_core
     state_filter_core
+    carrier_nda_core
+    boxcar_core
+    ppe_core
     RateConverter_core
     resamp_core
     hbdecim_core

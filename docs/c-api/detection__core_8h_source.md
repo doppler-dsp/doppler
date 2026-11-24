@@ -65,6 +65,13 @@ double dp_det_verify_delay(double p_look, int n);
 
 double dp_det_threshold_f(double pfa, int n);
 
+double dp_det_ratio_threshold(double pfa, int n);
+
+double dp_det_ratio_pd(int n, double pfa, double gamma, double phase_var);
+
+int dp_det_ratio_block_len(double gamma, double phase_var, double pfa,
+                           double pd, int max_n);
+
 double dp_det_pd_noncoherent(double snr, int n_coh, int n_noncoh,
                           double threshold);
 

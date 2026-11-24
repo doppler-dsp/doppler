@@ -242,3 +242,39 @@ def test_twins_print_the_same_lines(name: str, tmp_path) -> None:
         + "\n--- C ---\n"
         + "\n".join(c_lines)
     )
+
+
+def test_spec_demo_rate_is_the_fixtures_r_env() -> None:
+    """The spec demo's Doppler rate is R_env, the residual's rate.
+
+    The C test fixture derives R_env once (`dp_s415_r_env()`,
+    `native/tests/dp_s415_test.h`: the pass envelope's largest residual
+    rate on its 50 km grid, times the rotation factor, rounded up), and the
+    pull-in validator prints it in its `# pass` section. Both faces of the
+    spec demo carry it as a literal, `DOPPLER_RATE_HZ_S`; this holds the
+    Python face to the derivation, and `test_twins_print_the_same_lines`
+    holds the C face to the Python. A different R_env fails here.
+    """
+    binary = build_dir() / "native" / "validation"
+    binary = binary / "validate_async_dsss_receiver_pullin"
+    if not binary.exists():
+        if os.environ.get("CI"):
+            pytest.fail(f"no {binary} in the job's tree")
+        pytest.skip("validate_async_dsss_receiver_pullin not built")
+    out = subprocess.run(
+        [str(binary), "--design"],
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=True,
+    ).stdout.splitlines()
+    i = out.index("# pass")
+    head, row = out[i + 1].split(","), out[i + 2].split(",")
+    assert row[head.index("step_km")] == "50"
+    r_env = float(row[head.index("r_env_hz_s")])
+    sys.path.insert(0, str(REPO / "src" / "doppler" / "examples"))
+    try:
+        import async_dsss_receiver_spec_demo as demo
+    finally:
+        sys.path.pop(0)
+    assert r_env == demo.DOPPLER_RATE_HZ_S

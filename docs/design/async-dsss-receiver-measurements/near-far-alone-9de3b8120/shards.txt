@@ -1,0 +1,22 @@
+== s0 exit 0
+== s1 exit 0
+== s2 exit 0
+== s3 exit 0
+== s4 exit 0
+== s5 exit 0
+== s6 exit 0
+== s7 exit 0
+== s8 exit 1
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_near_far.c:280  t.alone_side == 0
+validate_async_dsss_near_far FAILED (1)
+== s9 exit 0
+== s10 exit 1
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_near_far.c:280  t.alone_side == 0
+validate_async_dsss_near_far FAILED (1)
+== s11 exit 0
+== s12 exit 0
+== s13 exit 1
+FAIL /home/matt/bench-work/implementer/b/native/validation/async_dsss_near_far.c:280  t.alone_side == 0
+validate_async_dsss_near_far FAILED (1)
+== s14 exit 0
+== s15 exit 0

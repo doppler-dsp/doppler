@@ -15,14 +15,14 @@ The C rows ask how the cost scales with receivers, span and threads; this
 row is what a Python caller pays per dwell, the bindings' calls and the
 controller's steps included. The pool is fed noise, so every receiver
 stays idle and only the controller searches, and the row asserts it: every
-receiver idle for every whole code period fed (a false alarm's seed would be
-timed as a refine).
+receiver idle for every whole group of 16 code periods fed (a false alarm's
+seed would be timed as a refine).
 
 That is the receiver half of the C twin's guard only. The C row also holds
 the search to every period fed and to no refused hit; the binding exposes
 neither the search's period count nor its refused hits, so this row cannot.
-The code period is written out (1,023 chips at SPC samples a chip) because
-the pool does not expose it either.
+The group is written out (16 code periods of 1,023 chips at SPC samples a
+chip) because the pool does not expose it either.
 """
 
 import numpy as np
@@ -64,8 +64,10 @@ def test_push_dwell_native4(benchmark):
         rounds=ROUNDS,
         warmup_rounds=1,
     )
-    period = 1023 * SPC  # status is as of the last whole code period
-    fed = pool.samples - pool.samples % period
+    # Status is as of the last whole group the pool has stepped: 16 code
+    # periods (ASYNC_DSSS_POOL_PERIODS_PER_JOIN), on a grid from create.
+    group = 16 * 1023 * SPC
+    fed = pool.samples - pool.samples % group
     for i in range(4):
         st = pool.status(i)
         assert st.state == 3 and st.state_samples == fed  # idle throughout

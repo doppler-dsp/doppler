@@ -34,9 +34,12 @@
  * code-only symbols of 500, the receivers' slow-time search). Each row is a
  * share of trials with its Wilson 95% interval (dp_stats_test.h).
  *
- * Gated, in --check and the sweep alike: no sidelobe is ever taken, with
- * or without W, at any level; from 4 dB apart the rank-1 search never
- * takes S (no `swapped`: the sweep measured none there, at either depth,
+ * Gated, in --check and the sweep alike: no sidelobe is taken with W on
+ * the air, at any level; with S alone, the rank-1 search's seeds (a
+ * sidelobe, or noise the search's own gate passes) are a RATE, held under
+ * ALONE_RATE_BOUND over every row of a run (see it); from 4 dB apart the
+ * rank-1 search never takes S (no `swapped`: the sweep measured none
+ * there, at either depth,
  * so rank 1 picking the strongest peak is red even where `taken` counts
  * a swap as a take); and in --check, at D = 1, W is taken in every valid
  * trial at 10 dB. The rest is measured, not claimed: the reach is
@@ -46,6 +49,12 @@
  *
  * Usage:
  *   validate_async_dsss_near_far           the sweep: 0..20 dB, both depths
+ *   ... --level DB --trials N [--shard i/n]
+ *                                          one level, D = 1 only, N trials
+ *                                          (seeds 31 k, k = 0..N-1: at 0 dB
+ *                                          its first 40 are the sweep's);
+ *                                          --shard runs every n-th k from i,
+ *                                          for a rate read in parallel
  *   validate_async_dsss_near_far --check   the regression points: D = 1 at
  *                                          10 and 20 dB, 6 trials each
  *   ... --emit                             also a `# near_far` CSV block
@@ -65,6 +74,29 @@
 #define CODE_ONLY 450u /* the deep frame: code-only symbols ...       */
 #define FRAME 500u     /* ... of every FRAME                          */
 
+/* The rank-1 search on S alone seeds on some trials: a sidelobe whose
+   noise clears the gate, or noise alone, "the rate the search already
+   runs at" (async_dsss_receiver_core.h, the sidelobe rule). Rule 2's gate
+   is set per cell while the search takes the maximum over its cells, so
+   that rate is not the per-cell one; deriving it is doppler#3293.
+
+   MEASURED, until then: docs/design/async-dsss-receiver-measurements/
+   near-far-alone-9de3b8120/ (read_alone.py), D = 1 at 0 dB, the sweep's
+   own seeds: 3 seeds in 1,783 valid trials, 0.168%, Wilson 95% 0.057% to
+   0.494%. The bound is that interval's upper end. DERIVED: the test. A
+   run is red only when its own Wilson interval, over all its rows, lies
+   wholly above the bound: the sweep (about 480 valid trials) from 6
+   S-alone seeds, --check (12 trials at most) from 1. A bound of 0 is red
+   on the record's 3.
+
+   A red --check is a draw, not yet a regression. --check is
+   deterministic per tree, but any change to the receiver reshuffles which
+   fixed draw seeds where, and at the record's rate a 12-trial check meets
+   one S-alone seed about 2.0% of the time (1 - (1 - 0.00168)^12). Before
+   treating one as a regression, read the run-wide rate: the full sweep's
+   line, or a record like this one at the new head. */
+#define ALONE_RATE_BOUND 0.0049
+
 typedef struct
 {
   int    deep;   /* 0: D = 1 over data; 1: the D = 90 frame       */
@@ -80,7 +112,7 @@ near_far_rx (const uint8_t *code, int deep, size_t rank)
   dp_async_dsss_receiver_state_t *r = dp_async_dsss_receiver_create (
       code, SF, CHIP_RATE, SYM_RATE, FS, 2, cn0_of (FLOOR_ESN0_DB), 1e-3, 0.9,
       SPAN, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false,
-      deep ? (double)CODE_ONLY / SYM_RATE : 0.0, deep ? 500.0 : 0.0);
+      deep ? (double)CODE_ONLY / SYM_RATE : 0.0, deep ? 500.0 : 0.0, true);
   if (r && rank)
     (void)dp_async_dsss_receiver_set_rank (r, rank);
   return r;
@@ -213,21 +245,35 @@ trial (const uint8_t *code, const depth_t *dp, double delta, uint32_t seed,
 int
 main (int argc, char **argv)
 {
-  int check = 0, emit = 0;
+  int      check = 0, emit = 0;
+  double   one_level = NAN;
+  unsigned n_trials = 0, shard = 0, shards = 1;
   for (int a = 1; a < argc; a++)
     {
       check |= strcmp (argv[a], "--check") == 0;
       emit |= strcmp (argv[a], "--emit") == 0;
+      if (strcmp (argv[a], "--level") == 0 && a + 1 < argc)
+        one_level = strtod (argv[++a], NULL);
+      else if (strcmp (argv[a], "--trials") == 0 && a + 1 < argc)
+        n_trials = (unsigned)strtoul (argv[++a], NULL, 10);
+      else if (strcmp (argv[a], "--shard") == 0 && a + 1 < argc)
+        DP_REQUIRE (sscanf (argv[++a], "%u/%u", &shard, &shards) == 2
+                    && shards > 0 && shard < shards);
     }
-  uint8_t code[SF];
+  /* --level and --trials: one level, one depth (D = 1), N trials. */
+  const int one = !check && !isnan (one_level) && n_trials > 0;
+  uint8_t   code[SF];
   dp_dsss_gold_1023 (code);
 
-  const depth_t depths[2]
-      = { { 0, 1500, check ? 6 : 40 }, { 1, 2000, check ? 0 : 20 } };
-  static const double sweep[] = { 0, 4, 8, 10, 12, 14, 16, 18, 20 };
-  static const double spot[]  = { 10, 20 };
-  const double       *levels  = check ? spot : sweep;
-  const size_t        n_lv    = check ? 2 : sizeof sweep / sizeof *sweep;
+  const depth_t       depths[2] = { { 0, 1500,
+                                      check ? 6
+                                      : one ? n_trials
+                                            : 40 },
+                                    { 1, 2000, check || one ? 0 : 20 } };
+  static const double sweep[]   = { 0, 4, 8, 10, 12, 14, 16, 18, 20 };
+  static const double spot[]    = { 10, 20 };
+  const double       *levels    = check ? spot : one ? &one_level : sweep;
+  const size_t n_lv = check ? 2 : one ? 1 : sizeof sweep / sizeof *sweep;
 
   if (emit)
     printf ("# near_far\ndepth,delta_db,trials,valid,taken,taken_lo,"
@@ -235,11 +281,12 @@ main (int argc, char **argv)
   printf ("near-far at the floor (W at Es/N0 %.0f dB, %.1f dB-Hz), S "
           "delta dB above:\n",
           FLOOR_ESN0_DB, cn0_of (FLOOR_ESN0_DB));
+  size_t alone_all = 0, valid_all = 0;
   for (int d = 0; d < 2; d++)
     for (size_t l = 0; l < n_lv && depths[d].trials; l++)
       {
         tally_t t = { 0 };
-        for (size_t k = 0; k < depths[d].trials; k++)
+        for (size_t k = shard; k < depths[d].trials; k += shards)
           DP_REQUIRE (trial (code, &depths[d], levels[l],
                              1000u * (uint32_t)l + 31u * (uint32_t)k, &t)
                       == 0);
@@ -254,10 +301,12 @@ main (int argc, char **argv)
           printf ("%s,%.0f,%zu,%zu,%zu,%.4f,%.4f,%zu,%zu,%zu\n",
                   depths[d].deep ? "deep" : "one", levels[l], t.trials,
                   t.valid, t.taken, lo, hi, t.swapped, t.side, t.alone_side);
-        /* The gates. A sidelobe taken is the defect rule 2 exists to
-           prevent, at any level and either depth. */
+        /* The gates. A sidelobe taken beside W is the defect rule 2
+           exists to prevent, at any level and either depth. With S alone
+           the seeds are a rate, gated over the whole run below. */
         DP_CHECK (t.side == 0);
-        DP_CHECK (t.alone_side == 0);
+        alone_all += t.alone_side;
+        valid_all += t.valid;
         DP_CHECK (t.valid * 2 >= t.trials); /* the truth searches ran */
         /* A rank inversion: from 4 dB apart, S is read the stronger every
            time (the sweep, 2026-11-01: 0 swapped at 4 dB and above, both
@@ -271,5 +320,17 @@ main (int argc, char **argv)
         if (check && !depths[d].deep && levels[l] <= 10.0)
           DP_CHECK (t.taken == t.valid);
       }
+  {
+    double lo = 0.0, hi = 1.0;
+    if (valid_all)
+      dp_wilson ((double)alone_all, (double)valid_all, &lo, &hi);
+    printf ("S alone, every row: %zu seeds in %zu valid trials (%.3f%%, "
+            "Wilson %.3f-%.3f%%), bound %.3f%% (doppler#3293)\n",
+            alone_all, valid_all,
+            valid_all ? 100.0 * (double)alone_all / (double)valid_all : 0.0,
+            100.0 * lo, 100.0 * hi, 100.0 * ALONE_RATE_BOUND);
+    DP_CHECK_MSG (lo <= ALONE_RATE_BOUND,
+                  "the S-alone seed rate is not shown to exceed its bound");
+  }
   DP_TEST_END ("validate_async_dsss_near_far");
 }

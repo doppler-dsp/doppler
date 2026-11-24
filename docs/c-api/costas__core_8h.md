@@ -77,8 +77,10 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 |  double | [**dp\_costas\_get\_bn\_fll**](#function-dp_costas_get_bn_fll) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_FLL-assist bandwidth._  |
 |  double | [**dp\_costas\_get\_last\_error**](#function-dp_costas_get_last_error) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Last PLL discriminator output, the loop stress._  |
 |  double | [**dp\_costas\_get\_lock\_metric**](#function-dp_costas_get_lock_metric) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Lock-metric EMA: \|Re P\|/\|P\| smoothed by COSTAS\_LOCK\_ALPHA._  |
+|  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_costas\_get\_lock\_rule**](#function-dp_costas_get_lock_rule) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_The rule the carrier lock decision is made by: the lock metric's declare and drop levels and their verify counts, as_ [_**dp\_costas\_configure\_lock()**_](costas__core_8h.md#function-dp_costas_configure_lock) _last set them._ |
 |  int | [**dp\_costas\_get\_locked**](#function-dp_costas_get_locked) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Current carrier lock decision (1 = locked, 0 = not), from the verify-counted detector on the lock-metric EMA (see dp\_costas\_configure\_lock)._  |
 |  double | [**dp\_costas\_get\_nco\_freq**](#function-dp_costas_get_nco_freq) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Effective NCO frequency command (loop-filter output = integrator + proportional), cycles/sample. Mean rides a ramp with no lag, unlike the integrator-only get\_norm\_freq._  |
+|  double | [**dp\_costas\_get\_nco\_phase\_ahead**](#function-dp_costas_get_nco_phase_ahead) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, size\_t ahead) <br>_The carrier phase the NCO will apply_ `ahead` _samples from now, with no loop update in between._ |
 |  double | [**dp\_costas\_get\_norm\_freq**](#function-dp_costas_get_norm_freq) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Tracked carrier frequency: the NCO frequency register._  |
 |  double | [**dp\_costas\_get\_norm\_rate**](#function-dp_costas_get_norm_rate) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_The carrier's rate the third-order filter holds, in cycles per sample per sample (_ `R / fs^2` _for_`R` _Hz/s at a sample rate_`fs` _)._ |
 |  int | [**dp\_costas\_get\_order**](#function-dp_costas_get_order) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_The active loop filter's order: 2 (the PI loop) or 3 (StateFilter), as_ [_**dp\_costas\_set\_order()**_](costas__core_8h.md#function-dp_costas_set_order) _selected it._ |
@@ -542,6 +544,40 @@ Value from 0 to 1; near 1 when phase-locked, ~2/pi with no carrier; 0 after crea
 
 
 
+### function dp\_costas\_get\_lock\_rule 
+
+_The rule the carrier lock decision is made by: the lock metric's declare and drop levels and their verify counts, as_ [_**dp\_costas\_configure\_lock()**_](costas__core_8h.md#function-dp_costas_configure_lock) _last set them._
+```C++
+dp_lockdet_rule_t dp_costas_get_lock_rule (
+    const dp_costas_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The rule ([**dp\_lockdet\_rule()**](lockdet__core_8h.md#function-dp_lockdet_rule)). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_costas\_get\_locked 
 
 _Current carrier lock decision (1 = locked, 0 = not), from the verify-counted detector on the lock-metric EMA (see dp\_costas\_configure\_lock)._ 
@@ -599,6 +635,45 @@ double dp_costas_get_nco_freq (
 **Returns:**
 
 norm\_freq + kp \* last\_error / (2 pi tsamps), in cycles/sample; equals the seed frequency before the first symbol. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_costas\_get\_nco\_phase\_ahead 
+
+_The carrier phase the NCO will apply_ `ahead` _samples from now, with no loop update in between._
+```C++
+double dp_costas_get_nco_phase_ahead (
+    const dp_costas_state_t * state,
+    size_t ahead
+) 
+```
+
+
+
+The phase [**costas\_wipeoff()**](costas__core_8h.md#function-costas_wipeoff) de-rotates the next sample by is the NCO's accumulator; `ahead` samples later it is that plus `ahead` increments, in the NCO's own 32-bit arithmetic, so the answer is exact for every sample before the next [**costas\_update()**](costas__core_8h.md#function-costas_update). A composition that carries samples not yet wiped asks this for the phase at the newest sample it holds, which is what a caller comparing against the truth at that sample needs.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `ahead` Samples from the next one to be wiped (0 = that one). 
+
+
+
+**Returns:**
+
+Phase in cycles, in [0, 1). 
 
 
 

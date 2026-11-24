@@ -1,0 +1,10 @@
+head 9de3b8120 validate(async_dsss_receiver_pullin): the end verdict's controls run o dirty=0 start 20:10:01
+build rc=0 20:10:05
+shards done 20:11:21: exits      13 0       3 1
+done 20:11:21
+command (swiftgo-ai9465, ~/bench-work/implementer/b, a clean tree at the head, make build):
+  validate_async_dsss_near_far --emit --level 0 --trials 2000 --shard i/16, i = 0..15
+  (D = 1 at 0 dB, seeds 31 k, k = 0..1999: the sweep's own draws, its first 40 the sweep's)
+alone.csv: each shard's "# near_far" row (the shard first); shards.txt: each shard's exit and FAIL lines.
+exits: a shard exits 1 when its own rows hold an S-alone seed (the gate at this head is still
+  `alone == 0`; the next commit restates it as the rate this record measures).

@@ -90,7 +90,7 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 |  int | [**dp\_despreader\_set\_bn\_code**](#function-dp_despreader_set_bn_code) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br>_Retune the code loop bandwidth, keeping zeta (_ [_**dp\_dll\_set\_bn()**_](dll__core_8h.md#function-dp_dll_set_bn) _)._ |
 |  void | [**dp\_despreader\_set\_norm\_freq**](#function-dp_despreader_set_norm_freq) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br>_Re-seed the carrier NCO at_ `val` _(_[_**dp\_costas\_set\_norm\_freq()**_](costas__core_8h.md#function-dp_costas_set_norm_freq) _)._ |
 |  int | [**dp\_despreader\_set\_state**](#function-dp_despreader_set_state) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, const void \* blob) <br>_Restore state written by_ [_**dp\_despreader\_get\_state()**_](despreader__core_8h.md#function-dp_despreader_get_state) _._ |
-|  int | [**dp\_despreader\_set\_telemetry**](#function-dp_despreader_set_telemetry) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" / ".nco" / ".freq\_rate" / ".order" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" / ".nco" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1; ".freq" / ".rate" the filters' integrators and ".nco" their complete commands, see_ [_**dp\_costas\_set\_telemetry()**_](costas__core_8h.md#function-dp_costas_set_telemetry) _and_[_**dp\_dll\_set\_telemetry()**_](dll__core_8h.md#function-dp_dll_set_telemetry) _) — twelve probes, all thinned by_`decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
+|  int | [**dp\_despreader\_set\_telemetry**](#function-dp_despreader_set_telemetry) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" / ".nco" / ".freq\_rate" / ".order" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" / ".nco" / ".prompt\_amp" / ".offset\_pwr" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1; ".freq" / ".rate" the filters' integrators and ".nco" their complete commands, see_ [_**dp\_costas\_set\_telemetry()**_](costas__core_8h.md#function-dp_costas_set_telemetry) _and_[_**dp\_dll\_set\_telemetry()**_](dll__core_8h.md#function-dp_dll_set_telemetry) _) — fourteen probes, all thinned by_`decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**dp\_despreader\_state\_bytes**](#function-dp_despreader_state_bytes) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Byte size of the state blob._  |
 |  size\_t | [**dp\_despreader\_steps**](#function-dp_despreader_steps) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Track carrier and code and despread a CF32 block, one prompt symbol per code period._  |
 |  size\_t | [**dp\_despreader\_steps\_max\_out**](#function-dp_despreader_steps_max_out) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_No fixed cap on steps() output (one prompt per code period, so never more prompts than input samples)._  |
@@ -1056,7 +1056,7 @@ DP\_OK, or DP\_ERR\_INVALID if the envelope or a child blob is rejected.
 
 ### function dp\_despreader\_set\_telemetry 
 
-_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" / ".nco" / ".freq\_rate" / ".order" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" / ".nco" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1; ".freq" / ".rate" the filters' integrators and ".nco" their complete commands, see_ [_**dp\_costas\_set\_telemetry()**_](costas__core_8h.md#function-dp_costas_set_telemetry) _and_[_**dp\_dll\_set\_telemetry()**_](dll__core_8h.md#function-dp_dll_set_telemetry) _) — twelve probes, all thinned by_`decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
+_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" / ".nco" / ".freq\_rate" / ".order" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" / ".nco" / ".prompt\_amp" / ".offset\_pwr" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1; ".freq" / ".rate" the filters' integrators and ".nco" their complete commands, see_ [_**dp\_costas\_set\_telemetry()**_](costas__core_8h.md#function-dp_costas_set_telemetry) _and_[_**dp\_dll\_set\_telemetry()**_](dll__core_8h.md#function-dp_dll_set_telemetry) _) — fourteen probes, all thinned by_`decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
 ```C++
 int dp_despreader_set_telemetry (
     dp_despreader_state_t * state,
@@ -1082,7 +1082,7 @@ int dp_despreader_set_telemetry (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all twelve probes (the attach fails whole; everything detached). 
+DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all fourteen probes (the attach fails whole; everything detached). 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import Despreader
@@ -1095,12 +1095,12 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all twelve probes (
 >>> names[:7]
 ['ch0.car.e', 'ch0.car.freq', 'ch0.car.freq_rate', 'ch0.car.lock', 'ch0.car.locked', 'ch0.car.nco', 'ch0.car.order']
 >>> names[7:]
-['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.nco', 'ch0.code.rate']
+['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.nco', 'ch0.code.offset_pwr', 'ch0.code.prompt_amp', 'ch0.code.rate']
 >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
 >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
 >>> _ = ch.steps(x)
->>> recs = tlm.read()   # twelve records per code period
->>> len(recs) > 0 and len(recs) % 12 == 0
+>>> recs = tlm.read()   # fourteen records per code period
+>>> len(recs) > 0 and len(recs) % 14 == 0
 True
 ```
  

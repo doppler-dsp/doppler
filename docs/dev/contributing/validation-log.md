@@ -78,7 +78,7 @@ listed the moment its folder exists. There is no list here to update.
 | [The correlator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/correlation/tests/validation/correlator/results.md)       | `correlation` | 83/83  | 25       | 3 — F14, F15, F16          |
 | [detection](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/detection/results.md)               | `detection`   | 24/24  | 6        | 1 — F5                     |
 | [LockDet](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/lockdet/results.md)                   | `detection`   | 22/22  | 6        | none                       |
-| [AsyncDsssReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)  | `dsss`        | 23/23  | 5        | 3 — F1, F2, F3             |
+| [AsyncDsssReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)  | `dsss`        | 4/4    | 6        | 4 — F1, F2, F3, F4         |
 | [BurstDemod](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_demod/results.md)                 | `dsss`        | 15/15  | 5        | none                       |
 | [BurstDespreader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_despreader/results.md)       | `dsss`        | 15/15  | 5        | none                       |
 | [DsssBurstReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md)  | `dsss`        | 27/27  | 10       | none                       |
@@ -90,7 +90,7 @@ listed the moment its folder exists. There is no list here to update.
 | [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)                              | `source`      | 18/18  | 9        | none                       |
 | [PSD](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/psd/results.md)                            | `spectral`    | 30/30  | 16       | 3 — F11, F12, F14          |
 | [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/spectrogram/results.md)        | `spectral`    | 36/36  | 12       | none                       |
-| [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md)                | `track`       | 43/43  | 12       | 6 — F4, F5, F6, F7, F8, F9 |
+| [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md)                | `track`       | 44/44  | 12       | 6 — F4, F5, F6, F7, F8, F9 |
 | [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md)                | `track`       | 26/26  | 10       | 1 — F6                     |
 | [MpskReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md)            | `track`       | 63/63  | 8        | 2 — F5, F6                 |
 | [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md)                     | `track`       | 37/37  | 18       | 3 — F7, F17, F18           |

@@ -38,8 +38,17 @@ _NDA M-th-power carrier loop state._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) | [**arm**](#variable-arm)  <br> |
 |  size\_t | [**arm\_len**](#variable-arm_len)  <br> |
+|  double | [**blk\_den**](#variable-blk_den)  <br> |
+|  uint32\_t | [**blk\_len**](#variable-blk_len)  <br> |
+|  uint32\_t | [**blk\_n**](#variable-blk_n)  <br> |
+|  double | [**blk\_num**](#variable-blk_num)  <br> |
+|  double | [**blk\_pfa**](#variable-blk_pfa)  <br> |
+|  double | [**blk\_thr**](#variable-blk_thr)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
 |  double | [**ctl\_cyc**](#variable-ctl_cyc)  <br> |
+|  int32\_t | [**den**](#variable-den)  <br> |
+|  double | [**den\_alpha**](#variable-den_alpha)  <br> |
+|  double | [**den\_gamma**](#variable-den_gamma)  <br> |
 |  double | [**last\_error**](#variable-last_error)  <br> |
 |  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) | [**lf**](#variable-lf)  <br> |
 |  double | [**lock**](#variable-lock)  <br> |
@@ -47,8 +56,12 @@ _NDA M-th-power carrier loop state._ [More...](#detailed-description)
 |  int | [**m**](#variable-m)  <br> |
 |  int | [**n**](#variable-n)  <br> |
 |  [**dp\_lo\_state\_t**](structdp__lo__state__t.md) | [**nco**](#variable-nco)  <br> |
+|  uint32\_t | [**opt\_zero**](#variable-opt_zero)  <br> |
+|  double | [**pow\_avg**](#variable-pow_avg)  <br> |
+|  double | [**pow\_n**](#variable-pow_n)  <br> |
 |  double | [**seed\_norm\_freq**](#variable-seed_norm_freq)  <br> |
 |  size\_t | [**sps**](#variable-sps)  <br> |
+|  double | [**t\_upd**](#variable-t_upd)  <br> |
 |  [**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
 
@@ -142,6 +155,114 @@ moving-average window length (= sps / n).
 
 
 
+### variable blk\_den 
+
+```C++
+double dp_carrier_nda_state_t::blk_den;
+```
+
+
+
+sum of I^2 + Q^2 in the current block. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable blk\_len 
+
+```C++
+uint32_t dp_carrier_nda_state_t::blk_len;
+```
+
+
+
+block lock: updates a block (0 = the EMA). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable blk\_n 
+
+```C++
+uint32_t dp_carrier_nda_state_t::blk_n;
+```
+
+
+
+updates in the current block. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable blk\_num 
+
+```C++
+double dp_carrier_nda_state_t::blk_num;
+```
+
+
+
+sum of I^2 - Q^2 in the current block. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable blk\_pfa 
+
+```C++
+double dp_carrier_nda_state_t::blk_pfa;
+```
+
+
+
+the false-alarm rate the threshold is for. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable blk\_thr 
+
+```C++
+double dp_carrier_nda_state_t::blk_thr;
+```
+
+
+
+its threshold on R (exact Beta, at blk\_pfa). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable bn 
 
 ```C++
@@ -169,6 +290,60 @@ double dp_carrier_nda_state_t::ctl_cyc;
 
 
 NCO control (cyc/sample) for next wipeoff. 
+
+
+        
+
+<hr>
+
+
+
+### variable den 
+
+```C++
+int32_t dp_carrier_nda_state_t::den;
+```
+
+
+
+CARRIER\_NDA\_DEN\_\*: what divides the error. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable den\_alpha 
+
+```C++
+double dp_carrier_nda_state_t::den_alpha;
+```
+
+
+
+the averaged power's EMA weight a update. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable den\_gamma 
+
+```C++
+double dp_carrier_nda_state_t::den_gamma;
+```
+
+
+
+the unit form's design update SNR, linear. 
+ 
 
 
         
@@ -303,6 +478,60 @@ integer carrier NCO (uint32 phase).
 
 
 
+### variable opt\_zero 
+
+```C++
+uint32_t dp_carrier_nda_state_t::opt_zero;
+```
+
+
+
+always 0: the four 32-bit fields fill two words, so a whole-struct blob has no padding between them; the state check holds it 0. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable pow\_avg 
+
+```C++
+double dp_carrier_nda_state_t::pow_avg;
+```
+
+
+
+running average of \|z\|^2 (averaged, unit). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable pow\_n 
+
+```C++
+double dp_carrier_nda_state_t::pow_n;
+```
+
+
+
+updates averaged so far: the boot's mean. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable seed\_norm\_freq 
 
 ```C++
@@ -330,6 +559,24 @@ size_t dp_carrier_nda_state_t::sps;
 
 
 samples per symbol. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable t\_upd 
+
+```C++
+double dp_carrier_nda_state_t::t_upd;
+```
+
+
+
+samples a loop update (1 = every sample). 
  
 
 

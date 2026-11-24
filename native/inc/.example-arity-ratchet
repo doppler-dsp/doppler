@@ -13,7 +13,6 @@
 # whenever anything above it is edited, and the waiver then covers the wrong
 # call without saying so.
 
-native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h dp_async_dsss_receiver_create
 native/inc/doppler/delay/delay_core.h dp_delay_create
 native/inc/doppler/dll/dll_core.h dp_dll_create
 native/inc/doppler/dsss_receiver/dsss_receiver_core.h dp_dsss_receiver_create

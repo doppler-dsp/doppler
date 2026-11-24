@@ -276,6 +276,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
                ring-internals size-mul named-args acq-pfa-split \
+               budget-windows \
                finding-citations test-all-ci changelog-fragments dup-include \
                windows-macro-names source-fields
 FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
@@ -521,6 +522,10 @@ LINT_windows-macro-names = $(UV) run python scripts/check_windows_macro_names.py
 # the sizer or the non-coherent ascend fired the engine at about twice its
 # pfa and passed every test (doppler#2218).
 LINT_acq-pfa-split = $(UV) run python scripts/check_acq_pfa_split.py
+# No receiver measurement opens its error-rate window on an analytic
+# budget alone (#3231): budget-window calls per file, held to the
+# shrink-only scripts/.budget-window-exempt.
+LINT_budget-windows = $(UV) run python scripts/check_budget_windows.py
 
 # A validation finding is cited by its key or its claim, never by its number
 # (#2059). A report numbers findings by position and resolves `R.ref(key)` at

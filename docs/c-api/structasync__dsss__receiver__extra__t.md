@@ -44,13 +44,17 @@ _The receiver's own fields in its state blob, after the envelope and before the 
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  double | [**excl**](#variable-excl)  <br> |
+|  uint64\_t | [**excl\_at**](#variable-excl_at)  <br> |
+|  uint64\_t | [**fine\_n**](#variable-fine_n)  <br> |
 |  uint8\_t | [**had\_lock**](#variable-had_lock)  <br> |
+|  uint64\_t | [**ho\_src**](#variable-ho_src)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  double | [**lock\_num**](#variable-lock_num)  <br> |
 |  uint64\_t | [**n**](#variable-n)  <br> |
 |  uint64\_t | [**n\_excl**](#variable-n_excl)  <br> |
 |  uint64\_t | [**n\_picks**](#variable-n_picks)  <br> |
+|  uint64\_t | [**pick\_at**](#variable-pick_at)  <br> |
 |  double | [**pick\_cn0**](#variable-pick_cn0)  <br> |
 |  double | [**pick\_doppler**](#variable-pick_doppler)  <br> |
 |  double | [**pick\_phase**](#variable-pick_phase)  <br> |
@@ -273,6 +277,41 @@ double async_dsss_receiver_extra_t::excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS];
 
 
 
+### variable excl\_at 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::excl_at;
+```
+
+
+
+v18: the sample the exclusions name. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_n 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::fine_n;
+```
+
+
+
+v23: the fine hand-over's sums so far, at most fine\_cap; the buffer follows the refine ring. 
+
+
+        
+
+<hr>
+
+
+
 ### variable had\_lock 
 
 ```C++
@@ -282,6 +321,23 @@ uint8_t async_dsss_receiver_extra_t::had_lock;
 
 
 v4: both flags have been up; the loops coast. 
+
+
+        
+
+<hr>
+
+
+
+### variable ho\_src 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::ho_src;
+```
+
+
+
+v19: ASYNC\_DSSS\_RX\_HO\_\*, refused past 3 (v23). 
 
 
         
@@ -386,6 +442,24 @@ uint64_t async_dsss_receiver_extra_t::n_picks;
 
 
 v15: picks not yet taken ... 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable pick\_at 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::pick_at[ASYNC_DSSS_RX_MAX_PEAKS];
+```
+
+
+
+v18: each pick's sample, the unused tail zeroed. 
  
 
 

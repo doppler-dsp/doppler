@@ -274,3 +274,162 @@ def test_extraction_does_not_die_of_sigpipe(tmp_path: Path) -> None:
     assert r.returncode == 0, f"exit {r.returncode}: {r.stderr}"
     assert r.returncode != 141
     assert r.stdout.strip(), "rendered an empty body"
+
+
+# The release body's relative links (#3319). The fixture is the link text
+# v0.86.0's published body carried: eight links, three targets, each a
+# repo-relative path that 404'd under /releases/tag/. Kept verbatim so the
+# rewrite is judged on the
+# links that broke, not on links someone imagined.
+V086_LINKS = [
+    "[§4](docs/design/async-dsss-receiver.md#4-the-carrier-loop)",
+    "[§2](docs/design/async-dsss-receiver.md#2-the-lock)",
+    "[§1](docs/design/async-dsss-receiver.md)",
+    "[§7](docs/design/async-dsss-receiver.md)",
+    "[§5](docs/design/async-dsss-receiver.md)",
+    "[§6](docs/design/async-dsss-receiver.md)",
+    "[the C reference](docs/c-api/async__dsss__receiver__core_8h.md)",
+    "[the spec demo](docs/gallery/async-dsss-receiver-spec.md)",
+]
+BLOB = "https://github.com/doppler-dsp/doppler/blob/v0.86.0/"
+
+
+def _check_module():
+    """The rewrite and its check, loaded the way the script loads them."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("crns", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_v086_links_resolve_to_the_tag() -> None:
+    """Each broken link now names the blob URL at the tag, anchor kept."""
+    mod = _check_module()
+    body = "\n".join(V086_LINKS) + "\n"
+    out = mod.absolutize(body, BLOB)
+    assert mod.unresolved_links(out) == []
+    assert (
+        f"]({BLOB}docs/design/async-dsss-receiver.md#4-the-carrier-loop)"
+        in out
+    )
+    assert f"]({BLOB}docs/gallery/async-dsss-receiver-spec.md)" in out
+    assert out.count(BLOB) == len(V086_LINKS)
+
+
+def test_the_relative_links_are_refused_before_the_rewrite() -> None:
+    """The check names what the rewrite left, so the gate can say so."""
+    mod = _check_module()
+    assert mod.unresolved_links("[a](docs/x.md) [b](#anchor)") == ["docs/x.md"]
+
+
+def test_an_escaping_link_survives_the_rewrite_and_is_named() -> None:
+    """`../` has no place on the tag: left for the gate, not guessed."""
+    mod = _check_module()
+    out = mod.absolutize("[x](../secret.md)", BLOB)
+    assert out == "[x](../secret.md)"
+    assert mod.unresolved_links(out) == ["../secret.md"]
+
+
+def test_a_dot_slash_and_a_root_path_resolve() -> None:
+    mod = _check_module()
+    out = mod.absolutize("[a](./docs/a.md) [b](/docs/b.md)", BLOB)
+    assert f"[a]({BLOB}docs/a.md)" in out
+    assert f"[b]({BLOB}docs/b.md)" in out
+
+
+def test_a_fragment_with_an_escaping_link_fails_the_lint_gate(
+    tmp_path: Path,
+) -> None:
+    """The PR that adds the link goes red at lint, not at release (#3319)."""
+    r = _run(tmp_path, 1_000, slot="escape", n_fragment_chars=0)
+    assert r.returncode == 0, r.stdout
+    bad = tmp_path / "escape" / "changelog.d" / "added" / "bad.md"
+    bad.write_text("- **Bad.** see [x](../outside.md)\n", encoding="utf-8")
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--changelog",
+            str(tmp_path / "escape" / "CHANGELOG.md"),
+            "--fragments",
+            str(tmp_path / "escape" / "changelog.d"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 1, r.stdout
+    assert "../outside.md" in r.stdout
+
+
+def test_the_body_check_fails_on_a_relative_link(tmp_path: Path) -> None:
+    """`--body-file` is the release-pr home: a relative link fails there."""
+    body = tmp_path / "notes.md"
+    body.write_text(
+        "## What's in 1.0\n\nSee [§1](docs/design/async-dsss-receiver.md).\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--body-file", str(body)],
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 1, r.stdout
+    assert "docs/design/async-dsss-receiver.md" in r.stdout
+
+
+def test_the_script_publishes_absolute_links_at_the_tag(
+    tmp_path: Path,
+) -> None:
+    """End to end: release-notes.sh renders a link at the tag's blob URL."""
+    skip_without_posix_shell("scripts/release-notes.sh")
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text(
+        "# Changelog\n\n## [9.9.9] — 2026-01-01\n\n### Added\n\n"
+        "- **Feature.** See [§1](docs/design/async-dsss-receiver.md#one).\n",
+        encoding="utf-8",
+    )
+    script = REPO / "scripts" / "release-notes.sh"
+    r = subprocess.run(
+        ["bash", str(script), "9.9.9", "doppler-dsp/doppler"],
+        capture_output=True,
+        text=True,
+        env={**__import__("os").environ, "CHANGELOG": str(changelog)},
+    )
+    assert r.returncode == 0, r.stderr
+    assert (
+        "(https://github.com/doppler-dsp/doppler/blob/v9.9.9/"
+        "docs/design/async-dsss-receiver.md#one)" in r.stdout
+    )
+    assert "](docs/" not in r.stdout
+
+
+def test_a_fragment_relative_link_is_rewritten_so_the_lint_gate_passes(
+    tmp_path: Path,
+) -> None:
+    """A fragment's `docs/…` link is written as the changelog writes it, and
+    the lint gate passes it, since the rendered form is absolute (#3319).
+    Removing
+    the rewrite turns this red, which is the sabotage the gate is proven by."""
+    r = _run(tmp_path, 1_000, slot="rel", n_fragment_chars=0)
+    assert r.returncode == 0, r.stdout
+    frag = tmp_path / "rel" / "changelog.d" / "added" / "ok.md"
+    frag.write_text(
+        "- **Linked.** see [§1](docs/design/async-dsss-receiver.md#one)\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--changelog",
+            str(tmp_path / "rel" / "CHANGELOG.md"),
+            "--fragments",
+            str(tmp_path / "rel" / "changelog.d"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 0, r.stdout

@@ -69,7 +69,16 @@ highlights=$(awk '
   found { print }
 ' <<<"$section")
 
-published="$section"
+# The blob base of the tag this body describes. It is the ONE builder of a
+# link into the repository at the tag: the rewrite of the section's links and
+# the CHANGELOG.md link below both take their URL from it (#3319).
+BLOB_BASE="https://github.com/${REPO}/blob/v${VERSION}/"
+
+# A repo-relative link resolves under /releases/tag/ on a release page, so it
+# 404s there. Rewrite each one to the blob URL at this tag, anchor kept.
+published=$(python3 "$SIZE_CHECK" --absolutize "$BLOB_BASE" <<<"$section")
+published_highlights=$(python3 "$SIZE_CHECK" --absolutize "$BLOB_BASE" <<<"$highlights")
+
 note=""
 if [ "${#section}" -gt "$BUDGET" ]; then
   if [ -z "$(printf '%s' "$highlights" | tr -d '[:space:]')" ]; then
@@ -78,10 +87,10 @@ if [ "${#section}" -gt "$BUDGET" ]; then
     echo "release-notes: block to publish instead. Summarise it." >&2
     exit 1
   fi
-  published="$highlights"
+  published="$published_highlights"
   note="
 This release is large. The highlights are above; every entry, in full, is in
-[CHANGELOG.md](https://github.com/${REPO}/blob/v${VERSION}/CHANGELOG.md).
+[CHANGELOG.md](${BLOB_BASE}CHANGELOG.md).
 "
 fi
 

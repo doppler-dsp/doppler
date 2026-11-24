@@ -263,6 +263,20 @@ def report(raw: int, publishable: int, entries: int, summarised: bool) -> int:
     return 0
 
 
+def _display_path(path: str) -> str:
+    """The path as the report names it: relative to the repo when it can be.
+
+    On Windows `relpath` raises ValueError across drives (a fragment on another
+    drive than the checkout). That raise came after the OK line had printed, so
+    the gate exited 1 with the reason on stderr and no FAIL line (#3335). The
+    absolute path names the file just as well.
+    """
+    try:
+        return os.path.relpath(path, ROOT)
+    except ValueError:
+        return path
+
+
 def oversized_entries(
     section: str, fragments: str
 ) -> list[tuple[str, int, str]]:
@@ -311,7 +325,7 @@ def oversized_entries(
                     continue
                 path = os.path.join(d, name)
                 with open(path, encoding="utf-8") as fh:
-                    scan(os.path.relpath(path, ROOT), fh.read())
+                    scan(_display_path(path), fh.read())
     return found
 
 

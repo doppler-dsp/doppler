@@ -19,6 +19,7 @@ green one. All three bands are driven over content written here.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from typing import TYPE_CHECKING
@@ -28,6 +29,8 @@ from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import pytest
 
 REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "check_release_notes_size.py"
@@ -93,24 +96,24 @@ def test_budget_matches_the_script() -> None:
 def test_a_small_changelog_passes(tmp_path: Path) -> None:
     """The green case — the one the live tree cannot demonstrate."""
     r = _run(tmp_path, 1_000)
-    assert r.returncode == 0, r.stdout
-    assert "OK" in r.stdout
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "OK" in r.stdout + r.stderr
 
 
 def test_over_budget_fails(tmp_path: Path) -> None:
     r = _run(tmp_path, BUDGET + 5_000)
-    assert r.returncode == 1, r.stdout
-    assert "FAIL" in r.stdout
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "FAIL" in r.stdout + r.stderr
     # The remedy has to be in the message: this fires on a release PR, where
     # "too big" without "summarise or cut a release" is not actionable.
-    assert "Highlights" in r.stdout
+    assert "Highlights" in r.stdout + r.stderr
 
 
 def test_half_budget_warns_without_failing(tmp_path: Path) -> None:
     """The cadence half: pressure well before the wall, but not a blocker."""
     r = _run(tmp_path, int(BUDGET * 0.6))
-    assert r.returncode == 0, r.stdout
-    assert "a release is due" in r.stdout
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "a release is due" in r.stdout + r.stderr
 
 
 def test_unassembled_fragments_count(tmp_path: Path) -> None:
@@ -122,10 +125,10 @@ def test_unassembled_fragments_count(tmp_path: Path) -> None:
     caused the problem.
     """
     under = _run(tmp_path, 40_000, slot="under")
-    assert under.returncode == 0, under.stdout
+    assert under.returncode == 0, under.stdout + under.stderr
 
     over = _run(tmp_path, 40_000, n_fragment_chars=BUDGET, slot="over")
-    assert over.returncode == 1, over.stdout
+    assert over.returncode == 1, over.stdout + over.stderr
 
 
 def test_rendered_body_mode_fails_when_too_large(tmp_path: Path) -> None:
@@ -137,7 +140,7 @@ def test_rendered_body_mode_fails_when_too_large(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
     )
-    assert r.returncode == 1, r.stdout
+    assert r.returncode == 1, r.stdout + r.stderr
 
     body.write_text("x" * 1_000, encoding="utf-8")
     ok = subprocess.run(
@@ -178,8 +181,8 @@ def test_an_over_long_highlights_block_still_fails(tmp_path: Path) -> None:
         slot="fat",
         highlights="- **Too much.** " + ("q" * (BUDGET + 1_000)),
     )
-    assert r.returncode == 1, r.stdout
-    assert "itself too long" in r.stdout
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "itself too long" in r.stdout + r.stderr
 
 
 def test_highlights_is_ignored_when_the_section_already_fits(
@@ -187,8 +190,8 @@ def test_highlights_is_ignored_when_the_section_already_fits(
 ) -> None:
     """Below the budget the full section is better notes, so it wins."""
     r = _run(tmp_path, 1_000, slot="small", highlights="- **Tiny.** x\n")
-    assert r.returncode == 0, r.stdout
-    assert "via ### Highlights" not in r.stdout
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "via ### Highlights" not in r.stdout + r.stderr
 
 
 def test_highlights_bullets_are_not_counted_as_entries(tmp_path: Path) -> None:
@@ -200,9 +203,9 @@ def test_highlights_bullets_are_not_counted_as_entries(tmp_path: Path) -> None:
     """
     hl = "".join(f"- **Point {i}.** x\n" for i in range(10))
     r = _run(tmp_path, 1_000, slot="counted", highlights=hl)
-    assert r.returncode == 0, r.stdout
+    assert r.returncode == 0, r.stdout + r.stderr
     # one seeded entry, not eleven
-    assert "1 entry" in r.stdout, r.stdout
+    assert "1 entry" in r.stdout + r.stderr, r.stdout + r.stderr
 
 
 # --- release-notes.sh, the renderer the gate protects ------------------------
@@ -238,17 +241,19 @@ HL = "### Highlights\n\n- **The headline.** A short summary.\n\n"
 def test_a_small_section_is_published_in_full(tmp_path: Path) -> None:
     r = _notes(tmp_path, "### Added\n\n- **Small.** A short entry.\n")
     assert r.returncode == 0, r.stderr
-    assert "Small" in r.stdout
-    assert "This release is large" not in r.stdout
+    assert "Small" in r.stdout + r.stderr
+    assert "This release is large" not in r.stdout + r.stderr
 
 
 def test_an_oversized_section_falls_back_to_highlights(tmp_path: Path) -> None:
     r = _notes(tmp_path, HL + _bulk())
     assert r.returncode == 0, r.stderr
-    assert "The headline" in r.stdout
-    assert "This release is large" in r.stdout
-    assert "Entry 1." not in r.stdout  # the full entries stay behind
-    assert len(r.stdout) < 100_000
+    assert "The headline" in r.stdout + r.stderr
+    assert "This release is large" in r.stdout + r.stderr
+    assert (
+        "Entry 1." not in r.stdout + r.stderr
+    )  # the full entries stay behind
+    assert len(r.stdout + r.stderr) < 100_000
 
 
 def test_an_oversized_section_without_highlights_refuses(
@@ -273,7 +278,7 @@ def test_extraction_does_not_die_of_sigpipe(tmp_path: Path) -> None:
     r = _notes(tmp_path, HL + _bulk(600))
     assert r.returncode == 0, f"exit {r.returncode}: {r.stderr}"
     assert r.returncode != 141
-    assert r.stdout.strip(), "rendered an empty body"
+    assert r.stdout + r.stderr.strip(), "rendered an empty body"
 
 
 # The release body's relative links (#3319). The fixture is the link text
@@ -345,7 +350,7 @@ def test_a_fragment_with_an_escaping_link_fails_the_lint_gate(
 ) -> None:
     """The PR that adds the link goes red at lint, not at release (#3319)."""
     r = _run(tmp_path, 1_000, slot="escape", n_fragment_chars=0)
-    assert r.returncode == 0, r.stdout
+    assert r.returncode == 0, r.stdout + r.stderr
     bad = tmp_path / "escape" / "changelog.d" / "added" / "bad.md"
     bad.write_text("- **Bad.** see [x](../outside.md)\n", encoding="utf-8")
     r = subprocess.run(
@@ -360,8 +365,8 @@ def test_a_fragment_with_an_escaping_link_fails_the_lint_gate(
         capture_output=True,
         text=True,
     )
-    assert r.returncode == 1, r.stdout
-    assert "../outside.md" in r.stdout
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "../outside.md" in r.stdout + r.stderr
 
 
 def test_the_body_check_fails_on_a_relative_link(tmp_path: Path) -> None:
@@ -376,8 +381,8 @@ def test_the_body_check_fails_on_a_relative_link(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
     )
-    assert r.returncode == 1, r.stdout
-    assert "docs/design/async-dsss-receiver.md" in r.stdout
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "docs/design/async-dsss-receiver.md" in r.stdout + r.stderr
 
 
 def test_the_script_publishes_absolute_links_at_the_tag(
@@ -403,7 +408,7 @@ def test_the_script_publishes_absolute_links_at_the_tag(
         "(https://github.com/doppler-dsp/doppler/blob/v9.9.9/"
         "docs/design/async-dsss-receiver.md#one)" in r.stdout
     )
-    assert "](docs/" not in r.stdout
+    assert "](docs/" not in r.stdout + r.stderr
 
 
 def test_a_fragment_relative_link_is_rewritten_so_the_lint_gate_passes(
@@ -414,7 +419,7 @@ def test_a_fragment_relative_link_is_rewritten_so_the_lint_gate_passes(
     Removing
     the rewrite turns this red, which is the sabotage the gate is proven by."""
     r = _run(tmp_path, 1_000, slot="rel", n_fragment_chars=0)
-    assert r.returncode == 0, r.stdout
+    assert r.returncode == 0, r.stdout + r.stderr
     frag = tmp_path / "rel" / "changelog.d" / "added" / "ok.md"
     frag.write_text(
         "- **Linked.** see [§1](docs/design/async-dsss-receiver.md#one)\n",
@@ -432,4 +437,59 @@ def test_a_fragment_relative_link_is_rewritten_so_the_lint_gate_passes(
         capture_output=True,
         text=True,
     )
-    assert r.returncode == 0, r.stdout
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_path_on_another_drive_is_named_not_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows' relpath raises across drives: the gate still names the file.
+
+    The raise came AFTER the OK line had printed, so the gate exited 1 with the
+    reason on stderr and no FAIL line (#3335). Simulated here, since the box is
+    one drive.
+    """
+    mod = _check_module()
+    frags = tmp_path / "changelog.d" / "added"
+    frags.mkdir(parents=True)
+    long_entry = "- **Long.** headline\n" + "  more\n" * 12
+    (frags / "long.md").write_text(long_entry, encoding="utf-8")
+
+    def cross_drive(path, start=None):
+        raise ValueError("path is on mount 'C:', start on mount 'D:'")
+
+    monkeypatch.setattr(mod.os.path, "relpath", cross_drive)
+    found = mod.oversized_entries("", str(tmp_path / "changelog.d"))
+    assert found and found[0][0] == str(frags / "long.md")
+
+
+def test_the_gate_passes_under_a_cp1252_console(tmp_path: Path) -> None:
+    """Run the gate with a cp1252 stdout, the encoding of a Windows pipe.
+
+    The fragment carries a section sign and the report an em dash; both
+    must print without raising. Kept so Linux catches an encoding regression.
+    """
+    r = _run(tmp_path, 1_000, slot="cp", n_fragment_chars=0)
+    assert r.returncode == 0, r.stdout + r.stderr
+    frag = tmp_path / "cp" / "changelog.d" / "added" / "sect.md"
+    frag.write_text(
+        "- **Sign.** see [§1](docs/design/async-dsss-receiver.md)\n",
+        encoding="utf-8",
+    )
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--changelog",
+            str(tmp_path / "cp" / "CHANGELOG.md"),
+            "--fragments",
+            str(tmp_path / "cp" / "changelog.d"),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="cp1252",
+        env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "OK" in r.stdout

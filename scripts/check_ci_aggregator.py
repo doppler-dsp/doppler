@@ -82,6 +82,16 @@ WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 DOC = ROOT / "docs" / "dev" / "ci.md"
 AGGREGATOR = "ci-passed"
 REQUIRED_NAME = "CI passed"
+#: The aggregator's name, as written: only the FULL scope carries the required
+#: name (the PR run's gate, and main's, which release-verify-ci reads). Minimal
+#: and skip pushes are named apart, so a ruleset resolving the required name to
+#: the newest check cannot read a head green while its full run is pending.
+AGGREGATOR_NAME_EXPR = (
+    "${{ needs.scope.outputs.scope == 'full' && 'CI passed' || "
+    "needs.scope.outputs.scope == 'minimal' "
+    "&& 'CI passed (push, minimal set)' || "
+    "'CI passed (skipped: the PR run is the gate)' }}"
+)
 
 #: The ONE declaration of where a single-leg step runs: the only ``if:``
 #: forms a step may use to pick a Python leg, each mapped to its lane.
@@ -150,10 +160,11 @@ def check(path: pathlib.Path) -> list[str]:
         ]
 
     problems: list[str] = []
-    if agg.get("name") != REQUIRED_NAME:
+    if agg.get("name") != AGGREGATOR_NAME_EXPR:
         problems.append(
-            f"{path}: `{AGGREGATOR}` is named {agg.get('name')!r}, but the "
-            f"ruleset requires the check {REQUIRED_NAME!r} by that string"
+            f"{path}: `{AGGREGATOR}` is named {agg.get('name')!r}; it must "
+            f"be {AGGREGATOR_NAME_EXPR!r}: only the full scope's aggregator "
+            f"carries the required name {REQUIRED_NAME!r}"
         )
     if str(agg.get("if", "")).replace(" ", "") != "always()":
         problems.append(

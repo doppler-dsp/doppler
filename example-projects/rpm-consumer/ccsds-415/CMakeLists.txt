@@ -36,7 +36,7 @@ target_link_libraries(ccsds415 PRIVATE ccsds415_run)
 option(CCSDS415_FETCH_FTXUI "Fetch FTXUI 7.0.3 if none is installed" OFF)
 # Not find_package(ftxui 5 ...): FTXUI's package declares SameMajorVersion
 # compatibility, so asking for 5 refuses an installed 7 (Fedora's). Any
-# version is found, then held to the floor here.
+# version is found, then held to that minimum here.
 find_package(ftxui CONFIG QUIET)
 if(ftxui_FOUND AND ftxui_VERSION VERSION_LESS 5)
     message(STATUS "FTXUI ${ftxui_VERSION} is older than 5: not used")

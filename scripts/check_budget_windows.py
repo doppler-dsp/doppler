@@ -36,7 +36,7 @@ import re
 import subprocess
 import sys
 import tokenize
-from pathlib import Path
+from pathlib import Path, PurePath
 
 ROOT = Path(__file__).resolve().parent.parent
 LIST = "scripts/.budget-window-exempt"
@@ -81,6 +81,16 @@ def _py_code(src: str) -> str:
     return " ".join(out)
 
 
+def _rel(p: PurePath, root: PurePath) -> str:
+    """A tree path as the list spells it: relative, forward slashes.
+
+    The list's rows and `git ls-files` use forward slashes on every
+    platform; `str()` of a relative Windows path uses backslashes, so a
+    walked file would never match its row there.
+    """
+    return p.relative_to(root).as_posix()
+
+
 def count(root: Path) -> dict[str, int]:
     """Calls a file, for every tracked C or Python file that has one."""
     files = subprocess.run(
@@ -92,7 +102,7 @@ def count(root: Path) -> dict[str, int]:
     ).stdout.split()
     if not files:  # a seeded tree with no git: walk it
         files = [
-            str(p.relative_to(root))
+            _rel(p, root)
             for d in ("native", "src")
             if (root / d).is_dir()
             for p in (root / d).rglob("*")

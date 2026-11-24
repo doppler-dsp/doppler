@@ -14,8 +14,10 @@ file that opens its window with `dp_ber_lock_all()`.
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
+from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING
 
 from doppler.tests._repo import repo_root
@@ -107,3 +109,21 @@ def test_a_row_above_its_count_fails(tmp_path: Path) -> None:
     r = _run(root)
     assert r.returncode == 1
     assert "under its row's 1: shrink the row" in r.stdout
+
+
+def test_a_windows_path_is_spelled_as_the_list_spells_it() -> None:
+    """The walk's path on Windows matches a forward-slash row.
+
+    On Windows `str()` of a relative path has backslashes, and a seeded
+    file then never matched its row (the gate read it as both "under its
+    row" and "no row"). The helper is checked with a Windows path on every
+    platform, so reverting it to `str()` is red on Linux too. The real
+    gate runs on a git checkout and takes `git ls-files`, which prints
+    forward slashes everywhere.
+    """
+    spec = importlib.util.spec_from_file_location("cbw", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    win = PureWindowsPath(r"C:\r\native\tests\f.c")
+    assert mod._rel(win, PureWindowsPath(r"C:\r")) == "native/tests/f.c"

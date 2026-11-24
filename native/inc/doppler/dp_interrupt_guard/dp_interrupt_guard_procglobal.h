@@ -28,11 +28,19 @@
 #ifndef DP_INTERRUPT_GUARD_PROCGLOBAL_H
 #define DP_INTERRUPT_GUARD_PROCGLOBAL_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* The address of this `.so`'s state — the OWNER module publishes it. */
 void *dp_interrupt_guard_state_ptr(void);
 
 /* Point this `.so` at the owner's state — every OTHER module calls it. */
 void dp_interrupt_guard_state_adopt(void *shared);
+
+#ifdef __cplusplus
+}
+#endif
 
 /*
  * The rendezvous, for a binding jm does NOT generate (a

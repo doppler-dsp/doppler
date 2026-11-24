@@ -4,7 +4,7 @@
 # class over an opaque wfm_stream_sink_t resource handle.
 from __future__ import annotations
 
-from typing import Any, final
+from typing import Any, Literal, final
 
 import numpy as np
 import numpy.typing as npt
@@ -17,13 +17,17 @@ class StreamSink:
     ----------
     endpoint : int
         Endpoint, e.g. "nats://127.0.0.1:4222/iq".
-    sample_type : str, default ``"cf32"``
+    sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"], default ``"cf32"``
         The wire type. The integer types use full-scale +/-1.0.
         One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``,
         ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
     """
 
-    def __init__(self, endpoint: int, sample_type: str = ...) -> None: ...
+    def __init__(
+        self,
+        endpoint: int,
+        sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"] = ...,
+    ) -> None: ...
     def send(
         self,
         iq: npt.NDArray[np.complex64],

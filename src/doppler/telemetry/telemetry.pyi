@@ -1,6 +1,6 @@
 # telemetry/telemetry.pyi — type stubs for the telemetry C extension.
 import os
-from typing import Any, final
+from typing import Any, Literal, final
 
 import numpy as np
 import numpy.typing as npt
@@ -1243,8 +1243,8 @@ class EventLog:
     def finalize(
         self,
         meta_path: str,
-        sample_type: str = 'cf32',
-        endian: str = 'le',
+        sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"] = 'cf32',
+        endian: Literal["le", "be"] = 'le',
         fs: float = 0.0,
         t0: float = 0.0,
     ) -> None:
@@ -1258,11 +1258,11 @@ class EventLog:
         ----------
         meta_path : str
             Sidecar to write, conventionally `<base>.sigmf-meta`.
-        sample_type : str, default 'cf32'
+        sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"], default 'cf32'
             The dataset wire type, recorded as SigMF `core:datatype`.
             One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``,
             ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
-        endian : str, default 'le'
+        endian : Literal["le", "be"], default 'le'
             One of ``"le"``, ``"be"``.
         fs : float, default 0.0
             Sample rate (Hz), or 0.0 to leave `core:sample_rate` unstated. The

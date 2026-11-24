@@ -1442,7 +1442,13 @@ jobs:
   # main already gated it, so the release only confirms + builds + publishes.
   # ------------------------------------------------------------------
   ci-passed:
-    name: CI passed
+    # Only the FULL scope's aggregator carries the required name: it is the
+    # PR run's gate, and main's push run, which release-verify-ci reads. A
+    # minimal push's aggregator is named apart, so a ruleset that resolves the
+    # required name to the newest check never reads a head green while its
+    # full run is still going (reviewer, #3302). A skipped one (the PR run is
+    # the gate) is named apart too.
+    name: "${{ needs.scope.outputs.scope == 'full' && 'CI passed' || needs.scope.outputs.scope == 'minimal' && 'CI passed (push, minimal set)' || 'CI passed (skipped: the PR run is the gate)' }}"
     needs:
       - scope
       - changes

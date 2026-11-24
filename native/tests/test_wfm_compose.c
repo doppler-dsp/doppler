@@ -2691,9 +2691,56 @@ test_num_samples_derives_or_is_refused (void)
   return 0;
 }
 
+/* The scene reader's field sizes (#3321). "bits" is a JSON number, and a
+   JSON double holds a whole number exactly only below 2^53: a larger one, a
+   fraction or a negative is refused by name, before any cast to size_t. The
+   2^64 - 2048 that wrapped the layout on main is refused here.
+
+   Prediction (written before the sabotage runs): with this check removed
+   and the layout's checked sums kept, the scene is refused by the layout
+   instead, so the scene stays refused; with both removed, the wrapped frame
+   assembles out of bounds and the scene goes red under test-asan. */
+static int
+test_scene_field_bits (void)
+{
+  const char *why = NULL;
+  DP_CHECK_MSG (
+      dp_wfm_compose_from_json_why (
+          "{\"version\":1,\"segments\":[{\"type\":\"bits\",\"fs\":1e6,"
+          "\"sps\":4,\"modulation\":\"bpsk\",\"snr\":100.0,\"snr_mode\":"
+          "\"fs\","
+          "\"frame\":{\"fields\":["
+          "{\"name\":\"hdr\",\"spec\":\"0101110001011100\"},"
+          "{\"name\":\"payload\",\"spec\":\"pn:4000:5\"},"
+          "{\"name\":\"crc\",\"bits\":18446744073709549568,"
+          "\"derived_by\":1}],"
+          "\"stages\":[{\"kind\":\"crc16\",\"first_field\":1,"
+          "\"n_fields\":2}]}}]}",
+          &why)
+              == NULL
+          && why != NULL,
+      "the scene's 2^64 - 2048-bit crc is refused (#3321)");
+  why = NULL;
+  DP_CHECK_MSG (
+      dp_wfm_compose_from_json_why (
+          "{\"version\":1,\"segments\":[{\"type\":\"bits\",\"fs\":1e6,"
+          "\"sps\":4,\"modulation\":\"bpsk\",\"snr\":100.0,\"snr_mode\":"
+          "\"fs\","
+          "\"frame\":{\"fields\":["
+          "{\"name\":\"payload\",\"spec\":\"pn:4000:5\"},"
+          "{\"name\":\"crc\",\"bits\":16.5,\"derived_by\":1}],"
+          "\"stages\":[{\"kind\":\"crc16\",\"first_field\":0,"
+          "\"n_fields\":2}]}}]}",
+          &why)
+              == NULL
+          && why && strstr (why, "whole number"),
+      "a fractional \"bits\" is refused by name");
+}
+
 int
 main (void)
 {
+  test_scene_field_bits ();
   /* tone @100kHz (1000 on, 500 off), then qpsk (4096 on, 0 off). */
   wfm_source_t  src0    = { .type      = 0,
                             .freq      = 1e5,

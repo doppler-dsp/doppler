@@ -556,3 +556,14 @@ def test_add_field_takes_bits_only() -> None:
     with pytest.raises(ValueError):
         d.add_field("digit", np.array([1, 101], np.uint8))
     assert d.n_fields() == 0, "a refusal appends nothing"
+
+
+def test_a_300000_bit_frame_builds_and_checks():
+    # #3321: the Field text bound is the grammar's, not a frame's. A frame
+    # whose payload is a whole file must build, assemble and pass its CRC;
+    # refusing it at 261,120 bits broke every such frame that worked on main.
+    payload = np.ones(300000, dtype=np.uint8)
+    f = Frame(payload=payload, crc="crc16")
+    b = f.bits()
+    assert b.size == 300000 + 16
+    assert f.crc_ok(b) == 1

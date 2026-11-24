@@ -56,6 +56,20 @@
  * clock. A receiver's ".phase.car" and ".phase.code" probes, stamped at the
  * same sample, are compared against these.
  *
+ * Which truth fields are exact. The code fields (code_chips, tx_chips,
+ * symbol), the level (level_db) and the on-air flag (on) are closed forms of
+ * the timeline and of the shipped objects' delays: exact. The carrier fields
+ * (car_hz, car_cycles) are exact to the track, or to the create-time form for
+ * a straight line. But under a carrier TRACK the carrier the channel applies
+ * is read off its resampler's position, which steps in 2^-32 of an input
+ * interval, so the realised carrier is within DP_CCSDS_415_FC_LO * 2^-32 Hz
+ * (0.51 Hz at 2.2 GHz, 0.65 Hz at 2.8 GHz) of car_hz, and car_cycles drifts by
+ * at most that many cycles a second. That bound is the channel's own,
+ * test_doppler_channel_core.c section 8b; test_dp_air.c section 7 holds the
+ * residual to it. So carrier PHASE from this truth is not exact, and a scorer
+ * must classify on carrier in Hz, where the bound is small against the
+ * resolution.
+ *
  * Allocates; dp_air_free() releases.
  */
 #ifndef DP_AIR_TEST_H
@@ -77,6 +91,21 @@
 #define DP_AIR_SPC 4u
 /** Synth samples rendered per step of the chain. */
 #define DP_AIR_CHUNK 4096u
+
+/**
+ * A track: the carrier offset and the level of an emitter against time,
+ * piecewise linear between knots, held at the last knot after it. The carrier
+ * is the offset in Hz at baseband, the Doppler the receiver sees; the level is
+ * a change in dB against the emitter's own C/N0. A pass is not a straight line
+ * in either, which is why a track replaces the create-time closed form.
+ */
+typedef struct
+{
+  const double *t;      /**< knot times, s, increasing, t[0] = 0          */
+  const double *f_hz;   /**< carrier offset at each knot, Hz              */
+  const double *lvl_db; /**< level change at each knot, dB (0: its C/N0)  */
+  size_t        n;      /**< knots, at least 2                            */
+} dp_air_track_t;
 
 /** One emitter: its waveform, where it sits on the air, and its level. */
 typedef struct
@@ -103,6 +132,14 @@ typedef struct
                      DP_AIR_SPC. To show what the front end's band does:
                      at 2 the converter interpolates and the held chips'
                      images come through its transition band */
+  double off_s; /**< the receive time it goes silent, s; 0: it never sets.
+                     Its samples from there on are not summed into the scene,
+                     so the scene is the one without it, bit for bit */
+  const dp_air_track_t *track; /**< NULL: the create-time carrier (f0_hz,
+                     rate_hz_s) and level (cn0_dbhz) above. Otherwise the
+                     carrier and level follow the track, rendered through
+                     dp_doppler_channel_execute_profile(); f0_hz and rate_hz_s
+                     are then unused */
 } dp_air_emitter_t;
 
 /** A scene: emitters, the rate they are received at, and the noise. */
@@ -126,7 +163,11 @@ typedef struct
   dp_awgn_state_t            *noise; /**< NULL: no noise               */
   float _Complex             *gen, *mid;
   size_t                      mid_cap;
-  uint64_t                    n_out; /**< receive samples produced       */
+  double                     *ppm; /**< a track's per-input-sample ppm  */
+  size_t                      ch_in[DP_AIR_MAX_K]; /**< input samples
+                                                        a track's channel
+                                                        has taken       */
+  uint64_t n_out; /**< receive samples produced       */
 } dp_air_t;
 
 /** Release a scene (safe on a partly built one). */
@@ -143,6 +184,7 @@ dp_air_free (dp_air_t *a)
   dp_awgn_destroy (a->noise);
   free (a->gen);
   free (a->mid);
+  free (a->ppm);
   memset (a, 0, sizeof *a);
 }
 
@@ -166,7 +208,8 @@ dp_air_init (dp_air_t *a, const dp_air_emitter_t *em, int k, double fs,
   a->gen          = malloc (DP_AIR_CHUNK * sizeof *a->gen);
   a->mid_cap      = (size_t)4 * DP_AIR_CHUNK;
   a->mid          = malloc (a->mid_cap * sizeof *a->mid);
-  if (!a->gen || !a->mid)
+  a->ppm          = malloc (a->mid_cap * sizeof *a->ppm);
+  if (!a->gen || !a->mid || !a->ppm)
     goto fail;
   if (!isnan (ref_cn0_dbhz))
     {
@@ -191,8 +234,8 @@ dp_air_init (dp_air_t *a, const dp_air_emitter_t *em, int k, double fs,
                                        (int)a->spc[i], 15, 0, 0, 0.0);
       a->rc[i]  = dp_RateConverter_create (fs / a->fs_gen[i], 0);
       a->ch[i]  = dp_doppler_channel_create (
-          fs, e->carrier_hz, e->f0_hz / e->carrier_hz * 1e6,
-          e->rate_hz_s / e->carrier_hz * 1e6);
+          fs, e->carrier_hz, e->track ? 0.0 : e->f0_hz / e->carrier_hz * 1e6,
+          e->track ? 0.0 : e->rate_hz_s / e->carrier_hz * 1e6);
       a->buf[i] = malloc (a->cap * sizeof *a->buf[i]);
       if (!a->syn[i] || !a->rc[i] || !a->ch[i] || !a->buf[i]
           || dp_wfm_synth_set_dsss_cont (
@@ -227,6 +270,62 @@ fail:
   return 0;
 }
 
+/* A track's carrier offset, Hz, at time t: linear between knots, held at the
+   last knot past the end. */
+static inline double
+dp_air_track_f (const dp_air_track_t *k, double t)
+{
+  if (t >= k->t[k->n - 1])
+    return k->f_hz[k->n - 1];
+  size_t j = 0;
+  while (j + 1 < k->n && t >= k->t[j + 1])
+    j++;
+  const double w = (t - k->t[j]) / (k->t[j + 1] - k->t[j]);
+  return k->f_hz[j] + w * (k->f_hz[j + 1] - k->f_hz[j]);
+}
+
+/* A track's level, dB against the emitter's C/N0, at time t (linear in dB). */
+static inline double
+dp_air_track_lvl (const dp_air_track_t *k, double t)
+{
+  if (t >= k->t[k->n - 1])
+    return k->lvl_db[k->n - 1];
+  size_t j = 0;
+  while (j + 1 < k->n && t >= k->t[j + 1])
+    j++;
+  const double w = (t - k->t[j]) / (k->t[j + 1] - k->t[j]);
+  return k->lvl_db[j] + w * (k->lvl_db[j + 1] - k->lvl_db[j]);
+}
+
+/* The carrier phase a track applies by time t, in cycles: the integral of its
+   offset, the exact integral of the piecewise-linear track (each segment's
+   quadratic). Closed form, no accumulator. */
+static inline double
+dp_air_track_phase (const dp_air_track_t *k, double t)
+{
+  double ph = 0.0;
+  for (size_t j = 0; j + 1 < k->n; j++)
+    {
+      const double a = k->t[j], b = k->t[j + 1];
+      if (t <= a)
+        break;
+      const double te = t < b ? t : b;
+      const double s  = (k->f_hz[j + 1] - k->f_hz[j]) / (b - a);
+      const double d  = te - a;
+      ph += k->f_hz[j] * d + 0.5 * s * d * d;
+    }
+  if (t > k->t[k->n - 1])
+    ph += k->f_hz[k->n - 1] * (t - k->t[k->n - 1]);
+  return ph;
+}
+
+/* The gain a track's level applies to an emitter's amplitude at time t. */
+static inline double
+dp_air_track_gain (const dp_air_track_t *k, double t)
+{
+  return pow (10.0, dp_air_track_lvl (k, t) / 20.0);
+}
+
 /** The next `n` receive samples of the scene into `x`; 0 on a refusal. */
 static inline int
 dp_air_next (dp_air_t *a, float _Complex *x, size_t n)
@@ -251,13 +350,44 @@ dp_air_next (dp_air_t *a, float _Complex *x, size_t n)
           const size_t r    = dp_RateConverter_execute (a->rc[i], a->gen, m,
                                                         a->mid, a->mid_cap);
           const size_t room = a->cap - a->len[i];
-          if (room < r + 64)
+          const dp_air_emitter_t *e = &a->em[i];
+          if (!e->track)
+            {
+              if (room < r + 64)
+                return 0;
+              a->len[i] += dp_doppler_channel_execute (
+                  a->ch[i], a->mid, r, a->buf[i] + a->len[i], room);
+              continue;
+            }
+          /* A track: the Doppler of each input sample, from the track at that
+             sample's time, through the channel's profile. The channel takes
+             every input it is given, so the whole block is consumed. */
+          if (room < 2 * r + 64)
             return 0;
-          a->len[i] += dp_doppler_channel_execute (
-              a->ch[i], a->mid, r, a->buf[i] + a->len[i], room);
+          for (size_t q = 0; q < r; q++)
+            a->ppm[q]
+                = dp_air_track_f (e->track, (double)(a->ch_in[i] + q) / a->fs)
+                  / e->carrier_hz * 1e6;
+          const int64_t got = dp_doppler_channel_execute_profile (
+              a->ch[i], a->mid, r, a->ppm, r, a->buf[i] + a->len[i], room);
+          if (got < 0 || dp_doppler_channel_consumed (a->ch[i]) != r)
+            return 0;
+          a->ch_in[i] += r;
+          a->len[i] += (size_t)got;
         }
       for (size_t j = 0; j < n; j++)
-        x[j] += a->amp[i] * a->buf[i][j];
+        {
+          /* An emitter that has set contributes nothing from its set sample
+             on, so the scene equals the one without it, bit for bit. */
+          const double ts = (double)(a->n_out + j) / a->fs;
+          if (a->em[i].off_s > 0.0 && ts >= a->em[i].off_s)
+            continue;
+          if (a->em[i].track)
+            x[j] += a->amp[i] * dp_air_track_gain (a->em[i].track, ts)
+                    * a->buf[i][j];
+          else
+            x[j] += a->amp[i] * a->buf[i][j];
+        }
       a->len[i] -= n;
       memmove (a->buf[i], a->buf[i] + n, a->len[i] * sizeof *a->buf[i]);
     }
@@ -274,6 +404,8 @@ typedef struct
                           its first chip                                  */
   double tx_chips;   /**< chips the emitter has sent by then (unwrapped) */
   long   symbol;     /**< data symbol index from its frame's start        */
+  double level_db;   /**< the track's level change at k, dB (0: no track) */
+  int    on;         /**< 1 while the emitter is on the air at k          */
 } dp_air_truth_t;
 
 /**
@@ -293,13 +425,24 @@ dp_air_truth (const dp_air_t *a, int i, uint64_t k)
   const dp_air_emitter_t           *e  = &a->em[i];
   const double                      t  = (double)k / a->fs;
   dp_air_truth_t                    o;
-  o.car_cycles = doppler_channel_phase (ch, t);
-  o.car_hz
-      = e->carrier_hz * (ch->doppler_ppm + ch->doppler_rate_ppm_s * t) * 1e-6;
+  /* A track's carrier is the integral of its offset, the same closed form the
+     channel's own create-time pair gives for a straight line. Its dilation
+     is that phase over the carrier. */
+  const double excess = e->track
+                            ? dp_air_track_phase (e->track, t) / e->carrier_hz
+                            : doppler_channel_excess (ch, t);
+  o.car_cycles        = e->track ? dp_air_track_phase (e->track, t)
+                                 : doppler_channel_phase (ch, t);
+  o.car_hz = e->track
+                 ? dp_air_track_f (e->track, t)
+                 : e->carrier_hz
+                       * (ch->doppler_ppm + ch->doppler_rate_ppm_s * t) * 1e-6;
+  o.level_db = e->track ? dp_air_track_lvl (e->track, t) : 0.0;
+  o.on       = e->off_s <= 0.0 || t < e->off_s;
   /* Receive time -> the channel's input time -> the converter's input time
      -> the synth's own sample count, less the emitter's silence. */
-  const double t_ch = t + doppler_channel_excess (ch, t)
-                      - dp_doppler_channel_get_delay_samples (ch) / a->fs;
+  const double t_ch
+      = t + excess - dp_doppler_channel_get_delay_samples (ch) / a->fs;
   const double t_gen
       = t_ch - dp_RateConverter_get_group_delay (a->rc[i]) / a->fs_gen[i];
   const double s

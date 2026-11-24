@@ -1698,9 +1698,10 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
    co-located true emitter looks the same to it (§8, doppler#2551). With A
    at 55 dB-Hz it holds neither flag and the loss release frees it
    (lost_confirm_s 0.5 s). The 60 dB-Hz k = 0 case under the shipped
-   refine is _test_shipped_pool_leaves_one_on_a: the fine hand-over
-   carries the k = 2 seed to A's carrier, where it is held (the strict
-   xfail on doppler#3263).
+   refine is _test_shipped_pool_frees_a_dropped_ghost: the fine hand-over
+   carries the k = 2 seed to A's carrier, where the loss release frees a
+   ghost that drops both flags; one that keeps a flag up is held, a rate
+   over the validator (doppler#3263).
    Sabotage: drop the ghost pass -> the k = 2 ghost holds to the end; let
    the carrier test take k = 0 -> the 55 dB-Hz one leaves as a ghost; drop the
    pool's reset of a lost receiver -> the 55 dB-Hz one is never freed. Not
@@ -1727,7 +1728,7 @@ _test_ghost_is_released (void)
   }
   /* The refine is OFF here, and only that keeps the seed on its lattice
      image: the shipped pool refines, and its fine hand-over takes this
-     seed to A's own carrier (_test_shipped_pool_leaves_one_on_a,
+     seed to A's own carrier (_test_shipped_pool_frees_a_dropped_ghost,
      doppler#3263). This is the ghost rule's pin, not the shipped
      configuration. */
   _g415_t z;
@@ -1956,80 +1957,57 @@ _test_refine_passes_through (void)
   return 0;
 }
 
-/* The k = 2 scene under the shipped pool, a STRICT XFAIL (doppler#3263):
-   the release rules as shipped (lost_confirm_s at
-   objects/async_dsss_pool.toml's default, 2.0 s; the duplicate and ghost
-   rules always on), run to the lock allocation (DP_S415_LOCK_S) at 2.8
-   GHz. The fine hand-over takes the seed two lattice steps off A to A's
-   own carrier, where the ghost rule leaves it (a k = 0 ghost and a
-   co-located true emitter look the same to it, §8, doppler#2551), and the
-   ghost, on a -24 dB sidelobe of a 60 dB-Hz A, keeps a flag up often
-   enough that the loss release never fires: the pool ends the allocation
-   with two receivers on A. Seed 12 is one the record holds
+/* The k = 2 scene under the shipped pool: the release rules as shipped
+   (lost_confirm_s at objects/async_dsss_pool.toml's default, 2.0 s; the
+   duplicate and ghost rules always on), run to the lock allocation
+   (DP_S415_LOCK_S) at 2.8 GHz. The fine hand-over takes the seed two
+   lattice steps off A to A's own carrier, where the ghost rule leaves it
+   (a k = 0 ghost and a co-located true emitter look the same to it, §8,
+   doppler#2551). What frees it then is the loss release: the ghost, on a
+   -24 dB sidelobe of a 60 dB-Hz A, frees when both its flags stay down for
+   lost_confirm_s. Asserted on seed 2, a draw whose ghost drops both flags
+   early (620 tracking steps, 511 of them both down): the loss release
+   frees it inside the allocation, and nothing else releases it. Seed 2
+   reads that way under gcc and clang Release, ASan and the coverage build.
+   Sabotage: lost_confirm_s past the allocation -> seed 2 is held, red.
+
+   Not asserted: that a ghost which keeps a flag up is HELD. That is the
+   declared near-far limit, and it is a rate, not a draw: the record's
+   FORCED arm on this same scene holds 5 of 20 at k = 2, 2.8 GHz
    (docs/design/async-dsss-receiver-measurements/final-9ce208250/
-   ghosts_forced.csv, the validator's FORCED arm on this same scene: 5 of
-   20 held at k = 2 at 2.8 GHz, seeds 3, 9, 10, 12 and 13; seed 2 freed by
-   the loss release inside the allocation; run as seed 2 this test is red,
-   its failing case). Seed 12's longest run with both flags down is
-   0.256 s against lost_confirm_s 2.0 s, the widest margin of the five.
-   Which draws are held moves with the tree (run-cen-0373a01d5 held seeds
-   5, 9, 15 and 20; seed 5, at 1.76 s, is freed on this one), so a seed
-   is a pin on one tree; a count over the validator would not be, and
-   removing that fragility is doppler#3263's. That is the declared
-   near-far limit; no rule
-   built today separates it without releasing usable tracks
-   (doppler#3263). The test asserts the defect is STILL THERE, so it goes
-   red the day a rule closes it: then restore the claim (receiver 1 idle,
-   exactly one release) and close the issue. "Held" is receiver 1's tenure
-   unbroken (_shipped_ghost_held): no release of any kind, still tracking,
-   on A's carrier; seed 2 runs beside it as the failing case. The ghost
-   rule's own pin, on a pool whose seed stays at k = 2, is
-   _test_ghost_is_released. */
-/* Receiver 1's tenure unbroken to the end of a shipped-pool k = 2 scene:
-   no release of any kind (so a release the search re-seeded in the same
-   control step still counts as broken), still tracking, and on A's own
-   carrier (within half a lattice step). Prints the scene's line. */
+   ghosts_forced.csv, seeds 3, 9, 10, 12 and 13). Which draws are held
+   moves with the tree and with the build: seed 12 is held under gcc and
+   clang Release and freed under ASan and the coverage build, and seed 5,
+   held in run-cen-0373a01d5, is freed on this tree. A single-seed pin
+   cannot hold across CI's builds, so the held case is a count over the
+   validator, which is doppler#3263's. The ghost rule's own pin, on a pool
+   whose seed stays at k = 2, is _test_ghost_is_released. */
 static int
-_shipped_ghost_held (const uint8_t *code, uint32_t seed, int *held)
+_test_shipped_pool_frees_a_dropped_ghost (void)
 {
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
   _g415_t z;
-  DP_REQUIRE (_g415_scene (code, seed, 60.0, 2, 2.0, DP_S415_LOCK_S, true, &z)
+  DP_REQUIRE (_g415_scene (code, 2, 60.0, 2, 2.0, DP_S415_LOCK_S, true, &z)
               == 0);
   dp_async_dsss_pool_state_t *p = z.p;
-  printf ("k = 2 scene, shipped pool, seed %u, %.0f s: carrier %.1f Hz off "
+  printf ("k = 2 scene, shipped pool, seed 2, %.0f s: carrier %.1f Hz off "
           "A's, %ld tracking steps (%ld code up, %ld symbol up, %ld both "
           "down), released ghost %llu duplicate %llu lost %llu\n",
-          seed, DP_S415_LOCK_S, z.df_end, z.n, z.code_up, z.sym_up,
-          z.both_down, (unsigned long long)p->released_ghost,
+          DP_S415_LOCK_S, z.df_end, z.n, z.code_up, z.sym_up, z.both_down,
+          (unsigned long long)p->released_ghost,
           (unsigned long long)p->released_duplicate,
           (unsigned long long)p->released_lost);
   DP_REQUIRE_MSG (z.tracked, "the seed reached tracking");
   DP_REQUIRE (dp_async_dsss_pool_status (p, 0).state
               == ASYNC_DSSS_RX_TRACKING);
-  *held = p->released_ghost + p->released_duplicate + p->released_lost == 0
-          && dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_TRACKING
-          && fabs (z.df_end) < 0.5 * p->lattice_hz;
+  DP_CHECK_MSG (fabs (z.df_end) < 0.5 * p->lattice_hz,
+                "the fine hand-over took the seed to A's own carrier");
+  DP_CHECK_MSG (p->released_lost == 1 && p->released_ghost == 0
+                    && p->released_duplicate == 0,
+                "the loss release frees the dropped ghost, and nothing else "
+                "releases it");
   dp_async_dsss_pool_destroy (p);
-  return 0;
-}
-
-static int
-_test_shipped_pool_leaves_one_on_a (void)
-{
-  uint8_t code[1023];
-  dp_dsss_gold_1023 (code);
-  int held12, held2;
-  DP_REQUIRE (_shipped_ghost_held (code, 12, &held12) == 0);
-  DP_CHECK_MSG (held12,
-                "XFAIL (strict) doppler#3263: the shipped pool still holds a "
-                "k = 0 ghost on A, its tenure unbroken, to the allocation's "
-                "end; if this is red, a rule closed it -- restore the claim "
-                "and close the issue");
-  /* The failing case: seed 2, which the loss release frees inside the
-     allocation, must read not held. */
-  DP_REQUIRE (_shipped_ghost_held (code, 2, &held2) == 0);
-  DP_CHECK_MSG (!held2, "control: a ghost the loss release frees is not "
-                        "read as held");
   return 0;
 }
 
@@ -2040,7 +2018,7 @@ main (void)
   DP_CHECK (_test_refine_passes_through () == 0);
   DP_CHECK (_test_ghost_test_edges () == 0);
   DP_CHECK (_test_ghost_is_released () == 0);
-  DP_CHECK (_test_shipped_pool_leaves_one_on_a () == 0);
+  DP_CHECK (_test_shipped_pool_frees_a_dropped_ghost () == 0);
   DP_CHECK (_test_ghost_needs_both_tests () == 0);
   DP_CHECK (_test_search_runs_once () == 0);
   DP_CHECK (_test_duplicates_keep_the_first () == 0);

@@ -4,6 +4,7 @@
  * (doppler/ccsds/ccsds_415_frame.h).
  */
 #include "doppler/ccsds/ccsds_415_frame.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 
 #include <stdint.h>
@@ -80,12 +81,9 @@ check_frame (size_t octets)
   uint8_t *data = malloc (8 * octets);
   uint8_t *out  = malloc (lay.frame_bits);
   DP_REQUIRE (data && out);
-  uint32_t lcg = 0x415u;
+  uint32_t rng = 0x415u;
   for (size_t i = 0; i < 8 * octets; i++)
-    {
-      lcg     = lcg * 1664525u + 1013904223u;
-      data[i] = (uint8_t)(lcg >> 31);
-    }
+    data[i] = (uint8_t)(dp_xs32 (&rng) >> 31);
   DP_REQUIRE (
       dp_wfm_frame_assemble_data (&f.desc, NULL, data, out, lay.frame_bits)
       == lay.frame_bits);

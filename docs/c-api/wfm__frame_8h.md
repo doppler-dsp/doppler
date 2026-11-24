@@ -402,7 +402,7 @@ size_t dp_wfm_dsss_desc_nchips (
 
 **Returns:**
 
-burst chips, or 0 if the description is refused, or it has bits and `data_len` is 0, or there is nothing to transmit. 
+burst chips, or 0 if the description is refused, or it has bits and `data_len` is 0, or there is nothing to transmit, or the chip count does not fit a size\_t (every product and sum is checked, #3321). 
 
 
 
@@ -1172,7 +1172,7 @@ A frame draws from ONE data source, so it carries at most one WFM\_SEQ\_DATA fie
 
 **Returns:**
 
-0, or -1 if `d` or `out` is NULL, a count or a cover runs past its array, a derived field names no producing stage, an emitting stage covers less than the whole frame or is not the only one, the frame has two data fields, or a size wraps: a field's bits, a stage's span, the frame's bits or its emitted bits does not fit a size\_t (#3321). A description refused here is never assembled, so no caller sizes a buffer from a wrapped frame. 
+0, or -1 if `d` or `out` is NULL, a count or a cover runs past its array, a derived field names no producing stage, an emitting stage covers less than the whole frame or is not the only one, the frame has two data fields, an emitting stage shrinks the frame (its output is shorter than the frame, which assembly cannot place, #3328), or a size wraps: a field's bits, a stage's span, the frame's bits or its emitted bits does not fit a size\_t (#3321). A description refused here is never assembled, so no caller sizes a buffer from a wrapped frame. 
 
 
 

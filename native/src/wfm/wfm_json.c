@@ -253,8 +253,10 @@ read_num_keys (const cJSON *o, void *base, const num_key_t *keys, size_t n,
     {
       void        *p = (char *)base + keys[i].off;
       const double v = num (o, keys[i].key, 0);
-      const double hi
-          = keys[i].wide ? 9007199254740992.0 /* 2^53 */ : (double)UINT_MAX;
+      /* 2^53 for a size_t, 2^32 for an unsigned: the cast below is exact
+         and in range for every value this accepts. */
+      const double hi = keys[i].wide ? 9007199254740992.0 /* 2^53 */
+                                     : (double)UINT_MAX + 1.0;
       if (v < 0.0 || v != floor (v) || v >= hi)
         {
           *why = keys[i].wide
@@ -404,8 +406,9 @@ read_data_identity (const cJSON *so, uint64_t *bits, uint64_t *h,
       = cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (d, "hash"));
   char *end = NULL;
   errno     = 0;
-  if (cJSON_IsNumber (bj) && bj->valuedouble >= 0.0 && txt
-      && strncmp (txt, "0x", 2) == 0)
+  if (cJSON_IsNumber (bj) && bj->valuedouble >= 0.0
+      && bj->valuedouble < 9007199254740992.0 /* 2^53: exact, in range */
+      && txt && strncmp (txt, "0x", 2) == 0)
     *h = (uint64_t)strtoull (txt + 2, &end, 16);
   if (!end || errno || end == txt + 2 || *end)
     {

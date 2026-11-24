@@ -27,6 +27,8 @@ from .dsss import (  # noqa: E402
     AsyncDsssReceiver,
     BurstDemod,
     BurstDespreader,
+    Ccsds415Pool,
+    Ccsds415Receiver,
     Despreader,
     DsssBurstReceiver,
     DsssReceiver,
@@ -53,4 +55,6 @@ __all__ = [
     "Acquirer",
     "CoarseChannel",
     "Detection",
+    "Ccsds415Receiver",
+    "Ccsds415Pool",
 ]

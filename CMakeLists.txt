@@ -540,6 +540,7 @@ add_subdirectory(native/src/hbdecim)
 add_subdirectory(native/src/resamp)
 add_subdirectory(native/src/wfmcompose)
 add_subdirectory(native/src/ccsds_tm)
+add_subdirectory(native/src/ccsds_415)
 add_subdirectory(native/src/conv)
 add_subdirectory(native/src/rs)
 add_subdirectory(native/src/frame)
@@ -935,6 +936,12 @@ add_subdirectory(native/src/stream)
 # is exactly why it went unnoticed until jm 0.62's wiring check.
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ccsds_tm_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ccsds_tm_core>)
+
+# ccsds_415_core for the same reason: doppler/ccsds/ccsds_415.h is installed
+# and its functions are out of line, so a C consumer building at the
+# 415.1-B-1 point links them from libdoppler.
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ccsds_415_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ccsds_415_core>)
 
 # conv_core for the same reason, and it is the stronger case: native/inc/doppler/conv
 # is an installed header whose every function is out-of-line, and `ccsds_tm`

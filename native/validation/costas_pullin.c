@@ -419,7 +419,8 @@ static double
 hb_nda_bn (double fc)
 {
   return dp_async_dsss_receiver_carrier_bn (
-      dp_s415_cn0 (DP_S415_FLOOR_DB), dp_s415_chip_rate (fc), DP_S415_SF);
+      dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB),
+      dp_ccsds_415_chip_rate (fc), DP_CCSDS_415_SF);
 }
 
 /* The twelve configurations, in the order --half-bw numbers its points:
@@ -439,9 +440,10 @@ hb_nda_cfgs (hb_nda_t *n)
           n[i].den      = dn;
           n[i].bn_obj   = bn;
           n[i].zeta_obj = 0.707;
-          n[i].gamma_fl = pow (10.0, (dp_s415_cn0 (DP_S415_FLOOR_DB)
-                                      + 10.0 * log10 (n[i].c.t_upd))
-                                         / 10.0);
+          n[i].gamma_fl
+              = pow (10.0, (dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB)
+                            + 10.0 * log10 (n[i].c.t_upd))
+                               / 10.0);
           /* The receiver's sizing before it moved to the loop's
              delivered bandwidth: the unit form's jitter at the rule's bn,
              bn (1 + 1/(2 gamma)) / gamma, and the exact tail

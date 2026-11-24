@@ -45,3 +45,56 @@ def asm_bits() -> NDArray[np.uint8]:
     True
 
     """
+
+def ccsds415_chip_rate(fc: float) -> float:
+    r"""Chips a second at carrier `fc` (Hz) at the CCSDS 415.1-B-1 point: F_fwd
+    x 31 / (221 x 96), table 4-1. Computed in C with fast math off, so every
+    compiler and this function give the same bits.
+
+    >>> from doppler.ccsds import ccsds415_chip_rate
+    >>> ccsds415_chip_rate(2.2e9)
+    3214555.052790347
+
+    An alias over dp_ccsds_415_chip_rate(), which owns the arithmetic; the
+    point's other numbers and the scene helper are
+    doppler/ccsds/ccsds_415.h.
+
+    Parameters
+    ----------
+    fc : float
+        The carrier, F_fwd, Hz.
+
+    Returns
+    -------
+    float
+        The chip rate, chips/s.
+
+    Examples
+    --------
+    printf ("%.6f\n", dp_ccsds415_chip_rate (2.8e9));   // 4091251.885370
+
+    """
+
+def ccsds415_cn0(esn0_db: float) -> float:
+    r"""C/N0 in dB-Hz of an Es/N0 (dB) at the CCSDS 415.1-B-1 point's 3,000
+    symbols a second: `esn0_db + 10 log10(3000)`.
+
+    >>> from doppler.ccsds import ccsds415_cn0
+    >>> round(ccsds415_cn0(4.0), 4)
+    38.7712
+
+    Parameters
+    ----------
+    esn0_db : float
+        Es/N0, dB.
+
+    Returns
+    -------
+    float
+        C/N0, dB-Hz.
+
+    Examples
+    --------
+    printf ("%.4f\n", dp_ccsds415_cn0 (4.0));   // 38.7712
+
+    """

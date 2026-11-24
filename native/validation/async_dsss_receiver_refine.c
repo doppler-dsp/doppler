@@ -31,7 +31,7 @@
  * convention of rx.phase.code), and on the truth's Doppler plus an offset
  * from a grid of OFFSETS across one search row; the emitters' own offsets
  * are RF_OFFSETS points evenly inside the use case's +/-1,500 Hz
- * (DP_S415_SPAN_HZ). Recorded against the
+ * (DP_CCSDS_415_SPAN_HZ). Recorded against the
  * channel's own offset at the hand-over sample: the error of what was
  * handed over, and which estimate it took.
  *
@@ -81,7 +81,7 @@ static uint64_t
 rf_until_decided (dp_async_dsss_receiver_state_t *rx, dp_air_t *air,
                   float complex *x, float complex *out, size_t ocap)
 {
-  const uint64_t max = (uint64_t)(RF_MAX_S * DP_S415_FS);
+  const uint64_t max = (uint64_t)(RF_MAX_S * DP_CCSDS_415_FS);
   uint64_t       fed = 0;
   while (rx->state == ASYNC_DSSS_RX_REFINING && fed < max)
     {
@@ -108,9 +108,10 @@ rate_row (const char *what, size_t k, size_t n, double design, int emit)
 static int
 noise_rows (const uint8_t *code, double fc, size_t n, int emit)
 {
-  const double cn0 = dp_s415_cn0 (DP_S415_FLOOR_DB);
+  const double cn0 = dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB);
   dp_air_t     air;
-  DP_REQUIRE (dp_air_init (&air, NULL, 0, DP_S415_FS, cn0, 4242u, RF_PUSH));
+  DP_REQUIRE (
+      dp_air_init (&air, NULL, 0, DP_CCSDS_415_FS, cn0, 4242u, RF_PUSH));
   dp_async_dsss_receiver_state_t *rx = rf_rx (code, fc);
   DP_REQUIRE (rx != NULL);
   const double   pfa  = rx->pfa;
@@ -127,7 +128,7 @@ noise_rows (const uint8_t *code, double fc, size_t n, int emit)
       dp_async_dsss_receiver_reset (rx);
       const double ph = 1023.0 * dp_uni (&st);
       const double dop
-          = -DP_S415_SPAN_HZ + 2.0 * DP_S415_SPAN_HZ * dp_uni (&st);
+          = -DP_CCSDS_415_SPAN_HZ + 2.0 * DP_CCSDS_415_SPAN_HZ * dp_uni (&st);
       DP_REQUIRE (dp_async_dsss_receiver_seed (rx, ph, dop, cn0) == DP_OK);
       const uint64_t fed = rf_until_decided (rx, &air, x, out, ocap);
       stuck += fed == 0;
@@ -191,7 +192,7 @@ static int
 one_handover (const uint8_t *code, double fc, double cn0, double rate,
               uint32_t s, size_t o, double off_frac, double *err, int *src)
 {
-  const double                    chip = dp_s415_chip_rate (fc);
+  const double                    chip = dp_ccsds_415_chip_rate (fc);
   const size_t                    ocap = 1u << 14;
   float complex                  *x    = dp_xmalloc (RF_PUSH * sizeof *x);
   float complex                  *out  = dp_xmalloc (ocap * sizeof *out);
@@ -200,12 +201,14 @@ one_handover (const uint8_t *code, double fc, double cn0, double rate,
   const double     off = rx->acq->search->doppler_res_hz * off_frac;
   dp_air_emitter_t e   = dp_s415_emitter (
       code, fc,
-      -DP_S415_SPAN_HZ
-          + 2.0 * DP_S415_SPAN_HZ * ((double)o + 0.5) / (double)RF_OFFSETS,
+      -DP_CCSDS_415_SPAN_HZ
+          + 2.0 * DP_CCSDS_415_SPAN_HZ * ((double)o + 0.5)
+                / (double)RF_OFFSETS,
       rate == 0.0 ? 0.0 : (s & 1u ? rate : -rate), cn0, 0.0, 100u + s);
-  e.frame_off = (size_t)(37u * (unsigned)o + 101u * s) % DP_S415_FRAME_SYM;
+  e.frame_off
+      = (size_t)(37u * (unsigned)o + 101u * s) % DP_CCSDS_415_FRAME_SYM;
   dp_air_t air;
-  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_S415_FS, cn0,
+  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, cn0,
                            9001u + 31u * s + (uint32_t)o, RF_PUSH));
   /* A block of signal first, so the refine starts mid-run; the seed's
      code phase is the scene's next sample's, as the receiver's code NCO
@@ -214,7 +217,7 @@ one_handover (const uint8_t *code, double fc, double cn0, double rate,
   const uint64_t       at0 = air.n_out;
   const dp_air_truth_t t0  = dp_air_truth (&air, 0, at0);
   const double         ph
-      = fmod (t0.code_chips - 0.5 * chip / DP_S415_FS + 1023.0, 1023.0);
+      = fmod (t0.code_chips - 0.5 * chip / DP_CCSDS_415_FS + 1023.0, 1023.0);
   DP_REQUIRE (dp_async_dsss_receiver_seed (rx, ph, t0.car_hz + off, cn0)
               == DP_OK);
   const uint64_t fed = rf_until_decided (rx, &air, x, out, ocap);
@@ -236,7 +239,7 @@ static int
 handover_rows (const uint8_t *code, double fc, double esn0, double rate,
                size_t seeds, int emit)
 {
-  const double cn0 = dp_s415_cn0 (esn0);
+  const double cn0 = dp_ccsds_415_cn0 (esn0);
   const size_t n   = RF_OFFSETS * seeds;
   double      *eb  = dp_xmalloc (n * sizeof *eb);
   size_t       k = 0, stuck = 0, sb[4] = { 0 };
@@ -385,7 +388,7 @@ main (int argc, char **argv)
   DP_REQUIRE (dwells >= 1);
   uint8_t code[SF];
   dp_dsss_gold_1023 (code);
-  static const double fcs[2]   = { DP_S415_FC_LO, DP_S415_FC_HI };
+  static const double fcs[2]   = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
   static const double esn0s[2] = { 4.0, 7.0 };
   const double        rates[2] = { 0.0, dp_s415_r_env () };
   if (!emit)

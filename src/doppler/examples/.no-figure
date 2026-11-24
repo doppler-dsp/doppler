@@ -13,3 +13,4 @@ wfmgen_ofdm_demo.py: checks each PPDU against Wlan.ppdu and prints the verdicts;
 wlan_rates_demo.py: prints a table of symbol counts and airtimes; the guide carries it and there is no signal to draw until the PPDU renderer reaches Python
 state_filter_ramp_demo.py: prints two steady phase errors and a bandwidth; the two traces are drawn by the object's validation report (ramp.png) and the tracking-loops guide section carries the two numbers
 state_filter_kalman_demo.py: prints a bandwidth and two settling counts; the guide section carries them
+ccsds415_receiver.py: shows two constructors equal to the full ones and prints their chip rates; it renders no signal, so there is nothing to plot

@@ -43,7 +43,10 @@ FRAME_SYM = 1000  # symbols a frame
 DOPPLER_UNCERTAINTY_HZ = 1500.0  # one-sided: within +/-1,500 Hz
 #: The fastest the Doppler changes: R_env, the residual's rate (the design
 #: page's §1.8; the 415.1-B-1 fixture's dp_s415_r_env(), which
-#: test_c_example_pairs.py holds this equal to).
+#: test_c_example_pairs.py holds this equal to). The point's numbers are the
+#: library's (doppler/ccsds/ccsds_415.h); this face types them until
+#: just-makeit#2755 binds the scene helper, and the C twin prints the
+#: library's, which the pair test holds these equal to, bit for bit.
 DOPPLER_RATE_HZ_S = 11.0
 #: Es/N0 at the receiver input: 6 dB above the link's 4 dB floor, so the
 #: despread symbols show as two clusters. A demonstration, not a validator.
@@ -368,12 +371,41 @@ def run_regime(regime: tuple):
     return check(draws, meter), draws, first
 
 
+def _a(x: float) -> str:
+    """*x* as C's ``printf("%a")`` spells it (glibc): the hexadecimal
+    significand with its trailing zeros dropped, so the twins print the
+    same text for the same bits.
+
+    >>> _a(11e6), _a(-13.75 / 2.2e9 * 1e6), _a(1.0)
+    ('0x1.4fb18p+23', '-0x1.9999999999999p-8', '0x1p+0')
+    """
+    sign, h = ("-", (-x).hex()) if x < 0 else ("", x.hex())
+    mant, exp = h[2:].split("p")
+    whole, _, frac = mant.partition(".")
+    frac = frac.rstrip("0")
+    return f"{sign}0x{whole}{'.' + frac if frac else ''}p{exp}"
+
+
 def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:
     require("matplotlib")
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
+    # The point and each carrier's scene, spelled as C's printf("%a") spells
+    # them, so the pair test compares these literals with the library's
+    # bits (the C twin prints dp_ccsds_415_scene()'s).
+    print(
+        f"point: sf {SF} fs {_a(FS)} sym {_a(SYM_RATE)} span "
+        f"{_a(DOPPLER_UNCERTAINTY_HZ)} r_env {_a(DOPPLER_RATE_HZ_S)} frame "
+        f"{FRAME_SYM} code_only {CODE_ONLY_SYM}"
+    )
+    for name, (_fc, chip, ratio, ppm, ppm_s) in REGIMES.items():
+        print(
+            f"{name}: chip_rate {_a(chip)} ratio {_a(ratio)} start_ppm "
+            f"{_a(ppm)} rate_ppm_s {_a(ppm_s)}"
+        )
 
     results = {}
     for name, regime in REGIMES.items():

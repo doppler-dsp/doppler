@@ -158,6 +158,7 @@
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include "doppler/loop_filter/loop_filter_core.h"
 #include "doppler/state_filter/state_filter_core.h"
+#include "doppler/ccsds/ccsds_415.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -1118,6 +1119,49 @@ typedef enum
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s, bool reacquire, double code_only_s,
       double doppler_rate, bool refine);
+
+  /**
+   * @brief The receiver at the CCSDS 415.1-B-1 specification point
+   *        (doppler/ccsds/ccsds_415.h): the `Ccsds415Receiver` view.
+   *
+   * dp_async_dsss_receiver_create() with every number the point sets, and
+   * the binding's defaults for the rest. The point's chip rate at
+   * @p carrier_freq_hz (dp_ccsds_415_chip_rate()), its 3,000 symbols a
+   * second and 11 MSa/s, its +/-1,500 Hz search, its Doppler rate R_env,
+   * the code-only opening of a frame as the gap, and a carrier lock
+   * designed at the floor's C/N0 (Es/N0 4 dB) whatever level the signal
+   * arrives at, since a receiver is built once, for its weakest signal.
+   * It is the receiver the harnesses measure at this point
+   * (docs/design/async-dsss-receiver-measurements.md).
+   *
+   * @param code             The mission's spreading code, one chip a
+   *                         byte (0/1): 1,023 chips, the point's Gold code
+   *                         length. Any other length is refused.
+   * @param code_len         Its length; must be #DP_CCSDS_415_SF.
+   * @param carrier_freq_hz  The carrier, F_fwd: 2.2 to 2.8 GHz at the
+   *                         point. It sets the chip rate and the carrier
+   *                         loop's code aid.
+   * @param lost_confirm_s   Both flags down for longer than this enters
+   *                         lost (0: never), as on the full create.
+   * @param refine           The refine stage on (true) or off.
+   * @return The receiver, or NULL: a code that is not 1,023 chips, or a
+   *         refusal of dp_async_dsss_receiver_create()'s.
+   *
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Ccsds415Receiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023), np.uint8)
+   * >>> rx = Ccsds415Receiver(code, carrier_freq_hz=2.2e9)
+   * >>> Ccsds415Receiver(code[:511])
+   * Traceback (most recent call last):
+   * ...
+   * ValueError: Ccsds415Receiver: refused: the code must be 1,023 chips ...
+   * @endcode
+   */
+  dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create_ccsds415 (
+      const uint8_t *code, size_t code_len, double carrier_freq_hz,
+      double lost_confirm_s, bool refine);
 
   /** @brief Destroy a receiver and release every child.
    *  @param state May be NULL. */

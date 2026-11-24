@@ -24,6 +24,7 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_async_dsss_receiver[] = {
     (jm_any_fn)dp_async_dsss_receiver_create,
+    (jm_any_fn)dp_async_dsss_receiver_create_ccsds415,
     (jm_any_fn)dp_async_dsss_receiver_destroy,
     (jm_any_fn)dp_async_dsss_receiver_reset,
     (jm_any_fn)dp_async_dsss_receiver_set_telemetry,

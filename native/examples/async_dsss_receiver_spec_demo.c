@@ -58,6 +58,7 @@
 #include <doppler/async_dsss_receiver/async_dsss_receiver_core.h>
 #include <doppler/awgn/awgn_core.h>
 #include <doppler/ber_meter/ber_meter_core.h>
+#include <doppler/ccsds/ccsds_415.h>
 #include <doppler/doppler_channel/doppler_channel_core.h>
 #include <doppler/dp_complex.h>
 #include <doppler/gold/gold_core.h>
@@ -73,19 +74,18 @@
 #include <string.h>
 
 /* ── Setup: the 415.1-B-1 forward link ────────────────────────────────────
- * The same as the Python twin's setup block. */
-#define SF 1023u
-#define SYM_RATE 3000.0
-#define FS 11e6
+ * The point's numbers are the library's (doppler/ccsds/ccsds_415.h), named
+ * here as the Python twin names them. */
+#define SF DP_CCSDS_415_SF
+#define SYM_RATE DP_CCSDS_415_SYM
+#define FS DP_CCSDS_415_FS
 #define CODE_ONLY_SYM                                                         \
-  275u /* each frame opens with these data-free symbols                       \
-        */
-#define FRAME_SYM 1000u
-#define DOPPLER_UNCERTAINTY_HZ 1500.0 /* one-sided: within +/-1,500 Hz */
+  DP_CCSDS_415_CODE_ONLY_SYM /* each frame opens with these */
+#define FRAME_SYM DP_CCSDS_415_FRAME_SYM
+#define DOPPLER_UNCERTAINTY_HZ DP_CCSDS_415_SPAN_HZ /* one-sided */
 /* The fastest the Doppler changes: R_env, the residual's rate (the design
-   page's §1.8; the 415.1-B-1 test fixture's dp_s415_r_env(), which
-   test_c_example_pairs.py holds this equal to). */
-#define DOPPLER_RATE_HZ_S 11.0
+   page's §1.8). */
+#define DOPPLER_RATE_HZ_S DP_CCSDS_415_R_ENV_HZ_S
 /* Es/N0 at the receiver input: 6 dB above the link's 4 dB floor, so the
    despread symbols show as two clusters. A demonstration, not a validator. */
 #define ESN0_DB 10.0
@@ -118,29 +118,25 @@
 #define LOCK_SUSTAIN 200u
 #define LOCK_MIN_FRAC 0.9
 
-/** @brief One carrier: its Hz, the chip rate (the carrier times 31/21216),
- *  the rate converter's ratio (FS over the emitter's two samples a chip),
- *  and the Doppler at the start and its rate in ppm of the carrier, the
- *  unit the channel takes. */
+/** @brief One carrier: its name, its Hz, and the scene's numbers there
+ *  (dp_ccsds_415_scene(): the chip rate, the rate converter's ratio from
+ *  the emitter's two samples a chip, and the Doppler at the start and its
+ *  rate in ppm of the carrier, the unit the channel takes), filled in by
+ *  main(). */
 struct regime
 {
-  const char *name;
-  double      carrier_hz;
-  double      chip_rate;
-  double      ratio;
-  double      start_ppm;
-  double      rate_ppm_s;
+  const char          *name;
+  double               carrier_hz;
+  dp_ccsds_415_scene_t s;
 };
 
-/* The derived numbers are LITERALS, the Python twin's own: a division here
-   is rewritten by -ffast-math into a multiply, a ulp from the Python twin's
-   division, and a ulp of rate moves a bit error between the twins. main()
-   checks them against their definitions. */
-static const struct regime REGIMES[] = {
-  { "2.2 GHz", 2.2e9, 3214555.052790347, 1.7109677419354838,
-    -0.0062499999999999995, 0.005 },
-  { "2.8 GHz", 2.8e9, 4091251.8853695323, 1.344331797235023,
-    -0.004910714285714286, 0.003928571428571429 },
+/* The scene's numbers are computed once, by the library, with fast math
+   off: the Python twin reads the same bits (it types them until
+   just-makeit#2755 binds the helper, and the pair test holds its literals
+   to these through the line main() prints). */
+static struct regime REGIMES[] = {
+  { "2.2 GHz", DP_CCSDS_415_FC_LO, { 0 } },
+  { "2.8 GHz", DP_CCSDS_415_FC_HI, { 0 } },
 };
 #define N_REGIMES (sizeof REGIMES / sizeof REGIMES[0])
 
@@ -181,7 +177,7 @@ capture_open (struct capture *c, const uint8_t *code, const uint8_t *payload,
               const struct regime *r, uint64_t seed)
 {
   memset (c, 0, sizeof *c);
-  const double fs2 = 2.0 * r->chip_rate; /* the emitter's two a chip */
+  const double fs2 = 2.0 * r->s.chip_rate; /* the emitter's two a chip */
   /* The emitter: continuous DSSS, the payload one bit per symbol, clean. */
   const double   freq     = 0.0; /* the Doppler is the channel's */
   const int      snr_mode = 0;   /* moot: the synth adds no noise */
@@ -194,15 +190,16 @@ capture_open (struct capture *c, const uint8_t *code, const uint8_t *payload,
                                 snr_mode, seed_syn, 2, synth_pn_length,
                                 pn_poly, lfsr, f_end);
   CHECK (c->syn, "the emitter opens");
-  CHECK (dp_wfm_synth_set_dsss_cont (c->syn, code, SF, r->chip_rate / SYM_RATE,
+  CHECK (dp_wfm_synth_set_dsss_cont (c->syn, code, SF,
+                                     r->s.chip_rate / SYM_RATE,
                                      WFM_DSSS_DATA_BITS, payload, PAYLOAD_LEN)
              == 0,
          "the emitter takes the payload");
-  c->rc = dp_RateConverter_create (r->ratio, 0);
+  c->rc = dp_RateConverter_create (r->s.ratio, 0);
   /* The Doppler, as ppm of the carrier: it stretches the chip clock and
      rotates the carrier from the one figure. */
-  c->ch = dp_doppler_channel_create (FS, r->carrier_hz, r->start_ppm,
-                                     r->rate_ppm_s);
+  c->ch = dp_doppler_channel_create (FS, r->carrier_hz, r->s.start_ppm,
+                                     r->s.rate_ppm_s);
   /* The noise, added after the channel, at the Es/N0 over one symbol's
      FS / SYM_RATE samples. */
   c->awg = dp_awgn_create (
@@ -322,7 +319,7 @@ run_draw (const uint8_t *code, const uint8_t *payload, const struct regime *r,
      reacquire releases a track whose symbol lock stays down, and searches
      again. The rest are the defaults. */
   const size_t code_len                = SF;
-  const double chip_rate               = r->chip_rate;
+  const double chip_rate               = r->s.chip_rate;
   const double symbol_rate             = SYM_RATE;
   const double sample_rate             = FS;
   const int    m                       = 2; /* BPSK */
@@ -453,19 +450,17 @@ run_draw (const uint8_t *code, const uint8_t *payload, const struct regime *r,
 int
 main (void)
 {
-  /* The literals are what they stand for. */
+  /* The point and each carrier's scene, at %a so the twins compare the
+     bits, not a rounding of them. */
+  printf ("point: sf %u fs %a sym %a span %a r_env %a frame %u code_only %u\n",
+          SF, FS, SYM_RATE, DOPPLER_UNCERTAINTY_HZ, DOPPLER_RATE_HZ_S,
+          FRAME_SYM, CODE_ONLY_SYM);
   for (size_t r = 0; r < N_REGIMES; r++)
     {
-      const struct regime *g = &REGIMES[r];
-      CHECK (fabs (g->chip_rate - g->carrier_hz * 31.0 / 21216.0) < 1e-6,
-             "a carrier's chip rate is fc * 31 / 21216");
-      CHECK (fabs (g->ratio - FS / (2.0 * g->chip_rate)) < 1e-12,
-             "a carrier's ratio is FS over two samples a chip");
-      CHECK (fabs (g->start_ppm * g->carrier_hz * 1e-6 - START_HZ) < 1e-6,
-             "a carrier's ppm is START_HZ");
-      CHECK (fabs (g->rate_ppm_s * g->carrier_hz * 1e-6 - DOPPLER_RATE_HZ_S)
-                 < 1e-6,
-             "a carrier's ppm/s is DOPPLER_RATE_HZ_S");
+      REGIMES[r].s = dp_ccsds_415_scene (REGIMES[r].carrier_hz, 2.0, START_HZ);
+      printf ("%s: chip_rate %a ratio %a start_ppm %a rate_ppm_s %a\n",
+              REGIMES[r].name, REGIMES[r].s.chip_rate, REGIMES[r].s.ratio,
+              REGIMES[r].s.start_ppm, REGIMES[r].s.rate_ppm_s);
     }
 
   /* The Gold code, from doppler's generator at its CCSDS defaults (the

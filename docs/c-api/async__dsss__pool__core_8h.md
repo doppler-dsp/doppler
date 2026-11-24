@@ -82,6 +82,7 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 | Type | Name |
 | ---: | :--- |
 |  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, size\_t n\_receivers, double chip\_rate, double symbol\_rate, double sample\_rate, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks, double carrier\_freq\_hz, double lost\_confirm\_s, bool reacquire, double code\_only\_s, double doppler\_rate, int threads, bool refine) <br>_Create a pool of_ `n_receivers` _receivers built alike._ |
+|  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create\_ccsds415**](#function-dp_async_dsss_pool_create_ccsds415) (const uint8\_t \* code, size\_t code\_len, size\_t n\_receivers, double carrier\_freq\_hz, double lost\_confirm\_s, int threads, bool refine) <br>_A pool of receivers at the CCSDS 415.1-B-1 specification point (_ [_**doppler/ccsds/ccsds\_415.h**_](ccsds__415_8h.md) _): the_`Ccsds415Pool` _view._ |
 |  void | [**dp\_async\_dsss\_pool\_destroy**](#function-dp_async_dsss_pool_destroy) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Destroy a pool and every receiver._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_get\_coherent\_bins**](#function-dp_async_dsss_pool_get_coherent_bins) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_The receivers' slow-time depth D, epochs per coherent block (_ [_**dp\_async\_dsss\_receiver\_get\_coherent\_bins()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_coherent_bins) _); alike for all._ |
 |  void | [**dp\_async\_dsss\_pool\_get\_state**](#function-dp_async_dsss_pool_get_state) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, void \* blob) <br>_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022), the samples carried to the next whole period, the ghost rule's history (each receiver's carriers and code-lock flags over its window), and each receiver's state, and the search's, which carries the exclusions the controller gave it. The last push's symbols do not travel._ |
@@ -301,6 +302,65 @@ ValueError: AsyncDsssPool: refused: ...
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_pool\_create\_ccsds415 
+
+_A pool of receivers at the CCSDS 415.1-B-1 specification point (_ [_**doppler/ccsds/ccsds\_415.h**_](ccsds__415_8h.md) _): the_`Ccsds415Pool` _view._
+```C++
+dp_async_dsss_pool_state_t * dp_async_dsss_pool_create_ccsds415 (
+    const uint8_t * code,
+    size_t code_len,
+    size_t n_receivers,
+    double carrier_freq_hz,
+    double lost_confirm_s,
+    int threads,
+    bool refine
+) 
+```
+
+
+
+[**dp\_async\_dsss\_pool\_create()**](async__dsss__pool__core_8h.md#function-dp_async_dsss_pool_create) with every number the point sets, as [**dp\_async\_dsss\_receiver\_create\_ccsds415()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create_ccsds415) sets them for one receiver, and the binding's defaults for the rest.
+
+
+
+
+**Parameters:**
+
+
+* `code` The mission's spreading code, one chip a byte (0/1): 1,023 chips. Any other length is refused. 
+* `code_len` Its length; must be [**DP\_CCSDS\_415\_SF**](ccsds__415_8h.md#define-dp_ccsds_415_sf). 
+* `n_receivers` Receivers in the pool, &gt;= 1. 
+* `carrier_freq_hz` The carrier, F\_fwd: 2.2 to 2.8 GHz at the point. 
+* `lost_confirm_s` A receiver whose flags are down longer than this is released, as on the full create. 
+* `threads` Worker threads; 0 is the pool's own choice. 
+* `refine` The refine stage on (true) or off. 
+
+
+
+**Returns:**
+
+The pool, or NULL: a code that is not 1,023 chips, or a refusal of [**dp\_async\_dsss\_pool\_create()**](async__dsss__pool__core_8h.md#function-dp_async_dsss_pool_create)'s.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Ccsds415Pool
+>>> from doppler.wfm import Gold
+>>> code = np.asarray(Gold().generate(1023), np.uint8)
+>>> pool = Ccsds415Pool(code, n_receivers=2, carrier_freq_hz=2.8e9)
+>>> pool.n_receivers
+2
+```
+ 
 
 
         

@@ -16,6 +16,7 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     Threads::Threads
     wfm_dsp_core
     gold_core
+    ccsds_415_core
     async_dsss_receiver_core
     ber_core
     carrier_acq_core
@@ -77,6 +78,7 @@ target_link_libraries(test_async_dsss_pool_core
                       PRIVATE async_dsss_pool_core Threads::Threads
     wfm_dsp_core
     gold_core
+    ccsds_415_core
     async_dsss_receiver_core
     ber_core
     carrier_acq_core
@@ -129,6 +131,7 @@ target_link_libraries(bench_async_dsss_pool_core
                       PRIVATE async_dsss_pool_core Threads::Threads
     wfm_dsp_core
     gold_core
+    ccsds_415_core
     async_dsss_receiver_core
     ber_core
     carrier_acq_core

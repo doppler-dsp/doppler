@@ -61,6 +61,16 @@ point is §4.10 to §4.12, its runs [the record](async-dsss-receiver-measurement
 measured at: the certification's 3.069 Mcps point, below, or the pool's
 5 Mcps sizing point (§5).
 
+The point's numbers are installed once, in `doppler/ccsds/ccsds_415.h`:
+the table's rows as constants, the chip rate and C/N0
+(`doppler.ccsds.ccsds415_chip_rate()`, `ccsds415_cn0()`), a scene's derived
+rates (`dp_ccsds_415_scene()`, computed with fast math off so a C program
+and its Python twin read the same bits), and the receiver and pool built
+there (`Ccsds415Receiver`, `Ccsds415Pool`). Every harness, bench and
+example reads them there; `R_env` is a constant that
+`test_async_dsss_receiver_core.c` holds equal to the pass model it comes
+from (`dp_s415_r_env()`, `native/tests/dp_s415_test.h`).
+
 **What the certification covers.** The receiver's
 [certification record](https://github.com/doppler-dsp/doppler/blob/v0.86.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
 holds 23 of 23 limits at 3.069 Mcps and 2,700 sym/s, two samples a chip,
@@ -320,8 +330,8 @@ loops. The tracking code loop is aided every code period from the tracked
 carrier (§4.1); the refine's code loop gets a one-time aid from the seed.
 The model does not depend on the chip rate being on the standard's ratio,
 and nothing checks that it is. With `carrier_freq_hz` 0 all of it is off.
-At this point the harnesses build the receiver with the carrier on
-(`dp_s415_rx()`, `dp_s415_pool()` in `native/tests/dp_s415_test.h`), so
+At this point the harnesses build the receiver with the carrier on (the
+`Ccsds415Receiver` and `Ccsds415Pool` views, `doppler/ccsds/ccsds_415.h`), so
 every harness this page cites runs the coupling. The
 certification record at 3.069 Mcps (§1) ran with `carrier_freq_hz` 0 and
 certifies nothing about it. The library's Doppler channel dilates the whole stream by one
@@ -1953,7 +1963,7 @@ At 10 dB the same total dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 
 
 Every harness that scores the receiver's errors scores them in one window,
 which opens at the observed lock. The 415.1-B-1 allocation gives a signal
-20 s to lock (§7.4.1, `DP_S415_LOCK_S`), and the requirement is that a link
+20 s to lock (§7.4.1, `DP_CCSDS_415_LOCK_S`), and the requirement is that a link
 at 4 and 5 dB locks inside it (agreed;
 `validate_async_dsss_receiver_pullin`'s `check_acq()` holds it per cell).
 
@@ -1984,7 +1994,7 @@ at 4 and 5 dB locks inside it (agreed;
 | error rate, a burst (`async_dsss_receiver_ber.c`)                          | symbols                 | `DP_S415_SCORE_S`, 5 s. The burst runs until all five have been up 200 in a row, then 5 s more, stopping at 20 s with none: at most 25 s | columns `lock_at`, `lock20`, `unaligned_lock`, `early_lock`; a burst that did not lock or align is unsettled                                |
 | error rate, the pool rows (same file, `spec_draw()`)                       | symbols, per receiver   | 5 s per held receiver. The draw runs until three receivers have scored, or 20 s with none still filling: at most 25 s                    | `unlocked` (not locked in 20 s), `unaligned`; `--check` asserts every emitter held, locked and aligned                                      |
 | the decode floor, 3.069 Mcps (`_test_awgn_esn0_floor`)                     | symbols                 | from the start to the record's end, 5,400 symbols (2 s)                                                                                  | the floor's error rate at 4 to 10 dB                                                                                                        |
-| the hand-over under the clock offset (`_test_handover_under_clock_offset`) | symbols                 | one second from the start, which must come inside `DP_S415_LOCK_S`                                                                       | `decoded == 4` of the four seeds                                                                                                            |
+| the hand-over under the clock offset (`_test_handover_under_clock_offset`) | symbols                 | one second from the start, which must come inside `DP_CCSDS_415_LOCK_S`                                                                  | `decoded == 4` of the four seeds                                                                                                            |
 
 **The pins**, each red under its sabotage:
 

@@ -21,14 +21,15 @@ import doppler.ccsds as c
 
 
 def test_all_is_exactly_the_published_surface() -> None:
-    """The module carries the standard's DATA and nothing else.
+    """The module carries the standards' DATA and nothing else.
 
     A guard rather than a tautology: `ccsds_tm`'s transforms — the outer
     code, the randomiser, the inner code — are reached by describing a CADU
     through `doppler.wfm.FrameDesc`, and this module growing a second door
-    to them is exactly what docs/design/frame-description.md rules out.
+    to them is exactly what docs/design/frame-description.md rules out. The
+    415.1-B-1 point's chip rate and C/N0 are its numbers, not a transform.
     """
-    assert c.__all__ == ["asm_bits"]
+    assert c.__all__ == ["asm_bits", "ccsds415_chip_rate", "ccsds415_cn0"]
 
 
 def test_asm_bits_is_the_marker() -> None:

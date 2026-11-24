@@ -61,6 +61,7 @@
 * [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md)
 * [**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md)
 * [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md)
+* [**dp\_ccsds\_415\_scene\_t**](structdp__ccsds__415__scene__t.md)
 * [**dp\_chunk\_t**](structdp__chunk__t.md)
 * [**dp\_cic\_state\_t**](structdp__cic__state__t.md)
 * [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md)

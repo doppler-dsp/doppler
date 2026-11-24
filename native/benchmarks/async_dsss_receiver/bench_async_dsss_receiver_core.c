@@ -509,8 +509,9 @@ spec_print (const char *name, double sec, size_t n, double fs_in)
 static int
 run_spec_search (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 {
-  const double fs_in = DP_S415_FS, chip = dp_s415_chip_rate (pt->carrier_hz);
-  const double cn0                   = dp_s415_cn0 (DP_S415_FLOOR_DB);
+  const double fs_in = DP_CCSDS_415_FS,
+               chip  = dp_ccsds_415_chip_rate (pt->carrier_hz);
+  const double cn0   = dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB);
   dp_async_dsss_receiver_state_t *rx = spec_rx (code, pt->carrier_hz);
   if (!rx)
     return 1;
@@ -564,8 +565,8 @@ run_spec_search (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 static int
 run_spec_track (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 {
-  const double fs_in = DP_S415_FS;
-  const double cn0   = dp_s415_cn0 (DP_S415_FLOOR_DB);
+  const double fs_in = DP_CCSDS_415_FS;
+  const double cn0   = dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB);
   const size_t maxb  = (size_t)(SPEC_MAX_LOCK_S * fs_in) / BLOCK;
   dp_async_dsss_receiver_state_t *rx  = spec_rx (code, pt->carrier_hz);
   float _Complex                 *x   = malloc ((size_t)BLOCK * sizeof *x);
@@ -679,7 +680,7 @@ main (void)
   printf ("\n=== at the 415.1-B-1 specification point: 11 MSa/s in, "
           "3,000 sym/s, 4 dB Es/N0 ===\n");
   static const spec_pt_t pts[]
-      = { { "2.2GHz", DP_S415_FC_LO }, { "2.8GHz", DP_S415_FC_HI } };
+      = { { "2.2GHz", DP_CCSDS_415_FC_LO }, { "2.8GHz", DP_CCSDS_415_FC_HI } };
   /* The CCSDS default Gold code, as wfm.Gold() makes it. */
   static uint8_t   gold[1023];
   dp_gold_state_t *gs = dp_gold_create (934, 350, 567, 73, 10);

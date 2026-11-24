@@ -2,8 +2,9 @@
  * dsss_ext.c — Python extension module dsss
  *
  * Objects: Despreader, BurstDespreader, PolynomialPhaseEstimator, BurstDemod,
- * DsssReceiver, AsyncDsssReceiver, AsyncDsssPool, DsssBurstReceiver GENERATED
- * — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
+ * DsssReceiver, AsyncDsssReceiver, AsyncDsssPool, DsssBurstReceiver,
+ * Ccsds415Receiver, Ccsds415Pool GENERATED — do not hand-edit. Patches belong
+ * in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -192,6 +193,8 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 #include "dsss_ext_async_dsss_receiver.c"
 #include "dsss_ext_burst_demod.c"
 #include "dsss_ext_burst_despreader.c"
+#include "dsss_ext_ccsds415pool.c"
+#include "dsss_ext_ccsds415receiver.c"
 #include "dsss_ext_despreader.c"
 #include "dsss_ext_dsss_burst_receiver.c"
 #include "dsss_ext_dsss_receiver.c"
@@ -265,6 +268,16 @@ PyInit_dsss (void)
     }
   if (PyType_Ready (&DsssBurstReceiverObjType) < 0)
     return NULL;
+  if (PyType_Ready (&Ccsds415ReceiverObjType) < 0)
+    return NULL;
+  Ccsds415ReceiverObj_status_type
+      = AsyncDsssReceiverObj_status_type; /* ReceiverStatus: one public name,
+                                             one type */
+  if (PyType_Ready (&Ccsds415PoolObjType) < 0)
+    return NULL;
+  Ccsds415PoolObj_status_type
+      = AsyncDsssPoolObj_status_type; /* PoolReceiverStatus: one public name,
+                                         one type */
   PyObject *m = PyModule_Create (&dsss_moduledef);
   if (!m)
     return NULL;
@@ -357,6 +370,23 @@ PyInit_dsss (void)
       < 0)
     {
       Py_DECREF (&DsssBurstReceiverObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&Ccsds415ReceiverObjType);
+  if (PyModule_AddObject (m, "Ccsds415Receiver",
+                          (PyObject *)&Ccsds415ReceiverObjType)
+      < 0)
+    {
+      Py_DECREF (&Ccsds415ReceiverObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&Ccsds415PoolObjType);
+  if (PyModule_AddObject (m, "Ccsds415Pool", (PyObject *)&Ccsds415PoolObjType)
+      < 0)
+    {
+      Py_DECREF (&Ccsds415PoolObjType);
       Py_DECREF (m);
       return NULL;
     }

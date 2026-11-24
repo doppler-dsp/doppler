@@ -22,6 +22,10 @@ extern "C" {
 
 void dp_asm_bits(uint8_t *out);
 
+double dp_ccsds415_chip_rate(double fc);
+
+double dp_ccsds415_cn0(double esn0_db);
+
 #ifdef __cplusplus
 }
 #endif

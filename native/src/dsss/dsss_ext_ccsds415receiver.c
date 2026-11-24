@@ -1,0 +1,2451 @@
+/* jm:generated dsss_ext_ccsds415receiver.c */
+/*
+ * dsss_ext_ccsds415receiver.c — Ccsds415Receiver type for the dsss module.
+ *
+ * Included by dsss_ext.c (the module aggregator).
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in dsss_ext_ccsds415receiver_extra.c.
+ * Do NOT compile this file directly — only dsss_ext.c is compiled.
+ */
+/* ======================================================== */
+/* Ccsds415ReceiverObject — wraps dp_async_dsss_receiver_state_t *       */
+/* ======================================================== */
+
+#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+
+typedef struct
+{
+  PyObject_HEAD dp_async_dsss_receiver_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
+  PyObject     *_jm_retain_set_telemetry_tlm; /* keeps tlm's owner alive */
+} Ccsds415ReceiverObject;
+
+static void
+Ccsds415ReceiverObj_dealloc (Ccsds415ReceiverObject *self)
+{
+  if (self->handle)
+    dp_async_dsss_receiver_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
+  Py_XDECREF (self->_jm_retain_set_telemetry_tlm);
+  Py_TYPE (self)->tp_free ((PyObject *)self);
+}
+
+static PyObject *
+Ccsds415ReceiverObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
+  Ccsds415ReceiverObject *self
+      = (Ccsds415ReceiverObject *)type->tp_alloc (type, 0);
+  if (self)
+    self->handle = NULL;
+  return (PyObject *)self;
+}
+
+static int
+Ccsds415ReceiverObj_init (Ccsds415ReceiverObject *self, PyObject *args,
+                          PyObject *kwds)
+{
+  static char *kwlist[]
+      = { "code", "carrier_freq_hz", "lost_confirm_s", "refine", NULL };
+  PyObject *code_obj        = NULL;
+  double    carrier_freq_hz = DP_CCSDS_415_FC_LO;
+  double    lost_confirm_s  = 0.0;
+  int       refine_raw      = true;
+
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|ddp", kwlist, &code_obj,
+                                    &carrier_freq_hz, &lost_confirm_s,
+                                    &refine_raw))
+    return -1;
+  bool           refine = (int)refine_raw;
+  PyArrayObject *code_arr
+      = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
+  if (!code_arr)
+    {
+      return -1;
+    }
+  size_t code_len = (size_t)PyArray_SIZE (code_arr);
+  self->handle    = dp_async_dsss_receiver_create_ccsds415 (
+      (const uint8_t *)PyArray_DATA (code_arr), code_len, carrier_freq_hz,
+      lost_confirm_s, refine);
+  Py_DECREF (code_arr);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "Ccsds415Receiver: refused: the code must be 1,023 "
+                       "chips (the point's Gold code length; the code is the "
+                       "mission's), carrier_freq_hz finite and above 5.5 MHz "
+                       "(the point's 11 MSa/s over two), and lost_confirm_s "
+                       ">= 0");
+      return -1;
+    }
+  return 0;
+}
+
+/* String-enum tables — order is the C int (the [[enum]] SSOT). */
+static const char *const _enum_Ccsds415Receiver_async_dsss_rx_state[] = {
+  "searching", "refining", "tracking", "idle", "lost", NULL,
+};
+static const int _enum_Ccsds415Receiver_async_dsss_rx_state_c[] = {
+  ASYNC_DSSS_RX_SEARCHING, ASYNC_DSSS_RX_REFINING, ASYNC_DSSS_RX_TRACKING,
+  ASYNC_DSSS_RX_IDLE,      ASYNC_DSSS_RX_LOST,
+};
+static inline const char *
+_enum_Ccsds415Receiver_async_dsss_rx_state_name (long v)
+{
+  for (int j = 0; j < 5; j++)
+    if (_enum_Ccsds415Receiver_async_dsss_rx_state_c[j] == v)
+      return _enum_Ccsds415Receiver_async_dsss_rx_state[j];
+  return NULL;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_steps_max_out (Ccsds415ReceiverObject *self,
+                                   PyObject               *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (
+      dp_async_dsss_receiver_steps_max_out (self->handle));
+}
+
+static PyObject *
+Ccsds415ReceiverObj_steps (Ccsds415ReceiverObject *self, PyObject *args,
+                           PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
+                                    &out_obj))
+    return NULL;
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!x_arr)
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      size_t _omax    = dp_async_dsss_receiver_steps_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel. Two calls on
+       * one object may run at once only if its kernel allows it; a
+       * teardown waits for a running call (gh-2272). */
+      float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
+      size_t          n_out;
+      void           *_jm_h = self->handle;
+      jm_inflight_enter (&self->_jm_inflight);
+      Py_BEGIN_ALLOW_THREADS
+        n_out = dp_async_dsss_receiver_steps (_jm_h, x, x_len, _ng0, _cap);
+      Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
+      Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "Ccsds415Receiver.steps: wrote %zu elements into a "
+                        "buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = dp_async_dsss_receiver_steps_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "Ccsds415Receiver.steps: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  size_t n_out;
+  void  *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
+  Py_BEGIN_ALLOW_THREADS
+    n_out = dp_async_dsss_receiver_steps (_jm_h, x, x_len, _d0, _cap);
+  Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
+  Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Ccsds415Receiver.steps: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_seed (Ccsds415ReceiverObject *self, PyObject *args,
+                          PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]
+      = { "chip_phase", "doppler_hz_est", "cn0_dbhz_est", NULL };
+  double chip_phase     = 0.0;
+  double doppler_hz_est = 0.0;
+  double cn0_dbhz_est   = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &chip_phase,
+                                    &doppler_hz_est, &cn0_dbhz_est))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_async_dsss_receiver_seed (self->handle, chip_phase,
+                                         doppler_hz_est, cn0_dbhz_est);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "seed refused: the receiver already holds an assignment "
+                    "(refining, tracking or lost -- reset() releases it), or "
+                    "chip_phase is outside [0, code_len), or doppler_hz_est "
+                    "is not finite and below sample_rate / 2 in magnitude",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyStructSequence_Field Ccsds415ReceiverObj_status_fields[] = {
+  { "state", "ASYNC_DSSS_RX_SEARCHING .. _LOST -- where it is." },
+  { "doppler_hz", "Where the emitter is NOW: the whole carrier estimate, Hz "
+                  "-- loop 1's plus what loop 2 has taken up beyond it (the "
+                  "seed while refining, 0 while searching, frozen where it "
+                  "was when lost). Only as good as `locked`: with the carrier "
+                  "unlocked, loop 1 free-runs and this wanders." },
+  { "chip_phase",
+    "Code phase, chips, at the sample after the last one fed: the live Dll's, "
+    "carried over the partial period the chain holds; while refining, the "
+    "seed's advanced by the clock dilation since (what the hand-over starts "
+    "from), so a refining receiver's signal can be excluded too." },
+  { "code_rate",
+    "The Dll's code rate, chips per nominal chip (~1.0 at lock), without the "
+    "carrier aid; a coasting Dll's is its held rate." },
+  { "cn0_dbhz_est", "C/N0 estimate, dB-Hz (the seed's)." },
+  { "code_locked", "Presence flag: the Dll's lock detector." },
+  { "locked", "Health flag: the symbol-lock detector." },
+  { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
+  { "lock_threshold", "`locked` declares strictly above this." },
+  { "car_last_error", "Pre-despread loop's residual, rad (slope 1)." },
+  { "mpsk_last_error", "Post-despread carrier residual, rad." },
+  { "state_samples", "Input samples since `state` was entered." },
+  { "both_down_samples",
+    "Input samples both flags have been down without a break (the release "
+    "clock); in lost it keeps counting -- samples since the flags dropped. "
+    "With reacquire, the symbol lock flag's clock alone." },
+  { "refused_hits",
+    "Searching hits refused as seeds by the seed domain (a Doppler at or past "
+    "fs/2), since create or reset. The search went on over each one's tail." },
+  { "carrier_lock_n_noncoh",
+    "The carrier lock's non-coherent count, the updates one decision sums "
+    "(dp_async_dsss_receiver_get_carrier_lock_n_noncoh()): fixed at create." },
+  { NULL, NULL },
+};
+static PyStructSequence_Desc Ccsds415ReceiverObj_status_desc
+    = { "doppler.dsss.ReceiverStatus",
+        "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 "
+        "tracking, 4 lost), the live estimates, both lock flags, and the two "
+        "clocks in input samples.",
+        Ccsds415ReceiverObj_status_fields, 15 };
+static PyTypeObject *Ccsds415ReceiverObj_status_type = NULL;
+
+static PyObject *
+Ccsds415ReceiverObj_status (Ccsds415ReceiverObject *self,
+                            PyObject               *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!Ccsds415ReceiverObj_status_type)
+    {
+      Ccsds415ReceiverObj_status_type
+          = PyStructSequence_NewType (&Ccsds415ReceiverObj_status_desc);
+      if (!Ccsds415ReceiverObj_status_type)
+        return NULL;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  async_dsss_receiver_status_t _r
+      = dp_async_dsss_receiver_status (self->handle);
+  PyObject *_o = PyStructSequence_New (Ccsds415ReceiverObj_status_type);
+  if (!_o)
+    return NULL;
+  PyStructSequence_SET_ITEM (_o, 0, PyLong_FromLong ((long)_r.state));
+  PyStructSequence_SET_ITEM (_o, 1, PyFloat_FromDouble (_r.doppler_hz));
+  PyStructSequence_SET_ITEM (_o, 2, PyFloat_FromDouble (_r.chip_phase));
+  PyStructSequence_SET_ITEM (_o, 3, PyFloat_FromDouble (_r.code_rate));
+  PyStructSequence_SET_ITEM (_o, 4, PyFloat_FromDouble (_r.cn0_dbhz_est));
+  PyStructSequence_SET_ITEM (_o, 5, PyLong_FromLong ((long)_r.code_locked));
+  PyStructSequence_SET_ITEM (_o, 6, PyLong_FromLong ((long)_r.locked));
+  PyStructSequence_SET_ITEM (_o, 7, PyFloat_FromDouble (_r.lock_metric));
+  PyStructSequence_SET_ITEM (_o, 8, PyFloat_FromDouble (_r.lock_threshold));
+  PyStructSequence_SET_ITEM (_o, 9, PyFloat_FromDouble (_r.car_last_error));
+  PyStructSequence_SET_ITEM (_o, 10, PyFloat_FromDouble (_r.mpsk_last_error));
+  PyStructSequence_SET_ITEM (
+      _o, 11,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.state_samples));
+  PyStructSequence_SET_ITEM (
+      _o, 12,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.both_down_samples));
+  PyStructSequence_SET_ITEM (
+      _o, 13,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.refused_hits));
+  PyStructSequence_SET_ITEM (
+      _o, 14,
+      PyLong_FromUnsignedLongLong (
+          (unsigned long long)_r.carrier_lock_n_noncoh));
+  return _o;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_configure_search_raw (Ccsds415ReceiverObject *self,
+                                          PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]        = { "doppler_bins", "n_noncoh", NULL };
+  PyObject          *doppler_bins_obj = NULL;
+  unsigned long long doppler_bins_raw = 0ULL;
+  PyObject          *n_noncoh_obj     = NULL;
+  unsigned long long n_noncoh_raw     = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist,
+                                    &doppler_bins_obj, &n_noncoh_obj))
+    return NULL;
+  if (doppler_bins_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (doppler_bins_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      doppler_bins_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((doppler_bins_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || doppler_bins_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "doppler_bins: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t doppler_bins = (size_t)doppler_bins_raw;
+  if (n_noncoh_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_noncoh_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_noncoh_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_noncoh_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_noncoh_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_noncoh: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t n_noncoh = (size_t)n_noncoh_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_async_dsss_receiver_configure_search_raw (
+      self->handle, doppler_bins, n_noncoh);
+  if (_rc != 0)
+    {
+      switch (_rc)
+        {
+        case DP_ERR_INVALID:
+          PyErr_SetString (PyExc_ValueError,
+                           "configure_search_raw: doppler_bins must lie in "
+                           "1..reps, n_noncoh in "
+                           "1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and "
+                           "non-coherent looks "
+                           "(n_noncoh > 1) need rate_hypotheses 1");
+          return NULL;
+        case DP_ERR_MEMORY:
+          PyErr_SetString (
+              PyExc_MemoryError,
+              "configure_search_raw: rebuilding the engine's grid could not "
+              "allocate; the engine keeps its prior grid");
+          return NULL;
+        default:
+          break;
+        }
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "configure_search_raw failed", (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_set_refine_min_blocks (Ccsds415ReceiverObject *self,
+                                           PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]    = { "n_blocks", NULL };
+  PyObject          *n_blocks_obj = NULL;
+  unsigned long long n_blocks_raw = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &n_blocks_obj))
+    return NULL;
+  if (n_blocks_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_blocks_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_blocks_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_blocks_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_blocks_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_blocks: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t n_blocks = (size_t)n_blocks_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc
+      = dp_async_dsss_receiver_set_refine_min_blocks (self->handle, n_blocks);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "set_refine_min_blocks failed", (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_configure_lock_raw (Ccsds415ReceiverObject *self,
+                                        PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]   = { "up_thresh", "down_thresh", "n_looks", "alpha",
+                               "n_up",      "n_down",      NULL };
+  double       up_thresh   = 0.0;
+  double       down_thresh = 0.0;
+  PyObject    *n_looks_obj = NULL;
+  unsigned long long n_looks_raw = 0ULL;
+  double             alpha       = 0.0;
+  long long          n_up_raw    = 0LL;
+  long long          n_down_raw  = 0LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddOdLL", _kwlist, &up_thresh,
+                                    &down_thresh, &n_looks_obj, &alpha,
+                                    &n_up_raw, &n_down_raw))
+    return NULL;
+  if (n_looks_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_looks_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_looks_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_looks_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_looks_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_looks: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t n_looks = (size_t)n_looks_raw;
+  if (n_up_raw < 0 || n_up_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_up: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_up_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t n_up = (uint32_t)n_up_raw;
+  if (n_down_raw < 0 || n_down_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_down: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_down_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t n_down = (uint32_t)n_down_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  dp_async_dsss_receiver_configure_lock_raw (
+      self->handle, up_thresh, down_thresh, n_looks, alpha, n_up, n_down);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_configure_chain_raw (Ccsds415ReceiverObject *self,
+                                         PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]    = { "segments", "sps", "n", NULL };
+  PyObject          *segments_obj = NULL;
+  unsigned long long segments_raw = 0ULL;
+  PyObject          *sps_obj      = NULL;
+  unsigned long long sps_raw      = 0ULL;
+  int                n            = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OOi", _kwlist, &segments_obj,
+                                    &sps_obj, &n))
+    return NULL;
+  if (segments_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (segments_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      segments_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((segments_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || segments_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "segments: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t segments = (size_t)segments_raw;
+  if (sps_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (sps_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      sps_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((sps_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || sps_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "sps: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t sps = (size_t)sps_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_async_dsss_receiver_configure_chain_raw (self->handle, segments,
+                                                        sps, n);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "configure_chain_raw failed", (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_reset (Ccsds415ReceiverObject *self,
+                           PyObject               *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  dp_async_dsss_receiver_reset (self->handle);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_set_telemetry (Ccsds415ReceiverObject *self,
+                                   PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject    *tlm_obj   = Py_None;
+  const char  *prefix    = NULL;
+  long long    decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|L", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return NULL;
+              PyErr_Clear ();
+              PyErr_Format (PyExc_TypeError,
+                            "tlm must be the doppler.telemetry.dp_tlm capsule"
+                            " or an object exposing it as ._capsule,"
+                            " not %s",
+                            Py_TYPE (tlm_obj)->tp_name);
+              return NULL;
+            }
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  if (decim_raw < 0 || decim_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "decim: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)decim_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_async_dsss_receiver_set_telemetry (self->handle, tlm, prefix,
+                                                  decim);
+  if (_rc != 0)
+    {
+      switch (_rc)
+        {
+        case DP_ERR_MEMORY:
+          PyErr_SetString (PyExc_MemoryError,
+                           "set_telemetry: the attach could not allocate (its "
+                           "scratch context, "
+                           "or a loop's own); the receiver is unchanged");
+          return NULL;
+        default:
+          break;
+        }
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  /* retain: the kernel keeps `tlm`, so this object keeps its owner
+     until the next call replaces it or None detaches it. */
+  if (tlm_obj != Py_None)
+    Py_INCREF (tlm_obj);
+  Py_XSETREF (self->_jm_retain_set_telemetry_tlm,
+              tlm_obj != Py_None ? tlm_obj : NULL);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_set_threads (Ccsds415ReceiverObject *self, PyObject *args,
+                                 PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "n", NULL };
+  int          n         = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "i", _kwlist, &n))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_async_dsss_receiver_set_threads (self->handle, n);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_threads failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_set_rank (Ccsds415ReceiverObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "rank", NULL };
+  PyObject          *rank_obj  = NULL;
+  unsigned long long rank_raw  = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &rank_obj))
+    return NULL;
+  if (rank_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (rank_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      rank_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((rank_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || rank_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "rank: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t rank = (size_t)rank_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_async_dsss_receiver_set_rank (self->handle, rank);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "rank refused: it must be below ASYNC_DSSS_RX_MAX_PEAKS "
+                    "(16), the peaks a dwell reports",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_set_exclusions (Ccsds415ReceiverObject *self,
+                                    PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]  = { "phases", NULL };
+  PyObject    *phases_obj = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &phases_obj))
+    return NULL;
+  PyArrayObject *phases_arr = jm_array_arg (phases_obj, NPY_DOUBLE,
+                                            NPY_ARRAY_C_CONTIGUOUS, "phases");
+  if (!phases_arr)
+    {
+      return NULL;
+    }
+  const double *phases     = (const double *)PyArray_DATA (phases_arr);
+  size_t        phases_len = (size_t)PyArray_SIZE (phases_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (phases_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_async_dsss_receiver_set_exclusions (self->handle, phases,
+                                                   phases_len);
+  Py_DECREF (phases_arr);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "exclusions refused: every phase must be finite, and at "
+                    "most ASYNC_DSSS_RX_MAX_EXCLUSIONS (64) of them",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_state_bytes (Ccsds415ReceiverObject *self,
+                                 PyObject               *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_async_dsss_receiver_state_bytes (self->handle));
+}
+
+static PyObject *
+Ccsds415ReceiverObj_get_state (Ccsds415ReceiverObject *self,
+                               PyObject               *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = dp_async_dsss_receiver_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  dp_async_dsss_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_set_state (Ccsds415ReceiverObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_async_dsss_receiver_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (dp_async_dsss_receiver_set_state (self->handle, PyBytes_AS_STRING (arg))
+      != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+static PyObject *
+Ccsds415Receiver_getprop_refine_min_blocks (Ccsds415ReceiverObject *self,
+                                            void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->refine_min_blocks);
+}
+static PyObject *
+Ccsds415Receiver_getprop_threads (Ccsds415ReceiverObject *self,
+                                  void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong (
+      (long)dp_async_dsss_receiver_get_threads (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_rank (Ccsds415ReceiverObject *self,
+                               void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_async_dsss_receiver_get_rank (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_n_exclusions (Ccsds415ReceiverObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_async_dsss_receiver_get_n_exclusions (
+          self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_coherent_bins (Ccsds415ReceiverObject *self,
+                                        void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_async_dsss_receiver_get_coherent_bins (
+          self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_carrier_lock_n_noncoh (Ccsds415ReceiverObject *self,
+                                                void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
+          self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_lifecycle (Ccsds415ReceiverObject *self,
+                                    void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  long        _v = (long)(self->handle->state);
+  const char *_s = _enum_Ccsds415Receiver_async_dsss_rx_state_name (_v);
+  if (!_s)
+    {
+      PyErr_Format (
+          PyExc_ValueError,
+          "lifecycle holds async_dsss_rx_state value %ld, which is none of"
+          " its choices",
+          _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_s);
+}
+static PyObject *
+Ccsds415Receiver_getprop_tracking (Ccsds415ReceiverObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong (
+      (long)dp_async_dsss_receiver_get_tracking (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_refining (Ccsds415ReceiverObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong (
+      (long)dp_async_dsss_receiver_get_refining (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_lost (Ccsds415ReceiverObject *self,
+                               void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong (
+      (long)dp_async_dsss_receiver_get_lost (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_doppler_hz (Ccsds415ReceiverObject *self,
+                                     void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_doppler_hz (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_cn0_dbhz_est (Ccsds415ReceiverObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_cn0_dbhz_est (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_segments (Ccsds415ReceiverObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_async_dsss_receiver_get_segments (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_sps (Ccsds415ReceiverObject *self,
+                              void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_async_dsss_receiver_get_sps (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_n (Ccsds415ReceiverObject *self,
+                            void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong ((long)dp_async_dsss_receiver_get_n (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_chip_phase (Ccsds415ReceiverObject *self,
+                                     void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_chip_phase (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_code_rate (Ccsds415ReceiverObject *self,
+                                    void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_code_rate (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_lock (Ccsds415ReceiverObject *self,
+                               void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dp_async_dsss_receiver_get_lock (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_norm_freq (Ccsds415ReceiverObject *self,
+                                    void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_norm_freq (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_nco_freq (Ccsds415ReceiverObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_nco_freq (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_locked (Ccsds415ReceiverObject *self,
+                                 void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong (
+      (long)dp_async_dsss_receiver_get_locked (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_lock_metric (Ccsds415ReceiverObject *self,
+                                      void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_lock_metric (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_lock_threshold (Ccsds415ReceiverObject *self,
+                                         void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_lock_threshold (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_car_last_error (Ccsds415ReceiverObject *self,
+                                         void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_car_last_error (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_car_nco_freq (Ccsds415ReceiverObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_car_nco_freq (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_mpsk_last_error (Ccsds415ReceiverObject *self,
+                                          void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_mpsk_last_error (self->handle));
+}
+static PyObject *
+Ccsds415Receiver_getprop_code_locked (Ccsds415ReceiverObject *self,
+                                      void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong (
+      (long)dp_async_dsss_receiver_get_code_locked (self->handle));
+}
+
+static PyGetSetDef Ccsds415Receiver_getset[] = {
+  { "refine_min_blocks", (getter)Ccsds415Receiver_getprop_refine_min_blocks,
+    NULL,
+    "Floor on the refine's dwell, in blocks (default 7). The refine's "
+    "detection sizing needs fewer blocks the higher the C/N0, but the "
+    "estimate the carrier chain must pull in from does not sharpen with it "
+    "(#1265). Set with set_refine_min_blocks(), which carries the "
+    "measurement.\n",
+    NULL },
+  { "threads", (getter)Ccsds415Receiver_getprop_threads, NULL,
+    "Workers the searcher runs, the calling thread included; 1 = serial. Set "
+    "with dp_async_dsss_receiver_set_threads().\n",
+    NULL },
+  { "rank", (getter)Ccsds415Receiver_getprop_rank, NULL,
+    "Which surviving peak of a dwell the search takes; 0 = the strongest. Set "
+    "with dp_async_dsss_receiver_set_rank().\n",
+    NULL },
+  { "n_exclusions", (getter)Ccsds415Receiver_getprop_n_exclusions, NULL,
+    "Code phases set_exclusions() holds.\n", NULL },
+  { "coherent_bins", (getter)Ccsds415Receiver_getprop_coherent_bins, NULL,
+    "The searcher's slow-time depth D: epochs per coherent dwell.\n", NULL },
+  { "carrier_lock_n_noncoh",
+    (getter)Ccsds415Receiver_getprop_carrier_lock_n_noncoh, NULL,
+    "The carrier lock's non-coherent count this receiver was built with, "
+    "dp_async_dsss_receiver_carrier_lock_n_noncoh() at its `cn0_dbhz`.\n",
+    NULL },
+  { "lifecycle", (getter)Ccsds415Receiver_getprop_lifecycle, NULL,
+    "Where the receiver is in its lifecycle, by name: `\"searching\"`, "
+    "`\"refining\"`, `\"tracking\"`, `\"idle\"` (a pooled receiver with no "
+    "search of its own, waiting for the pool's controller to seed it) or "
+    "`\"lost\"` (released, waiting for `reset()`). The same state as "
+    "`status().state`, which carries it as the C integer. With `reacquire` a "
+    "release goes back to `\"searching\"`, or to `\"idle\"` when pooled, and "
+    "never reads `\"lost\"`.\n",
+    NULL },
+  { "tracking", (getter)Ccsds415Receiver_getprop_tracking, NULL,
+    "1 once the live tracking chain is built and demodulating; 0 in every "
+    "other state.\n",
+    NULL },
+  { "refining", (getter)Ccsds415Receiver_getprop_refining, NULL,
+    "1 while refining: the CarrierAcquisition dwell; 0 in every other "
+    "state.\n",
+    NULL },
+  { "lost", (getter)Ccsds415Receiver_getprop_lost, NULL,
+    "1 once the release rule has fired: both lock flags were down, "
+    "continuously, for longer than `lost_confirm_s` while tracking -- an "
+    "emitter that left, or a seed that never locked. The loops have stopped "
+    "and samples are consumed and discarded; the holder releases the "
+    "assignment and calls reset(). 0 in every other state, and always 0 with "
+    "`lost_confirm_s = 0`.\n",
+    NULL },
+  { "doppler_hz", (getter)Ccsds415Receiver_getprop_doppler_hz, NULL,
+    "The HAND-OVER's Doppler, Hz: what the live chain was built from, frozen "
+    "for the track's whole tenure -- the seed's while refining, the refine's "
+    "estimate from the hand-over on. It does not follow the carrier: under a "
+    "400 Hz/s ramp it is 400 Hz stale a second later. Where the emitter is "
+    "now is status().doppler_hz, a field of the same name with the other "
+    "meaning.\n",
+    NULL },
+  { "cn0_dbhz_est", (getter)Ccsds415Receiver_getprop_cn0_dbhz_est, NULL,
+    "The seed's C/N0 estimate, dB-Hz, unchanged until reset().\n", NULL },
+  { "segments", (getter)Ccsds415Receiver_getprop_segments, NULL,
+    "The live-tracking Dll's partial correlations per code period.\n", NULL },
+  { "sps", (getter)Ccsds415Receiver_getprop_sps, NULL,
+    "MpskReceiver's samples per symbol.\n", NULL },
+  { "n", (getter)Ccsds415Receiver_getprop_n, NULL,
+    "MpskReceiver's terminal outputs per symbol (even, 2..8).\n", NULL },
+  { "chip_phase", (getter)Ccsds415Receiver_getprop_chip_phase, NULL,
+    "The code phase, chips, at the sample after the last one fed, in the "
+    "Dll's instantaneous convention -- the mirror of "
+    "dp_correlator_hit_t::code_phase's correlation-lag convention "
+    "(dp_correlator_build_handoff()). Tracking, it is the live Dll's phase "
+    "carried over the partial period the chain holds (it runs whole periods), "
+    "so it names the same sample a search's picks are carried to at any "
+    "sample rate (#3063). While refining there is no live Dll: it is the "
+    "seed's phase advanced by the clock dilation since, the phase the "
+    "hand-over starts the live chain from.\n",
+    NULL },
+  { "code_rate", (getter)Ccsds415Receiver_getprop_code_rate, NULL,
+    "The Dll's code rate, chips per nominal chip (~1.0 at lock), without the "
+    "carrier aid; a coasting Dll reports its held rate.\n",
+    NULL },
+  { "lock", (getter)Ccsds415Receiver_getprop_lock, NULL,
+    "The carrier lock statistic of the MpskReceiver this receiver tracks "
+    "with: the EMA of its M-th-power lock signal, near 1 when locked and near "
+    "0 on noise.\n",
+    NULL },
+  { "norm_freq", (getter)Ccsds415Receiver_getprop_norm_freq, NULL,
+    "The post-despread carrier the MpskReceiver tracks: its centre plus its "
+    "loop's integrator, cycles/sample at its input rate (`sps * "
+    "symbol_rate`). Lags a Doppler ramp by the Type-II ramp error.\n",
+    NULL },
+  { "nco_freq", (getter)Ccsds415Receiver_getprop_nco_freq, NULL,
+    "The MpskReceiver's carrier NCO command, its loop filter's whole output, "
+    "cycles/sample at its input rate (`sps * symbol_rate`). Its mean tracks a "
+    "Doppler ramp with no lag (unlike get_norm_freq()); its variance is the "
+    "carrier loop's stress.\n",
+    NULL },
+  { "locked", (getter)Ccsds415Receiver_getprop_locked, NULL,
+    "The receiver's symbol-lock flag: a hysteretic detector over "
+    "get_lock_metric(), declared after 30 consecutive symbols strictly above "
+    "get_lock_threshold() (0.5) and dropped after 15 consecutive symbols "
+    "strictly below 0.3 (ASYNC_DSSS_RX_LOCK_N_UP, _UP, _N_DOWN and _DOWN, "
+    "fixed at create). The flag the release rule and a pool's holder act "
+    "on.\n",
+    NULL },
+  { "lock_metric", (getter)Ccsds415Receiver_getprop_lock_metric, NULL,
+    "Symbol-lock metric = SNR-weighted EMA of (I^2-Q^2)/(I^2+Q^2) = "
+    "cos(2*phi) over the emitted symbols (locked -> ~+1). Drives `locked`.\n",
+    NULL },
+  { "lock_threshold", (getter)Ccsds415Receiver_getprop_lock_threshold, NULL,
+    "The lock-metric threshold `locked` is declared strictly above (0.5, "
+    "ASYNC_DSSS_RX_LOCK_UP); exposed alongside lock_metric for engineering "
+    "debug.\n",
+    NULL },
+  { "car_last_error", (getter)Ccsds415Receiver_getprop_car_last_error, NULL,
+    "The pre-despread carrier loop's last phase error (rad): the residual "
+    "carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling, "
+    "as its loop filter takes it -- carrier_nda's discriminator divided by "
+    "its slope (carrier_nda_loop_error()), so radians near lock. The "
+    "\".car.e\" probe is the raw discriminator, twice this.\n",
+    NULL },
+  { "car_nco_freq", (getter)Ccsds415Receiver_getprop_car_nco_freq, NULL,
+    "LOOP 1 (the pre-despread carrier loop) output = NCO frequency command, "
+    "cycles/sample of the front-end (chip_rate*spc) rate.\n",
+    NULL },
+  { "mpsk_last_error", (getter)Ccsds415Receiver_getprop_mpsk_last_error, NULL,
+    "MpskReceiver carrier phase discriminator (rad): the residual carrier "
+    "phase LOOP 2 (post-despread) is not nulling.\n",
+    NULL },
+  { "code_locked", (getter)Ccsds415Receiver_getprop_code_locked, NULL,
+    "Binary code-lock flag from the live tracking Dll's own verify-counted "
+    "(pfa-tuned) lock detector — the fundamental DSSS \"am I despreading\" "
+    "lock, de-chattered by up/down hysteresis.\n",
+    NULL },
+  { NULL, NULL, NULL, NULL, NULL }
+};
+
+static PyObject *
+Ccsds415ReceiverObj_destroy (Ccsds415ReceiverObject *self,
+                             PyObject               *Py_UNUSED (ignored))
+{
+  if (self->handle)
+    {
+      void *_jm_st = self->handle;
+      self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_async_dsss_receiver_destroy (_jm_st);
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_enter (Ccsds415ReceiverObject *self,
+                           PyObject               *Py_UNUSED (ignored))
+{
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+Ccsds415ReceiverObj_exit (Ccsds415ReceiverObject *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
+    {
+      void *_jm_st = self->handle;
+      self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_async_dsss_receiver_destroy (_jm_st);
+    }
+  Py_RETURN_NONE;
+}
+
+static PyMethodDef Ccsds415ReceiverObj_methods[] = {
+
+  { "steps", (PyCFunction)(void *)Ccsds415ReceiverObj_steps,
+    METH_VARARGS | METH_KEYWORDS,
+    "steps(x, out) -> ndarray\n"
+    "\n"
+    "Stream raw cf32 samples; emit demodulated symbols once tracking.\n"
+    "\n"
+    "Drives the state machine. It emits nothing while searching or refining\n"
+    "(an empty return is normal, not an error): a hit seeds the\n"
+    "frozen-carrier refine chain, `CarrierAcquisition` sharpens the coarse\n"
+    "Doppler estimate, and only once it is ready (or gives up) is the live\n"
+    "tracking chain built and demodulation begins. A hit inside a call hands\n"
+    "the rest of the call straight to the refine chain, so no sample is\n"
+    "dropped there; at the refine's end, what the refine did not consume of\n"
+    "the last call goes on to the live chain. Accepts any block size; state\n"
+    "carries across calls, so a capture can be fed in frames of any length\n"
+    "with no seam. Lost (after the release rule fires) consumes the samples\n"
+    "and emit nothing, so the feeding loop is the same in every state; while\n"
+    "tracking, the release clock runs on the two lock flags after every\n"
+    "call, or on the symbol lock flag alone with `reacquire` (see\n"
+    "`lost_confirm_s`). Tracking emits symbols whether or not they are data:\n"
+    "a noise false alarm can reach tracking and emit until the release rule\n"
+    "lets it go -- or, at the default lost_confirm_s of 0, until reset() --\n"
+    "and symbol lock (`locked`) is what says the symbols are a signal's, so\n"
+    "read it rather than the count (#2439). Under the specification's\n"
+    "coupled offset + 500 Hz/s Doppler ramp the pre-despread carrier loop\n"
+    "removes the full carrier dynamics before the code loop, so the\n"
+    "recovered constellation lands cleanly on the BPSK real axis.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.complex64]\n"
+    "    Input cf32 samples.\n"
+    "out : npt.NDArray[np.complex64] | None\n"
+    "    Output symbols; caller provides max_out capacity.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Number of symbols written: 0 while searching, refining or lost, or\n"
+    "    before a full symbol's worth of input.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> sf, chip, sym, spc = 1023, 3.069e6, 2700.0, 2\n"
+    ">>> fs, te, tsym = chip * spc, sf * spc, chip * spc / sym\n"
+    ">>> code = np.asarray(Gold().generate(sf)).astype(np.uint8)\n"
+    ">>> csign = np.where(code & 1, -1.0, 1.0)\n"
+    ">>> rng = np.random.default_rng(21)\n"
+    ">>> n = int(600 * tsym) + 4 * te            # 600 async BPSK symbols\n"
+    ">>> idx = np.arange(n)\n"
+    ">>> data = (rng.integers(0, 2, 604) * 2 - 1).astype(float)\n"
+    ">>> si = np.clip((idx / tsym).astype(int), 0, 603)\n"
+    ">>> t = idx / fs\n"
+    "\n"
+    "DSSS chips on a carrier sweeping at 500 Hz/s — the ramp the async\n"
+    "receiver has to track:\n"
+    "\n"
+    ">>> sig = (data[si] * csign[(idx // spc) % sf]\n"
+    "...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))\n"
+    ">>> cn0 = 20.0 + 10 * np.log10(sym)         # Es/N0 = 20 dB\n"
+    ">>> sigma = np.sqrt(fs / 10 ** (cn0 / 10))\n"
+    ">>> pre = 5 * te                            # noise-only lead-in\n"
+    ">>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)\n"
+    "...          + 1j * rng.standard_normal(pre + n))\n"
+    ">>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)\n"
+    "...      + noise.astype(np.complex64))\n"
+    ">>> rx = AsyncDsssReceiver(\n"
+    "...     code, chip_rate=chip, symbol_rate=sym, sample_rate=fs,\n"
+    "...     cn0_dbhz=cn0, doppler_uncertainty=500.0)\n"
+    ">>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]\n"
+    ">>> syms = np.concatenate([s for s in syms if len(s)])\n"
+    ">>> rx.tracking                  # searched, refined, now tracking\n"
+    "1\n"
+    ">>> len(syms) > 300              # symbols recovered under the ramp\n"
+    "True\n"
+    "\n"
+    "Nearly all the energy lands on I, so the BPSK phase is resolved:\n"
+    "\n"
+    ">>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))\n"
+    "True\n" },
+  { "steps_max_out", (PyCFunction)Ccsds415ReceiverObj_steps_max_out,
+    METH_NOARGS,
+    "steps_max_out() -> int\n"
+    "\n"
+    "The output capacity steps() needs beyond the input's.\n"
+    "\n"
+    "Returns 0, which is NOT a bound. A call runs more samples than its\n"
+    "`x_len` through the tracking chain at a hand-over: the hand-over ring's\n"
+    "tail (up to refine_hist_cap samples) or the search history's, through a\n"
+    "fresh chain. Their symbols can outnumber `x_len`, and those past\n"
+    "`max_out` are dropped (see dp_async_dsss_receiver_steps()). A call that\n"
+    "completes a carried code period adds at most one symbol: create()\n"
+    "refuses a symbol shorter than a code period. A true bound is #2469.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    0.\n" },
+  { "seed", (PyCFunction)(void *)Ccsds415ReceiverObj_seed,
+    METH_VARARGS | METH_KEYWORDS,
+    "seed(chip_phase, doppler_hz_est, cn0_dbhz_est) -> None\n"
+    "\n"
+    "Take a detection from outside and start refining from it.\n"
+    "\n"
+    "The hand-off of docs/design/async-dsss-receiver.md §2.2: the three\n"
+    "numbers a searcher's hit carries that this receiver uses --\n"
+    "`dp_correlator_handoff_t`'s `chip_phase`, `doppler_hz_est` and\n"
+    "`cn0_dbhz_est` -- exactly as its own hit would have produced them\n"
+    "(`steps()` calls this on its own hit). `chip_phase` is the code's\n"
+    "instantaneous phase in chips, Dll's convention, at the FIRST sample of\n"
+    "the next `steps()` call; dp_correlator_build_handoff() makes it from a\n"
+    "hit's lag. The refine chain is rebuilt from the seed and the state\n"
+    "becomes refining; the unconsumed tail is the caller's to feed.\n"
+    "\n"
+    "Refused (`DP_ERR_INVALID`, nothing changes) on a receiver that is not\n"
+    "waiting for one -- refining, tracking or lost -- because \"assigned\n"
+    "once\" is a property of the object, not of the caller's bookkeeping;\n"
+    "`reset()` releases it. Accepted while searching: an outside hit simply\n"
+    "beats the receiver's own. Also refused outside the seed domain,\n"
+    "dp_async_dsss_receiver_seed_ok().\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "chip_phase : float\n"
+    "    Code phase at the next sample, chips, in `[0, code_len)`.\n"
+    "doppler_hz_est : float\n"
+    "    Coarse Doppler estimate, Hz (the refine stage sharpens it).\n"
+    "cn0_dbhz_est : float\n"
+    "    The hit's C/N0 estimate, dB-Hz; reported back by\n"
+    "    get_cn0_dbhz_est(), unchanged until reset().\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``seed refused: the receiver already holds an assignment (refining,\n"
+    "    tracking or lost -- reset() releases it), or chip_phase is outside\n"
+    "    [0, code_len), or doppler_hz_est is not finite and below\n"
+    "    sample_rate / 2 in magnitude``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6,\n"
+    "...                        symbol_rate=2700.0, sample_rate=6.138e6)\n"
+    ">>> rx.seed(chip_phase=512.25, doppler_hz_est=-1500.0,\n"
+    "...         cn0_dbhz_est=48.0)\n"
+    ">>> (rx.refining, rx.doppler_hz, rx.cn0_dbhz_est)\n"
+    "(1, -1500.0, 48.0)\n"
+    "\n"
+    "Already assigned -- refused until reset():\n"
+    "\n"
+    ">>> rx.seed(0.0, 0.0, 48.0)      # doctest: +ELLIPSIS\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: seed refused: ...\n"
+    ">>> rx.reset()\n"
+    "\n"
+    "A chip phase must be inside the code, `[0, code_len)`:\n"
+    "\n"
+    ">>> rx.seed(1023.0, 0.0, 48.0)   # doctest: +ELLIPSIS\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: seed refused: ...\n" },
+  { "status", (PyCFunction)Ccsds415ReceiverObj_status, METH_NOARGS,
+    "status() -> ReceiverStatus record (state, doppler_hz, chip_phase, "
+    "code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
+    "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
+    "both_down_samples, refused_hits, carrier_lock_n_noncoh)\n"
+    "\n"
+    "Read the status record, by value: the state; where the emitter is\n"
+    "now (the live carrier), its chip phase, code rate and C/N0; both lock\n"
+    "flags with the symbol-lock metric and threshold; both carrier\n"
+    "residuals; and the two clocks in input samples (since the state was\n"
+    "entered; both flags down without a break).\n"
+    "\n"
+    "Cheap and allocation-free: every field is a read of live state. The\n"
+    "one-at-a-time getters report the same fields, `doppler_hz` apart (see\n"
+    "the record); this is the face a controller reads. No timestamp: the\n"
+    "clocks are in input samples, and the holder, which owns the sample\n"
+    "clock, stamps the record.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "ReceiverStatus\n"
+    "    The record, by value.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6,\n"
+    "...                        symbol_rate=2700.0, sample_rate=6.138e6)\n"
+    ">>> st = rx.status()\n"
+    ">>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # searching\n"
+    "(0, 0.0, 0, 0)\n"
+    ">>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)\n"
+    ">>> st = rx.status()\n"
+    ">>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining\n"
+    "(1, -250.0, 50.0)\n"
+    ">>> _ = rx.steps(np.zeros(2046, np.complex64))\n"
+    ">>> rx.status().state_samples                             # since seed\n"
+    "2046\n" },
+  { "configure_search_raw",
+    (PyCFunction)(void *)Ccsds415ReceiverObj_configure_search_raw,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_search_raw(doppler_bins, n_noncoh) -> None\n"
+    "\n"
+    "Pin the embedded search's grid directly. Forwards to\n"
+    "`dp_correlator_configure_search_raw()` -- the escape hatch under this\n"
+    "object's `symbol_rate`-driven auto-sizing, for a power user who wants a\n"
+    "specific `(doppler_bins, n_noncoh)`. The pin replaces the whole\n"
+    "auto-sized grid, the window-tiled search included. Only meaningful\n"
+    "while searching; the search does not run again until the next\n"
+    "`reset()`.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "doppler_bins : int\n"
+    "    The coherent depth to pin, in `[1, reps]`: 1, as the receiver's\n"
+    "    continuous engine has `reps = 1`.\n"
+    "n_noncoh : int\n"
+    "    Non-coherent looks accumulated per grid cell (1..256); more looks\n"
+    "    buys sensitivity at the cost of dwell, replacing the auto-sized\n"
+    "    count.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
+    "    ``configure_search_raw: doppler_bins must lie in 1..reps, n_noncoh\n"
+    "    in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and non-coherent looks\n"
+    "    (n_noncoh > 1) need rate_hypotheses 1``.\n"
+    "MemoryError\n"
+    "    If the C call returns ``DP_ERR_MEMORY``. The exception message is\n"
+    "    ``configure_search_raw: rebuilding the engine's grid could not\n"
+    "    allocate; the engine keeps its prior grid``.\n"
+    "ValueError\n"
+    "    If the C call returns any other non-zero status. The exception\n"
+    "    message is ``configure_search_raw failed``, with the return code\n"
+    "    appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
+    "...                        sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0)\n"
+    ">>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it\n"
+    ">>> rx.refining                # still searching, on the pinned grid\n"
+    "0\n" },
+  { "set_refine_min_blocks",
+    (PyCFunction)(void *)Ccsds415ReceiverObj_set_refine_min_blocks,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_refine_min_blocks(n_blocks) -> None\n"
+    "\n"
+    "Floor the refine's dwell at n_blocks, whatever the detection sizing\n"
+    "asks (docs/design/async-dsss-receiver-measurements.md §12.16, #1265).\n"
+    "\n"
+    "CarrierAcquisition's dwell is sized for DETECTION at the derated C/N0\n"
+    "(`cn0_dbhz - refine_design_margin_db`), so it shortens as the C/N0\n"
+    "rises -- two blocks at 45 dB-Hz with the shipped margin -- while the\n"
+    "noise of the estimate it hands the tracking chain does not shorten with\n"
+    "it: 210 Hz at two blocks against a chain that pulls in from a few\n"
+    "hundred, so one hand-over in sixty landed outside and tracked the code\n"
+    "with the carrier never locked. Seven blocks (42 ms, the default and the\n"
+    "floor dwell of docs/design/async-dsss-receiver-measurements.md §12.10)\n"
+    "hold the estimate to 77 Hz. Applied to the next refine chain built -- a\n"
+    "receiver already refining keeps its dwell. A mutator's value, so it\n"
+    "travels in the state blob (#2022). `n_blocks` of 0 removes the floor;\n"
+    "the value is clamped by `refine_max_n_blocks` where that cap is lower.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n_blocks : int\n"
+    "    The floor, blocks.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_refine_min_blocks failed``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
+    "...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, "
+    "cn0_dbhz=60.0)\n"
+    ">>> rx.refine_min_blocks                     # the default floor\n"
+    "7\n"
+    ">>> rx.set_refine_min_blocks(12)\n"
+    ">>> rx.refine_min_blocks\n"
+    "12\n" },
+  { "configure_lock_raw",
+    (PyCFunction)(void *)Ccsds415ReceiverObj_configure_lock_raw,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_lock_raw(up_thresh, down_thresh, n_looks, alpha, n_up, n_down) "
+    "-> None\n"
+    "\n"
+    "Re-tune the live-tracking Dll's code-lock detector directly.\n"
+    "Forwards to `dp_dll_configure_lock_raw()` on the live tracking Dll (the\n"
+    "one behind `get_code_locked()`), NOT the refine-stage collection Dll.\n"
+    "It retunes the Dll the receiver holds now; every chain build (a seed,\n"
+    "the hand-over, reset() or configure_chain_raw()) replaces that Dll with\n"
+    "a freshly sized one, so call it once tracking. The detector is the\n"
+    "hysteretic lockdet over the DLL's per-N-look CFAR statistic — the\n"
+    "levels and verify counts trade declare latency against false-alarm\n"
+    "rate.\n"
+    "\n"
+    "The rule this replaces is sized when the chain is built, from rates the\n"
+    "application chooses, by the detection module and not here: the\n"
+    "non-coherent count by dp_det_n_noncoh() (at the detection and\n"
+    "false-alarm probabilities, and the design C/N0) and the drop count by\n"
+    "dp_det_verify_count() (at its miss probability and false-drop budget),\n"
+    "handed to dp_dll_configure_lock(). The values are set in\n"
+    "adr_build_track_chain() (async_dsss_receiver_core.c); this header does\n"
+    "not restate them.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "up_thresh : float\n"
+    "    CFAR-statistic level to declare code lock (hit when the statistic\n"
+    "    exceeds it).\n"
+    "down_thresh : float\n"
+    "    Level below which a look is a miss; choose <= up_thresh for level\n"
+    "    hysteresis.\n"
+    "n_looks : int\n"
+    "    Looks per decision — the DLL's non-coherent integration depth\n"
+    "    feeding one statistic.\n"
+    "alpha : float\n"
+    "    EMA smoothing coefficient on the lock statistic (0..1); smaller is\n"
+    "    smoother/slower.\n"
+    "n_up : int\n"
+    "    Consecutive hits required to declare lock.\n"
+    "n_down : int\n"
+    "    Consecutive misses required to drop lock.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
+    "...                        sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0)\n"
+    ">>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,\n"
+    "...                       alpha=0.1, n_up=5, n_down=3)\n"
+    ">>> rx.tracking                       # replaced at the next chain "
+    "build\n"
+    "0\n" },
+  { "configure_chain_raw",
+    (PyCFunction)(void *)Ccsds415ReceiverObj_configure_chain_raw,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_chain_raw(segments, sps, n) -> None\n"
+    "\n"
+    "Pin the live-tracking despread/resample/demod grid directly. The\n"
+    "escape hatch for the composition-specific knob: `segments` (the live\n"
+    "Dll's tracking parameter) and `sps`/`n` (MpskReceiver's samples and\n"
+    "terminal outputs per symbol) are independently overridable, still\n"
+    "bridged by a freshly-sized `RateConverter` and never coupled to each\n"
+    "other. While searching/refining it re-pins the grid used to build the\n"
+    "next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in\n"
+    "place, allocating every replacement before adopting it, and re-seeds\n"
+    "the rebuilt chain from the whole carrier -- loop 1 plus loop 2's\n"
+    "integrator, the sum status() reports -- so a retune keeps the signal it\n"
+    "was tracking.\n"
+    "\n"
+    "The new grid is checked as create() checked the first, before anything\n"
+    "is rebuilt, and refused with the receiver left on its prior grid: the\n"
+    "Dll's domain at segments, sps >= 2, a symbol period of at most 2^20 Dll\n"
+    "partials, which the Dll's aid would otherwise refuse mid-build\n"
+    "(doppler#2103), and an n MpskReceiver would refuse (#2421). Still an\n"
+    "abort: an allocation failure in the rebuild (doppler#2112).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "segments : int\n"
+    "    Live-tracking Dll segments per code period.\n"
+    "sps : int\n"
+    "    MpskReceiver samples per symbol (the resample target), >= 2.\n"
+    "n : int\n"
+    "    MpskReceiver's terminal outputs per symbol (`m_out`): inside\n"
+    "    dp_ratesync_m_ok() (even, 2..8) and at most sps --\n"
+    "    mpsk_rx_m_out_ok(), the rule create()'s own derived `n` satisfies,\n"
+    "    so get_n() always re-applies (doppler#2650). It need not divide\n"
+    "    sps.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``configure_chain_raw failed``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
+    "...                        sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0)\n"
+    ">>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain\n"
+    ">>> rx.segments                       # tracking grid updated in place\n"
+    "6\n" },
+  { "reset", (PyCFunction)Ccsds415ReceiverObj_reset, METH_NOARGS,
+    "reset() -> None\n"
+    "\n"
+    "Return to the searching state. Resets the embedded search and\n"
+    "rebuilds the refine-stage chain and the live tracking chain back to\n"
+    "their placeholder seed (phase 0, no Doppler). A receiver that has\n"
+    "locked cannot be \"reset back to tracking the same signal,\" only back "
+    "to\n"
+    "searching -- every object's reset() semantics in this codebase.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
+    "...                        sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0)\n"
+    ">>> rx.reset()                 # abort any lock, hunt from scratch\n"
+    ">>> (rx.tracking, rx.refining, rx.chip_phase)   # all cleared\n"
+    "(0, 0, 0.0)\n" },
+  { "set_telemetry", (PyCFunction)(void *)Ccsds415ReceiverObj_set_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_telemetry(tlm, prefix, decim) -> None\n"
+    "\n"
+    "Attach (or detach) a telemetry context across the receiver's loops,\n"
+    "and register the receiver's own lifecycle and symbol-lock decision.\n"
+    "\n"
+    "The receiver reports under the prefix, once per steps() call that\n"
+    "carries samples, after the call, so on the time axis at the stamp the\n"
+    "caller set for that block (dp_tlm_set_now()):\n"
+    "\n"
+    "- \"<prefix>.state\" -- where the call left the receiver, the\n"
+    "  ASYNC_DSSS_RX_* value: 0 searching, 1 refining, 2 tracking, 3 idle (a\n"
+    "  pooled receiver holding nothing), 4 lost (status().state);\n"
+    "- \"<prefix>.handover_hz\" -- the Doppler the chain was built from, Hz\n"
+    "  (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the\n"
+    "  seed's while refining, the refined value from the hand-over on, and 0\n"
+    "  again after a refused hand-over or a reset(), which return the\n"
+    "  receiver to searching (idle in a pool). A record is a float, so it\n"
+    "  resolves about 0.5 Hz near 5 MHz. Not the live carrier:\n"
+    "  status().doppler_hz reads that, and \".car.freq\" and \".car.nco\" "
+    "are\n"
+    "  the carrier loop's own view of it, in cycles a sample at the input\n"
+    "  rate, so times chip_rate * spc for Hz;\n"
+    "- \"<prefix>.refused\" -- the hits refused as seeds so far\n"
+    "  (status().refused_hits);\n"
+    "- \"<prefix>.ho_src\" -- which estimate the live chain was built from, "
+    "an\n"
+    "  ASYNC_DSSS_RX_HO_* value (0 none since the seed, 1 the seed's, 2 the\n"
+    "  data template's, 3 the fine estimate's);\n"
+    "- \"<prefix>.ref_fine.hz\", \".snr_db\", \".n\" -- the fine hand-over's\n"
+    "  estimate (Hz, against the seed), its peak-to-mean and its sums, once\n"
+    "  at the refine's decision, whether or not its check passed;\n"
+    "- \"<prefix>.cn0\" -- the seed's C/N0 estimate, dB-Hz\n"
+    "  (status().cn0_dbhz_est): constant over a tenure, since the receiver\n"
+    "  keeps no running estimate while tracking;\n"
+    "- \"<prefix>.phase.car\" -- the pre-despread carrier NCO's phase at the\n"
+    "  call's FIRST sample, cycles in [0, 1)\n"
+    "  (dp_carrier_nda_get_nco_phase_ahead() past the samples the chain\n"
+    "  still carries), exact: the loop steers only at a period's end. The\n"
+    "  phase of the tracking chain; while searching or refining it is the\n"
+    "  placeholder chain's, and \".state\" says which;\n"
+    "- \"<prefix>.phase.code\" -- the code NCO's prompt phase at the call's\n"
+    "  first sample, chips (dp_dll_get_code_phase_ahead()), exact to within\n"
+    "  a code-loop update inside the carried samples. It is the code NCO's\n"
+    "  word, the START of a sample's dwell; the Dll takes its prompt at the\n"
+    "  dwell's CENTRE, half an increment later (dll_tap_base(),\n"
+    "  nco_dwell_center(): the zero-order-hold rule). So a prompt on the\n"
+    "  continuous code phase reads here half a sample BEFORE it (0.5\n"
+    "  chip_rate / fs chips), with no correlation lost -- measured in the\n"
+    "  pull-in captures, -0.186 chip at 2.69 samples a chip (0.500 sample)\n"
+    "  and -0.148 at 3.42 (0.505).\n"
+    "\n"
+    "The two phases are stamped at the call's first sample, which is the\n"
+    "stamp the caller set (dp_tlm_set_now()) for this block, so a caller who\n"
+    "knows the transmitted carrier and code phase at that sample subtracts\n"
+    "them for the loops' true errors -- the stress the discriminator outputs\n"
+    "\".car.e\" and \".code.e\" only estimate.\n"
+    "\n"
+    "Feed blocks of about a code period, as the examples do, and these read\n"
+    "as a time series of the lifecycle: when the search hit, how long the\n"
+    "refine took, what it handed over, when the release came.\n"
+    "\n"
+    "Each loop reports under the prefix, at its own update rate:\n"
+    "\n"
+    "- \"<prefix>.car\" -- the chip-domain carrier loop\n"
+    "  (dp_carrier_nda_set_telemetry(): \".lock\", \".e\", \".freq\", "
+    "\".locked\",\n"
+    "  \".nco\"; \".e\" is the raw discriminator, slope 2, so twice the "
+    "phase\n"
+    "  error in radians near lock, and \".lock\" the last block's ratio of\n"
+    "  sums), once per carrier update: once a code period, except while it\n"
+    "  coasts, when loop 1 is held;\n"
+    "- \"<prefix>.code\" -- the code loop (dp_dll_set_telemetry(): \".e\",\n"
+    "  \".rate\", \".lock\", \".locked\", \".nco\", and the lock statistic's "
+    "two\n"
+    "  terms \".prompt_amp\" and \".offset_pwr\"), once per code period "
+    "(with\n"
+    "  the symbol aid on, the last steer held);\n"
+    "- \"<prefix>.code.steer\" -- the code loop's filter at each steer of "
+    "the\n"
+    "  symbol aid (dp_dll_set_steer_telemetry(): \".e\", \".prop\", "
+    "\".integ\",\n"
+    "  \".ctrl\", \".aid\"), the loop's own cadence;\n"
+    "- \"<prefix>.demod\" -- the symbol-domain demodulator\n"
+    "  (dp_mpsk_receiver_set_telemetry(): its lock, its carrier and timing\n"
+    "  loops, the symbols, its AGC), once per recovered symbol (the AGC's\n"
+    "  pair once per gain update), and the timing loop's two filter terms\n"
+    "  beside them, \".demod.sync.prop\" and \".demod.sync.integ\"\n"
+    "  (dp_ratesync_loop_set_filter_telemetry());\n"
+    "- \"<prefix>.acq\" -- the acquisition engine\n"
+    "  (dp_correlator_set_telemetry()), once per decided dwell;\n"
+    "- \"<prefix>.rc\" -- the rate converter between the code loop and the\n"
+    "  demodulator (dp_RateConverter_set_telemetry()). It reports only an\n"
+    "  AGC, and this receiver builds it without one, so it registers no\n"
+    "  probes;\n"
+    "- \"<prefix>.sym.lock\" and \"<prefix>.sym.locked\" -- the receiver's "
+    "own\n"
+    "  symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and its\n"
+    "  decision (dp_async_dsss_receiver_get_locked()), the one its users act\n"
+    "  on, once per emitted symbol; \"<prefix>.sym.num\" and\n"
+    "  \"<prefix>.sym.den\", the metric's two EMAs (their ratio is\n"
+    "  \".sym.lock\"), on the same symbols;\n"
+    "- \"<prefix>.ref\" -- the refine's estimator, the data template's\n"
+    "  (dp_carrier_acq_set_telemetry(): \".stat\", \".thr\", \".hz\", "
+    "\".n\",\n"
+    "  \".ready\"), once per tested block while refining.\n"
+    "- \"<prefix>.state\", \"<prefix>.handover_hz\", \"<prefix>.refused\",\n"
+    "  \"<prefix>.ho_src\", \"<prefix>.cn0\", \"<prefix>.phase.car\" and\n"
+    "  \"<prefix>.phase.code\" -- the lifecycle (an async_dsss_rx_state_t),\n"
+    "  the Doppler the chain was built from (Hz), the refused hits, the\n"
+    "  hand-over's source (ASYNC_DSSS_RX_HO_*), the seed's C/N0 (dB-Hz) and\n"
+    "  the loops' NCO phases (cycles, chips) at the call's first sample,\n"
+    "  once per steps() call;\n"
+    "- \"<prefix>.had_lock\", \"<prefix>.coast\" and \"<prefix>.hold\" -- the "
+    "loop\n"
+    "  control the receiver decides once a code period from the code and\n"
+    "  symbol flags, each 0 or 1: whether both have been up together since\n"
+    "  the seed (from then on the loops coast rather than run free), whether\n"
+    "  this period coasts (both down: the carrier restored to its hold point\n"
+    "  and frozen, the code loop dead-reckoning -- one decision drives both\n"
+    "  loops), and whether this period re-marked the hold point (both up);\n"
+    "  once per code period while tracking;\n"
+    "- \"<prefix>.release\" -- the release clock: how long both flags have\n"
+    "  been down (the symbol flag alone with reacquire), as a fraction of\n"
+    "  the confirm interval, so the receiver is released once it passes 1; 0\n"
+    "  while a flag is up and when there is no release rule. Once per\n"
+    "  steps() call.\n"
+    "\n"
+    "The carrier and code loops report their filters two ways: \".car.freq\"\n"
+    "and \".code.rate\" (and the demodulator's \".demod.car.freq\") are the\n"
+    "integrators, each loop's frequency memory, which a coast holds;\n"
+    "\".car.nco\", \".code.nco\" and \".demod.car.nco\" are the complete "
+    "commands\n"
+    "the NCOs run at, the proportional term (and the code loop's carrier\n"
+    "aid) included. \".demod.sync.rate\" is the timing loop's output, and "
+    "\".e\"\n"
+    "is each discriminator's input to its filter.\n"
+    "\n"
+    "The attachment is a REQUEST kept on the receiver: every seed rebuilds\n"
+    "the tracking chain, and the rebuilt loops are attached again under the\n"
+    "same names (so the same probe ids). Records are therefore continuous\n"
+    "across re-seeds, and a reset keeps the attachment too.\n"
+    "\n"
+    "Setup path, never hot; the context is borrowed and must outlive the\n"
+    "attachment, and the receiver must step on one thread (SPSC rules in\n"
+    "dp_tlm/dp_tlm_core.h). Passing NULL detaches every loop.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "tlm : object | None\n"
+    "    Telemetry context to attach, or NULL to detach.\n"
+    "prefix : str\n"
+    "    Probe-name prefix; NULL means \"rx\".\n"
+    "decim : int, default 1\n"
+    "    Emit every decim-th event on each probe; >= 1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "MemoryError\n"
+    "    If the C call returns ``DP_ERR_MEMORY``. The exception message is\n"
+    "    ``set_telemetry: the attach could not allocate (its scratch\n"
+    "    context, or a loop's own); the receiver is unchanged``.\n"
+    "ValueError\n"
+    "    If the C call returns any other non-zero status. The exception\n"
+    "    message is ``set_telemetry failed``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> from doppler.telemetry import Telemetry\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
+    "...                        sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0)\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> rx.set_telemetry(tlm, \"rx\")\n"
+    ">>> sorted(p for p in tlm.probe_names if p.startswith((\"rx.car\",\n"
+    "...                                                    \"rx.code\")))\n"
+    "['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', "
+    "'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', "
+    "'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', "
+    "'rx.code.rate', 'rx.code.steer.aid', 'rx.code.steer.ctrl', "
+    "'rx.code.steer.e', 'rx.code.steer.integ', 'rx.code.steer.prop']\n"
+    ">>> sorted(p for p in tlm.probe_names if p.startswith((\"rx.s\", "
+    "\"rx.h\",\n"
+    "...                                                    \"rx.refu\")))\n"
+    "['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', "
+    "'rx.state', 'rx.sym.den', 'rx.sym.lock', 'rx.sym.locked', 'rx.sym.num']\n"
+    ">>> sorted(p for p in tlm.probe_names if p.startswith((\"rx.ph\", "
+    "\"rx.cn\")))\n"
+    "['rx.cn0', 'rx.phase.car', 'rx.phase.code']\n"
+    ">>> sorted(p for p in tlm.probe_names if p.startswith(\"rx.ref\"))\n"
+    "['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', "
+    "'rx.ref_fine.hz', 'rx.ref_fine.n', 'rx.ref_fine.snr_db', 'rx.refused']\n"
+    ">>> rx.set_telemetry(None, \"rx\")      # detach\n" },
+  { "set_threads", (PyCFunction)(void *)Ccsds415ReceiverObj_set_threads,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_threads(n) -> None\n"
+    "\n"
+    "Set the workers the searcher fans its Doppler tiles across.\n"
+    "\n"
+    "Forwards to dp_correlator_set_threads() on the receiver's searcher. The\n"
+    "search is bit-identical at every count, so this changes the cost of a\n"
+    "steps() call and nothing about its output. A pool that steps its\n"
+    "receivers in parallel sets each one to 1. A mutator's value, so it\n"
+    "travels in the state blob (#2022), in one place: the searcher's own\n"
+    "blob, as the request, which dp_correlator_set_state() applies through\n"
+    "dp_correlator_set_threads(). A pool's 1 restores as 1 everywhere; a\n"
+    "writer's 0 restores as 0, which the reader runs on its own online\n"
+    "cores. Setup path; not while another thread is inside steps().\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    Thread count; 0 = online cores, 1 = serial.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_threads failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
+    "...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, "
+    "cn0_dbhz=60.0)\n"
+    ">>> rx.set_threads(1)\n"
+    ">>> rx.threads\n"
+    "1\n" },
+  { "set_rank", (PyCFunction)(void *)Ccsds415ReceiverObj_set_rank,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_rank(rank) -> None\n"
+    "\n"
+    "Take the rank-th surviving peak of a dwell, not the strongest.\n"
+    "\n"
+    "The searcher reports up to ASYNC_DSSS_RX_MAX_PEAKS peaks per dwell,\n"
+    "strongest first. The receiver drops every peak within one chip\n"
+    "(circularly) of a stronger one, so one signal's neighbouring cells hold\n"
+    "one place; then every peak a stronger signal's own sidelobes could\n"
+    "explain; then every peak within one chip of an excluded code phase\n"
+    "(set_exclusions()). The survivors are ranked from 0. A dwell with no\n"
+    "peak at this rank hands nothing off and the search goes on.\n"
+    "\n"
+    "The sidelobe rule, per cell: a strong signal's list also holds its\n"
+    "code's Doppler-offset sidelobes, up to dp_correlator_dsl_db() below it\n"
+    "and hundreds of chips from its phase (design acq-surface.md §8). A peak\n"
+    "counts as a second signal only if its test_stat exceeds what the\n"
+    "stronger signals' sidelobes can read AT ITS CELL by more than the\n"
+    "detector's own gate (dp_correlator_gate_stat()). Each stronger signal\n"
+    "reads its statistic on its own lag\n"
+    "(dp_correlator_hit_t::test_stat_peak) times the code's cross-ambiguity\n"
+    "from it to this cell (dp_correlator_sidelobe_ratio()), which reaches\n"
+    "dp_correlator_dsl_db() only at the worst cells. The bound is the\n"
+    "strongest of these; on a deep block (get_coherent_bins() > 1) it is the\n"
+    "sum over the stronger signals on the peak's own Doppler row, modulo the\n"
+    "epoch rate, when that is larger, since their fixed sidelobes can stack\n"
+    "on one cell, and each is floored at dp_correlator_dsl_db() until a\n"
+    "strong signal's data splatter is modelled (doppler#2730). So the range\n"
+    "does not narrow with the number of signals on the air (doppler#2554),\n"
+    "and a sidelobe passes only when the noise on it alone would have\n"
+    "cleared the gate, the rate the search already runs at. A second signal\n"
+    "is taken well past dp_correlator_dsl_db() below a stronger one at most\n"
+    "cells: on a one-epoch search, measured, in every stream to 10 dB below\n"
+    "and in a fifth of them at 20 dB (design async-dsss-receiver.md §7.2,\n"
+    "the near-far limit). The model is one clean code period: when a data\n"
+    "transition falls inside the stronger signal's epoch -- common, 55% of\n"
+    "epochs at the specification's 1.8 epochs a symbol -- its sidelobes read\n"
+    "far above it at some cells (20.4 dB at one, measured by\n"
+    "native/validation/acq_emitter_floor.c), and only the gate stands\n"
+    "between them and a false second signal. Over the operating range the\n"
+    "gate held (the near-far sweep, data on both, took no sidelobe); past\n"
+    "it, or on a one-epoch search of a much stronger signal, it is not\n"
+    "bounded (doppler#2734). Searchers that share a stream and its block\n"
+    "grid (get_coherent_bins()) and hold ranks 0..k-1 therefore take k\n"
+    "different signals in one dwell. Takes effect at the next dwell. A\n"
+    "mutator's value, so it travels in the state blob (#2022).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "rank : int\n"
+    "    0 (the strongest, the default) to ASYNC_DSSS_RX_MAX_PEAKS - 1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``rank refused: it must be below ASYNC_DSSS_RX_MAX_PEAKS (16), the\n"
+    "    peaks a dwell reports``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
+    "...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, "
+    "cn0_dbhz=60.0)\n"
+    ">>> rx.set_rank(1)\n"
+    ">>> rx.rank\n"
+    "1\n" },
+  { "set_exclusions", (PyCFunction)(void *)Ccsds415ReceiverObj_set_exclusions,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_exclusions(phases) -> None\n"
+    "\n"
+    "Code phases the search must not take: signals another receiver\n"
+    "already tracks.\n"
+    "\n"
+    "Replaces the list. A peak within one chip, circularly, of any of them\n"
+    "is dropped from a dwell's list at any Doppler, before ranking\n"
+    "(set_rank()). Phases are chips in status().chip_phase's convention, at\n"
+    "the sample after the last one fed when they are set, and are folded\n"
+    "into [0, code_len); a dwell decided calls later carries them from that\n"
+    "sample to its own. An empty list (the default) excludes nothing. A\n"
+    "tracking receiver is not affected: the list applies to its next search.\n"
+    "A mutator's value, so it travels in the state blob (#2022).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "phases : npt.NDArray[np.float64]\n"
+    "    Code phases, chips; finite. May be NULL when phases_len is 0.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``exclusions refused: every phase must be finite, and at most\n"
+    "    ASYNC_DSSS_RX_MAX_EXCLUSIONS (64) of them``, with the return code\n"
+    "    appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
+    "...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, "
+    "cn0_dbhz=60.0)\n"
+    ">>> rx.set_exclusions(np.array([2.5, 9.0]))   # 9 folds to 2\n"
+    ">>> rx.n_exclusions\n"
+    "2\n" },
+  { "state_bytes", (PyCFunction)Ccsds415ReceiverObj_state_bytes, METH_NOARGS,
+    "Size in bytes of this object's serialized state.\n"
+    "\n"
+    "The exact length `get_state` returns and `set_state` requires. It\n"
+    "depends on how the object was constructed (state arrays are sized at\n"
+    "construction), so read it from the instance rather than assuming a\n"
+    "constant.\n"
+    "\n"
+    "Raises ``RuntimeError`` if the Ccsds415Receiver has already been\n"
+    "destroyed.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Byte length of one serialized state blob.\n" },
+  { "get_state", (PyCFunction)Ccsds415ReceiverObj_get_state, METH_NOARGS,
+    "Serialize this object's mutable state to bytes.\n"
+    "\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
+    "\n"
+    "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
+    "implementation detail of the C core and is not a stable format across\n"
+    "builds.\n"
+    "\n"
+    "Raises ``RuntimeError`` if the Ccsds415Receiver has already been\n"
+    "destroyed.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "bytes\n"
+    "    Opaque snapshot, `state_bytes()` bytes long.\n" },
+  { "set_state", (PyCFunction)Ccsds415ReceiverObj_set_state, METH_O,
+    "Restore mutable state from a `get_state()` blob.\n"
+    "\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
+    "\n"
+    "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
+    "length differs from `state_bytes()` or the core rejects it, and\n"
+    "``RuntimeError`` if the Ccsds415Receiver has already been destroyed.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "blob : bytes\n"
+    "    A `get_state()` blob from this type, exactly `state_bytes()` "
+    "long.\n" },
+  { "destroy", (PyCFunction)Ccsds415ReceiverObj_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on\n"
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)Ccsds415ReceiverObj_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a Ccsds415Receiver be used in a `with` statement so its C\n"
+    "resources are released deterministically on exit rather than at\n"
+    "collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Ccsds415Receiver\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)Ccsds415ReceiverObj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the Ccsds415Receiver.\n"
+    "\n"
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
+  { NULL, NULL, 0, NULL }
+};
+
+static PyTypeObject Ccsds415ReceiverObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.dsss.Ccsds415Receiver",
+  .tp_basicsize                           = sizeof (Ccsds415ReceiverObject),
+  .tp_dealloc = (destructor)Ccsds415ReceiverObj_dealloc,
+  .tp_flags   = Py_TPFLAGS_DEFAULT,
+  .tp_doc
+  = "The async DSSS receiver at the CCSDS 415.1-B-1 specification point: "
+    "3,000 symbols a second, 11 MSa/s, a +/-1,500 Hz search, Doppler rate "
+    "R_env, a carrier lock designed at the Es/N0 4 dB floor, the chip rate "
+    "the carrier sets. The receiver the harnesses measure at this point "
+    "(docs/design/async-dsss-receiver-measurements.md); the numbers are "
+    "doppler/ccsds/ccsds_415.h's. Every method is AsyncDsssReceiver's.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "code : NDArray[np.uint8]\n"
+    "    The mission's spreading code, one chip a byte (0/1): 1,023 chips.\n"
+    "carrier_freq_hz : float, default DP_CCSDS_415_FC_LO\n"
+    "    The carrier, F_fwd, Hz: 2.2e9 to 2.8e9 at the point. It sets the "
+    "chip\n"
+    "    rate (F_fwd x 31 / 21216).\n"
+    "lost_confirm_s : float, default 0.0\n"
+    "    Both flags down for longer than this enters lost; 0 never does.\n"
+    "refine : bool, default True\n"
+    "    The refine stage on (true) or off.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``Ccsds415Receiver:\n"
+    "    refused: the code must be 1,023 chips (the point's Gold code "
+    "length;\n"
+    "    the code is the mission's), carrier_freq_hz finite and above 5.5 "
+    "MHz\n"
+    "    (the point's 11 MSa/s over two), and lost_confirm_s >= 0``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Ccsds415Receiver\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023), np.uint8)\n"
+    ">>> rx = Ccsds415Receiver(code, carrier_freq_hz=2.2e9)\n"
+    ">>> Ccsds415Receiver(code[:511])\n"
+    "Traceback (most recent call last):\n"
+    "...\n"
+    "ValueError: Ccsds415Receiver: refused: the code must be 1,023 chips "
+    "...\n",
+  .tp_methods = Ccsds415ReceiverObj_methods,
+  .tp_getset  = Ccsds415Receiver_getset,
+  .tp_new     = Ccsds415ReceiverObj_new,
+  .tp_init    = (initproc)Ccsds415ReceiverObj_init,
+};

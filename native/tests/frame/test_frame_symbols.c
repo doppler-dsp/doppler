@@ -46,4 +46,7 @@ const jm_any_fn jm_bound_symbols_frame[] = {
     (jm_any_fn)dp_frame_field_bits,
     (jm_any_fn)dp_frame_stage_first,
     (jm_any_fn)dp_frame_stage_bits,
+    (jm_any_fn)dp_frame_read_field,
+    (jm_any_fn)dp_frame_read_field_bits_max_out,
+    (jm_any_fn)dp_frame_read_field_bits,
 };

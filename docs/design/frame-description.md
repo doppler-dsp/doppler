@@ -439,6 +439,53 @@ description before anything else sees it. Both at once are refused. Nothing
 downstream of the CLI knows which was used: the record stores the
 description.
 
+## RB. Reading a field back
+
+A description already says where every named field sits in a received
+frame: `dp_wfm_frame_field_index()`, then `dp_wfm_frame_desc_layout()`'s
+`field_off[]` and `field_bits[]`. It undoes its stages over a received frame
+(`dp_wfm_frame_check()`, `FrameDesc.deframe()`) and checks its CRC
+(`dp_wfm_frame_desc_crc_ok()`). What it did not do is hand back a field's
+**value**, so a caller reading a TC frame's spacecraft identifier sliced the
+bits at the layout's offset and packed them itself: a private parser built
+from the description's own positions
+([#3309](https://github.com/doppler-dsp/doppler/issues/3309)).
+
+The receive mirror of `add_field` reads it, beside the check:
+
+- `dp_wfm_frame_desc_field(d, rx_bits, rx_len, name, &value, &why)`: a
+    named field of 1 to 64 bits as an unsigned integer, **most significant
+    first**, the order the assembler writes a field in, so a field reads back
+    as the integer whose bits `add_field` was given.
+- `dp_wfm_frame_desc_field_bits(d, rx_bits, rx_len, name, out, max)`: the
+    field's bits, one a byte, for a field of any length; it returns the
+    field's length and copies at most `max`, so `out` NULL with `max` 0 sizes
+    the buffer.
+
+The rules, each a refusal with a sentence rather than a guess:
+
+| case                                            | answer                                                                                                                                                              |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a derived field (a CRC trailer, a parity block) | its bits **as received**, not recomputed: the verdict on them is `crc_ok` / `check`'s, and a read that recomputed would report a trailer that was never on the wire |
+| a field longer than 64 bits                     | refused by the integer form, naming the bits form; never truncated                                                                                                  |
+| a name the description lacks, or an empty name  | refused                                                                                                                                                             |
+| `rx_len` shorter than the layout's `frame_bits` | refused, as `crc_ok` refuses it                                                                                                                                     |
+
+The bits read are in the **frame's** layout, `frame_bits` of them: the bits
+`dp_wfm_frame_check()` and `crc_ok()` read, after any emitting stage (a
+convolutional code) is undone. A coded frame therefore reads exactly as an
+uncoded one: the caller decodes its channel symbols first (the Viterbi), as
+it does before the check, and hands the read what the decoder returned. A
+caller who wants the repaired value reads after `dp_wfm_frame_check()`,
+which corrects in place, as it reads the CRC verdict after it. The read decides nothing: it neither checks
+the CRC nor requires it, because a header is worth reading on a frame whose
+CRC failed (it is how a receiver counts which virtual channel lost frames).
+
+A standard's frame is then a **description**, not a parser: a CCSDS TC
+transfer frame (232.0-B-4) described field by field names its header's
+fields, and a receiver reads `scid` or `length` back by name with no CCSDS
+code of its own.
+
 ## The four enumerations — three closed, one open
 
 `native/inc/doppler/wfm/wfm_frame.h` is the SSOT for every name here; this page owns

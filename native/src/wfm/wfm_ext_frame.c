@@ -918,6 +918,259 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
   return arr0;
 }
 
+static PyObject *
+FrameObj_read_field (FrameObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]   = { "rx_bits", "name", NULL };
+  PyObject    *rx_bits_obj = NULL;
+  const char  *name        = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os", _kwlist, &rx_bits_obj,
+                                    &name))
+    return NULL;
+  PyArrayObject *rx_bits_arr = jm_array_arg_hint (
+      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "rx_bits",
+      "a bit field takes bits (a uint8 array); build them from text with "
+      "field_bits()");
+  if (!rx_bits_arr)
+    {
+      return NULL;
+    }
+  const uint8_t *rx_bits     = (const uint8_t *)PyArray_DATA (rx_bits_arr);
+  size_t         rx_bits_len = (size_t)PyArray_SIZE (rx_bits_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (rx_bits_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  const char *_why = NULL;
+  int64_t     _rc
+      = dp_frame_read_field (self->handle, rx_bits, rx_bits_len, name, &_why);
+  Py_DECREF (rx_bits_arr);
+  if (_rc < 0)
+    {
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "read_field failed",
+                      (long long)_rc);
+      return NULL;
+    }
+  return PyLong_FromLongLong ((long long)_rc);
+}
+
+static PyObject *
+FrameObj_read_field_bits_max_out (FrameObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t rx_bits_len = 0;
+  if (!PyArg_ParseTuple (args, "n", &rx_bits_len))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (
+      dp_frame_read_field_bits_max_out (self->handle, (size_t)rx_bits_len));
+}
+
+static PyObject *
+FrameObj_read_field_bits (FrameObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]   = { "rx_bits", "name", "out", NULL };
+  PyObject    *rx_bits_obj = NULL;
+  const char  *name        = NULL;
+  PyObject    *out_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|O", _kwlist, &rx_bits_obj,
+                                    &name, &out_obj))
+    return NULL;
+  PyArrayObject *rx_bits_arr = jm_array_arg_hint (
+      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "rx_bits",
+      "a bit field takes bits (a uint8 array); build them from text with "
+      "field_bits()");
+  if (!rx_bits_arr)
+    {
+      return NULL;
+    }
+  const uint8_t *rx_bits     = (const uint8_t *)PyArray_DATA (rx_bits_arr);
+  size_t         rx_bits_len = (size_t)PyArray_SIZE (rx_bits_arr);
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT8
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (rx_bits_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (rx_bits_arr);
+          return NULL;
+        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (rx_bits_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      size_t _omax = dp_frame_read_field_bits_max_out (
+          self->handle, (size_t)PyArray_SIZE (rx_bits_arr));
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (rx_bits_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (rx_bits_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      const char *_why  = NULL;
+      size_t      n_out = dp_frame_read_field_bits (
+          self->handle, rx_bits, rx_bits_len, name,
+          (uint8_t *)PyArray_DATA (out_arr), _cap, &_why);
+      Py_DECREF (rx_bits_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Frame.read_field_bits: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      if (!n_out)
+        {
+          Py_DECREF (out_arr);
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (PyExc_ValueError, "read_field_bits failed");
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
+  if (!self->handle)
+    {
+      Py_DECREF (rx_bits_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = (size_t)PyArray_SIZE (rx_bits_arr);
+  size_t _cap  = dp_frame_read_field_bits_max_out (
+      self->handle, (size_t)PyArray_SIZE (rx_bits_arr));
+  (void)_need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (rx_bits_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "Frame.read_field_bits: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
+  if (!arr0)
+    {
+      Py_DECREF (rx_bits_arr);
+      return NULL;
+    }
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (rx_bits_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  const char *_why = NULL;
+  size_t n_out = dp_frame_read_field_bits (self->handle, rx_bits, rx_bits_len,
+                                           name, _d0, _cap, &_why);
+  Py_DECREF (rx_bits_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Frame.read_field_bits: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if (!n_out)
+    {
+      Py_DECREF (arr0);
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError, "read_field_bits failed");
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
 static PyStructSequence_Field FrameObj_check_fields[] = {
   { "passed",
     "Every check good: 1 yes, 0 no. Also 0 when nothing was checked -- see "
@@ -1957,6 +2210,113 @@ static PyMethodDef FrameObj_methods[] = {
     "-------\n"
     "int\n"
     "    The frame's length in bits, or 0 for an empty description.\n" },
+  { "read_field", (PyCFunction)(void *)FrameObj_read_field,
+    METH_VARARGS | METH_KEYWORDS,
+    "read_field(rx_bits, name) -> int\n"
+    "\n"
+    "A named field's received value as an int, most significant bit first -- "
+    "the order the assembler writes a field in, so a field reads back as the "
+    "integer whose bits it was given. Read from `rx_bits` at the place the "
+    "description gives the field; a derived field (a CRC trailer) reads as "
+    "received, not recomputed, and the read checks nothing, so a header is "
+    "readable on a frame whose CRC failed. `rx_bits` are in the frame's "
+    "layout, the bits `check()` and `crc_ok()` read: for a coded frame, after "
+    "the Viterbi. Refused for a field longer than 63 bits (read it with "
+    "`read_field_bits`), a name the description lacks, or `rx_bits` shorter "
+    "than the frame.\n"
+    "\n"
+    "Read from rx_bits at the place the description gives the field, most\n"
+    "significant bit first, so a field reads back as the integer its bits\n"
+    "were given. A derived field reads as received; the read checks nothing.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview\n"
+    "    received bits, one per byte.\n"
+    "name : str\n"
+    "    the field's name.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    the value, or -1 with why set: no such field, a field longer than\n"
+    "    64 bits or a 64-bit one with its top bit set (read it with\n"
+    "    dp_frame_read_field_bits()), or too few bits.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    the reason the C call gives, or ``read_field failed``, with the\n"
+    "    return code appended (gh-869), when it gives none.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import FrameDesc\n"
+    ">>> d = FrameDesc()\n"
+    ">>> d.add_field(\"scid\", np.array([0, 0, 0, 0, 1, 0, 1, 0, 1, 0], "
+    "np.uint8))\n"
+    "0\n"
+    ">>> d.build()\n"
+    ">>> d.read_field(d.bits(), \"scid\")\n"
+    "42\n" },
+  { "read_field_bits", (PyCFunction)(void *)FrameObj_read_field_bits,
+    METH_VARARGS | METH_KEYWORDS,
+    "read_field_bits(rx_bits, name, out) -> ndarray\n"
+    "\n"
+    "A named field's received bits, one per element, for a field of any "
+    "length: `read_field`'s read, unpacked.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview\n"
+    "    received bits, one per byte.\n"
+    "name : str\n"
+    "    the field's name.\n"
+    "out : npt.NDArray[np.uint8] | None\n"
+    "    receives the field's bits.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint8]\n"
+    "    the field's length in bits, or 0 with why set on\n"
+    "    dp_frame_read_field()'s refusals, bar the 64-bit limit.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call writes no output. Its return value is a count, so a\n"
+    "    zero-length result is a REFUSAL rather than an empty answer. The\n"
+    "    exception message is the reason the C call gives, or\n"
+    "    ``read_field_bits failed`` when it gives none.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import FrameDesc\n"
+    ">>> d = FrameDesc()\n"
+    ">>> d.add_field(\"vcid\", np.array([0, 0, 0, 0, 0, 1], np.uint8))\n"
+    "0\n"
+    ">>> d.build()\n"
+    ">>> d.read_field_bits(d.bits(), \"vcid\").tolist()\n"
+    "[0, 0, 0, 0, 0, 1]\n" },
+  { "read_field_bits_max_out", (PyCFunction)FrameObj_read_field_bits_max_out,
+    METH_VARARGS,
+    "read_field_bits_max_out(rx_bits_len) -> int\n"
+    "\n"
+    "Capacity dp_frame_read_field_bits() needs: the frame's bits, since a\n"
+    "field is at most the whole frame.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "rx_bits_len : int\n"
+    "    unused; the length is the description's.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    the frame's length in bits.\n" },
   { "check", (PyCFunction)(void *)FrameObj_check, METH_VARARGS | METH_KEYWORDS,
     "check(rx_bits) -> FrameCheck record (passed, stages, checked, units, ok, "
     "corrected, symbols)\n"

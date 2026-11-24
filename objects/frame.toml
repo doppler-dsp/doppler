@@ -243,6 +243,38 @@ params = [
     { name = "rx_bits", type = "uint8_t[]", str_hint = "a bit field takes bits (a uint8 array); build them from text with field_bits()" },
 ]
 
+# The receive mirror of add_field (docs/design/frame-description.md, "RB.
+# Reading a field back", #3309): a named field's RECEIVED value, read from
+# rx_bits at the place the description gives it, so a caller reading a header
+# field needs no parser of its own.
+[[frame.methods]]
+name = "read_field"
+doc = "A named field's received value as an int, most significant bit first -- the order the assembler writes a field in, so a field reads back as the integer whose bits it was given. Read from `rx_bits` at the place the description gives the field; a derived field (a CRC trailer) reads as received, not recomputed, and the read checks nothing, so a header is readable on a frame whose CRC failed. `rx_bits` are in the frame's layout, the bits `check()` and `crc_ok()` read: for a coded frame, after the Viterbi. Refused for a field longer than 63 bits (read it with `read_field_bits`), a name the description lacks, or `rx_bits` shorter than the frame."
+arg_type = "void"
+return_type = "int64_t"
+error_negative = true
+why = true
+error = "ValueError"
+params = [
+    { name = "rx_bits", type = "uint8_t[]", str_hint = "a bit field takes bits (a uint8 array); build them from text with field_bits()" },
+    { name = "name", type = "const char *" },
+]
+
+[[frame.methods]]
+name = "read_field_bits"
+doc = "A named field's received bits, one per element, for a field of any length: `read_field`'s read, unpacked."
+arg_type = "void"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+error_on_empty = true
+why = true
+error = "ValueError"
+params = [
+    { name = "rx_bits", type = "uint8_t[]", str_hint = "a bit field takes bits (a uint8 array); build them from text with field_bits()" },
+    { name = "name", type = "const char *" },
+]
+
 [[frame.properties]]
 name = "rx_ok"
 type = "int"

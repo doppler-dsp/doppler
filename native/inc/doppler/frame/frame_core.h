@@ -902,6 +902,69 @@ size_t dp_frame_stage_first(dp_frame_state_t *state, size_t i);
  */
 size_t dp_frame_stage_bits(dp_frame_state_t *state, size_t i);
 
+/**
+ * @brief A named field's received value: the receive mirror of
+ *        @ref dp_frame_add_field (dp_wfm_frame_desc_field()).
+ *
+ * Read from @p rx_bits at the place the description gives the field, most
+ * significant bit first, so a field reads back as the integer its bits
+ * were given. A derived field reads as received; the read checks nothing.
+ *
+ * @param state        the frame.
+ * @param rx_bits      received bits, one per byte.
+ * @param rx_bits_len  how many; at least the frame's.
+ * @param name         the field's name.
+ * @param why          on refusal, receives a static sentence; may be NULL.
+ * @return the value, or -1 with @p why set: no such field, a field longer
+ *         than 64 bits or a 64-bit one with its top bit set (read it with
+ *         dp_frame_read_field_bits()), or too few bits.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import FrameDesc
+ * >>> d = FrameDesc()
+ * >>> d.add_field("scid", np.array([0, 0, 0, 0, 1, 0, 1, 0, 1, 0], np.uint8))
+ * 0
+ * >>> d.build()
+ * >>> d.read_field(d.bits(), "scid")
+ * 42
+ * @endcode
+ */
+int64_t dp_frame_read_field(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len, const char * name, const char **why);
+/**
+ * @brief Capacity dp_frame_read_field_bits() needs: the frame's bits, since
+ *        a field is at most the whole frame.
+ * @param state        the frame.
+ * @param rx_bits_len  unused; the length is the description's.
+ * @return the frame's length in bits.
+ */
+size_t dp_frame_read_field_bits_max_out(dp_frame_state_t *state, size_t rx_bits_len);
+/**
+ * @brief A named field's received bits, for a field of any length
+ *        (dp_wfm_frame_desc_field_bits()).
+ *
+ * @param state        the frame.
+ * @param rx_bits      received bits, one per byte.
+ * @param rx_bits_len  how many; at least the frame's.
+ * @param name         the field's name.
+ * @param out          receives the field's bits.
+ * @param max_out      capacity of @p out.
+ * @param why          on refusal, receives a static sentence; may be NULL.
+ * @return the field's length in bits, or 0 with @p why set on
+ *         dp_frame_read_field()'s refusals, bar the 64-bit limit.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import FrameDesc
+ * >>> d = FrameDesc()
+ * >>> d.add_field("vcid", np.array([0, 0, 0, 0, 0, 1], np.uint8))
+ * 0
+ * >>> d.build()
+ * >>> d.read_field_bits(d.bits(), "vcid").tolist()
+ * [0, 0, 0, 0, 0, 1]
+ * @endcode
+ */
+size_t dp_frame_read_field_bits(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len, const char * name, uint8_t *out, size_t max_out, const char **why);
 #ifdef __cplusplus
 }
 #endif

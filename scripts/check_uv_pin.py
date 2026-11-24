@@ -657,6 +657,9 @@ def interpreter_offenders(root: Path, files: list[str]) -> list[str]:
 #: The one guarded spelling of uv in a makefile (#3305): every uv call a recipe
 #: makes is `$(UV)`, and UV is this, the nested-make guard around UV_BIN.
 GUARDED_UV = "override UV = bash scripts/uvg.sh $(UV_BIN)"
+#: The Windows branch of the same definition: no guard (bash on Windows
+#: is WSL).
+WINDOWS_UV = "override UV = $(UV_BIN)"
 _UV_ASSIGN = re.compile(r"^\s*(?:override\s+)?(?:export\s+)?UV\s*[?:+!]?=")
 
 
@@ -674,15 +677,17 @@ def uv_definition_offenders(root: Path) -> list[str]:
         if _UV_ASSIGN.match(line)
     ]
     bad: list[str] = []
-    if [h for _, h in hits] != [GUARDED_UV]:
+    allowed = {GUARDED_UV, WINDOWS_UV}
+    texts = [h for _, h in hits]
+    if sorted(texts) != sorted([GUARDED_UV, WINDOWS_UV]):
         for n, text in hits:
-            if text != GUARDED_UV:
+            if text not in allowed:
                 bad.append(
                     f"Makefile:{n}: assigns UV -- `{text[:70]}`; the one "
                     f"definition is `{GUARDED_UV}` (every uv call goes "
                     "through the venv guard)"
                 )
-        if not any(h == GUARDED_UV for _, h in hits):
+        if GUARDED_UV not in texts:
             bad.append(
                 f"Makefile: UV is not defined as `{GUARDED_UV}`, so a uv "
                 "call would bypass the venv guard"

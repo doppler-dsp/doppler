@@ -61,7 +61,14 @@ def test_uv_resolves_the_file_not_the_newest(tmp_path: Path) -> None:
     project environment, so this runs beside the suite safely.
     """
     shutil.copyfile(ROOT / ".python-version", tmp_path / ".python-version")
-    env = {k: v for k, v in os.environ.items() if k != "UV_PYTHON"}
+    # VIRTUAL_ENV is dropped too: under `uv run` it names the venv, and
+    # `uv python find` then answers with that venv's interpreter, not the file
+    # (the 3.12 leg of #3305).
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("UV_PYTHON", "VIRTUAL_ENV")
+    }
     r = subprocess.run(
         ["uv", "python", "find"],
         cwd=tmp_path,

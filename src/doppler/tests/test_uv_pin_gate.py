@@ -35,7 +35,9 @@ if TYPE_CHECKING:
 REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "check_uv_pin.py"
 COMPOSITE = ".github/actions/setup-uv/action.yml"
-GUARDED_UV_LINE = "override UV = bash scripts/uvg.sh $(UV_BIN)\n"
+GUARDED_UV_LINE = (
+    "override UV = bash scripts/uvg.sh $(UV_BIN)\noverride UV = $(UV_BIN)\n"
+)
 DOCKERFILE = "deploy/docker/Dockerfile"
 
 PIN = '[tool.uv]\nrequired-version = "==0.12.24"\n'

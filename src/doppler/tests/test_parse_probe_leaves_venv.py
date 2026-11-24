@@ -40,8 +40,10 @@ def _python314() -> str | None:
     """A real 3.14 interpreter path from uv, or None (the case is skipped)."""
     if shutil.which("uv") is None:
         return None
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
     r = subprocess.run(
         ["uv", "python", "find", "3.14"],
+        env=env,
         capture_output=True,
         text=True,
     )

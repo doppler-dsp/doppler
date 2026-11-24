@@ -2011,10 +2011,42 @@ _test_shipped_pool_frees_a_dropped_ghost (void)
   return 0;
 }
 
+/* The pool at the 415.1-B-1 point (Ccsds415Pool) builds every receiver
+   and its one search from dp_ccsds_415_rx()'s table: each argument, read
+   back from each of them, is the table's. The pool view makes its own
+   call into dp_async_dsss_pool_create(), so a slip there (pfa and pd
+   swapped, reacquire for differential) shows only here: a state blob
+   carries neither. Both carriers, refine on and off. */
+static int
+_test_the_ccsds415_pool_is_the_point (void)
+{
+  uint8_t code[DP_CCSDS_415_SF];
+  dp_dsss_gold_1023 (code);
+  static const double fcs[] = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
+  for (size_t f = 0; f < 2; f++)
+    for (int refine = 0; refine < 2; refine++)
+      {
+        dp_ccsds_415_rx_t a;
+        DP_REQUIRE (
+            dp_ccsds_415_rx (&a, DP_CCSDS_415_SF, fcs[f], 0.4, refine, NULL)
+            == 0);
+        dp_s415_table_is_expected (&a, fcs[f], 0.4, refine);
+        dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create_ccsds415 (
+            code, DP_CCSDS_415_SF, 2, fcs[f], 0.4, 1, refine, NULL);
+        DP_REQUIRE (p);
+        for (size_t i = 0; i < p->n_receivers; i++)
+          dp_s415_rx_is_the_table (p->rx[i], &a);
+        dp_s415_rx_is_the_table (p->search, &a);
+        dp_async_dsss_pool_destroy (p);
+      }
+  return 0;
+}
+
 int
 main (void)
 {
   DP_CHECK (_test_create_domain () == 0);
+  DP_CHECK (_test_the_ccsds415_pool_is_the_point () == 0);
   DP_CHECK (_test_refine_passes_through () == 0);
   DP_CHECK (_test_ghost_test_edges () == 0);
   DP_CHECK (_test_ghost_is_released () == 0);

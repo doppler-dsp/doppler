@@ -7238,7 +7238,9 @@ _test_no_refine_hands_over_the_search_doppler (void)
    dp_async_dsss_receiver_create() with dp_ccsds_415_rx()'s arguments, the
    one table of them: every argument is read back from the built object
    and equals the table's, at both carriers, refine on and off, with the
-   release armed. A state blob would not show it: pd, differential, the
+   release armed (dp_s415_rx_is_the_table), and the table is the test's
+   own typed expectation of it (dp_s415_table_is_expected). A state blob
+   would not show it: pd, differential, the
    refine design margin and sequential flag, lost_confirm_s, reacquire and
    doppler_rate are config no blob carries, so a view body passing pd 0.5
    or a hard 0.0 for lost_confirm_s built a receiver whose blob was
@@ -7246,41 +7248,6 @@ _test_no_refine_hands_over_the_search_doppler (void)
    edges are tested on both sides. And the point's R_env, a constant in
    the installed header, is the pass model's (dp_s415_r_env(), the
    derivation the harness keeps): a different constant is a fitted one. */
-static void
-_rx_is_the_table (const dp_async_dsss_receiver_state_t *v,
-                  const dp_ccsds_415_rx_t              *a)
-{
-#define ADR_SAME(f) DP_CHECK_MSG (v->f == a->f, #f " is the table's")
-  ADR_SAME (chip_rate);
-  ADR_SAME (symbol_rate);
-  ADR_SAME (m);
-  ADR_SAME (cn0_dbhz);
-  ADR_SAME (pfa);
-  ADR_SAME (pd);
-  ADR_SAME (segments);
-  ADR_SAME (sps);
-  ADR_SAME (differential);
-  ADR_SAME (refine_max_error_db);
-  ADR_SAME (refine_samples_per_symbol);
-  ADR_SAME (refine_design_margin_db);
-  ADR_SAME (refine_n_fft);
-  ADR_SAME (refine_zero_pad);
-  ADR_SAME (refine_sequential);
-  ADR_SAME (refine_max_n_blocks);
-  ADR_SAME (carrier_freq_hz);
-  ADR_SAME (lost_confirm_s);
-  ADR_SAME (reacquire);
-  ADR_SAME (code_only_s);
-  ADR_SAME (doppler_rate);
-  ADR_SAME (refine);
-#undef ADR_SAME
-  DP_CHECK_MSG (v->spc == a->sample_rate / a->chip_rate,
-                "sample_rate is the table's");
-  DP_CHECK_MSG (
-      v->acq && v->acq->search->doppler_uncertainty == a->doppler_uncertainty,
-      "doppler_uncertainty is the table's");
-}
-
 /* The view refuses with the sentence @p cause begins, NULL otherwise. */
 static int
 _refused_for (const uint8_t *code, size_t code_len, double fc, double lost,
@@ -7320,11 +7287,12 @@ _test_the_ccsds415_view_is_the_point (void)
         DP_REQUIRE (
             dp_ccsds_415_rx (&a, DP_CCSDS_415_SF, fcs[f], 0.4, refine, NULL)
             == 0);
+        dp_s415_table_is_expected (&a, fcs[f], 0.4, refine);
         dp_async_dsss_receiver_state_t *v
             = dp_async_dsss_receiver_create_ccsds415 (
                 code, DP_CCSDS_415_SF, fcs[f], 0.4, refine, NULL);
         DP_REQUIRE (v);
-        _rx_is_the_table (v, &a);
+        dp_s415_rx_is_the_table (v, &a);
         dp_async_dsss_receiver_destroy (v);
       }
   /* The carrier window, each edge from both sides: inside builds, outside

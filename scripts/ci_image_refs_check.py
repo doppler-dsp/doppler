@@ -60,6 +60,11 @@ import yaml
 #: ``${{ ctx.a.b }}`` with arbitrary inner spacing, and nothing else in the
 #: string — a ref that concatenates an expression with text is not something
 #: this gate will guess at.
+#: ``fromJSON(needs.<job>.outputs.<name>)[matrix.<key>]``: a JSON map of
+#: pinned digests indexed by a matrix value.
+_FROMJSON_MAP = re.compile(
+    r"fromJSON\(needs\.([\w-]+)\.outputs\.([\w-]+)\)\[matrix\.[\w-]+\]"
+)
 EXPR = re.compile(r"^\$\{\{\s*(?P<body>[^}]+?)\s*\}\}$")
 PIN_ENV = ".github/ci-images.env"
 
@@ -132,6 +137,35 @@ class Checker:
         inc = matrix.get("include") or []
         return [e for e in inc if isinstance(e, dict)]
 
+    def _check_needs_output(
+        self, producer: str, out: str, where: str, job: dict, jobs: dict
+    ) -> None:
+        """A ``needs.<producer>.outputs.<out>`` reference must come from a job
+        in this job's needs that declares the output and reads the pin."""
+        declared = job.get("needs") or []
+        if isinstance(declared, str):
+            declared = [declared]
+        if producer not in declared:
+            self.errors.append(
+                f"{where}: reads needs.{producer}, which is not in this "
+                "job's needs — it would resolve to empty"
+            )
+            return
+        pj = jobs.get(producer)
+        if not isinstance(pj, dict):
+            self.errors.append(f"{where}: no job named {producer!r}")
+            return
+        if out not in (pj.get("outputs") or {}):
+            self.errors.append(
+                f"{where}: job {producer!r} declares no output {out!r}"
+            )
+            return
+        if not _steps_read_the_pin(pj):
+            self.errors.append(
+                f"{where}: job {producer!r} never reads {PIN_ENV} — the "
+                "digest would come from somewhere this gate cannot see"
+            )
+
     def _check_ref(
         self, ref: object, where: str, job: dict, jobs: dict
     ) -> None:
@@ -177,30 +211,18 @@ class Checker:
             return
 
         if parts[0] == "needs" and len(parts) == 4 and parts[2] == "outputs":
-            producer, out = parts[1], parts[3]
-            declared = job.get("needs") or []
-            if isinstance(declared, str):
-                declared = [declared]
-            if producer not in declared:
-                self.errors.append(
-                    f"{where}: reads needs.{producer}, which is not in this "
-                    f"job's needs — it would resolve to empty"
-                )
-                return
-            pj = jobs.get(producer)
-            if not isinstance(pj, dict):
-                self.errors.append(f"{where}: no job named {producer!r}")
-                return
-            if out not in (pj.get("outputs") or {}):
-                self.errors.append(
-                    f"{where}: job {producer!r} declares no output {out!r}"
-                )
-                return
-            if not _steps_read_the_pin(pj):
-                self.errors.append(
-                    f"{where}: job {producer!r} never reads {PIN_ENV} — the "
-                    "digest would come from somewhere this gate cannot see"
-                )
+            self._check_needs_output(parts[1], parts[3], where, job, jobs)
+            return
+
+        # A map of the pinned images, keyed by the matrix's own key: each value
+        # is a digest the pin job wrote from ci-images.env, so the producer is
+        # checked exactly as a plain needs output is (a genuine pin job). The
+        # keys are the matrix values, which the matrix itself supplies.
+        mm = _FROMJSON_MAP.fullmatch(body.strip())
+        if mm is not None:
+            self._check_needs_output(
+                mm.group(1), mm.group(2), where, job, jobs
+            )
             return
 
         self.errors.append(

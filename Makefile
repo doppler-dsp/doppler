@@ -150,6 +150,12 @@ CMAKE       := cmake
 # Not a `$(error)`: standard.mk's _std_require expands PYEXT_CMD and
 # COVERAGE_CMD at parse time, so an error there would stop `make lint` and
 # every other target on the same box, not just the ones that need Python.
+# The default interpreter is `.python-version` (3.12), which uv reads for every
+# project command: no UV_PYTHON is set here, so every target gets it. Unset,
+# uv would pick the NEWEST Python on the box, and a newer one can have no
+# wheel for a pinned package (pillow 12.2.0 has none for 3.15). CI's matrix
+# legs override it by setting UV_PYTHON through setup-uv; `primary` (the
+# floor, 3.9) is a matrix leg, not the default interpreter.
 _PY_UV := $(or $(UV),uv)
 ifneq ($(JUST_BUILDIT_PYTHON),)
 PYTHON_EXECUTABLE := $(JUST_BUILDIT_PYTHON)
@@ -228,6 +234,7 @@ BLAZING_CFLAGS ?= -march=native
 # into a subproject before running $(UV), where a relative UV= no longer
 # names the same file.
 UV         = uv
+
 
 # A BARE interpreter, deliberately not `$(UV) run python`, and the exception
 # is narrow: scripts/nats_streams.py is stdlib-only (there is a test pinning
@@ -4707,12 +4714,14 @@ endif
 # uninstallable while the smoke only ever ran cp312). Empty, the venv takes
 # whatever Python uv finds, as before.
 SMOKE_PYTHON ?=
+# The explicit override goes through the one mechanism, UV_PYTHON, never a
+# --python flag beside it. Empty, it is unset and .python-version applies.
+release-smoke-pypi: export UV_PYTHON = $(SMOKE_PYTHON)
 release-smoke-pypi: ## Smoke-test the PUBLISHED wheel from PyPI (VERSION=x.y.z [SMOKE_PYTHON=3.N])
 ifndef VERSION
 	@echo "usage: make release-smoke-pypi VERSION=<x.y.z> [SMOKE_PYTHON=3.N]"; exit 1
 endif
-	bash tests/install/wheel-smoke.sh --pypi "$(VERSION)" \
-	    $(if $(SMOKE_PYTHON),--python "$(SMOKE_PYTHON)")
+	bash tests/install/wheel-smoke.sh --pypi "$(VERSION)"
 
 # Every wheel's filename must be one pip would install (doppler#1817): parsed
 # by packaging's parse_wheel_filename, and at least one of its tags among

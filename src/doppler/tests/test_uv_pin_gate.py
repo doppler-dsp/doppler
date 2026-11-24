@@ -472,9 +472,9 @@ def test_a_locked_tool_through_dev_run_passes(tmp_path: Path) -> None:
         "\t$(DEV_RUN) ./configure --with-openssl\n"
         "\t$(DEV_RUN) auditwheel repair x.whl -w dist/\n"
         "\t$(UV) run --frozen pytest -w dist\n"
-        "\t$(UV) run --group dev --python 3.12 pytest --with x\n"
+        "\t$(UV) run --group dev pytest --with x\n"
         "\t$(UV) run -q pytest -w dist\n"
-        "\t$(UV) run -qp 3.12 pytest --with x\n"
+        "\t$(UV) run -q pytest --with x\n"
         "\t$(UV) run -Ck=v pytest -w dist\n"
     )
     r = _run(_seed(tmp_path, files={"Makefile": mk}))
@@ -647,3 +647,86 @@ def test_the_unlisted_options_were_read_from_the_pinned_uv():
         f"uv {pin}'s copy for the hidden and alias `uv run` options that "
         "take a value, update the set, then RUN_VALUED_UNLISTED_UV."
     )
+
+
+# ── rule 5: the interpreter is UV_PYTHON, set once, not typed per call ───────
+# The lead's rule: `make IS what CI runs except where we deviated`, and the
+# interpreter is one of those deviations. A version named on a uv line, or
+# typed in a workflow beyond the ratchet, is a second interpreter choice.
+
+
+def test_a_uv_line_naming_a_python_is_refused(tmp_path: Path) -> None:
+    """The sabotage: `--python` beside uv bypasses UV_PYTHON."""
+    root = _seed(
+        tmp_path,
+        files={"Makefile": "x:\n\t$(UV) run --python 3.12 pytest\n"},
+    )
+    r = _run(root)
+    assert r.returncode == 1
+    assert "uv named with --python/-p" in r.stdout
+
+
+def test_a_short_python_flag_is_refused(tmp_path: Path) -> None:
+    root = _seed(
+        tmp_path,
+        files={"Makefile": "x:\n\tuv venv -p 3.13 .venv\n"},
+    )
+    r = _run(root)
+    assert r.returncode == 1
+    assert "uv named with --python/-p" in r.stdout
+
+
+def test_a_plain_uv_line_passes_the_interpreter_rule(tmp_path: Path) -> None:
+    root = _seed(tmp_path, files={"Makefile": "x:\n\t$(UV) run pytest\n"})
+    assert _run(root).returncode == 0
+
+
+def test_a_typed_python_in_a_workflow_is_refused(tmp_path: Path) -> None:
+    """The sabotage: a typed version re-introduced in a workflow."""
+    wf = (
+        "jobs:\n  j:\n    steps:\n"
+        "      - uses: ./.github/actions/setup-uv\n"
+        "        with:\n          python-version: '3.12'\n"
+    )
+    root = _seed(tmp_path, files={".github/workflows/new.yml": wf})
+    r = _run(root)
+    assert r.returncode == 1
+    assert ".github/workflows/new.yml:6: typed python-version" in r.stdout
+
+
+def test_a_matrix_expression_is_not_a_typed_version(tmp_path: Path) -> None:
+    """`${{ matrix.python }}` and python-version-file are not literals."""
+    wf = (
+        "jobs:\n  j:\n    steps:\n"
+        "      - with:\n          python-version: ${{ matrix.python }}\n"
+        "      - with:\n          python-version-file: .python-version\n"
+    )
+    root = _seed(tmp_path, files={".github/workflows/new.yml": wf})
+    assert _run(root).returncode == 0
+
+
+def test_a_uv_python_assignment_is_refused(tmp_path: Path) -> None:
+    """The sabotage: a Makefile default that would override the file."""
+    root = _seed(
+        tmp_path,
+        files={
+            "Makefile": (
+                "UV_PYTHON ?= $(shell python3 x.py)\nexport UV_PYTHON\n"
+            )
+        },
+    )
+    r = _run(root)
+    assert r.returncode == 1
+    assert "sets UV_PYTHON" in r.stdout
+
+
+def test_the_declared_smoke_override_is_allowed(tmp_path: Path) -> None:
+    """The one declared assignment: the smoke target's explicit override."""
+    mk = "release-smoke-pypi: export UV_PYTHON = $(SMOKE_PYTHON)\n"
+    assert _run(_seed(tmp_path, files={"Makefile": mk})).returncode == 0
+
+
+def test_the_live_tree_passes_the_interpreter_rule() -> None:
+    """The committed tree, with its ratchet, is clean."""
+    r = _run(REPO)
+    assert r.returncode == 0, r.stdout + r.stderr

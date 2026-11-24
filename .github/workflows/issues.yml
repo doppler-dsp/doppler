@@ -49,7 +49,6 @@ jobs:
     - name: Install uv
       uses: ./.github/actions/setup-uv
       with:
-        python-version: '3.12'
         sync: --group dev --no-install-project
 
     - name: Reconcile the tier map with the live issue list

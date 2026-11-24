@@ -255,6 +255,19 @@ up to date with `main` before it merges, so the tree a PR's run tested is
 the tree that lands. A behind PR rebases and runs again. See
 [How We Work](workflow.md#4-merge).
 
+**Two Pythons, and they are not the same thing.** The *default interpreter*
+is `.python-version` (3.12): every `make` target, every bare `uv` call and
+every developer's shell syncs and runs on it, and CI's non-matrix jobs read
+the same file, so a job and a laptop agree. The *primary leg* is the floor
+of the `python` matrix (3.9, from `make -s print-python-primary`), and it is
+a matrix leg, not the default: the single-leg steps above run on it. A
+matrix leg overrides the default by setting `UV_PYTHON` through setup-uv
+with its own version; nothing else in the tree names an interpreter
+version (`make lint`'s `check_uv_pin` gate refuses a typed
+`python-version:` in a workflow, and a `UV_PYTHON` or `--python` the
+Makefile sets). So in the per-push minimal set, `python` runs on 3.9 (the
+primary) and 3.14 (the newest), while the other jobs run on 3.12.
+
 **The primary leg.** Some steps of the `python` job are worth running once,
 not on every interpreter. They run on the *primary* leg, which is named by
 role, never by version: `make print-python-primary` prints it (through

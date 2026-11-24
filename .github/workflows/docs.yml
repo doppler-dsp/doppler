@@ -51,7 +51,6 @@ jobs:
       - name: Install uv
         uses: ./.github/actions/setup-uv
         with:
-          python-version: '3.12'
           sync: --group dev --group docs
 
       - name: Install doxygen

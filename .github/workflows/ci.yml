@@ -424,7 +424,6 @@ jobs:
     - name: Install uv + Python + package deps
       uses: ./.github/actions/setup-uv
       with:
-        python-version: '3.12'
         sync: --group dev
 
     - name: Build Python C extensions
@@ -460,10 +459,8 @@ jobs:
     - name: MSVC developer environment (x64)
       run: scripts/msvc-env.sh x64
 
-    - name: Install uv + Python 3.12
+    - name: Install uv (+ Python from .python-version)
       uses: ./.github/actions/setup-uv
-      with:
-        python-version: '3.12'
 
     - name: Build the wheel
       run: make wheel
@@ -780,7 +777,6 @@ jobs:
     - name: Install uv
       uses: ./.github/actions/setup-uv
       with:
-        python-version: '3.12'
         sync: --group dev --group docs
 
     - name: Run doxygen (zero warnings)
@@ -842,7 +838,6 @@ jobs:
     - name: Install uv + Python + package deps
       uses: ./.github/actions/setup-uv
       with:
-        python-version: '3.13'
         sync: --group dev
 
     - name: Build
@@ -877,7 +872,6 @@ jobs:
     - name: Install uv
       uses: ./.github/actions/setup-uv
       with:
-        python-version: '3.12'
         sync: --group dev --group docs
 
     - name: Docs gate
@@ -992,7 +986,6 @@ jobs:
     - name: Install uv
       uses: ./.github/actions/setup-uv
       with:
-        python-version: '3.12'
         sync: --group dev --no-install-project
 
     # `make lint` and nothing else: it runs the standard's three consistency
@@ -1171,7 +1164,6 @@ jobs:
     - name: Install uv + Python + package deps
       uses: ./.github/actions/setup-uv
       with:
-        python-version: '3.13'
         sync: --group dev
 
     - name: Build under -Wall -Wextra, both compilers
@@ -1220,7 +1212,6 @@ jobs:
     - name: Install uv + Python + package deps
       uses: ./.github/actions/setup-uv
       with:
-        python-version: '3.13'
         sync: --group dev
 
     - name: Start NATS JetStream broker (covers the nats:// stream path)

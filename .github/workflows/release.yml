@@ -555,7 +555,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version-file: .python-version
 
       # `make wheel-smoke` builds the throwaway venv with uv (a make target,
       # not the old inline step), so uv must be on PATH — setup-python alone is

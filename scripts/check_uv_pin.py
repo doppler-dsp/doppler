@@ -584,6 +584,76 @@ def setup_uv_offenders(root: Path, files: list[str]) -> tuple[list[str], int]:
     return bad, in_composite
 
 
+#: The Python version a `--python` or `-p` names on a uv line: the explicit
+#: override that bypasses the one mechanism (UV_PYTHON).
+_UV_PYTHON_FLAG = re.compile(r"(?:^|\s)(?:--python(?:=|\s)|-p\s)")
+#: An assignment to UV_PYTHON in a makefile: `UV_PYTHON = x`, `?=`, `:=`,
+#: `export UV_PYTHON`, or a target-specific `target: export UV_PYTHON = x`.
+_UV_PYTHON_SET = re.compile(r"(?:^|[\s:])(?:export\s+)?UV_PYTHON\s*[?:+!]?=")
+#: The one declared UV_PYTHON assignment: the smoke target's explicit
+#: override, empty (so unset, and .python-version applies) when unnamed.
+DECLARED_UV_PYTHON = {"release-smoke-pypi: export UV_PYTHON = $(SMOKE_PYTHON)"}
+#: A typed interpreter version in a workflow or action, e.g.
+#: `python-version: '3.12'`. Matrix expressions and python-version-file are
+#: not literals.
+_TYPED_PY = re.compile(r"""python-version:\s*['"]?\d+\.\d+['"]?\s*(?:#.*)?$""")
+
+
+def interpreter_offenders(root: Path, files: list[str]) -> list[str]:
+    """Interpreter choices that bypass the one declaration, `.python-version`.
+
+    The default interpreter is the file (uv reads it for every project
+    command), so a make target, a bare uv call and a developer's shell all
+    agree. Three forms are refused:
+
+    - a makefile uv line that names a version with ``--python``/``-p``;
+    - a makefile assignment to ``UV_PYTHON`` other than ``DECLARED_UV_PYTHON``
+      (the one explicit override, the smoke target's) -- an assignment is a
+      second interpreter the file does not say;
+    - a typed ``python-version:`` literal in a workflow or action: CI's
+      setup-uv leaves it empty (the file applies) or sets UV_PYTHON from a
+      matrix expression, and setup-python reads ``python-version-file``.
+    """
+    bad: list[str] = []
+    for rel in files:
+        if not _MAKEFILE.search(rel):
+            continue
+        text = (root / rel).read_text(encoding="utf-8")
+        physical = text.splitlines()
+        for n, line in _logical_lines(text):
+            line = _past_recipe_comment(physical, n, line)
+            uv_line = _BARE_UV.search(line) or _RUN.search(line)
+            if uv_line and _UV_PYTHON_FLAG.search(line):
+                bad.append(
+                    f"{rel}:{n}: uv named with --python/-p -- "
+                    f"`{line.strip()[:70]}`; the interpreter is "
+                    ".python-version, or UV_PYTHON for a declared override"
+                )
+            if _UV_PYTHON_SET.search(line) and not any(
+                line.strip().startswith(d) for d in DECLARED_UV_PYTHON
+            ):
+                bad.append(
+                    f"{rel}:{n}: sets UV_PYTHON -- `{line.strip()[:70]}`; "
+                    "the default is .python-version, and an override is "
+                    "declared in DECLARED_UV_PYTHON with its reason"
+                )
+    for rel in files:
+        if not rel.startswith((".github/workflows/", ".github/actions/")):
+            continue
+        if not rel.endswith((".yml", ".yaml")):
+            continue
+        for n, line in enumerate(
+            (root / rel).read_text(encoding="utf-8").splitlines(), 1
+        ):
+            if _TYPED_PY.search(line.strip()):
+                bad.append(
+                    f"{rel}:{n}: typed python-version -- "
+                    f"`{line.strip()[:70]}`; leave it empty (setup-uv) or "
+                    "use python-version-file: .python-version (setup-python)"
+                )
+    return bad
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", type=Path, default=ROOT)
@@ -621,6 +691,7 @@ def main() -> int:
     setup_bad, n_steps = setup_uv_offenders(root, files)
     bad += setup_bad + installer_offenders(root, files)
     bad += bare_uv_offenders(root, files, args.base)
+    bad += interpreter_offenders(root, files)
     for b in bad:
         print(f"check_uv_pin: {b}")
     if bad:

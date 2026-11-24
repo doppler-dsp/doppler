@@ -99,7 +99,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 |  void | [**dp\_async\_dsss\_receiver\_configure\_lock\_raw**](#function-dp_async_dsss_receiver_configure_lock_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, size\_t n\_looks, double alpha, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the live-tracking Dll's code-lock detector directly. Forwards to_ `dp_dll_configure_lock_raw()` _on the live tracking Dll (the one behind_`get_code_locked()` _), NOT the refine-stage collection Dll. It retunes the Dll the receiver holds now; every chain build (a seed, the hand-over, reset() or configure\_chain\_raw()) replaces that Dll with a freshly sized one, so call it once tracking. The detector is the hysteretic lockdet over the DLL's per-N-look CFAR statistic — the levels and verify counts trade declare latency against false-alarm rate._ |
 |  int | [**dp\_async\_dsss\_receiver\_configure\_search\_raw**](#function-dp_async_dsss_receiver_configure_search_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded search's grid directly. Forwards to_ `dp_correlator_configure_search_raw()` __ _the escape hatch under this object's_`symbol_rate` _-driven auto-sizing, for a power user who wants a specific_`(doppler_bins, n_noncoh)` _. The pin replaces the whole auto-sized grid, the window-tiled search included. Only meaningful while searching; the search does not run again until the next_`reset()` _._ |
 |  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* | [**dp\_async\_dsss\_receiver\_create**](#function-dp_async_dsss_receiver_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, double sample\_rate, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks, double carrier\_freq\_hz, double lost\_confirm\_s, bool reacquire, double code\_only\_s, double doppler\_rate, bool refine) <br>_Create an AsyncDsssReceiver in the searching state._  |
-|  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* | [**dp\_async\_dsss\_receiver\_create\_ccsds415**](#function-dp_async_dsss_receiver_create_ccsds415) (const uint8\_t \* code, size\_t code\_len, double carrier\_freq\_hz, double lost\_confirm\_s, bool refine) <br>_The receiver at the CCSDS 415.1-B-1 specification point (_ [_**doppler/ccsds/ccsds\_415.h**_](ccsds__415_8h.md) _): the_`Ccsds415Receiver` _view._ |
+|  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* | [**dp\_async\_dsss\_receiver\_create\_ccsds415**](#function-dp_async_dsss_receiver_create_ccsds415) (const uint8\_t \* code, size\_t code\_len, double carrier\_freq\_hz, double lost\_confirm\_s, bool refine, const char \*\* why) <br>_The receiver at the CCSDS 415.1-B-1 specification point (_ [_**doppler/ccsds/ccsds\_415.h**_](ccsds__415_8h.md) _): the_`Ccsds415Receiver` _view._ |
 |  void | [**dp\_async\_dsss\_receiver\_destroy**](#function-dp_async_dsss_receiver_destroy) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Destroy a receiver and release every child._  |
 |  int | [**dp\_async\_dsss\_receiver\_fine\_design**](#function-dp_async_dsss_receiver_fine_design) (double cn0\_dbhz, double chip\_rate, size\_t code\_len, double p\_flip, double symbol\_rate, int m, size\_t refine\_segments, double e\_hz, double rate\_hz\_s, double eps\_chip, double block\_s, double pfa, double p\_ho, size\_t max\_blocks, [**async\_dsss\_receiver\_fine\_t**](structasync__dsss__receiver__fine__t.md) \* out) <br>_Design the fine hand-over at a design point: K, the dwell and its rates._  |
 |  double | [**dp\_async\_dsss\_receiver\_get\_car\_last\_error**](#function-dp_async_dsss_receiver_get_car_last_error) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The pre-despread carrier loop's last phase error (rad): the residual carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling, as its loop filter takes it_  _carrier\_nda's discriminator divided by its slope (_[_**carrier\_nda\_loop\_error()**_](carrier__nda__core_8h.md#function-carrier_nda_loop_error) _), so radians near lock. The ".car.e" probe is the raw discriminator, twice this._ |
@@ -729,13 +729,14 @@ dp_async_dsss_receiver_state_t * dp_async_dsss_receiver_create_ccsds415 (
     size_t code_len,
     double carrier_freq_hz,
     double lost_confirm_s,
-    bool refine
+    bool refine,
+    const char ** why
 ) 
 ```
 
 
 
-[**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create) with every number the point sets, and the binding's defaults for the rest. The point's chip rate at `carrier_freq_hz` ([**dp\_ccsds\_415\_chip\_rate()**](ccsds__415_8h.md#function-dp_ccsds_415_chip_rate)), its 3,000 symbols a second and 11 MSa/s, its +/-1,500 Hz search, its Doppler rate R\_env, the code-only opening of a frame as the gap, and a carrier lock designed at the floor's C/N0 (Es/N0 4 dB) whatever level the signal arrives at, since a receiver is built once, for its weakest signal. It is the receiver the harnesses measure at this point (docs/design/async-dsss-receiver-measurements.md).
+[**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create) with the arguments [**dp\_ccsds\_415\_rx()**](ccsds__415_8h.md#function-dp_ccsds_415_rx) fills, the one table of them. The point's chip rate at `carrier_freq_hz` ([**dp\_ccsds\_415\_chip\_rate()**](ccsds__415_8h.md#function-dp_ccsds_415_chip_rate)), its 3,000 symbols a second and 11 MSa/s, its +/-1,500 Hz search, its Doppler rate R\_env, the code-only opening of a frame as the gap, and a carrier lock designed at the floor's C/N0 (Es/N0 4 dB) whatever level the signal arrives at, since a receiver is built once, for its weakest signal. It is the receiver the harnesses measure at this point (docs/design/async-dsss-receiver-measurements.md).
 
 
 
@@ -745,15 +746,16 @@ dp_async_dsss_receiver_state_t * dp_async_dsss_receiver_create_ccsds415 (
 
 * `code` The mission's spreading code, one chip a byte (0/1): 1,023 chips, the point's Gold code length. Any other length is refused. 
 * `code_len` Its length; must be [**DP\_CCSDS\_415\_SF**](ccsds__415_8h.md#define-dp_ccsds_415_sf). 
-* `carrier_freq_hz` The carrier, F\_fwd: 2.2 to 2.8 GHz at the point. It sets the chip rate and the carrier loop's code aid. 
+* `carrier_freq_hz` The carrier, F\_fwd: 2.2 to 2.8 GHz at the point. It sets the chip rate and the carrier loop's code aid. Built from [**DP\_CCSDS\_415\_RX\_FC\_MIN**](ccsds__415_8h.md#define-dp_ccsds_415_rx_fc_min) to [**DP\_CCSDS\_415\_RX\_FC\_MAX**](ccsds__415_8h.md#define-dp_ccsds_415_rx_fc_max). 
 * `lost_confirm_s` Both flags down for longer than this enters lost (0: never), as on the full create. 
 * `refine` The refine stage on (true) or off. 
+* `why` Set to the refusal's sentence; may be NULL. 
 
 
 
 **Returns:**
 
-The receiver, or NULL: a code that is not 1,023 chips, or a refusal of [**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create)'s.
+The receiver, or NULL with `why` set: [**dp\_ccsds\_415\_rx()**](ccsds__415_8h.md#function-dp_ccsds_415_rx)'s refusals (the code's length, the carrier's window, `lost_confirm_s`).
 
 
 
@@ -766,7 +768,7 @@ The receiver, or NULL: a code that is not 1,023 chips, or a refusal of [**dp\_as
 >>> Ccsds415Receiver(code[:511])
 Traceback (most recent call last):
 ...
-ValueError: Ccsds415Receiver: refused: the code must be 1,023 chips ...
+ValueError: the code must be 1,023 chips: the point's Gold code ...
 ```
  
 

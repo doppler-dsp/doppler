@@ -110,8 +110,8 @@ variable_output = true
 out_size = "32"
 
 # The CCSDS 415.1-B-1 specification point (native/inc/doppler/ccsds/
-# ccsds_415.h, which states it once). Computed in C with fast math off, so
-# a C program and its Python twin read the same bits.
+# ccsds_415.h, which states it once). Computed in C with fast math off; the
+# chip rate is IEEE arithmetic alone, the same bits on every compiler.
 [[module.ccsds.functions]]
 name = "ccsds415_chip_rate"
 doc = "Chips a second at carrier `fc` (Hz) at the CCSDS 415.1-B-1 point: F_fwd x 31 / (221 x 96), table 4-1. Computed in C with fast math off, so every compiler and this function give the same bits.\n\n>>> from doppler.ccsds import ccsds415_chip_rate\n>>> ccsds415_chip_rate(2.2e9)\n3214555.052790347"

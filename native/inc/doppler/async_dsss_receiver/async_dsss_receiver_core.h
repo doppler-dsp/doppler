@@ -1124,8 +1124,8 @@ typedef enum
    * @brief The receiver at the CCSDS 415.1-B-1 specification point
    *        (doppler/ccsds/ccsds_415.h): the `Ccsds415Receiver` view.
    *
-   * dp_async_dsss_receiver_create() with every number the point sets, and
-   * the binding's defaults for the rest. The point's chip rate at
+   * dp_async_dsss_receiver_create() with the arguments dp_ccsds_415_rx()
+   * fills, the one table of them. The point's chip rate at
    * @p carrier_freq_hz (dp_ccsds_415_chip_rate()), its 3,000 symbols a
    * second and 11 MSa/s, its +/-1,500 Hz search, its Doppler rate R_env,
    * the code-only opening of a frame as the gap, and a carrier lock
@@ -1140,12 +1140,16 @@ typedef enum
    * @param code_len         Its length; must be #DP_CCSDS_415_SF.
    * @param carrier_freq_hz  The carrier, F_fwd: 2.2 to 2.8 GHz at the
    *                         point. It sets the chip rate and the carrier
-   *                         loop's code aid.
+   *                         loop's code aid. Built from
+   *                         #DP_CCSDS_415_RX_FC_MIN to
+   *                         #DP_CCSDS_415_RX_FC_MAX.
    * @param lost_confirm_s   Both flags down for longer than this enters
    *                         lost (0: never), as on the full create.
    * @param refine           The refine stage on (true) or off.
-   * @return The receiver, or NULL: a code that is not 1,023 chips, or a
-   *         refusal of dp_async_dsss_receiver_create()'s.
+   * @param why              Set to the refusal's sentence; may be NULL.
+   * @return The receiver, or NULL with @p why set: dp_ccsds_415_rx()'s
+   *         refusals (the code's length, the carrier's window,
+   *         @p lost_confirm_s).
    *
    * @code
    * >>> import numpy as np
@@ -1156,12 +1160,12 @@ typedef enum
    * >>> Ccsds415Receiver(code[:511])
    * Traceback (most recent call last):
    * ...
-   * ValueError: Ccsds415Receiver: refused: the code must be 1,023 chips ...
+   * ValueError: the code must be 1,023 chips: the point's Gold code ...
    * @endcode
    */
   dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create_ccsds415 (
       const uint8_t *code, size_t code_len, double carrier_freq_hz,
-      double lost_confirm_s, bool refine);
+      double lost_confirm_s, bool refine, const char **why);
 
   /** @brief Destroy a receiver and release every child.
    *  @param state May be NULL. */

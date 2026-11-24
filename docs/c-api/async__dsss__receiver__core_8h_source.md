@@ -364,7 +364,7 @@ typedef enum
 
   dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create_ccsds415 (
       const uint8_t *code, size_t code_len, double carrier_freq_hz,
-      double lost_confirm_s, bool refine);
+      double lost_confirm_s, bool refine, const char **why);
 
   void dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state);
 

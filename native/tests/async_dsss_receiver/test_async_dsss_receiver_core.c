@@ -7235,14 +7235,77 @@ _test_no_refine_hands_over_the_search_doppler (void)
 }
 
 /* The receiver at the 415.1-B-1 point (Ccsds415Receiver) is
-   dp_async_dsss_receiver_create() with the point's numbers
-   (doppler/ccsds/ccsds_415.h) and the binding's defaults for the rest,
-   spelled here from both: its state blob is byte for byte that create's,
-   at both carriers, refine on and off, with the release armed. Rejects a
-   view whose body drifts from the point (a pfa of 1e-2 there, say), and a
-   code of any other length than 1,023 chips. And the point's R_env, a
-   constant in the installed header, is the pass model's (dp_s415_r_env(),
-   the derivation the harness keeps): a different constant is a fitted one. */
+   dp_async_dsss_receiver_create() with dp_ccsds_415_rx()'s arguments, the
+   one table of them: every argument is read back from the built object
+   and equals the table's, at both carriers, refine on and off, with the
+   release armed. A state blob would not show it: pd, differential, the
+   refine design margin and sequential flag, lost_confirm_s, reacquire and
+   doppler_rate are config no blob carries, so a view body passing pd 0.5
+   or a hard 0.0 for lost_confirm_s built a receiver whose blob was
+   identical. Each refusal names its cause, and the carrier window's two
+   edges are tested on both sides. And the point's R_env, a constant in
+   the installed header, is the pass model's (dp_s415_r_env(), the
+   derivation the harness keeps): a different constant is a fitted one. */
+static void
+_rx_is_the_table (const dp_async_dsss_receiver_state_t *v,
+                  const dp_ccsds_415_rx_t              *a)
+{
+#define ADR_SAME(f) DP_CHECK_MSG (v->f == a->f, #f " is the table's")
+  ADR_SAME (chip_rate);
+  ADR_SAME (symbol_rate);
+  ADR_SAME (m);
+  ADR_SAME (cn0_dbhz);
+  ADR_SAME (pfa);
+  ADR_SAME (pd);
+  ADR_SAME (segments);
+  ADR_SAME (sps);
+  ADR_SAME (differential);
+  ADR_SAME (refine_max_error_db);
+  ADR_SAME (refine_samples_per_symbol);
+  ADR_SAME (refine_design_margin_db);
+  ADR_SAME (refine_n_fft);
+  ADR_SAME (refine_zero_pad);
+  ADR_SAME (refine_sequential);
+  ADR_SAME (refine_max_n_blocks);
+  ADR_SAME (carrier_freq_hz);
+  ADR_SAME (lost_confirm_s);
+  ADR_SAME (reacquire);
+  ADR_SAME (code_only_s);
+  ADR_SAME (doppler_rate);
+  ADR_SAME (refine);
+#undef ADR_SAME
+  DP_CHECK_MSG (v->spc == a->sample_rate / a->chip_rate,
+                "sample_rate is the table's");
+  DP_CHECK_MSG (
+      v->acq && v->acq->search->doppler_uncertainty == a->doppler_uncertainty,
+      "doppler_uncertainty is the table's");
+}
+
+/* The view refuses with the sentence @p cause begins, NULL otherwise. */
+static int
+_refused_for (const uint8_t *code, size_t code_len, double fc, double lost,
+              const char *cause)
+{
+  const char                     *why = NULL;
+  dp_async_dsss_receiver_state_t *v = dp_async_dsss_receiver_create_ccsds415 (
+      code, code_len, fc, lost, true, &why);
+  const int ok
+      = v == NULL && why != NULL && strncmp (why, cause, strlen (cause)) == 0;
+  if (!ok)
+    printf ("  fc %.17g: %s\n", fc, why ? why : "(built)");
+  dp_async_dsss_receiver_destroy (v);
+  return ok;
+}
+
+static int
+_builds (const uint8_t *code, double fc)
+{
+  dp_async_dsss_receiver_state_t *v = dp_async_dsss_receiver_create_ccsds415 (
+      code, DP_CCSDS_415_SF, fc, 0.0, true, NULL);
+  dp_async_dsss_receiver_destroy (v);
+  return v != NULL;
+}
+
 static int
 _test_the_ccsds415_view_is_the_point (void)
 {
@@ -7253,36 +7316,32 @@ _test_the_ccsds415_view_is_the_point (void)
   for (size_t f = 0; f < 2; f++)
     for (int refine = 0; refine < 2; refine++)
       {
-        const double                    fc = fcs[f];
+        dp_ccsds_415_rx_t a;
+        DP_REQUIRE (
+            dp_ccsds_415_rx (&a, DP_CCSDS_415_SF, fcs[f], 0.4, refine, NULL)
+            == 0);
         dp_async_dsss_receiver_state_t *v
-            = dp_async_dsss_receiver_create_ccsds415 (code, DP_CCSDS_415_SF,
-                                                      fc, 0.4, refine);
-        dp_async_dsss_receiver_state_t *w = dp_async_dsss_receiver_create (
-            code, DP_CCSDS_415_SF, dp_ccsds_415_chip_rate (fc),
-            DP_CCSDS_415_SYM, DP_CCSDS_415_FS, 2,
-            dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB), 1e-3, 0.9,
-            DP_CCSDS_415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
-            fc, 0.4, false,
-            (double)DP_CCSDS_415_CODE_ONLY_SYM / DP_CCSDS_415_SYM,
-            DP_CCSDS_415_R_ENV_HZ_S, refine);
-        DP_REQUIRE (v && w);
-        const size_t nv = dp_async_dsss_receiver_state_bytes (v);
-        const size_t nw = dp_async_dsss_receiver_state_bytes (w);
-        DP_CHECK (nv == nw);
-        uint8_t *bv = malloc (nv), *bw = malloc (nw);
-        DP_REQUIRE (bv && bw);
-        dp_async_dsss_receiver_get_state (v, bv);
-        dp_async_dsss_receiver_get_state (w, bw);
-        DP_CHECK (nv == nw && memcmp (bv, bw, nv) == 0);
-        free (bv);
-        free (bw);
+            = dp_async_dsss_receiver_create_ccsds415 (
+                code, DP_CCSDS_415_SF, fcs[f], 0.4, refine, NULL);
+        DP_REQUIRE (v);
+        _rx_is_the_table (v, &a);
         dp_async_dsss_receiver_destroy (v);
-        dp_async_dsss_receiver_destroy (w);
       }
-  /* the point's code is 1,023 chips; a shorter one is refused */
-  DP_CHECK (dp_async_dsss_receiver_create_ccsds415 (
-                code, 511, DP_CCSDS_415_FC_LO, 0.0, true)
-            == NULL);
+  /* The carrier window, each edge from both sides: inside builds, outside
+     is refused with its own cause. */
+  const double lo = DP_CCSDS_415_RX_FC_MIN, hi = DP_CCSDS_415_RX_FC_MAX;
+  DP_CHECK (_builds (code, lo * (1.0 + 1e-9)));
+  DP_CHECK (_refused_for (code, DP_CCSDS_415_SF, lo * (1.0 - 1e-9), 0.0,
+                          "carrier_freq_hz is below DP_CCSDS_415_RX_FC_MIN"));
+  DP_CHECK (_builds (code, hi * (1.0 - 1e-9)));
+  DP_CHECK (_refused_for (code, DP_CCSDS_415_SF, hi * (1.0 + 1e-9), 0.0,
+                          "carrier_freq_hz is above DP_CCSDS_415_RX_FC_MAX"));
+  DP_CHECK (_refused_for (code, DP_CCSDS_415_SF, NAN, 0.0,
+                          "carrier_freq_hz must be finite"));
+  DP_CHECK (_refused_for (code, 511, DP_CCSDS_415_FC_LO, 0.0,
+                          "the code must be 1,023 chips"));
+  DP_CHECK (_refused_for (code, DP_CCSDS_415_SF, DP_CCSDS_415_FC_LO, -1.0,
+                          "lost_confirm_s must be >= 0"));
   return 0;
 }
 

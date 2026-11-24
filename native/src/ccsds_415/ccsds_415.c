@@ -56,3 +56,66 @@ dp_ccsds_415_scene (double fc, double spc, double start_hz)
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC pop_options
 #endif
+
+static int
+refuse (const char **why, const char *sentence)
+{
+  if (why)
+    *why = sentence;
+  return -1;
+}
+
+int
+dp_ccsds_415_rx (dp_ccsds_415_rx_t *a, size_t code_len, double carrier_freq_hz,
+                 double lost_confirm_s, bool refine, const char **why)
+{
+  if (code_len != DP_CCSDS_415_SF)
+    return refuse (why, "the code must be 1,023 chips: the point's Gold "
+                        "code length (the code is the mission's)");
+  if (!isfinite (carrier_freq_hz))
+    return refuse (why, "carrier_freq_hz must be finite");
+  /* The two edges are the receiver's own conditions at the point's rates,
+     symbol_rate x code_len <= chip_rate and chip_rate <= sample_rate,
+     tested on the chip rate itself so the window is exactly the one
+     dp_async_dsss_receiver_create() accepts. */
+  const double chip_rate = dp_ccsds_415_chip_rate (carrier_freq_hz);
+  if (!(DP_CCSDS_415_SYM * (double)DP_CCSDS_415_SF <= chip_rate))
+    return refuse (why,
+                   "carrier_freq_hz is below DP_CCSDS_415_RX_FC_MIN (about "
+                   "2.1004 GHz): its chip rate is under 1,023 x 3,000, so a "
+                   "symbol is shorter than a code period");
+  if (!(chip_rate <= DP_CCSDS_415_FS))
+    return refuse (why,
+                   "carrier_freq_hz is above DP_CCSDS_415_RX_FC_MAX (about "
+                   "7.528 GHz): its chip rate passes the 11 MSa/s sample "
+                   "rate");
+  if (!(lost_confirm_s >= 0.0))
+    return refuse (why, "lost_confirm_s must be >= 0");
+  *a = (dp_ccsds_415_rx_t){
+    .chip_rate                 = chip_rate,
+    .symbol_rate               = DP_CCSDS_415_SYM,
+    .sample_rate               = DP_CCSDS_415_FS,
+    .m                         = 2,
+    .cn0_dbhz                  = dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB),
+    .pfa                       = 1e-3,
+    .pd                        = 0.9,
+    .doppler_uncertainty       = DP_CCSDS_415_SPAN_HZ,
+    .segments                  = 4,
+    .sps                       = 8,
+    .differential              = 0,
+    .refine_max_error_db       = 0.5,
+    .refine_samples_per_symbol = 4,
+    .refine_design_margin_db   = 14.0,
+    .refine_n_fft              = 64,
+    .refine_zero_pad           = 8,
+    .refine_sequential         = false,
+    .refine_max_n_blocks       = 100000,
+    .carrier_freq_hz           = carrier_freq_hz,
+    .lost_confirm_s            = lost_confirm_s,
+    .reacquire                 = false,
+    .code_only_s  = (double)DP_CCSDS_415_CODE_ONLY_SYM / DP_CCSDS_415_SYM,
+    .doppler_rate = DP_CCSDS_415_R_ENV_HZ_S,
+    .refine       = refine,
+  };
+  return 0;
+}

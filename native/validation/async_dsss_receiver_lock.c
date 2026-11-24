@@ -1696,7 +1696,12 @@ main (int argc, char **argv)
       }
 
   DP_REQUIRE (ramp_rows (code, check, emit) == 0);
-  DP_REQUIRE (code_lock_rows (code, check, emit) == 0);
+  /* The code lock's rows (#3134) are the sweep's findings: its statistic
+     and its two terms against their predictions, printed, not asserted.
+     They hold no DP_CHECK, so in --check they cost about 110M samples
+     (two 5 s records at 11 MSa/s) and gated nothing; --check skips them. */
+  if (!check)
+    DP_REQUIRE (code_lock_rows (code, check, emit) == 0);
 
   if (emit)
     DP_TEST_EMIT_END ("validate_async_dsss_receiver_lock");

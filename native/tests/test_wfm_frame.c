@@ -1303,6 +1303,65 @@ test_field_bound (void)
   return 0;
 }
 
+/* The layout's sizes in the two places they were not checked (#3321 follow
+   up, #3328, and the chip count).
+
+   A stage that emits a SHORTER stream than its frame is refused by the
+   layout: assemble forms `out + (out_bits - frame_bits)`, which wraps below
+   `out` when out_bits < frame_bits. The expanding control lays out. The
+   chip count's products and sums are checked, and a count past size_t is
+   refused as 0.
+
+   Prediction (written before the sabotage run): with the shrink check
+   removed, the shrink description lays out and the test below goes red at
+   that refusal; the scene in test_wfm_compose goes red under ASan. */
+static int
+test_shrink_and_chip_counts (void)
+{
+  static const uint8_t bits[8] = { 0, 1, 0, 1, 0, 1, 0, 1 };
+  const wfm_seq_t lit = { .kind = WFM_SEQ_LITERAL, .bits = bits, .len = 8 };
+
+  /* Three literal fields, one conv stage over all of them, emitting 1/2:
+     the stream shrinks to 12 bits. The layout must refuse it. */
+  {
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    DP_REQUIRE (dp_wfm_frame_add_field (&d, "a", &lit, 1u) == 0);
+    DP_REQUIRE (dp_wfm_frame_add_field (&d, "b", &lit, 1u) == 1);
+    DP_REQUIRE (dp_wfm_frame_add_field (&d, "c", &lit, 1u) == 2);
+    DP_REQUIRE (dp_wfm_frame_add_stage (&d, WFM_STAGE_CONV, "a", "c") == 0);
+    d.stage[0].emit_num = 1;
+    d.stage[0].emit_den = 2;
+    wfm_frame_desc_layout_t l;
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&d, &l) == -1,
+                  "an emitting stage that shrinks the frame is refused "
+                  "(#3328)");
+    /* The control: the same description expanding 2/1 lays out. */
+    d.stage[0].emit_num = 2;
+    d.stage[0].emit_den = 1;
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&d, &l) == 0 && l.out_bits == 48
+                      && l.frame_bits == 24,
+                  "the expanding control lays out at 48 bits");
+  }
+
+  /* The chip count: a 2^40-bit frame times a code of 2^24 + 1 chips wraps
+     to a small count unless checked. */
+  {
+    wfm_frame_desc_t e;
+    memset (&e, 0, sizeof e);
+    const wfm_seq_t big = { .kind = WFM_SEQ_DOTTED, .len = (size_t)1 << 40 };
+    DP_REQUIRE (dp_wfm_frame_add_field (&e, "x", &big, 1u) == 0);
+    DP_CHECK_MSG (dp_wfm_dsss_desc_nchips (&e, 3, 2, 2) != 0,
+                  "a count that fits is returned");
+    DP_CHECK_MSG (dp_wfm_dsss_desc_nchips (&e, 3, 2, ((size_t)1 << 24) + 1u)
+                      == 0,
+                  "frame bits times the code wrap: refused as 0");
+    DP_CHECK_MSG (dp_wfm_dsss_desc_nchips (&e, (size_t)1 << 63, 2, 2) == 0,
+                  "the preamble's product wraps: refused as 0");
+  }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -2478,6 +2537,8 @@ main (void)
   if (test_field_read_back ())
     return 1;
   if (test_field_bound ())
+    return 1;
+  if (test_shrink_and_chip_counts ())
     return 1;
   DP_TEST_END ("wfm_frame");
 }

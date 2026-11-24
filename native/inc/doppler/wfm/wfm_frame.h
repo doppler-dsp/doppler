@@ -878,7 +878,9 @@ extern "C"
    * @return 0, or -1 if @p d or @p out is NULL, a count or a cover runs
    *         past its array, a derived field names no producing stage, an
    *         emitting stage covers less than the whole frame or is not the
-   *         only one, the frame has two data fields, or a size wraps: a
+   *         only one, the frame has two data fields, an emitting stage
+   *         shrinks the frame (its output is shorter than the frame, which
+   *         assembly cannot place, #3328), or a size wraps: a
    *         field's bits, a stage's span, the frame's bits or its emitted
    *         bits does not fit a size_t (#3321). A description refused here
    *         is never assembled, so no caller sizes a buffer from a wrapped
@@ -946,7 +948,9 @@ extern "C"
    * @param acq_reps  preamble repetitions.
    * @param data_len  spreading-code length, i.e. chips per frame bit.
    * @return burst chips, or 0 if the description is refused, or it has bits
-   *         and @p data_len is 0, or there is nothing to transmit.
+   *         and @p data_len is 0, or there is nothing to transmit, or the
+   *         chip count does not fit a size_t (every product and sum is
+   *         checked, #3321).
    */
   size_t dp_wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
                                size_t acq_reps, size_t data_len);

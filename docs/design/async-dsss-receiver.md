@@ -2399,6 +2399,8 @@ Two emitters on one code, one stronger than the other, are told apart at
 two places, and each has its own tolerance. The exact figures come first.
 They are printed from the code by `_test_near_far_levels`
 (`test_async_dsss_receiver_core.c`).
+The dense-pass scene that tests the cross lines is designed in
+[`pool-constellation-scene.md`](pool-constellation-scene.md).
 
 | where                                  | what the weaker one meets                                                          | tolerance                                                                      | on which lags                                                             |
 | -------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |

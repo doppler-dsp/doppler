@@ -1585,7 +1585,7 @@ _ghost_pool (const uint8_t *code)
    level): the seed the search makes when noise lifts a sidelobe past its
    gate. Pushed until receiver 1 is released or `tmax_s` after the seed. */
 #define G415_PUSH 4096u
-#define G415_FC DP_S415_FC_HI
+#define G415_FC DP_CCSDS_415_FC_HI
 typedef struct
 {
   dp_async_dsss_pool_state_t *p;
@@ -1640,7 +1640,7 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
   float _Complex *ns = malloc (push * sizeof *ns);
   DP_REQUIRE (
       ns != NULL
-      && dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 7919u + seed, push));
+      && dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, cn0, 7919u + seed, push));
   const double lattice = p->lattice_hz;
   size_t       pos     = 0;
   double       t_seed  = -1.0;
@@ -1654,7 +1654,7 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
       (void)dp_async_dsss_pool_push (p, ns, want);
       DP_REQUIRE (p->carry_len == 0);
       pos += want;
-      const double                       t  = (double)pos / DP_S415_FS;
+      const double                       t  = (double)pos / DP_CCSDS_415_FS;
       const async_dsss_receiver_status_t s0 = dp_async_dsss_pool_status (p, 0);
       const async_dsss_receiver_status_t s1 = dp_async_dsss_pool_status (p, 1);
       if (t_seed < 0.0)
@@ -1960,7 +1960,7 @@ _test_refine_passes_through (void)
 /* The k = 2 scene under the shipped pool: the release rules as shipped
    (lost_confirm_s at objects/async_dsss_pool.toml's default, 2.0 s; the
    duplicate and ghost rules always on), run to the lock allocation
-   (DP_S415_LOCK_S) at 2.8 GHz. The fine hand-over takes the seed two
+   (DP_CCSDS_415_LOCK_S) at 2.8 GHz. The fine hand-over takes the seed two
    lattice steps off A to A's own carrier, where the ghost rule leaves it
    (a k = 0 ghost and a co-located true emitter look the same to it, §8,
    doppler#2551). What frees it then is the loss release: the ghost, on a
@@ -1988,13 +1988,13 @@ _test_shipped_pool_frees_a_dropped_ghost (void)
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
   _g415_t z;
-  DP_REQUIRE (_g415_scene (code, 2, 60.0, 2, 2.0, DP_S415_LOCK_S, true, &z)
+  DP_REQUIRE (_g415_scene (code, 2, 60.0, 2, 2.0, DP_CCSDS_415_LOCK_S, true, &z)
               == 0);
   dp_async_dsss_pool_state_t *p = z.p;
   printf ("k = 2 scene, shipped pool, seed 2, %.0f s: carrier %.1f Hz off "
           "A's, %ld tracking steps (%ld code up, %ld symbol up, %ld both "
           "down), released ghost %llu duplicate %llu lost %llu\n",
-          DP_S415_LOCK_S, z.df_end, z.n, z.code_up, z.sym_up, z.both_down,
+          DP_CCSDS_415_LOCK_S, z.df_end, z.n, z.code_up, z.sym_up, z.both_down,
           (unsigned long long)p->released_ghost,
           (unsigned long long)p->released_duplicate,
           (unsigned long long)p->released_lost);

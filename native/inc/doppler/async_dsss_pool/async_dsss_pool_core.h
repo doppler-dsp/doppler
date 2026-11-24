@@ -350,6 +350,41 @@ extern "C"
       double doppler_rate, int threads, bool refine);
 
   /**
+   * @brief A pool of receivers at the CCSDS 415.1-B-1 specification point
+   *        (doppler/ccsds/ccsds_415.h): the `Ccsds415Pool` view.
+   *
+   * dp_async_dsss_pool_create() with every number the point sets, as
+   * dp_async_dsss_receiver_create_ccsds415() sets them for one receiver,
+   * and the binding's defaults for the rest.
+   *
+   * @param code             The mission's spreading code, one chip a byte
+   *                         (0/1): 1,023 chips. Any other length is refused.
+   * @param code_len         Its length; must be #DP_CCSDS_415_SF.
+   * @param n_receivers      Receivers in the pool, >= 1.
+   * @param carrier_freq_hz  The carrier, F_fwd: 2.2 to 2.8 GHz at the point.
+   * @param lost_confirm_s   A receiver whose flags are down longer than this
+   *                         is released, as on the full create.
+   * @param threads          Worker threads; 0 is the pool's own choice.
+   * @param refine           The refine stage on (true) or off.
+   * @return The pool, or NULL: a code that is not 1,023 chips, or a refusal
+   *         of dp_async_dsss_pool_create()'s.
+   *
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Ccsds415Pool
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023), np.uint8)
+   * >>> pool = Ccsds415Pool(code, n_receivers=2, carrier_freq_hz=2.8e9)
+   * >>> pool.n_receivers
+   * 2
+   * @endcode
+   */
+  dp_async_dsss_pool_state_t *dp_async_dsss_pool_create_ccsds415 (
+      const uint8_t *code, size_t code_len, size_t n_receivers,
+      double carrier_freq_hz, double lost_confirm_s, int threads,
+      bool refine);
+
+  /**
    * @brief Destroy a pool and every receiver.
    * @param state  May be NULL.
    */

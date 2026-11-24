@@ -49,7 +49,7 @@ composer_field_keys = [
   "unit_interval",
 ]
 c_deps = [
-    "hbdecim", "resamp", "wfmcompose", "ccsds_tm", "conv", "rs",
+    "hbdecim", "resamp", "wfmcompose", "ccsds_tm", "ccsds_415", "conv", "rs",
 ]
 # `status_allow` matches PATHS, not findings, so an entry also accepts that
 # file's stale/missing classification -- broader than the reason it was

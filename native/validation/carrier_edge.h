@@ -172,12 +172,12 @@ static inline void
 hb_cfg_bn (hb_cfg_t *c, double fc, double esn0, double bn, int det)
 {
   c->det            = det;
-  const double chip = dp_s415_chip_rate (fc);
+  const double chip = dp_ccsds_415_chip_rate (fc);
   c->fc             = fc;
   c->esn0           = esn0;
-  c->t_upd          = (double)DP_S415_SF / chip;
+  c->t_upd          = (double)DP_CCSDS_415_SF / chip;
   c->bn             = bn;
-  c->gamma_db       = dp_s415_cn0 (esn0) + 10.0 * log10 (c->t_upd);
+  c->gamma_db       = dp_ccsds_415_cn0 (esn0) + 10.0 * log10 (c->t_upd);
   hb_scurve (c);
 }
 
@@ -186,10 +186,11 @@ hb_cfg_bn (hb_cfg_t *c, double fc, double esn0, double bn, int det)
 static inline void
 hb_cfg_det (hb_cfg_t *c, double fc, double esn0, int rule, int det)
 {
-  const double chip = dp_s415_chip_rate (fc);
+  const double chip = dp_ccsds_415_chip_rate (fc);
   hb_cfg_bn (c, fc, esn0,
              rule ? dp_async_dsss_receiver_carrier_bn (
-                        dp_s415_cn0 (DP_S415_FLOOR_DB), chip, DP_S415_SF)
+                        dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB), chip,
+                        DP_CCSDS_415_SF)
                   : ASYNC_DSSS_RX_BN_CARRIER,
              det);
 }

@@ -39,6 +39,7 @@
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include "doppler/loop_filter/loop_filter_core.h"
 #include "doppler/state_filter/state_filter_core.h"
+#include "doppler/ccsds/ccsds_415.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -360,6 +361,10 @@ typedef enum
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s, bool reacquire, double code_only_s,
       double doppler_rate, bool refine);
+
+  dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create_ccsds415 (
+      const uint8_t *code, size_t code_len, double carrier_freq_hz,
+      double lost_confirm_s, bool refine);
 
   void dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state);
 

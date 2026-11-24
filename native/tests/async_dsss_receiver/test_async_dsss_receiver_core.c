@@ -692,7 +692,7 @@ _test_handover_under_clock_offset (void)
 
 /* The hand-over under the clock offset at the floor (40 dB-Hz, Es/N0
  * 5.7 dB), held to the owner's lock allocation, not to the one second the
- * test above runs: DP_S415_LOCK_S (20 s, 2026-11-22). The scene is the
+ * test above runs: DP_CCSDS_415_LOCK_S (20 s, 2026-11-22). The scene is the
  * shipped channel streamed (dp_air_test.h: the synth, the front end's
  * converter, a DopplerChannel at 2.5 GHz, 20 ppm, so the code clock
  * dilates; the shipped awgn), since 20 s at 10 MSa/s does not fit a
@@ -731,11 +731,12 @@ _test_clock_offset_decodes_inside_the_allocation (void)
   uint32_t     cst = 13;
   for (size_t i = 0; i < sf; i++)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
-  const size_t    n_bits = (size_t)(sym_rate * (DP_S415_LOCK_S + 2.0)) + 1000;
-  uint8_t        *bits   = malloc (n_bits);
-  const size_t    cap    = n_bits;
-  float _Complex *syms   = malloc (cap * sizeof *syms);
-  float _Complex *x      = malloc (push * sizeof *x);
+  const size_t n_bits
+      = (size_t)(sym_rate * (DP_CCSDS_415_LOCK_S + 2.0)) + 1000;
+  uint8_t        *bits = malloc (n_bits);
+  const size_t    cap  = n_bits;
+  float _Complex *syms = malloc (cap * sizeof *syms);
+  float _Complex *x    = malloc (push * sizeof *x);
   DP_REQUIRE (bits && syms && x);
   int decoded = 0;
   for (uint32_t seed = 100; seed <= 103; seed++)
@@ -782,7 +783,7 @@ _test_clock_offset_decodes_inside_the_allocation (void)
       for (uint64_t pos = 0;; pos += push)
         {
           t = (double)(pos + push) / fs;
-          if (t > DP_S415_LOCK_S + 2.0
+          if (t > DP_CCSDS_415_LOCK_S + 2.0
               || (lock != SIZE_MAX && ns >= lock + win))
             break;
           DP_REQUIRE (dp_air_next (&air, x, push));
@@ -857,11 +858,12 @@ _test_clock_offset_decodes_inside_the_allocation (void)
               "(ho_src %d); "
               "longest run up, symbols: sym %zu code %zu car %zu demod %zu "
               "sync %zu\n",
-              sign * ppm, cn0, seed, t_lock, DP_S415_LOCK_S, ber, seed_err,
-              seed_err / sym_rate, ho_err, ho_src, qbest[DP_S415_FLAG_SYM],
-              qbest[DP_S415_FLAG_CODE], qbest[DP_S415_FLAG_CAR],
-              qbest[DP_S415_FLAG_DEMOD], qbest[DP_S415_FLAG_SYNC]);
-      decoded += !isnan (t_lock) && t_lock <= DP_S415_LOCK_S && ber < 0.05
+              sign * ppm, cn0, seed, t_lock, DP_CCSDS_415_LOCK_S, ber,
+              seed_err, seed_err / sym_rate, ho_err, ho_src,
+              qbest[DP_S415_FLAG_SYM], qbest[DP_S415_FLAG_CODE],
+              qbest[DP_S415_FLAG_CAR], qbest[DP_S415_FLAG_DEMOD],
+              qbest[DP_S415_FLAG_SYNC]);
+      decoded += !isnan (t_lock) && t_lock <= DP_CCSDS_415_LOCK_S && ber < 0.05
                  && ho_src == ASYNC_DSSS_RX_HO_FINE;
       dp_async_dsss_receiver_destroy (rx);
       dp_air_free (&air);
@@ -959,10 +961,10 @@ _test_spec_combined_scenario_at_spec_floor (void)
  * the self-referenced EVM (each symbol vs its OWN hard decision, no lag) and
  * the blind M2M4 SNR (snr_m2m4_db, moment-based, no reference symbols).
  * AWGN-only, this receiver decodes at the use case's floor, 4 dB
- * (DP_S415_FLOOR_DB), and above. The BER is scored from the symbol the first
- * output carries (the record's own timing), so the receiver's latency, which
- * grows toward the floor, never moves the payload out of the lag search
- * (scoring from a fixed symbol reads a false floor; the EVM/M2M4
+ * (DP_CCSDS_415_FLOOR_ESN0_DB), and above. The BER is scored from the symbol
+ * the first output carries (the record's own timing), so the receiver's
+ * latency, which grows toward the floor, never moves the payload out of the
+ * lag search (scoring from a fixed symbol reads a false floor; the EVM/M2M4
  * corroboration is what tells the two apart).
  */
 static int
@@ -2280,12 +2282,13 @@ _test_unsized_carrier_lock_is_refused (void)
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
   static const uint32_t want[2] = { 34u, 43u };
-  const double          fcs[2]  = { DP_S415_FC_LO, DP_S415_FC_HI };
+  const double          fcs[2]  = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
   for (int f = 0; f < 2; f++)
     {
-      const double chip = dp_s415_chip_rate (fcs[f]);
+      const double chip = dp_ccsds_415_chip_rate (fcs[f]);
       DP_CHECK (dp_async_dsss_receiver_carrier_lock_n_noncoh (
-                    dp_s415_cn0 (DP_S415_FLOOR_DB), chip, DP_S415_SF, 4)
+                    dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB), chip,
+                    DP_CCSDS_415_SF, 4)
                 == want[f]);
       dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fcs[f], true);
       DP_REQUIRE (rx != NULL);
@@ -2351,8 +2354,10 @@ _test_fine_seed_bound (void)
 {
   uint8_t g[1023];
   dp_dsss_gold_1023 (g);
-  dp_async_dsss_receiver_state_t *lo = dp_s415_rx (g, DP_S415_FC_LO, true);
-  dp_async_dsss_receiver_state_t *hi = dp_s415_rx (g, DP_S415_FC_HI, true);
+  dp_async_dsss_receiver_state_t *lo
+      = dp_s415_rx (g, DP_CCSDS_415_FC_LO, true);
+  dp_async_dsss_receiver_state_t *hi
+      = dp_s415_rx (g, DP_CCSDS_415_FC_HI, true);
   DP_REQUIRE (lo && hi);
   DP_CHECK (lo->fine_on && lo->fine.k == 5 && lo->fine.blocks == 39);
   DP_CHECK (hi->fine_on && hi->fine.k == 5 && hi->fine.blocks == 43);
@@ -2503,16 +2508,17 @@ _test_sequential_handover_on_a_ramp (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  const double     fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
+  const double     fc = DP_CCSDS_415_FC_HI, chip = dp_ccsds_415_chip_rate (fc);
   const double     rate = dp_s415_r_env (), cn0 = 50.0;
   dp_air_emitter_t e = dp_s415_emitter (code, fc, -400.0, rate, cn0, 0.0, 41u);
   const size_t     push = 4096;
   dp_air_t         air;
-  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 4242u, push));
+  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, cn0, 4242u, push));
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, DP_S415_SF, chip, DP_S415_SYM, DP_S415_FS, 2, 41.0, 1e-3, 0.9,
-      DP_S415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, true, 100000, fc, 0.0,
-      false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM, rate, true);
+      code, DP_CCSDS_415_SF, chip, DP_CCSDS_415_SYM, DP_CCSDS_415_FS, 2, 41.0,
+      1e-3, 0.9, DP_CCSDS_415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, true,
+      100000, fc, 0.0, false,
+      (double)DP_CCSDS_415_CODE_ONLY_SYM / DP_CCSDS_415_SYM, rate, true);
   DP_REQUIRE (rx != NULL && rx->fine_on);
   float _Complex *x   = malloc (push * sizeof *x);
   float _Complex *out = malloc (push * sizeof *out);
@@ -2523,13 +2529,13 @@ _test_sequential_handover_on_a_ramp (void)
   (void)dp_async_dsss_receiver_steps (rx, x, push, out, push);
   const dp_air_truth_t t0 = dp_air_truth (&air, 0, air.n_out);
   DP_REQUIRE (!isnan (t0.code_chips));
-  DP_REQUIRE (
-      dp_async_dsss_receiver_seed (
-          rx,
-          fmod (t0.code_chips - 0.5 * chip / DP_S415_FS + (double)DP_S415_SF,
-                (double)DP_S415_SF),
-          t0.car_hz, 41.0)
-      == DP_OK);
+  DP_REQUIRE (dp_async_dsss_receiver_seed (
+                  rx,
+                  fmod (t0.code_chips - 0.5 * chip / DP_CCSDS_415_FS
+                            + (double)DP_CCSDS_415_SF,
+                        (double)DP_CCSDS_415_SF),
+                  t0.car_hz, 41.0)
+              == DP_OK);
   size_t fired  = 0;
   double ho_err = NAN, chip_err = NAN;
   for (int k = 0; k < 2000 && rx->state != ASYNC_DSSS_RX_TRACKING; k++)
@@ -2545,11 +2551,11 @@ _test_sequential_handover_on_a_ramp (void)
                          - dp_air_truth (&air, 0, start).car_hz;
   {
     const double tr = dp_air_truth (&air, 0, rx->samples_in).code_chips
-                      - 0.5 * chip / DP_S415_FS;
+                      - 0.5 * chip / DP_CCSDS_415_FS;
     double       d  = fmod (dp_async_dsss_receiver_status (rx).chip_phase - tr
-                                + 1.5 * DP_S415_SF,
-                            (double)DP_S415_SF);
-    chip_err        = (d < 0.0 ? d + DP_S415_SF : d) - 0.5 * DP_S415_SF;
+                                + 1.5 * DP_CCSDS_415_SF,
+                            (double)DP_CCSDS_415_SF);
+    chip_err = (d < 0.0 ? d + DP_CCSDS_415_SF : d) - 0.5 * DP_CCSDS_415_SF;
   }
   printf ("  sequential hand-over on +R_env: fired at block %zu of %zu; "
           "ho_src %d, %+.2f Hz and %+.3f chip off the truth at the start "
@@ -6823,12 +6829,13 @@ _seq_create (void *arg)
   const seq_seed_t *sd = arg;
   uint8_t           code[1023];
   dp_dsss_gold_1023 (code);
-  const double                    fc = DP_S415_FC_HI;
+  const double                    fc = DP_CCSDS_415_FC_HI;
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, DP_S415_SF, dp_s415_chip_rate (fc), DP_S415_SYM, DP_S415_FS, 2,
-      41.0, 1e-3, 0.9, DP_S415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, true,
-      100000, fc, 0.0, false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
-      dp_s415_r_env (), true);
+      code, DP_CCSDS_415_SF, dp_ccsds_415_chip_rate (fc), DP_CCSDS_415_SYM,
+      DP_CCSDS_415_FS, 2, 41.0, 1e-3, 0.9, DP_CCSDS_415_SPAN_HZ, 4, 8, 0, 0.5,
+      4, 14.0, 64, 8, true, 100000, fc, 0.0, false,
+      (double)DP_CCSDS_415_CODE_ONLY_SYM / DP_CCSDS_415_SYM, dp_s415_r_env (),
+      true);
   if (rx
       && dp_async_dsss_receiver_seed (rx, sd->chip_phase, sd->doppler_hz, 41.0)
              != DP_OK)
@@ -6844,22 +6851,22 @@ _test_fallback_is_chunk_invariant (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  const double     fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
+  const double     fc = DP_CCSDS_415_FC_HI, chip = dp_ccsds_415_chip_rate (fc);
   const double     rate = dp_s415_r_env (), cn0 = 50.0;
   dp_air_emitter_t e = dp_s415_emitter (code, fc, -400.0, rate, cn0, 0.0, 41u);
   const size_t     push = 4096, n = 260 * push;
   dp_air_t         air;
-  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 4242u, push));
+  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, cn0, 4242u, push));
   /* The scene's first chip is past sample 0: one push is dropped, and the
      stream starts at the truth there, which seeds the receiver. */
   float _Complex *x = malloc (n * sizeof *x);
   DP_REQUIRE (x != NULL && dp_air_next (&air, x, push));
   const dp_air_truth_t t0 = dp_air_truth (&air, 0, air.n_out);
   DP_REQUIRE (!isnan (t0.code_chips));
-  seq_seed_t sd
-      = { fmod (t0.code_chips - 0.5 * chip / DP_S415_FS + (double)DP_S415_SF,
-                (double)DP_S415_SF),
-          t0.car_hz };
+  seq_seed_t sd = { fmod (t0.code_chips - 0.5 * chip / DP_CCSDS_415_FS
+                              + (double)DP_CCSDS_415_SF,
+                          (double)DP_CCSDS_415_SF),
+                    t0.car_hz };
   for (size_t k = 0; k < n / push; k++)
     DP_REQUIRE (dp_air_next (&air, x + k * push, push));
   dp_air_free (&air);
@@ -7158,8 +7165,8 @@ static int
 _ramp_handover (double f0, uint32_t seed, double *err_hz, double *bound_hz,
                 int *never_refining)
 {
-  const double     fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
-  const double     cn0  = dp_s415_cn0 (DP_S415_FLOOR_DB);
+  const double     fc = DP_CCSDS_415_FC_HI, chip = dp_ccsds_415_chip_rate (fc);
+  const double     cn0  = dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB);
   const double     rate = dp_s415_r_env ();
   uint8_t          code[1023];
   dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
@@ -7173,9 +7180,9 @@ _ramp_handover (double f0, uint32_t seed, double *err_hz, double *bound_hz,
   dp_air_t        air;
   float _Complex *x   = malloc (RAMP_CHUNK * sizeof *x);
   float _Complex *out = malloc (RAMP_CHUNK * sizeof *out);
-  DP_REQUIRE (
-      rx && x && out
-      && dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 7919u + seed, RAMP_CHUNK));
+  DP_REQUIRE (rx && x && out
+              && dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, cn0, 7919u + seed,
+                              RAMP_CHUNK));
   const size_t D = rx->acq->search->coherent_bins;
   /* The code-only window's half binds at R_env (the derivation above). */
   DP_REQUIRE (D == 180);
@@ -7184,7 +7191,8 @@ _ramp_handover (double f0, uint32_t seed, double *err_hz, double *bound_hz,
                     + rate * 0.5 * (double)D * 1023.0 / chip;
   *never_refining = 1;
   *err_hz         = NAN;
-  for (size_t fed = 0; fed < (size_t)(0.5 * DP_S415_FS) && isnan (*err_hz);)
+  for (size_t fed = 0;
+       fed < (size_t)(0.5 * DP_CCSDS_415_FS) && isnan (*err_hz);)
     {
       DP_REQUIRE (dp_air_next (&air, x, RAMP_CHUNK));
       (void)dp_async_dsss_receiver_steps (rx, x, RAMP_CHUNK, out, RAMP_CHUNK);
@@ -7226,10 +7234,63 @@ _test_no_refine_hands_over_the_search_doppler (void)
   return 0;
 }
 
+/* The receiver at the 415.1-B-1 point (Ccsds415Receiver) is
+   dp_async_dsss_receiver_create() with the point's numbers
+   (doppler/ccsds/ccsds_415.h) and the binding's defaults for the rest,
+   spelled here from both: its state blob is byte for byte that create's,
+   at both carriers, refine on and off, with the release armed. Rejects a
+   view whose body drifts from the point (a pfa of 1e-2 there, say), and a
+   code of any other length than 1,023 chips. And the point's R_env, a
+   constant in the installed header, is the pass model's (dp_s415_r_env(),
+   the derivation the harness keeps): a different constant is a fitted one. */
+static int
+_test_the_ccsds415_view_is_the_point (void)
+{
+  uint8_t code[DP_CCSDS_415_SF];
+  dp_dsss_gold_1023 (code);
+  DP_CHECK (DP_CCSDS_415_R_ENV_HZ_S == dp_s415_r_env ());
+  static const double fcs[] = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
+  for (size_t f = 0; f < 2; f++)
+    for (int refine = 0; refine < 2; refine++)
+      {
+        const double                    fc = fcs[f];
+        dp_async_dsss_receiver_state_t *v
+            = dp_async_dsss_receiver_create_ccsds415 (code, DP_CCSDS_415_SF,
+                                                      fc, 0.4, refine);
+        dp_async_dsss_receiver_state_t *w = dp_async_dsss_receiver_create (
+            code, DP_CCSDS_415_SF, dp_ccsds_415_chip_rate (fc),
+            DP_CCSDS_415_SYM, DP_CCSDS_415_FS, 2,
+            dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB), 1e-3, 0.9,
+            DP_CCSDS_415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
+            fc, 0.4, false,
+            (double)DP_CCSDS_415_CODE_ONLY_SYM / DP_CCSDS_415_SYM,
+            DP_CCSDS_415_R_ENV_HZ_S, refine);
+        DP_REQUIRE (v && w);
+        const size_t nv = dp_async_dsss_receiver_state_bytes (v);
+        const size_t nw = dp_async_dsss_receiver_state_bytes (w);
+        DP_CHECK (nv == nw);
+        uint8_t *bv = malloc (nv), *bw = malloc (nw);
+        DP_REQUIRE (bv && bw);
+        dp_async_dsss_receiver_get_state (v, bv);
+        dp_async_dsss_receiver_get_state (w, bw);
+        DP_CHECK (nv == nw && memcmp (bv, bw, nv) == 0);
+        free (bv);
+        free (bw);
+        dp_async_dsss_receiver_destroy (v);
+        dp_async_dsss_receiver_destroy (w);
+      }
+  /* the point's code is 1,023 chips; a shorter one is refused */
+  DP_CHECK (dp_async_dsss_receiver_create_ccsds415 (
+                code, 511, DP_CCSDS_415_FC_LO, 0.0, true)
+            == NULL);
+  return 0;
+}
+
 int
 main (void)
 {
   (void)_test_arg_validation ();
+  DP_CHECK (_test_the_ccsds415_view_is_the_point () == 0);
   DP_CHECK (_test_seed_domain () == 0);
   DP_CHECK (_test_forged_residual_refused () == 0);
   DP_CHECK (_test_handover_holds_the_refined_doppler_to_the_domain () == 0);

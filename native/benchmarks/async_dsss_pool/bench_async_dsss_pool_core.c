@@ -643,25 +643,25 @@ main (void)
      steady state (measured when these rows were written), and holding a
      signal costs the same either way. Every push is the pool's own dwell,
      D code periods. */
-  const double     spec_cn0     = dp_s415_cn0 (DP_S415_FLOOR_DB);
-  const double     fcs[2]       = { DP_S415_FC_LO, DP_S415_FC_HI };
+  const double     spec_cn0 = dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB);
+  const double     fcs[2]   = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
   const air_row_t *spec_rows[2] = { AIR_SPEC_22_ROWS, AIR_SPEC_28_ROWS };
   for (int i = 0; i < 2; i++)
     {
-      const air_pt_t sp
-          = { .chip          = dp_s415_chip_rate (fcs[i]),
-              .cn0           = spec_cn0,
-              .carrier_hz    = fcs[i],
-              .span_hz       = DP_S415_SPAN_HZ,
-              .code_only_s   = (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
-              .rate_hz_s     = dp_s415_r_env (),
-              .f_lo          = -1450.0,
-              .f_hi          = 1350.0,
-              .ramp_hz_s     = 0.0,
-              .tol_hz        = 150.0,
-              .code_only_sym = DP_S415_CODE_ONLY_SYM,
-              .frame_sym     = AIR_FRAME_SYM,
-              .block_periods = 0 };
+      const air_pt_t sp = { .chip          = dp_ccsds_415_chip_rate (fcs[i]),
+                            .cn0           = spec_cn0,
+                            .carrier_hz    = fcs[i],
+                            .span_hz       = DP_CCSDS_415_SPAN_HZ,
+                            .code_only_s   = (double)DP_CCSDS_415_CODE_ONLY_SYM
+                                             / DP_CCSDS_415_SYM,
+                            .rate_hz_s     = dp_s415_r_env (),
+                            .f_lo          = -1450.0,
+                            .f_hi          = 1350.0,
+                            .ramp_hz_s     = 0.0,
+                            .tol_hz        = 150.0,
+                            .code_only_sym = DP_CCSDS_415_CODE_ONLY_SYM,
+                            .frame_sym     = AIR_FRAME_SYM,
+                            .block_periods = 0 };
       printf ("\n=== async_dsss_pool at 415.1-B-1, %.1f GHz: %.4f Mcps, "
               "11 MSa/s in, 4 dB Es/N0, 9 emitters, %d receivers ===\n",
               fcs[i] / 1e9, sp.chip / 1e6, AIR_RX);

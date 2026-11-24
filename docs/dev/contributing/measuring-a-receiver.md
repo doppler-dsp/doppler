@@ -167,7 +167,7 @@ than the receiver.
 the offset in loop bandwidths: inside the loop's lock-in range it is
 predictable, and past it the pull-in law says how long. Gate that the link
 locks inside the time its offset predicts and inside the stated allocation
-(415.1-B-1's is 20 s, `DP_S415_LOCK_S` in `dp_s415_test.h`). Then score from
+(415.1-B-1's is 20 s, `DP_CCSDS_415_LOCK_S` in `doppler/ccsds/ccsds_415.h`). Then score from
 the observed lock (the first trap below).
 
 **Slips before lock are printed, never gated.** Cycle slips during pull-in

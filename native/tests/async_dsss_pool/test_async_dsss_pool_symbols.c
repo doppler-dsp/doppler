@@ -24,6 +24,7 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_async_dsss_pool[] = {
     (jm_any_fn)dp_async_dsss_pool_create,
+    (jm_any_fn)dp_async_dsss_pool_create_ccsds415,
     (jm_any_fn)dp_async_dsss_pool_destroy,
     (jm_any_fn)dp_async_dsss_pool_reset,
     (jm_any_fn)dp_async_dsss_pool_state_bytes,

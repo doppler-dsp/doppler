@@ -53,6 +53,8 @@ _CCSDS 131.0-B's published literals, as a Python-facing component._ [More...](#d
 | Type | Name |
 | ---: | :--- |
 |  void | [**dp\_asm\_bits**](#function-dp_asm_bits) (uint8\_t \* out) <br>_The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits._  |
+|  double | [**dp\_ccsds415\_chip\_rate**](#function-dp_ccsds415_chip_rate) (double fc) <br>_Chips a second at carrier_ `fc` _at the CCSDS 415.1-B-1 point: F\_fwd x 31 / (221 x 96), table 4-1. Computed with fast math off, so every compiler, and the Python face, give the same bits._ |
+|  double | [**dp\_ccsds415\_cn0**](#function-dp_ccsds415_cn0) (double esn0\_db) <br>_C/N0, dB-Hz, of an Es/N0 at the 415.1-B-1 point's 3,000 symbols a second:_ `esn0_db + 10 log10(3000)` _. An alias over_[_**dp\_ccsds\_415\_cn0()**_](ccsds__415_8h.md#function-dp_ccsds_415_cn0) _._ |
 
 
 
@@ -132,6 +134,85 @@ A function rather than a constant a caller expands, because an MSB-first expansi
 True
 ```
  
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ccsds415\_chip\_rate 
+
+_Chips a second at carrier_ `fc` _at the CCSDS 415.1-B-1 point: F\_fwd x 31 / (221 x 96), table 4-1. Computed with fast math off, so every compiler, and the Python face, give the same bits._
+```C++
+double dp_ccsds415_chip_rate (
+    double fc
+) 
+```
+
+
+
+An alias over [**dp\_ccsds\_415\_chip\_rate()**](ccsds__415_8h.md#function-dp_ccsds_415_chip_rate), which owns the arithmetic; the point's other numbers and the scene helper are [**doppler/ccsds/ccsds\_415.h**](ccsds__415_8h.md).
+
+
+
+
+**Parameters:**
+
+
+* `fc` The carrier, F\_fwd, Hz. 
+
+
+
+**Returns:**
+
+The chip rate, chips/s. 
+```C++
+printf ("%.6f\n", dp_ccsds415_chip_rate (2.8e9));   // 4091251.885370
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ccsds415\_cn0 
+
+_C/N0, dB-Hz, of an Es/N0 at the 415.1-B-1 point's 3,000 symbols a second:_ `esn0_db + 10 log10(3000)` _. An alias over_[_**dp\_ccsds\_415\_cn0()**_](ccsds__415_8h.md#function-dp_ccsds_415_cn0) _._
+```C++
+double dp_ccsds415_cn0 (
+    double esn0_db
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `esn0_db` Es/N0, dB. 
+
+
+
+**Returns:**
+
+C/N0, dB-Hz. 
+```C++
+printf ("%.4f\n", dp_ccsds415_cn0 (4.0));   // 38.7712
+```
+ 
+
 
 
 

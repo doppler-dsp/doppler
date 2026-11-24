@@ -59,6 +59,35 @@ extern "C" {
  */
 void dp_asm_bits(uint8_t *out);
 
+/**
+ * @brief Chips a second at carrier @p fc at the CCSDS 415.1-B-1 point:
+ *        F_fwd x 31 / (221 x 96), table 4-1. Computed with fast math off,
+ *        so every compiler, and the Python face, give the same bits.
+ *
+ * An alias over dp_ccsds_415_chip_rate(), which owns the arithmetic; the
+ * point's other numbers and the scene helper are doppler/ccsds/ccsds_415.h.
+ *
+ * @param fc  The carrier, F_fwd, Hz.
+ * @return The chip rate, chips/s.
+ * @code
+ * printf ("%.6f\n", dp_ccsds415_chip_rate (2.8e9));   // 4091251.885370
+ * @endcode
+ */
+double dp_ccsds415_chip_rate(double fc);
+
+/**
+ * @brief C/N0, dB-Hz, of an Es/N0 at the 415.1-B-1 point's 3,000 symbols a
+ *        second: `esn0_db + 10 log10(3000)`. An alias over
+ *        dp_ccsds_415_cn0().
+ *
+ * @param esn0_db  Es/N0, dB.
+ * @return C/N0, dB-Hz.
+ * @code
+ * printf ("%.4f\n", dp_ccsds415_cn0 (4.0));   // 38.7712
+ * @endcode
+ */
+double dp_ccsds415_cn0(double esn0_db);
+
 #ifdef __cplusplus
 }
 #endif

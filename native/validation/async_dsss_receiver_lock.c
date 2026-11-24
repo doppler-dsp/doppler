@@ -164,9 +164,9 @@
 static const double relock_ms[] = { 50.0, 200.0 };
 #define N_RELOCK (sizeof relock_ms / sizeof relock_ms[0])
 
-static const double esn0s[] = { 10.0, DP_S415_FLOOR_DB };
+static const double esn0s[] = { 10.0, DP_CCSDS_415_FLOOR_ESN0_DB };
 #define N_ESN0 (sizeof esn0s / sizeof esn0s[0])
-static const double fcs[] = { DP_S415_FC_LO, DP_S415_FC_HI };
+static const double fcs[] = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
 #define N_FC (sizeof fcs / sizeof fcs[0])
 #define SWEEP_TRIALS 20u   /* settled dropout trials a cell          */
 #define SWEEP_ATTEMPTS 40u /* dropout draws tried for them, at most    */
@@ -175,7 +175,8 @@ static const double fcs[] = { DP_S415_FC_LO, DP_S415_FC_HI };
 static double
 period_samples (double fc)
 {
-  return (double)DP_S415_SF / dp_s415_chip_rate (fc) * DP_S415_FS;
+  return (double)DP_CCSDS_415_SF / dp_ccsds_415_chip_rate (fc)
+         * DP_CCSDS_415_FS;
 }
 
 /* Whether symbol `n` (dp_air_truth()'s count) is mid-data: it and the
@@ -186,9 +187,9 @@ mid_data (long n)
 {
   if (n < 0)
     return 0;
-  const long q = n % (long)DP_S415_FRAME_SYM;
-  return q >= (long)(DP_S415_CODE_ONLY_SYM + FLIPS_SYMS)
-         && q + (long)FLIPS_SYMS < (long)DP_S415_FRAME_SYM;
+  const long q = n % (long)DP_CCSDS_415_FRAME_SYM;
+  return q >= (long)(DP_CCSDS_415_CODE_ONLY_SYM + FLIPS_SYMS)
+         && q + (long)FLIPS_SYMS < (long)DP_CCSDS_415_FRAME_SYM;
 }
 
 /* Of the symbol boundaries within FLIPS_SYMS of symbol `n`, the fraction
@@ -220,7 +221,7 @@ scene_init (dp_air_t *air, const uint8_t *code, double fc, double f0,
   e.frame_off        = frame_off;
   e.bits             = bits;
   e.n_bits           = n_bits;
-  return dp_air_init (air, &e, 1, DP_S415_FS, NAN, 0u, PUSH);
+  return dp_air_init (air, &e, 1, DP_CCSDS_415_FS, NAN, 0u, PUSH);
 }
 
 /* The noise: the shipped awgn, sized for a unit-power emitter at `cn0`
@@ -228,16 +229,17 @@ scene_init (dp_air_t *air, const uint8_t *code, double fc, double f0,
 static dp_awgn_state_t *
 lk_noise (uint32_t seed, double cn0)
 {
-  return dp_awgn_create (seed * 7919u + 1u,
-                         dp_awgn_amplitude_for_snr (
-                             (float)(cn0 - 10.0 * log10 (DP_S415_FS)), 1.0f));
+  return dp_awgn_create (
+      seed * 7919u + 1u,
+      dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (DP_CCSDS_415_FS)),
+                                 1.0f));
 }
 
 /* Data symbols a run of `samples` needs, with room. */
 static size_t
 bits_for (double samples)
 {
-  return (size_t)(samples / DP_S415_FS * DP_S415_SYM) + 2000u;
+  return (size_t)(samples / DP_CCSDS_415_FS * DP_CCSDS_415_SYM) + 2000u;
 }
 
 static dp_async_dsss_receiver_state_t *
@@ -351,20 +353,21 @@ run_dropout (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
   memset (out, 0, sizeof *out);
   out->drop_ms        = -1.0;
   uint32_t     st     = trial_rng (seed + 100000u);
-  const double cn0    = dp_s415_cn0 (esn0_db);
+  const double cn0    = dp_ccsds_415_cn0 (esn0_db);
   const double per    = period_samples (fc);
-  out->period_ms      = per / DP_S415_FS * 1e3;
-  const size_t lock_b = (size_t)(MAX_LOCK_S * DP_S415_FS / (double)PUSH);
-  out->carrier_hz     = (2.0 * dp_uni (&st) - 1.0) * DP_S415_SPAN_HZ;
-  const size_t frame0
-      = (size_t)(dp_uni (&st) * (double)DP_S415_FRAME_SYM) % DP_S415_FRAME_SYM;
+  out->period_ms      = per / DP_CCSDS_415_FS * 1e3;
+  const size_t lock_b = (size_t)(MAX_LOCK_S * DP_CCSDS_415_FS / (double)PUSH);
+  out->carrier_hz     = (2.0 * dp_uni (&st) - 1.0) * DP_CCSDS_415_SPAN_HZ;
+  const size_t frame0 = (size_t)(dp_uni (&st) * (double)DP_CCSDS_415_FRAME_SYM)
+                        % DP_CCSDS_415_FRAME_SYM;
   const size_t jitter_b
-      = (size_t)(dp_uni (&st) * JITTER_S * DP_S415_FS / PUSH);
+      = (size_t)(dp_uni (&st) * JITTER_S * DP_CCSDS_415_FS / PUSH);
   const size_t at = (size_t)(dp_uni (&st) * (double)PUSH);
   /* The mid-data band comes round once a frame (1/3 s): room for it. */
-  const size_t band_b
-      = (size_t)(DP_S415_FRAME_SYM / DP_S415_SYM * DP_S415_FS / PUSH) + 1;
-  const size_t post_n = blocks_of ((size_t)(POST_S * DP_S415_FS)) * PUSH;
+  const size_t band_b = (size_t)(DP_CCSDS_415_FRAME_SYM / DP_CCSDS_415_SYM
+                                 * DP_CCSDS_415_FS / PUSH)
+                        + 1;
+  const size_t post_n = blocks_of ((size_t)(POST_S * DP_CCSDS_415_FS)) * PUSH;
   const size_t max_n  = (lock_b + jitter_b + band_b + 2) * PUSH + post_n;
   const size_t n_bits = bits_for ((double)max_n);
   uint8_t     *bits   = draw_bits (&st, n_bits);
@@ -387,7 +390,7 @@ run_dropout (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
                               noi, syms, cap, &fed);
   const long cut_sym = dp_air_truth (&air, 0, fed * PUSH + at).symbol;
   out->settled       = ok;
-  out->cut_s         = (double)(fed * PUSH + at) / DP_S415_FS;
+  out->cut_s         = (double)(fed * PUSH + at) / DP_CCSDS_415_FS;
   out->flips         = flips_near (&air, cut_sym);
   if (!out->settled)
     goto done;
@@ -410,7 +413,8 @@ run_dropout (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
 
     /* Gone for good, over the whole blocks inside DROP_WATCH_S, so a drop
        is never read past the watch. */
-    const size_t m_gone = (at + (size_t)(DROP_WATCH_S * DP_S415_FS)) / PUSH;
+    const size_t m_gone
+        = (at + (size_t)(DROP_WATCH_S * DP_CCSDS_415_FS)) / PUSH;
     DP_REQUIRE (branch (rx, blob, sigp, noip, at, SIZE_MAX, m_gone, blk, syms,
                         cap, gone)
                 == 0);
@@ -418,8 +422,8 @@ run_dropout (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
     for (size_t i = 0; i < m; i++)
       if (!gone[i])
         {
-          out->drop_ms
-              = ((double)((i + 1) * PUSH) - (double)at) / DP_S415_FS * 1e3;
+          out->drop_ms = ((double)((i + 1) * PUSH) - (double)at)
+                         / DP_CCSDS_415_FS * 1e3;
           break;
         }
 
@@ -431,7 +435,7 @@ run_dropout (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
                      + 2;
     if (longest > MAX_HOLD)
       longest = MAX_HOLD;
-    const size_t hold_watch = (size_t)(HOLD_WATCH_S * DP_S415_FS);
+    const size_t hold_watch = (size_t)(HOLD_WATCH_S * DP_CCSDS_415_FS);
     int          failed     = 0;
     /* The restore check: until the signal returns, a case's input is the
        for-good case's, so its lock must read the same, block for block. */
@@ -464,9 +468,9 @@ run_dropout (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
     /* The re-lock after each RELOCK_MS dropout. */
     for (size_t r = 0; r < N_RELOCK; r++)
       {
-        size_t fade = (size_t)(relock_ms[r] * 1e-3 * DP_S415_FS);
+        size_t fade = (size_t)(relock_ms[r] * 1e-3 * DP_CCSDS_415_FS);
         size_t back = at + fade;
-        m           = blocks_of (back + (size_t)(RELOCK_WATCH_S * DP_S415_FS));
+        m = blocks_of (back + (size_t)(RELOCK_WATCH_S * DP_CCSDS_415_FS));
         DP_REQUIRE (m <= post_n / PUSH);
         DP_REQUIRE (
             branch (rx, blob, sigp, noip, at, fade, m, blk, syms, cap, lk)
@@ -480,7 +484,7 @@ run_dropout (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
           if (lk[i])
             {
               out->back_ms[r] = ((double)((i + 1) * PUSH) - (double)back)
-                                / DP_S415_FS * 1e3;
+                                / DP_CCSDS_415_FS * 1e3;
               break;
             }
       }
@@ -563,7 +567,7 @@ typedef struct
 
 static const story_t stories[] = {
   { "lifecycle-10db", 10.0, 1u, 1 },
-  { "lifecycle-4db", DP_S415_FLOOR_DB, 1u, 1 },
+  { "lifecycle-4db", DP_CCSDS_415_FLOOR_ESN0_DB, 1u, 1 },
 };
 #define N_STORIES (sizeof stories / sizeof stories[0])
 /* Each fade: the emitter's symbol it starts at, and its length, s. */
@@ -579,7 +583,7 @@ static const double story_fades[][2]
 static double
 story_sample (size_t delay, double sym)
 {
-  return (double)delay + sym / DP_S415_SYM * DP_S415_FS;
+  return (double)delay + sym / DP_CCSDS_415_SYM * DP_CCSDS_415_FS;
 }
 
 static int
@@ -590,7 +594,8 @@ story_on (size_t n, size_t delay)
   for (size_t f = 0; f < N_STORY_FADES; f++)
     {
       const double a = story_sample (delay, story_fades[f][0]);
-      if ((double)n >= a && (double)n < a + story_fades[f][1] * DP_S415_FS)
+      if ((double)n >= a
+          && (double)n < a + story_fades[f][1] * DP_CCSDS_415_FS)
         return 0;
     }
   return 1;
@@ -601,18 +606,19 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check,
            int emit)
 {
   const int    fails_before = dp_test_fails_;
-  const double fc           = DP_S415_FC_HI;
+  const double fc           = DP_CCSDS_415_FC_HI;
   uint32_t     rng          = trial_rng (st->seed);
-  const double cn0          = dp_s415_cn0 (st->esn0_db);
-  const double carrier      = (2.0 * dp_uni (&rng) - 1.0) * DP_S415_SPAN_HZ;
-  const size_t delay  = (size_t)(dp_uni (&rng) * ARRIVAL_DELAY_S * DP_S415_FS);
-  const size_t blocks = blocks_of ((size_t)(STORY_S * DP_S415_FS));
+  const double cn0          = dp_ccsds_415_cn0 (st->esn0_db);
+  const double carrier = (2.0 * dp_uni (&rng) - 1.0) * DP_CCSDS_415_SPAN_HZ;
+  const size_t delay
+      = (size_t)(dp_uni (&rng) * ARRIVAL_DELAY_S * DP_CCSDS_415_FS);
+  const size_t blocks = blocks_of ((size_t)(STORY_S * DP_CCSDS_415_FS));
   const size_t n_bits = bits_for ((double)(blocks * PUSH));
   uint8_t     *bits   = draw_bits (&rng, n_bits);
 
   dp_air_t air;
   DP_REQUIRE (scene_init (&air, code, fc, carrier, cn0,
-                          (double)delay / DP_S415_FS, 0, st->seed, bits,
+                          (double)delay / DP_CCSDS_415_FS, 0, st->seed, bits,
                           n_bits));
   dp_awgn_state_t                *g  = lk_noise (st->seed, cn0);
   dp_async_dsss_receiver_state_t *rx = lk_rx (code, fc);
@@ -645,7 +651,7 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check,
   const int id_stim = dp_tlm_probe (tlm, "stim.on", 1);
   DP_REQUIRE (id_stim >= 0);
   dp_sample_clock_t clk;
-  dp_sample_clock_init (&clk, DP_S415_FS, 0);
+  dp_sample_clock_init (&clk, DP_CCSDS_415_FS, 0);
   dp_tlm_capture_t *cap = dp_tlm_capture_open (tlm, PUSH, path, &clk);
   DP_REQUIRE_MSG (cap != NULL, "the story's capture opens");
 
@@ -670,7 +676,8 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check,
       dp_tlm_emit (tlm, id_stim, (double)on / (double)PUSH);
       (void)dp_async_dsss_receiver_steps (rx, blk, PUSH, syms, cap_);
       if (t_lock < 0.0 && dp_async_dsss_receiver_get_locked (rx))
-        t_lock = ((double)((b + 1) * PUSH) - (double)delay) / DP_S415_FS * 1e3;
+        t_lock = ((double)((b + 1) * PUSH) - (double)delay) / DP_CCSDS_415_FS
+                 * 1e3;
     }
   DP_CHECK_MSG (!dp_air_data_ended (&air),
                 "the story's payload covered its run");
@@ -684,7 +691,8 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check,
                 "(the receiver changed: re-pick its seed)");
   if (emit)
     printf ("%s,%.1f,%u,%.1f,%.6f,%.2f\n", st->name, st->esn0_db, st->seed,
-            carrier, (double)delay / DP_S415_FS, t_lock < 0.0 ? NAN : t_lock);
+            carrier, (double)delay / DP_CCSDS_415_FS,
+            t_lock < 0.0 ? NAN : t_lock);
   else
     {
       char lock_s[32];
@@ -694,8 +702,8 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check,
         (void)snprintf (lock_s, sizeof lock_s, "%.1f ms", t_lock);
       printf ("  %-24s %4.1f dB, carrier %+7.1f Hz, arrival %5.1f ms, "
               "symbol lock %s -> %s\n",
-              st->name, st->esn0_db, carrier, (double)delay / DP_S415_FS * 1e3,
-              lock_s, path);
+              st->name, st->esn0_db, carrier,
+              (double)delay / DP_CCSDS_415_FS * 1e3, lock_s, path);
     }
   dp_tlm_capture_destroy (cap);
   /* --check is the ctest form: a passing story leaves nothing behind
@@ -760,9 +768,9 @@ run_ramp_forced (const uint8_t *code, bool refine, double f0, uint32_t seed,
                  int to_handover, double force_rows, double *bound_hz,
                  ramp_t *r)
 {
-  const double fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
-  const double cn0                   = dp_s415_cn0 (DP_S415_FLOOR_DB);
-  const double rate                  = dp_s415_r_env ();
+  const double fc = DP_CCSDS_415_FC_HI, chip = dp_ccsds_415_chip_rate (fc);
+  const double cn0  = dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB);
+  const double rate = dp_s415_r_env ();
   dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, refine);
   /* The emitter on the air (native/tests/dp_air_test.h): the shipped synth
      with its window, the front end's converter, a Doppler channel on the
@@ -772,9 +780,9 @@ run_ramp_forced (const uint8_t *code, bool refine, double f0, uint32_t seed,
   dp_air_t        air;
   float _Complex *x   = malloc (RAMP_CHUNK * sizeof *x);
   float _Complex *out = malloc (RAMP_CHUNK * sizeof *out);
-  DP_REQUIRE (
-      rx && x && out
-      && dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 7919u + seed, RAMP_CHUNK));
+  DP_REQUIRE (rx && x && out
+              && dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, cn0, 7919u + seed,
+                              RAMP_CHUNK));
   const size_t D = rx->acq->search->coherent_bins;
   /* At R_env the code-only window's half binds: 366 epochs, (366 + 1)/2 =
      183, 180 on the FFT-smooth floor (test_async_dsss_receiver_core.c's
@@ -784,7 +792,7 @@ run_ramp_forced (const uint8_t *code, bool refine, double f0, uint32_t seed,
      two rows bracketing the truth), and the half-dwell age at the rate
      bound. */
   ramp_row_hz       = rx->acq->search->doppler_res_hz;
-  ramp_age_hz       = rate * 0.5 * (double)D * (double)DP_S415_SF / chip;
+  ramp_age_hz       = rate * 0.5 * (double)D * (double)DP_CCSDS_415_SF / chip;
   *bound_hz         = ramp_row_hz + ramp_age_hz;
   *r                = (ramp_t){ .ho_err_hz = NAN };
   size_t fed        = 0;
@@ -803,13 +811,13 @@ run_ramp_forced (const uint8_t *code, bool refine, double f0, uint32_t seed,
       DP_REQUIRE (!isnan (t.code_chips));
       DP_REQUIRE (dp_async_dsss_receiver_seed (
                       rx,
-                      fmod (t.code_chips - 0.5 * chip / DP_S415_FS
-                                + (double)DP_S415_SF,
-                            (double)DP_S415_SF),
+                      fmod (t.code_chips - 0.5 * chip / DP_CCSDS_415_FS
+                                + (double)DP_CCSDS_415_SF,
+                            (double)DP_CCSDS_415_SF),
                       t.car_hz + force_rows * ramp_row_hz, cn0)
                   == DP_OK);
     }
-  while (fed < (size_t)(RAMP_S * DP_S415_FS)
+  while (fed < (size_t)(RAMP_S * DP_CCSDS_415_FS)
          && !(to_handover && !isnan (r->ho_err_hz)))
     {
       DP_REQUIRE (dp_air_next (&air, x, RAMP_CHUNK));
@@ -820,7 +828,7 @@ run_ramp_forced (const uint8_t *code, bool refine, double f0, uint32_t seed,
             = dp_async_dsss_receiver_get_doppler_hz (rx)
               - dp_air_truth (&air, 0, rx->samples_in - rx->state_samples)
                     .car_hz;
-      if (!early_done && fed >= (size_t)(RAMP_S_EARLY * DP_S415_FS))
+      if (!early_done && fed >= (size_t)(RAMP_S_EARLY * DP_CCSDS_415_FS))
         {
           early_done    = 1;
           r->lock_early = dp_async_dsss_receiver_get_tracking (rx)
@@ -1004,18 +1012,18 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int noisy, int pin,
                uint32_t seed, double secs, code_lock_t *out)
 {
   memset (out, 0, sizeof *out);
-  out->fc          = fc;
-  out->esn0        = esn0;
-  uint32_t     st  = trial_rng (seed + 200000u);
-  const double cn0 = dp_s415_cn0 (esn0);
-  const double f0  = (2.0 * dp_uni (&st) - 1.0) * DP_S415_SPAN_HZ;
-  const size_t fr
-      = (size_t)(dp_uni (&st) * (double)DP_S415_FRAME_SYM) % DP_S415_FRAME_SYM;
+  out->fc              = fc;
+  out->esn0            = esn0;
+  uint32_t         st  = trial_rng (seed + 200000u);
+  const double     cn0 = dp_ccsds_415_cn0 (esn0);
+  const double     f0  = (2.0 * dp_uni (&st) - 1.0) * DP_CCSDS_415_SPAN_HZ;
+  const size_t     fr = (size_t)(dp_uni (&st) * (double)DP_CCSDS_415_FRAME_SYM)
+                        % DP_CCSDS_415_FRAME_SYM;
   dp_air_emitter_t e
       = dp_s415_emitter (code, fc, f0, 0.0, cn0, 0.0, seed + 200000u);
   e.frame_off = fr;
   dp_air_t air;
-  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_S415_FS, noisy ? cn0 : NAN,
+  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, noisy ? cn0 : NAN,
                            seed * 7919u + 3u, PUSH));
   dp_async_dsss_receiver_state_t *rx  = dp_s415_rx (code, fc, true);
   dp_tlm_t                       *tlm = dp_tlm_create (1u << 16);
@@ -1033,7 +1041,7 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int noisy, int pin,
   float complex  *x       = dp_xmalloc (PUSH * sizeof *x);
   float complex  *syms    = dp_xmalloc (cap * sizeof *syms);
   dp_tlm_rec_t   *recs    = dp_xmalloc (4096 * sizeof *recs);
-  const size_t    n_blk   = (size_t)(secs * DP_S415_FS / PUSH);
+  const size_t    n_blk   = (size_t)(secs * DP_CCSDS_415_FS / PUSH);
   double          t_first = -1.0, last_r = NAN;
   int             last_locked = -1;
   double          sp2 = 0.0, so2 = 0.0;
@@ -1054,14 +1062,15 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int noisy, int pin,
         {
           const dp_air_truth_t tr = dp_air_truth (&air, 0, (uint64_t)b * PUSH);
           double ek = dp_dll_get_code_phase_ahead (rx->dll, rx->car_carry_len)
-                      - tr.code_chips + 0.5 * rx->chip_rate / DP_S415_FS;
-          ek -= (double)DP_S415_SF * floor (ek / (double)DP_S415_SF + 0.5);
+                      - tr.code_chips + 0.5 * rx->chip_rate / DP_CCSDS_415_FS;
+          ek -= (double)DP_CCSDS_415_SF
+                * floor (ek / (double)DP_CCSDS_415_SF + 0.5);
           out->cerr += ek;
           out->cerr2 += ek * ek;
           out->n_err++;
         }
       (void)dp_async_dsss_receiver_steps (rx, x, PUSH, syms, cap);
-      const double t      = (double)(b + 1) * PUSH / DP_S415_FS;
+      const double t      = (double)(b + 1) * PUSH / DP_CCSDS_415_FS;
       const int    trk    = rx->state == ASYNC_DSSS_RX_TRACKING;
       const int    locked = trk && dp_async_dsss_receiver_get_code_locked (rx);
       if (t_first < 0.0 && locked)
@@ -1171,14 +1180,14 @@ run_noise_lock (const uint8_t *code, double fc, double esn0, int pin,
                 uint32_t seed, double secs, size_t *decisions, size_t *hits,
                 double *up, size_t *n_looks)
 {
-  const double     cn0 = dp_s415_cn0 (esn0);
+  const double     cn0 = dp_ccsds_415_cn0 (esn0);
   uint32_t         st  = trial_rng (seed + 300000u);
-  const double     f0  = (2.0 * dp_uni (&st) - 1.0) * DP_S415_SPAN_HZ;
+  const double     f0  = (2.0 * dp_uni (&st) - 1.0) * DP_CCSDS_415_SPAN_HZ;
   dp_air_emitter_t e
       = dp_s415_emitter (code, fc, f0, 0.0, cn0, 0.0, seed + 300000u);
   dp_air_t air;
-  DP_REQUIRE (
-      dp_air_init (&air, &e, 1, DP_S415_FS, NAN, seed * 7919u + 5u, PUSH));
+  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, NAN,
+                           seed * 7919u + 5u, PUSH));
   dp_async_dsss_receiver_state_t *rx  = dp_s415_rx (code, fc, true);
   dp_tlm_t                       *tlm = dp_tlm_create (1u << 16);
   DP_REQUIRE (rx != NULL && tlm != NULL);
@@ -1195,12 +1204,12 @@ run_noise_lock (const uint8_t *code, double fc, double esn0, int pin,
   /* Lock on the clean scene, then settle. */
   for (size_t b = 0;; b++)
     {
-      DP_REQUIRE (b < (size_t)(30.0 * DP_S415_FS / PUSH));
+      DP_REQUIRE (b < (size_t)(30.0 * DP_CCSDS_415_FS / PUSH));
       DP_REQUIRE (dp_air_next (&air, x, PUSH));
       (void)dp_async_dsss_receiver_steps (rx, x, PUSH, syms, cap);
       while (dp_tlm_read (tlm, 4096, recs, 4096) > 0)
         ;
-      const double t = (double)(b + 1) * PUSH / DP_S415_FS;
+      const double t = (double)(b + 1) * PUSH / DP_CCSDS_415_FS;
       if (rx->state == ASYNC_DSSS_RX_TRACKING
           && dp_async_dsss_receiver_get_code_locked (rx))
         {
@@ -1219,8 +1228,8 @@ run_noise_lock (const uint8_t *code, double fc, double esn0, int pin,
   size_t           dcap = dp_dll_steps_max_out (d);
   dcap                  = dcap ? dcap : PUSH;
   float complex *dout   = dp_xmalloc (dcap * sizeof *dout);
-  const size_t   n0     = (size_t)(CL_NOISE_SETTLE_S * DP_S415_FS / PUSH);
-  const size_t   n1     = n0 + (size_t)(secs * DP_S415_FS / PUSH);
+  const size_t   n0     = (size_t)(CL_NOISE_SETTLE_S * DP_CCSDS_415_FS / PUSH);
+  const size_t   n1     = n0 + (size_t)(secs * DP_CCSDS_415_FS / PUSH);
   double         last   = NAN;
   for (size_t k = 0; k < n1; k++)
     {
@@ -1320,7 +1329,7 @@ code_lock_rows (const uint8_t *code, int check, int emit)
       const double       L   = (double)c->look / c->seg_norm;
       const double       rho = sqrt (q->p2) / L;
       const double       sig2
-          = DP_S415_FS / pow (10.0, dp_s415_cn0 (c->esn0) / 10.0);
+          = DP_CCSDS_415_FS / pow (10.0, dp_ccsds_415_cn0 (c->esn0) / 10.0);
       const double npred
           = (double)c->look * sig2 / (c->seg_norm * c->seg_norm);
       const double no = c->o2 - q->o2;
@@ -1484,11 +1493,11 @@ lk_chip_err (const dp_async_dsss_receiver_state_t *rx, const dp_air_t *air,
 {
   const double t = dp_air_truth (air, 0, n).code_chips;
   double       d = fmod (dp_async_dsss_receiver_status (rx).chip_phase - t
-                             + 1.5 * DP_S415_SF,
-                         (double)DP_S415_SF);
+                             + 1.5 * DP_CCSDS_415_SF,
+                         (double)DP_CCSDS_415_SF);
   if (d < 0.0)
-    d += DP_S415_SF;
-  return d - 0.5 * DP_S415_SF;
+    d += DP_CCSDS_415_SF;
+  return d - 0.5 * DP_CCSDS_415_SF;
 }
 
 static int
@@ -1498,19 +1507,20 @@ run_longdrop (const uint8_t *code, double fc, uint32_t seed, double drop_s,
   memset (out, 0, sizeof *out);
   out->e_cut = out->e_ret = out->e_end = out->back_ms = NAN;
   uint32_t     st     = trial_rng (seed + 300000u);
-  const double cn0    = dp_s415_cn0 (10.0);
-  const size_t lock_b = (size_t)(MAX_LOCK_S * DP_S415_FS / (double)PUSH);
-  out->carrier_hz     = (2.0 * dp_uni (&st) - 1.0) * DP_S415_SPAN_HZ;
-  const size_t frame0
-      = (size_t)(dp_uni (&st) * (double)DP_S415_FRAME_SYM) % DP_S415_FRAME_SYM;
+  const double cn0    = dp_ccsds_415_cn0 (10.0);
+  const size_t lock_b = (size_t)(MAX_LOCK_S * DP_CCSDS_415_FS / (double)PUSH);
+  out->carrier_hz     = (2.0 * dp_uni (&st) - 1.0) * DP_CCSDS_415_SPAN_HZ;
+  const size_t frame0 = (size_t)(dp_uni (&st) * (double)DP_CCSDS_415_FRAME_SYM)
+                        % DP_CCSDS_415_FRAME_SYM;
   const size_t jitter_b
-      = (size_t)(dp_uni (&st) * JITTER_S * DP_S415_FS / PUSH);
-  const size_t at = (size_t)(dp_uni (&st) * (double)PUSH);
-  const size_t band_b
-      = (size_t)(DP_S415_FRAME_SYM / DP_S415_SYM * DP_S415_FS / PUSH) + 1;
-  const size_t fade = (size_t)llround (drop_s * DP_S415_FS);
+      = (size_t)(dp_uni (&st) * JITTER_S * DP_CCSDS_415_FS / PUSH);
+  const size_t at     = (size_t)(dp_uni (&st) * (double)PUSH);
+  const size_t band_b = (size_t)(DP_CCSDS_415_FRAME_SYM / DP_CCSDS_415_SYM
+                                 * DP_CCSDS_415_FS / PUSH)
+                        + 1;
+  const size_t fade   = (size_t)llround (drop_s * DP_CCSDS_415_FS);
   const size_t post_b
-      = blocks_of (at + fade + (size_t)(LD_WATCH_S * DP_S415_FS));
+      = blocks_of (at + fade + (size_t)(LD_WATCH_S * DP_CCSDS_415_FS));
   const size_t n_bits
       = bits_for ((double)((lock_b + jitter_b + band_b + post_b + 2) * PUSH));
   uint8_t *bits = draw_bits (&st, n_bits);
@@ -1559,7 +1569,7 @@ run_longdrop (const uint8_t *code, double fc, uint32_t seed, double drop_s,
               && s.state == ASYNC_DSSS_RX_TRACKING && s.locked
               && s.code_locked)
             out->back_ms = ((double)((b + 1) * PUSH) - (double)(at + fade))
-                           / DP_S415_FS * 1e3;
+                           / DP_CCSDS_415_FS * 1e3;
         }
       const async_dsss_receiver_status_t s
           = dp_async_dsss_receiver_status (rx);
@@ -1637,7 +1647,7 @@ main (int argc, char **argv)
         DP_REQUIRE (sscanf (argv[++i], "%u/%u", &shard, &shards) == 2
                     && shards > 0 && shard < shards);
     }
-  uint8_t code[DP_S415_SF];
+  uint8_t code[DP_CCSDS_415_SF];
   dp_dsss_gold_1023 (code);
   if (longdrop)
     {
@@ -1671,7 +1681,7 @@ main (int argc, char **argv)
   else
     printf ("dropout: 415.1-B-1, carrier over +/-%.0f Hz, the signal cut, "
             "the noise on; times printed, not asserted (doppler#3157)\n",
-            DP_S415_SPAN_HZ);
+            DP_CCSDS_415_SPAN_HZ);
   for (size_t f = check ? N_FC - 1 : 0; f < N_FC; f++)
     for (size_t e = 0; e < (check ? 1u : N_ESN0); e++)
       {

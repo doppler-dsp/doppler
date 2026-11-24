@@ -5,6 +5,14 @@
 So the rule for this module is narrow: a literal a mission copies out of the
 Blue Book belongs here; a transform does not.
 
+It also carries the CCSDS 415.1-B-1 specification point the async DSSS
+receiver is specified for: `ccsds415_chip_rate()` and `ccsds415_cn0()` are
+its numbers, computed in C (`doppler/ccsds/ccsds_415.h` holds the rest), and
+`doppler.dsss.Ccsds415Receiver` is the receiver built there. The receiver's
+runs at this point are `docs/design/async-dsss-receiver-measurements.md`;
+its certification record holds at 3.069 Mcps, not at this point
+(`docs/design/async-dsss-receiver.md` §1, "What the certification covers").
+
 The marker is also the only thing in a CADU that can report a 180-degree
 carrier ambiguity. It is not randomised (131.0-B 10.4: "The ASM was not
 randomized and is not derandomized"), so it reads the same in every frame
@@ -41,6 +49,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .ccsds import asm_bits  # noqa: E402
+from .ccsds import asm_bits, ccsds415_chip_rate, ccsds415_cn0  # noqa: E402
 
-__all__ = ["asm_bits"]
+__all__ = ["asm_bits", "ccsds415_chip_rate", "ccsds415_cn0"]

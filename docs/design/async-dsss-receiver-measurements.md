@@ -2391,7 +2391,7 @@ Built at `77547aa86`, step 1 of the build order.
     - The latest of the five is `dp_ber_lock_all()` (`native/tests/dp_ber_test.h`).
     - Every harness reads the five flags through one reader, `dp_s415_lock_flags()` (`dp_s415_test.h`).
     - All five, because "works" already needs all five sustained (C17). When the carrier loop changes, its flag becomes the `I² − Q²` block decision (above).
-- **A link whose latest flag has not sustained by `DP_S415_LOCK_S` (20 s from arrival) has not locked.** It is counted as "not locked in 20 s" and never scored. The 20 s is 415.1-B-1 §7.4.1's allocation.
+- **A link whose latest flag has not sustained by `DP_CCSDS_415_LOCK_S` (20 s from arrival) has not locked.** It is counted as "not locked in 20 s" and never scored. The 20 s is 415.1-B-1 §7.4.1's allocation.
 - **The meter aligns once, at that start.** A failure there is its own verdict, `unaligned_lock` / "unaligned at lock", never a silent 0.
 - **The analytic budget is a check, used only on hand-overs inside the loop's worst-start edge**, where the loop's path is predictable.
     - The edge is today's detector on the mean loop, at the draw's Es/N0 and the loop's own bn: `hb_edge_hz()` in `native/validation/carrier_edge.h`. That is `validate_costas_pullin --design`'s derivation, moved there unchanged; `--design` prints identical output.

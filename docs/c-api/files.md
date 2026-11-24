@@ -87,6 +87,7 @@ Here is a list of all files with brief descriptions:
             * **dir** [**carrier\_nda**](dir_6eb92e8a380cf8a945db661ecf671c65.md)     
                 * **file** [**carrier\_nda\_core.h**](carrier__nda__core_8h.md) _Non-data-aided (NDA) M-th-power carrier-tracking loop._     
             * **dir** [**ccsds**](dir_c033bcb1c91e23f54b625bfe2cf0448c.md)     
+                * **file** [**ccsds\_415.h**](ccsds__415_8h.md) _The CCSDS 415.1-B-1 specification point the async DSSS receiver is specified for, stated once: its numbers, the derived rates a scene at it needs, and (through the receiver's and the pool's_ `Ccsds415` _views) the receiver built there._    
                 * **file** [**ccsds\_core.h**](ccsds__core_8h.md) _CCSDS 131.0-B's published literals, as a Python-facing component._     
             * **dir** [**ccsds\_tm**](dir_755172a25247ef56b5f4144aad408377.md)     
                 * **file** [**ccsds\_tm.h**](ccsds__tm_8h.md) _CCSDS TM channel coding — the transforms a transfer frame passes through on its way to symbols._     

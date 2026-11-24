@@ -82,6 +82,7 @@ Ccsds415PoolObj_init (Ccsds415PoolObject *self, PyObject *args, PyObject *kwds)
     }
   size_t         n_receivers = (size_t)n_receivers_raw;
   bool           refine      = (int)refine_raw;
+  const char    *_why        = NULL;
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
@@ -91,16 +92,16 @@ Ccsds415PoolObj_init (Ccsds415PoolObject *self, PyObject *args, PyObject *kwds)
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
   self->handle    = dp_async_dsss_pool_create_ccsds415 (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, n_receivers,
-      carrier_freq_hz, lost_confirm_s, threads, refine);
+      carrier_freq_hz, lost_confirm_s, threads, refine, &_why);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_ValueError,
-                       "Ccsds415Pool: refused: the code must be 1,023 chips "
-                       "(the point's Gold code length; the code is the "
-                       "mission's), n_receivers >= 1, carrier_freq_hz finite "
-                       "and above 5.5 MHz (the point's 11 MSa/s over two), "
-                       "lost_confirm_s >= 0 and threads >= 0");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "Ccsds415Pool: refused (dp_ccsds_415_rx or the "
+                         "pool names the cause)");
       return -1;
     }
   return 0;
@@ -1135,14 +1136,10 @@ static PyTypeObject Ccsds415PoolObjType = {
     "Raises\n"
     "------\n"
     "ValueError\n"
-    "    If construction fails. The exception message is ``Ccsds415Pool:\n"
-    "    refused: the code must be 1,023 chips (the point's Gold code "
-    "length;\n"
-    "    the code is the mission's), n_receivers >= 1, carrier_freq_hz "
-    "finite\n"
-    "    and above 5.5 MHz (the point's 11 MSa/s over two), lost_confirm_s >= "
-    "0\n"
-    "    and threads >= 0``.\n"
+    "    If construction fails. The exception message is the reason the\n"
+    "    constructor gives, or ``Ccsds415Pool: refused (dp_ccsds_415_rx or "
+    "the\n"
+    "    pool names the cause)`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"

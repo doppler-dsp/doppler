@@ -66,8 +66,11 @@ the table's rows as constants, the chip rate and C/N0
 (`doppler.ccsds.ccsds415_chip_rate()`, `ccsds415_cn0()`), a scene's derived
 rates (`dp_ccsds_415_scene()`, computed with fast math off so a C program
 and its Python twin read the same bits), and the receiver and pool built
-there (`Ccsds415Receiver`, `Ccsds415Pool`). Every harness, bench and
-example reads them there; `R_env` is a constant that
+there (`Ccsds415Receiver`, `Ccsds415Pool`) from one table of arguments
+(`dp_ccsds_415_rx()`). The C harnesses, benches and spec demo read them
+there. The Python examples type the numbers: the constants have no Python
+face ([#3323](https://github.com/doppler-dsp/doppler/issues/3323)), nor
+the scene (just-makeit#2755). `R_env` is a constant that
 `test_async_dsss_receiver_core.c` holds equal to the pass model it comes
 from (`dp_s415_r_env()`, `native/tests/dp_s415_test.h`).
 

@@ -142,25 +142,44 @@ dp_async_dsss_pool_create (
   return s;
 }
 
-/* The pool at the 415.1-B-1 point: each receiver as
-   dp_async_dsss_receiver_create_ccsds415() builds one, so the numbers are
-   ccsds_415.h's and the rest the binding's defaults. */
+/* The pool at the 415.1-B-1 point: each receiver's arguments are
+   dp_ccsds_415_rx()'s table, as dp_async_dsss_receiver_create_ccsds415()
+   reads them, and a refusal names its cause. */
 dp_async_dsss_pool_state_t *
 dp_async_dsss_pool_create_ccsds415 (const uint8_t *code, size_t code_len,
                                     size_t n_receivers, double carrier_freq_hz,
                                     double lost_confirm_s, int threads,
-                                    bool refine)
+                                    bool refine, const char **why)
 {
-  if (code_len != DP_CCSDS_415_SF)
+  dp_ccsds_415_rx_t a;
+  if (dp_ccsds_415_rx (&a, code_len, carrier_freq_hz, lost_confirm_s, refine,
+                       why)
+      != 0)
     return NULL;
-  return dp_async_dsss_pool_create (
-      code, code_len, n_receivers, dp_ccsds_415_chip_rate (carrier_freq_hz),
-      DP_CCSDS_415_SYM, DP_CCSDS_415_FS, 2,
-      dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB), 1e-3, 0.9,
-      DP_CCSDS_415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
-      carrier_freq_hz, lost_confirm_s, false,
-      (double)DP_CCSDS_415_CODE_ONLY_SYM / DP_CCSDS_415_SYM,
-      DP_CCSDS_415_R_ENV_HZ_S, threads, refine);
+  if (n_receivers < 1 || n_receivers > ASYNC_DSSS_POOL_MAX_RECEIVERS)
+    {
+      if (why)
+        *why = "n_receivers must be 1 to 16 "
+               "(ASYNC_DSSS_POOL_MAX_RECEIVERS): one receiver a search peak";
+      return NULL;
+    }
+  if (threads < 0)
+    {
+      if (why)
+        *why = "threads must be >= 0";
+      return NULL;
+    }
+  dp_async_dsss_pool_state_t *s = dp_async_dsss_pool_create (
+      code, code_len, n_receivers, a.chip_rate, a.symbol_rate, a.sample_rate,
+      a.m, a.cn0_dbhz, a.pfa, a.pd, a.doppler_uncertainty, a.segments, a.sps,
+      a.differential, a.refine_max_error_db, a.refine_samples_per_symbol,
+      a.refine_design_margin_db, a.refine_n_fft, a.refine_zero_pad,
+      a.refine_sequential, a.refine_max_n_blocks, a.carrier_freq_hz,
+      a.lost_confirm_s, a.reacquire, a.code_only_s, a.doppler_rate, threads,
+      a.refine);
+  if (!s && why)
+    *why = "dp_async_dsss_pool_create() refused the point's arguments";
+  return s;
 }
 
 void

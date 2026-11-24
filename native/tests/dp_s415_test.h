@@ -319,7 +319,7 @@ static inline dp_async_dsss_receiver_state_t *
 dp_s415_rx_release (const uint8_t *code, double fc, bool refine, double lost_s)
 {
   return dp_async_dsss_receiver_create_ccsds415 (code, DP_CCSDS_415_SF, fc,
-                                                 lost_s, refine);
+                                                 lost_s, refine, NULL);
 }
 
 /** As dp_s415_pool(), with the refine stage on or off (@p refine). */
@@ -328,7 +328,7 @@ dp_s415_pool_refine (const uint8_t *code, double fc, size_t n, double lost_s,
                      int threads, bool refine)
 {
   return dp_async_dsss_pool_create_ccsds415 (code, DP_CCSDS_415_SF, n, fc,
-                                             lost_s, threads, refine);
+                                             lost_s, threads, refine, NULL);
 }
 
 /** A pool of @p n receivers at the point, as dp_s415_rx() builds each (at

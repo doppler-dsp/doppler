@@ -61,8 +61,9 @@ void dp_asm_bits(uint8_t *out);
 
 /**
  * @brief Chips a second at carrier @p fc at the CCSDS 415.1-B-1 point:
- *        F_fwd x 31 / (221 x 96), table 4-1. Computed with fast math off,
- *        so every compiler, and the Python face, give the same bits.
+ *        F_fwd x 31 / (221 x 96), table 4-1. IEEE arithmetic with fast
+ *        math off, so every compiler, and the Python face, give the same
+ *        bits.
  *
  * An alias over dp_ccsds_415_chip_rate(), which owns the arithmetic; the
  * point's other numbers and the scene helper are doppler/ccsds/ccsds_415.h.

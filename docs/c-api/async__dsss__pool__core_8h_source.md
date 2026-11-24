@@ -116,7 +116,7 @@ extern "C"
   dp_async_dsss_pool_state_t *dp_async_dsss_pool_create_ccsds415 (
       const uint8_t *code, size_t code_len, size_t n_receivers,
       double carrier_freq_hz, double lost_confirm_s, int threads,
-      bool refine);
+      bool refine, const char **why);
 
   void dp_async_dsss_pool_destroy (dp_async_dsss_pool_state_t *state);
 

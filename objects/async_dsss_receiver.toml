@@ -534,10 +534,11 @@ class_name = "Ccsds415Receiver"
 create_fn = "dp_async_dsss_receiver_create_ccsds415"
 doc = "The async DSSS receiver at the CCSDS 415.1-B-1 specification point: 3,000 symbols a second, 11 MSa/s, a +/-1,500 Hz search, Doppler rate R_env, a carrier lock designed at the Es/N0 4 dB floor, the chip rate the carrier sets. The receiver the harnesses measure at this point (docs/design/async-dsss-receiver-measurements.md); the numbers are doppler/ccsds/ccsds_415.h's. Every method is AsyncDsssReceiver's."
 create_error = "ValueError"
-create_error_message = "Ccsds415Receiver: refused: the code must be 1,023 chips (the point's Gold code length; the code is the mission's), carrier_freq_hz finite and above 5.5 MHz (the point's 11 MSa/s over two), and lost_confirm_s >= 0"
+create_why = true
+create_error_message = "Ccsds415Receiver: refused (dp_ccsds_415_rx names the cause)"
 init_params = [
   { name = "code", type = "uint8_t[]", doc = "The mission's spreading code, one chip a byte (0/1): 1,023 chips." },
-  { name = "carrier_freq_hz", type = "double", default_raw = "DP_CCSDS_415_FC_LO", doc = "The carrier, F_fwd, Hz: 2.2e9 to 2.8e9 at the point. It sets the chip rate (F_fwd x 31 / 21216)." },
+  { name = "carrier_freq_hz", type = "double", default_raw = "DP_CCSDS_415_FC_LO", doc = "The carrier, F_fwd, Hz: 2.2e9 to 2.8e9 at the point. It sets the chip rate (F_fwd x 31 / 21216). Built from about 2.1004 to 7.528 GHz (DP_CCSDS_415_RX_FC_MIN, _MAX)." },
   { name = "lost_confirm_s", type = "double", default = "0.0", doc = "Both flags down for longer than this enters lost; 0 never does." },
   { name = "refine", type = "bool", default = "true", doc = "The refine stage on (true) or off." },
 ]

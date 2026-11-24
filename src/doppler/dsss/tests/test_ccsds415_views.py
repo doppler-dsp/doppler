@@ -1,12 +1,14 @@
 """The receiver and pool at the CCSDS 415.1-B-1 point are the full ones.
 
 ``Ccsds415Receiver`` and ``Ccsds415Pool`` are second constructors over the
-async DSSS receiver and pool (``doppler/ccsds/ccsds_415.h``): the point's
-numbers, and the binding's defaults for everything the point does not set.
-These hold the views to the full classes built from those defaults, so a
-view whose body drifts from the manifest's defaults, or from the point,
-fails here; the C test (``_test_the_ccsds415_view_is_the_point``) holds the
-same against the C create.
+async DSSS receiver and pool, built from ``dp_ccsds_415_rx()``'s table
+(``doppler/ccsds/ccsds_415.h``). The table's arguments outside the point's
+numbers equal the binding's defaults, so each view's state blob equals the
+full class's built from the point's numbers alone. A blob does not carry
+every argument (pd, lost_confirm_s and five more are config no blob holds):
+the C test (``_test_the_ccsds415_view_is_the_point``) reads each argument
+back from the built receiver. Here: the blob, and each refusal's sentence
+at both sides of each edge.
 """
 
 from __future__ import annotations
@@ -53,8 +55,9 @@ def _point(fc: float, refine: bool) -> dict:
 @pytest.mark.parametrize("refine", [True, False])
 @pytest.mark.parametrize("fc", CARRIERS)
 def test_the_receiver_view_is_the_full_receiver_at_the_point(code, fc, refine):
-    """Same state, byte for byte. Rejects a view that sets a number the
-    point does not (a pfa of 1e-2 in its body), or misses one it does."""
+    """Same state, byte for byte: the blob's share of the arguments. Rejects
+    a view whose table changes a number the blob carries (a pfa of 1e-2);
+    the rest is the C test's."""
     v = Ccsds415Receiver(
         code, carrier_freq_hz=fc, lost_confirm_s=0.4, refine=refine
     )
@@ -84,6 +87,39 @@ def test_a_code_that_is_not_1023_chips_is_refused(code, cls):
     view that takes a 511-chip code and builds some other receiver."""
     with pytest.raises(ValueError, match="the code must be 1,023 chips"):
         cls(code[:511])
+
+
+#: The carrier window's edges as ccsds_415.h derives them: a symbol is one
+#: code period at the low edge, the chip rate is the capture rate at the high.
+FC_MIN = 1023.0 * SYM * 21216.0 / 31.0
+FC_MAX = FS * 21216.0 / 31.0
+
+
+@pytest.mark.parametrize("cls", [Ccsds415Receiver, Ccsds415Pool])
+def test_the_carrier_window_refuses_with_its_cause(code, cls):
+    """Each edge from both sides: just inside builds, just outside raises
+    the sentence naming why. Rejects a refusal that names the wrong cause
+    (the old "above 5.5 MHz") or a window shifted off the receiver's."""
+    kw = {"n_receivers": 1, "threads": 1} if cls is Ccsds415Pool else {}
+    cls(code, carrier_freq_hz=FC_MIN * (1 + 1e-9), **kw)
+    cls(code, carrier_freq_hz=FC_MAX * (1 - 1e-9), **kw)
+    with pytest.raises(ValueError, match="a symbol is shorter than a code"):
+        cls(code, carrier_freq_hz=FC_MIN * (1 - 1e-9), **kw)
+    with pytest.raises(ValueError, match="passes the 11 MSa/s sample rate"):
+        cls(code, carrier_freq_hz=FC_MAX * (1 + 1e-9), **kw)
+    with pytest.raises(ValueError, match="carrier_freq_hz must be finite"):
+        cls(code, carrier_freq_hz=float("nan"), **kw)
+    with pytest.raises(ValueError, match="lost_confirm_s must be >= 0"):
+        cls(code, lost_confirm_s=-1.0, **kw)
+
+
+def test_the_pool_refuses_more_receivers_than_peaks(code):
+    """1 to 16, one receiver a search peak: 16 builds, 17 and 0 raise the
+    sentence that says so. Rejects the old message, which said only >= 1."""
+    Ccsds415Pool(code, n_receivers=16, threads=1)
+    for n in (0, 17):
+        with pytest.raises(ValueError, match="n_receivers must be 1 to 16"):
+            Ccsds415Pool(code, n_receivers=n, threads=1)
 
 
 def test_the_chip_rate_is_the_formula_to_the_bit():

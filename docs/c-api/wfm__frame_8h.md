@@ -670,7 +670,7 @@ A field with a declared length and no source: a CRC trailer, a block of R-S chec
 
 **Returns:**
 
-the new field's index, or -1 on NULL, a full description, a zero `bits`, or a name already taken. 
+the new field's index, or -1 on NULL, a full description, a zero `bits`, a `bits` past [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits) (the same bound a supplied field meets, #3321), or a name already taken. 
 
 
 
@@ -713,7 +713,12 @@ The building half of the description, and the reason a name is worth carrying: a
 
 **Returns:**
 
-the new field's index, or -1 if `d` or `seq` is NULL, the description is full, or `name` is already taken. 
+the new field's index, or -1 if `d` or `seq` is NULL, the description is full, or `name` is already taken. It also refuses a field past the Field bound, each reason on its own:
+* `seq->len` above [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits), the length alone;
+* `reps` above [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits), the count alone;
+* `seq->len * max(reps, 1)` above [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits), the field's bits, a run the layout cannot sum without wrapping. The bound is the Field grammar's, so a field this function refuses is one the text door refuses too (#3321). 
+
+
 
 
 

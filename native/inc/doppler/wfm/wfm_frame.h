@@ -475,7 +475,14 @@ extern "C"
    *              owns it for as long as @p d is used.
    * @param reps  repetitions of @p seq, verbatim; 0 means one.
    * @return the new field's index, or -1 if @p d or @p seq is NULL, the
-   *         description is full, or @p name is already taken.
+   *         description is full, or @p name is already taken. It also refuses
+   *         a field past the Field bound, each reason on its own:
+   *         - `seq->len` above @ref WFM_FIELD_MAX_BITS, the length alone;
+   *         - `reps` above @ref WFM_FIELD_MAX_BITS, the count alone;
+   *         - `seq->len * max(reps, 1)` above @ref WFM_FIELD_MAX_BITS, the
+   *           field's bits, a run the layout cannot sum without wrapping.
+   *         The bound is the Field grammar's, so a field this function
+   *         refuses is one the text door refuses too (#3321).
    */
   int dp_wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
                            const wfm_seq_t *seq, size_t reps);
@@ -494,7 +501,8 @@ extern "C"
    * @param name  the field's name, or NULL/"" for anonymous.
    * @param bits  its length, which its stage decides and the caller states.
    * @return the new field's index, or -1 on NULL, a full description, a
-   *         zero @p bits, or a name already taken.
+   *         zero @p bits, a @p bits past @ref WFM_FIELD_MAX_BITS (the same
+   *         bound a supplied field meets, #3321), or a name already taken.
    */
   int dp_wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name,
                              size_t bits);

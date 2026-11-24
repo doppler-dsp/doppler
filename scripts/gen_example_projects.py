@@ -39,10 +39,13 @@ Usage
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+from _release_tag import in_tag, tag_state
 
 ROOT = Path(__file__).resolve().parent.parent
 PROJECTS = "example-projects"
@@ -58,6 +61,8 @@ LANG_BY_NAME = {"CMakeLists.txt": "cmake", "Makefile": "makefile"}
 LANG_BY_EXT = {
     ".c": "c",
     ".h": "c",
+    ".cpp": "cpp",
+    ".hpp": "cpp",
     ".py": "python",
     ".sh": "sh",
     ".cmake": "cmake",
@@ -97,13 +102,41 @@ def tracked(root: Path, folder: str) -> list[str]:
     return sorted(p for p in r.stdout.decode().split("\0") if p)
 
 
+BUILD_FILES = ("CMakeLists.txt", "Makefile")
+
+
 def projects(root: Path = ROOT) -> list[str]:
-    """Every project: a directory under example-projects/ that has tracked
-    files. One without a README cannot be rendered, so it is an error naming
-    the folder, not a project the docs silently lack."""
-    names = {
-        p.split("/")[1] for p in tracked(root, PROJECTS) if p.count("/") >= 2
-    }
+    """Every project, as a path under example-projects/: ``<name>`` or
+    ``<family>/<name>``.
+
+    A directory under example-projects/ with tracked files is a project,
+    unless it is a FAMILY: one with no build file of its own (no
+    CMakeLists.txt or Makefile) whose subdirectories have one. Then each
+    such subdirectory is a project, its page at
+    ``docs/example-projects/<family>/<name>.md``, and the family holds
+    projects only: a file of its own would reach no page, so it is refused
+    by name. One without a README cannot be rendered, so it is an error
+    naming the folder, not a project the docs silently lack."""
+    files = [
+        p.split("/") for p in tracked(root, PROJECTS) if p.count("/") >= 2
+    ]
+    names: set[str] = set()
+    for top in sorted({f[1] for f in files}):
+        mine = [f for f in files if f[1] == top]
+        own = {f[2] for f in mine if len(f) == 3}
+        kids = {f[2] for f in mine if len(f) == 4 and f[3] in BUILD_FILES}
+        if own & set(BUILD_FILES) or not kids:
+            names.add(top)
+            continue
+        if own:
+            raise SystemExit(
+                f"{PROJECTS}/{top}/ is a family of projects ("
+                + ", ".join(sorted(kids))
+                + ") and holds projects only; move "
+                + ", ".join(sorted(own))
+                + " into one of them"
+            )
+        names |= {f"{top}/{k}" for k in kids}
     bare = sorted(
         n for n in names if not (root / PROJECTS / n / "README.md").exists()
     )
@@ -146,6 +179,21 @@ def _fence(text: str) -> str:
 BODY_MARKS = ("<!-- --8<-- [start:body] -->", "<!-- --8<-- [end:body] -->")
 
 
+def released(root: Path, version: str, folder: str) -> bool:
+    """Whether the release ``v<version>`` carries ``folder``.
+
+    Asked the way ``check_repo_links.py`` asks it, through the same helper:
+    only a tag that is present and lacks the folder makes a project NEW,
+    with nothing to fetch yet. An unreleased tag (the release PR) carries
+    the working tree, and a tag that cannot be checked here is taken as
+    carrying it, so the page does not change with the network; the link
+    gate is the one that fails closed in CI.
+    """
+    tag = f"v{version}"
+    state, _ = tag_state(root, tag, ci=bool(os.environ.get("CI")))
+    return state != "present" or in_tag(root, tag, folder)
+
+
 def render_page(root: Path, name: str) -> str:
     """The generated page for one project."""
     base = root / PROJECTS / name
@@ -159,6 +207,26 @@ def render_page(root: Path, name: str) -> str:
         )
     v = current_version(root)
     folder = f"{PROJECTS}/{name}"
+    if not released(root, v, folder):
+        out = [
+            BANNER,
+            "",
+            title,
+            "",
+            "## Get the code",
+            "",
+            "This project is new since the latest release, so no release "
+            "carries it yet; the next one will, and this section will then "
+            "fetch it from "
+            "there. Until then its files are the tabs "
+            "[at the bottom of this page](#the-files).",
+            "",
+            f'--8<-- "{folder}/README.md:body"',
+            "",
+            "## The files",
+            "",
+        ]
+        return _with_files(out, root, name, folder)
     out = [
         BANNER,
         "",
@@ -176,7 +244,8 @@ def render_page(root: Path, name: str) -> str:
         NO_EXEC,
         "```sh",
         f"curl -fsSL {REPO_URL}/archive/refs/tags/v{v}.tar.gz \\",
-        f"  | tar -xz --strip-components=2 doppler-{v}/{folder}",
+        f"  | tar -xz --strip-components={folder.count('/') + 1} "
+        f"doppler-{v}/{folder}",
         "```",
         "",
         f"Or browse [`{folder}/`]({REPO_URL}/tree/v{v}/{folder}).",
@@ -188,6 +257,11 @@ def render_page(root: Path, name: str) -> str:
         "## The files",
         "",
     ]
+    return _with_files(out, root, name, folder)
+
+
+def _with_files(out: list[str], root: Path, name: str, folder: str) -> str:
+    """``out`` with one tab per project file appended, as the page ends."""
     for f in project_files(root, name):
         rel = f[len(folder) + 1 :]
         try:
@@ -227,12 +301,15 @@ def page_problems(root: Path = ROOT) -> list[str]:
     question, asked of the built site: the section is discovered, #3000.)
     """
     names = set(projects(root))
-    out = [
-        f"{p.relative_to(root).as_posix()}: no example-projects/{p.stem}/ "
-        "behind it (delete the page, or restore the project)"
-        for p in sorted((root / PAGES).glob("*.md"))
-        if p.stem != "index" and p.stem not in names
-    ]
+    pages = root / PAGES
+    out = []
+    for p in sorted(pages.rglob("*.md")):
+        name = p.relative_to(pages).with_suffix("").as_posix()
+        if p.stem != "index" and name not in names:
+            out.append(
+                f"{p.relative_to(root).as_posix()}: no example-projects/"
+                f"{name}/ behind it (delete the page, or restore the project)"
+            )
     return out
 
 
@@ -268,6 +345,7 @@ def main(argv: list[str] | None = None) -> int:
         if "--check" in argv:
             drift.append(rel)
         else:
+            p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(text, encoding="utf-8")
     if "--check" in argv:
         if drift:

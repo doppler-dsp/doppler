@@ -303,6 +303,13 @@ jobs:
       # dependency shows up.
       run: make burst-pipeline-check
 
+    - name: C++ receiver at the CCSDS 415.1-B-1 point (install prefix, static)
+      # example-projects/rpm-consumer/ccsds-415, built the way its README
+      # says and run: it self-checks lock, BER, no dropped symbol and a
+      # complete telemetry capture at both carriers, then plot.py draws the
+      # capture headless, so a capture-format change that breaks it shows.
+      run: make rpm-consumer-check
+
     - name: UNO Q example (install prefix, both link modes)
       # The RTL-SDR front end example-projects/uno-q demonstrates, built the
       # way its README says and run in its self-test mode: U8ToF32 -> DDC ->
@@ -546,6 +553,13 @@ jobs:
       # Both link modes; the static one is where a missing transitive
       # dependency shows up.
       run: make burst-pipeline-check
+
+    - name: C++ receiver at the CCSDS 415.1-B-1 point (install prefix, static)
+      # example-projects/rpm-consumer/ccsds-415, built the way its README
+      # says and run: it self-checks lock, BER, no dropped symbol and a
+      # complete telemetry capture at both carriers, then plot.py draws the
+      # capture headless, so a capture-format change that breaks it shows.
+      run: make rpm-consumer-check
 
     - name: UNO Q example (install prefix, both link modes)
       # The RTL-SDR front end example-projects/uno-q demonstrates, built the

@@ -233,9 +233,20 @@ starts once the gap holds 2·D − 1 code periods, 287 and 359; the 275-symbol
 gap holds 287 and 365 whole ones. So the gap holds one whole coherent dwell at the depth run, and is
 twice the need only at the model's depth.
 
-**It is built from shipped tools.** Each frame is one `FrameDesc`: the
-header and data field by `add_field`, the error control field by
-`add_derived` and `add_stage_over(STAGE_CRC16, "header", "fecf")`.
+**It is installed as a frame description**, built from shipped tools:
+`dp_ccsds_415_frame_desc()` (`doppler/ccsds/ccsds_415_frame.h`) describes
+one period with every field above named (`gap`, `acq`, `start`, the
+header's eight, `data`, `fecf`), the acquisition sequence as the dotted
+kind, and the FECF as the description's CRC stage over `version` through
+`data`, the same CRC-16 (`dp_crc16_ccitt()`). `test_ccsds_415_frame.c`
+holds it to this table at 1, 17 and 1,017 data octets, the FECF to an
+independent CRC, and the round trip through `crc_ok()` and the
+description's check. Field 0 is the gap, so a receiver finds the frame by
+searching for the start sequence, not through `dp_wfm_frame_desc_rx()`,
+which takes its sync word from field 0 and refuses this description. From
+Python each frame is one `FrameDesc`: the header and data field by
+`add_field`, the error control field by `add_derived` and
+`add_stage_over(STAGE_CRC16, "header", "fecf")`.
 `FrameDesc` has no stage that fills a length count, so the frame-length
 field cannot be a derived field; it needs none, because each description
 is one frame of one known length, and the caller writes the count into the

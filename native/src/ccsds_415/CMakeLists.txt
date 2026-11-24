@@ -19,6 +19,17 @@ if(CCSDS_415_MATH_LIBRARY)
   target_link_libraries(ccsds_415_core PUBLIC ${CCSDS_415_MATH_LIBRARY})
 endif()
 
+# One period of the point's stimulus as a frame description
+# (ccsds_415_frame.h). Its own OBJECT library because it links the frame
+# layer (wfm_frame_core, and through it pn, gold and cvt), and the receiver
+# views link ccsds_415_core for the arithmetic alone.
+add_library(ccsds_415_frame_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/ccsds_415/ccsds_415_frame.c)
+target_include_directories(ccsds_415_frame_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(ccsds_415_frame_core PUBLIC ccsds_415_core
+                                                  wfm_frame_core)
+
 # ── tests ───────────────────────────────────────────────────────────────────
 add_executable(test_ccsds_415
     ${CMAKE_SOURCE_DIR}/native/tests/ccsds_415/test_ccsds_415.c)
@@ -27,3 +38,12 @@ target_include_directories(test_ccsds_415 PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_ccsds_415 COMMAND test_ccsds_415)
+
+add_executable(test_ccsds_415_frame
+    ${CMAKE_SOURCE_DIR}/native/tests/ccsds_415/test_ccsds_415_frame.c)
+target_link_libraries(test_ccsds_415_frame PRIVATE ccsds_415_frame_core
+    ccsds_415_core wfm_frame_core pn_core gold_core cvt_core)
+target_include_directories(test_ccsds_415_frame PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_ccsds_415_frame COMMAND test_ccsds_415_frame)

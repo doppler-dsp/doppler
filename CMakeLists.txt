@@ -942,6 +942,8 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ccsds_tm_core>)
 # 415.1-B-1 point links them from libdoppler.
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ccsds_415_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ccsds_415_core>)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ccsds_415_frame_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ccsds_415_frame_core>)
 
 # conv_core for the same reason, and it is the stronger case: native/inc/doppler/conv
 # is an installed header whose every function is out-of-line, and `ccsds_tm`

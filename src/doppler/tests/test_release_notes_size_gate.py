@@ -40,6 +40,20 @@ SCRIPT = REPO / "scripts" / "check_release_notes_size.py"
 BUDGET = 100_000
 
 
+def _assert_refused(r, *phrases: str) -> None:
+    """A refusal is exit 1, the gate's own words, and no crash.
+
+    A non-zero exit alone is not a refusal: an uncaught exception also exits 1
+    (#3335, where a Windows crash satisfied an expected red). So every test
+    that expects a refusal names the gate's sentence and rules out a traceback.
+    """
+    out = r.stdout + r.stderr
+    assert r.returncode == 1, out
+    assert "Traceback" not in out, out
+    for phrase in phrases:
+        assert phrase in out, out
+
+
 def _run(
     tmp_path: Path,
     entry_chars: int,
@@ -102,11 +116,9 @@ def test_a_small_changelog_passes(tmp_path: Path) -> None:
 
 def test_over_budget_fails(tmp_path: Path) -> None:
     r = _run(tmp_path, BUDGET + 5_000)
-    assert r.returncode == 1, r.stdout + r.stderr
-    assert "FAIL" in r.stdout + r.stderr
     # The remedy has to be in the message: this fires on a release PR, where
     # "too big" without "summarise or cut a release" is not actionable.
-    assert "Highlights" in r.stdout + r.stderr
+    _assert_refused(r, "FAIL", "Highlights")
 
 
 def test_half_budget_warns_without_failing(tmp_path: Path) -> None:
@@ -128,7 +140,7 @@ def test_unassembled_fragments_count(tmp_path: Path) -> None:
     assert under.returncode == 0, under.stdout + under.stderr
 
     over = _run(tmp_path, 40_000, n_fragment_chars=BUDGET, slot="over")
-    assert over.returncode == 1, over.stdout + over.stderr
+    _assert_refused(over, "FAIL")
 
 
 def test_rendered_body_mode_fails_when_too_large(tmp_path: Path) -> None:
@@ -140,7 +152,7 @@ def test_rendered_body_mode_fails_when_too_large(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
     )
-    assert r.returncode == 1, r.stdout + r.stderr
+    _assert_refused(r, "FAIL")
 
     body.write_text("x" * 1_000, encoding="utf-8")
     ok = subprocess.run(
@@ -158,7 +170,7 @@ def test_highlights_rescue_an_over_budget_section(tmp_path: Path) -> None:
     message: it reads as authoritative and sends you to do the wrong thing.
     """
     without = _run(tmp_path, BUDGET + 5_000, slot="without")
-    assert without.returncode == 1, without.stdout
+    _assert_refused(without, "FAIL")
 
     with_hl = _run(
         tmp_path,
@@ -181,8 +193,7 @@ def test_an_over_long_highlights_block_still_fails(tmp_path: Path) -> None:
         slot="fat",
         highlights="- **Too much.** " + ("q" * (BUDGET + 1_000)),
     )
-    assert r.returncode == 1, r.stdout + r.stderr
-    assert "itself too long" in r.stdout + r.stderr
+    _assert_refused(r, "itself too long")
 
 
 def test_highlights_is_ignored_when_the_section_already_fits(
@@ -261,8 +272,7 @@ def test_an_oversized_section_without_highlights_refuses(
 ) -> None:
     """Fail closed, before the tag — not after PyPI has the version."""
     r = _notes(tmp_path, _bulk())
-    assert r.returncode == 1
-    assert "no ### Highlights" in r.stderr
+    _assert_refused(r, "no ### Highlights")
 
 
 def test_extraction_does_not_die_of_sigpipe(tmp_path: Path) -> None:
@@ -365,8 +375,7 @@ def test_a_fragment_with_an_escaping_link_fails_the_lint_gate(
         capture_output=True,
         text=True,
     )
-    assert r.returncode == 1, r.stdout + r.stderr
-    assert "../outside.md" in r.stdout + r.stderr
+    _assert_refused(r, "neither absolute", "../outside.md")
 
 
 def test_the_body_check_fails_on_a_relative_link(tmp_path: Path) -> None:
@@ -381,8 +390,9 @@ def test_the_body_check_fails_on_a_relative_link(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
     )
-    assert r.returncode == 1, r.stdout + r.stderr
-    assert "docs/design/async-dsss-receiver.md" in r.stdout + r.stderr
+    _assert_refused(
+        r, "neither absolute", "docs/design/async-dsss-receiver.md"
+    )
 
 
 def test_the_script_publishes_absolute_links_at_the_tag(

@@ -14,6 +14,15 @@ The rule: every ``push:`` trigger declares one of ``branches``,
 how GitHub says "not tags"; listing tags alone says "only tags"
 (release.yml). Either is a decision; the absence of both is the accident.
 
+And a ``tags-ignore`` with no ``branches`` never runs for a branch push:
+GitHub's syntax page says that if you define only ``tags`` / ``tags-ignore``,
+"the workflow won't run for events affecting the undefined Git ref". So
+``tags-ignore: ['**']`` alone meant "no branch push runs at all" (ci.yml,
+2026-11-23: no push run appeared on any branch). The author who writes
+``tags-ignore`` means "every branch, but not these tags", so ``branches`` is
+named with it. A bare ``tags:`` is different: it IS "only tags" (release.yml),
+a decision, and is not refused.
+
 Usage:  python3 scripts/check_workflow_tag_triggers.py [--root DIR]
 Exit 0 when every workflow's push trigger is explicit about tags.
 """
@@ -51,6 +60,13 @@ def offenders(root: Path) -> tuple[list[str], int]:
         push = on["push"] or {}
         if not any(k in push for k in KEYS):
             bad.append(f.relative_to(root).as_posix())
+        elif "tags-ignore" in push and not any(
+            k in push for k in ("branches", "branches-ignore")
+        ):
+            bad.append(
+                f.relative_to(root).as_posix()
+                + " (tags without branches: no branch push runs)"
+            )
     return bad, len(files)
 
 
@@ -69,13 +85,15 @@ def main() -> int:
         print(
             "workflow-tag-triggers: FAIL — a push trigger that names "
             "neither branches nor tags runs on EVERY tag push (GitHub "
-            "ignores paths: for tags):"
+            "ignores paths: for tags), and a tags-ignore with no branches "
+            "runs for no branch push:"
         )
         for b in bad:
             print(f"  {b}")
         print(
-            "  Add `branches: ['**']` to keep branch pushes and drop "
-            "tags, or `tags:` if the workflow is for tags."
+            "  Add `branches: ['**']` to keep branch pushes, with "
+            "`tags-ignore:` for the tags it should not run on; or `tags:` if "
+            "the workflow is for tags only."
         )
         return 1
     print(

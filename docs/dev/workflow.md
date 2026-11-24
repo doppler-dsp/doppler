@@ -120,8 +120,12 @@ day it is introduced and not the day the PR opens; the PR runs the rest
 branch stands with:
 
 ```sh
-gh run list --branch <branch> --limit 1 --json status,conclusion
+gh api "repos/doppler-dsp/doppler/actions/runs?head_sha=$(git rev-parse HEAD)" \
+  --jq '.workflow_runs[] | "\(.id) \(.event) \(.conclusion) \(.name)"'
 ```
+
+(by commit, not by branch: a workflow file GitHub rejects has no branch, so
+`gh run list --branch` does not show it; see [CI](ci.md).)
 
 A green minimal run is not a green PR: coverage, the sanitizers, macOS and
 the rest first run when the PR does. A newer push cancels the older run.

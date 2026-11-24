@@ -670,7 +670,7 @@ A field with a declared length and no source: a CRC trailer, a block of R-S chec
 
 **Returns:**
 
-the new field's index, or -1 on NULL, a full description, a zero `bits`, a `bits` past [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits) (the same bound a supplied field meets, #3321), or a name already taken. 
+the new field's index, or -1 on NULL, a full description, a zero `bits`, or a name already taken. A width is not bounded here: the layout refuses a description whose sums wrap (#3321). 
 
 
 
@@ -713,12 +713,7 @@ The building half of the description, and the reason a name is worth carrying: a
 
 **Returns:**
 
-the new field's index, or -1 if `d` or `seq` is NULL, the description is full, or `name` is already taken. It also refuses a field past the Field bound, each reason on its own:
-* `seq->len` above [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits), the length alone;
-* `reps` above [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits), the count alone;
-* `seq->len * max(reps, 1)` above [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits), the field's bits, a run the layout cannot sum without wrapping. The bound is the Field grammar's, so a field this function refuses is one the text door refuses too (#3321). 
-
-
+the new field's index, or -1 if `d` or `seq` is NULL, the description is full, or `name` is already taken. It also refuses a field whose bits, `seq->len * max(reps, 1)`, do not fit a size\_t: such a value has no size to hold it (#3321). Nothing tighter is applied here. The Field TEXT grammar's bound ([**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits)) is for text; a frame is as long as the layout can sum, and the layout refuses a wrap. 
 
 
 
@@ -1177,7 +1172,7 @@ A frame draws from ONE data source, so it carries at most one WFM\_SEQ\_DATA fie
 
 **Returns:**
 
-0, or -1 if `d` or `out` is NULL, a count or a cover runs past its array, a derived field names no producing stage, an emitting stage covers less than the whole frame or is not the only one, or the frame has two data fields. 
+0, or -1 if `d` or `out` is NULL, a count or a cover runs past its array, a derived field names no producing stage, an emitting stage covers less than the whole frame or is not the only one, the frame has two data fields, or a size wraps: a field's bits, a stage's span, the frame's bits or its emitted bits does not fit a size\_t (#3321). A description refused here is never assembled, so no caller sizes a buffer from a wrapped frame. 
 
 
 

@@ -108,7 +108,22 @@ supplied_bits (const wfm_field_t *f)
   if (f->derived_by || f->seq.len == 0)
     return 0;
   const size_t reps = f->reps ? f->reps : 1u;
-  return f->seq.len * reps;
+  return dp_size_mul_sat (f->seq.len, reps);
+}
+
+/* The same bits, refusing a product past size_t instead of saturating. The
+   layout takes its sizes here, because a description can reach it without
+   add_field (a scene's JSON, ccsds_tm/desc.c fill the struct directly), so
+   the arithmetic the layout does is the one that must not wrap. Returns 0 on
+   overflow. */
+static int
+supplied_bits_checked (const wfm_field_t *f, size_t *out)
+{
+  *out = 0;
+  if (f->derived_by || f->seq.len == 0)
+    return 1;
+  const size_t reps = f->reps ? f->reps : 1u;
+  return dp_size_mul (f->seq.len, reps, out);
 }
 
 size_t
@@ -668,7 +683,8 @@ dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
       if (!f->derived_by && f->seq.kind == WFM_SEQ_DATA && f->seq.len
           && ++n_data > 1u)
         return -1;
-      out->field_bits[i] = supplied_bits (f);
+      if (!supplied_bits_checked (f, &out->field_bits[i]))
+        return -1; /* LEN * REPS wraps: a field the layout cannot size */
     }
 
   /* 2. size the derived fields. A stage that covers no supplied bits derives
@@ -697,18 +713,26 @@ dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
 
       size_t src = 0;
       for (unsigned c = 0; c < st->n_fields; c++)
-        src += supplied_bits (&d->field[st->first_field + c]);
+        {
+          size_t b;
+          if (!supplied_bits_checked (&d->field[st->first_field + c], &b)
+              || !dp_size_add (src, b, &src))
+            return -1; /* the cover's bits wrap: refused, not laid out */
+        }
       out->field_bits[i] = src ? f->bits : 0u;
     }
 
-  /* 3. offsets, in wire order. add_field and add_derived refuse any field
-     past WFM_FIELD_MAX_BITS, and at most WFM_FRAME_MAX_FIELDS fields fit, so
-     off stays below 16 * 261120 bits and cannot wrap: no check is needed. */
+  /* 3. offsets, in wire order. Every sum is checked: a field's bits and a
+     derived width are each a size_t, and the running offset is their sum, so
+     two fields near 2^63 wrap it. A wrap is refused here, where every writer's
+     sizes are consumed (the builder, the JSON reader, ccsds_tm/desc.c), so
+     assemble never indexes or sizes a buffer from a wrapped frame. */
   size_t off = 0;
   for (unsigned i = 0; i < d->n_fields; i++)
     {
       out->field_off[i] = off;
-      off += out->field_bits[i];
+      if (!dp_size_add (off, out->field_bits[i], &off))
+        return -1;
     }
   out->frame_bits = off;
 
@@ -718,7 +742,8 @@ dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
       const wfm_stage_t *st = &d->stage[s];
       size_t             n  = 0;
       for (unsigned c = 0; c < st->n_fields; c++)
-        n += out->field_bits[st->first_field + c];
+        if (!dp_size_add (n, out->field_bits[st->first_field + c], &n))
+          return -1; /* the span wraps */
       if (n)
         {
           out->stage[s].first = out->field_off[st->first_field];
@@ -751,8 +776,11 @@ dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
         continue;
       if (emitting || out->stage[s].n != out->frame_bits)
         return -1;
-      emitting      = 1;
-      out->out_bits = out->frame_bits * st->emit_num / st->emit_den;
+      emitting = 1;
+      size_t scaled;
+      if (!dp_size_mul (out->frame_bits, st->emit_num, &scaled))
+        return -1; /* frame_bits * emit_num wraps: refused, not scaled */
+      out->out_bits = scaled / st->emit_den;
     }
   return 0;
 }
@@ -1375,16 +1403,11 @@ dp_wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
   if (!d || !seq || d->n_fields >= WFM_FRAME_MAX_FIELDS
       || name_taken (d, name))
     return -1;
-  /* Refused: a LEN past the Field bound. The layout sums these, so an
-     unbounded LEN is what wraps the frame's size (#3321). */
-  if (seq->len > WFM_FIELD_MAX_BITS)
-    return -1;
-  /* Refused: a REPS past the Field bound, on its own. */
-  if (reps > WFM_FIELD_MAX_BITS)
-    return -1;
-  /* Refused: the product LEN * max(REPS, 1) past the bound, which is the
-     field's bits; a longer run is a stream, not a Field. */
-  if (!field_bits_fit (seq->len, reps))
+  /* Refused: LEN * max(REPS, 1) past size_t, which has no bits to
+     hold. Nothing tighter: the Field text bound is the grammar's, and the
+     layout sums every field with checked adds. */
+  size_t bits;
+  if (!dp_size_mul (seq->len, reps ? reps : 1u, &bits))
     return -1;
 
   const unsigned i = d->n_fields;
@@ -1401,10 +1424,6 @@ dp_wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name, size_t bits)
 {
   if (!d || bits == 0u || d->n_fields >= WFM_FRAME_MAX_FIELDS
       || name_taken (d, name))
-    return -1;
-  /* Refused: a width past the Field bound. Its stage fills it, and the layout
-     sums it like any field. */
-  if (bits > WFM_FIELD_MAX_BITS)
     return -1;
 
   const unsigned i = d->n_fields;

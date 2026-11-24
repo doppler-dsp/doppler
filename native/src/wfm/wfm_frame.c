@@ -781,6 +781,12 @@ dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
       if (!dp_size_mul (out->frame_bits, st->emit_num, &scaled))
         return -1; /* frame_bits * emit_num wraps: refused, not scaled */
       out->out_bits = scaled / st->emit_den;
+      /* An emitting stage must EXPAND (or keep) the frame. assemble forms
+         `out + (out_bits - frame_bits)`, which wraps below zero when the
+         stream shrinks, so a shrinking emitter is refused here, where the
+         sizes are decided (#3321). Nothing implements a shrinking emit. */
+      if (out->out_bits < out->frame_bits)
+        return -1;
     }
   return 0;
 }
@@ -1011,6 +1017,9 @@ dp_wfm_frame_assemble_data (const wfm_frame_desc_t *d,
   /* The frame is assembled in the TAIL of the buffer when a stage expands it
      into a different stream, so the stream can be written from the head with
      no scratch allocation. With no such stage the tail IS the buffer. */
+  /* Safe because dp_wfm_frame_desc_layout refuses an emitting stage that
+     shrinks the frame (out_bits < frame_bits), so this subtraction never
+     wraps. Without that check it writes below `out` (#3321). */
   uint8_t *frame = out + (l.out_bits - l.frame_bits);
 
   for (unsigned i = 0; i < d->n_fields; i++)
@@ -1200,10 +1209,17 @@ dp_wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
   wfm_frame_desc_layout_t l;
   if (!d || dp_wfm_frame_desc_layout (d, &l) != 0)
     return 0;
-  const size_t pre = acq_len * acq_reps;
+  /* Every product and sum is checked: a count past size_t is refused as 0,
+     the same answer as a description that has nothing to send (#3321). */
+  size_t pre, body, total;
+  if (!dp_size_mul (acq_len, acq_reps, &pre))
+    return 0;
   if (l.out_bits && data_len == 0)
-    return 0;                         /* frame bits with no spreading code */
-  return pre + l.out_bits * data_len; /* 0 when there is nothing to send */
+    return 0; /* frame bits with no spreading code */
+  if (!dp_size_mul (l.out_bits, data_len, &body)
+      || !dp_size_add (pre, body, &total))
+    return 0;
+  return total; /* 0 when there is nothing to send */
 }
 
 size_t

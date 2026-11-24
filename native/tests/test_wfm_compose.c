@@ -2735,6 +2735,22 @@ test_scene_field_bits (void)
               == NULL
           && why && strstr (why, "whole number"),
       "a fractional \"bits\" is refused by name");
+  /* An emitting stage that shrinks the frame (12 bits from 24): refused by the
+     layout before any assembly, so no write lands below the buffer (#3328). */
+  DP_CHECK_MSG (
+      dp_wfm_compose_from_json_why (
+          "{\"version\":1,\"segments\":[{\"type\":\"bits\",\"fs\":1e6,"
+          "\"sps\":4,\"modulation\":\"bpsk\",\"snr\":100.0,"
+          "\"snr_mode\":\"fs\",\"frame\":{\"fields\":["
+          "{\"name\":\"a\",\"spec\":\"01010101\"},"
+          "{\"name\":\"b\",\"spec\":\"01010101\"},"
+          "{\"name\":\"c\",\"spec\":\"01010101\"}],"
+          "\"stages\":[{\"kind\":3,\"first_field\":0,\"n_fields\":3,"
+          "\"emit_num\":1,\"emit_den\":2}]}}]}",
+          &why)
+          == NULL,
+      "an emitting stage that shrinks the frame is refused (#3328)");
+  return 0;
 }
 
 int

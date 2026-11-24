@@ -241,10 +241,54 @@ ______________________________________________________________________
 
 ## Pull requests
 
-`ci.yml` runs on `pull_request` and on `push` to `main` / `develop`, and it
-does the same work on both: **every job, and `python` on every version
-3.9–3.14**. The PR run is the one that gates the merge (`CI passed`, the
-one required check), so it is the full matrix.
+`ci.yml` runs on `pull_request`, on the nightly `schedule`, by hand, and on
+**every push to a branch** (never a tag: a release tag is `release.yml`'s).
+A pull request, `main` and `develop` run **every job, and `python` on every
+version 3.9–3.14**. The PR run is the one that gates the merge (`CI passed`,
+the one required check), so it is the full matrix.
+
+### A push without a pull request
+
+A branch that had no PR used to meet CI for the first time when the PR
+opened, weeks in, with every red at once. So each push runs the **minimal
+set**, and the rest waits for the PR. The `scope` job
+(`scripts/ci_scope.py`) says which of three a run is:
+
+| scope     | when                                                                           | what runs                                                           |
+| --------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| `full`    | `pull_request`, `schedule`, `workflow_dispatch`, a push to `main` or `develop` | everything (a push to `main` keeps its tree-tested skip, `changes`) |
+| `minimal` | a push to any other branch                                                     | the eight jobs below                                                |
+| `skip`    | a push to another branch whose sha is the head of an open PR                   | nothing: the PR's own run is the gate, so this one only reports     |
+
+The minimal set: Linux on ubuntu-24.04 (not 22.04), Linux on
+ubuntu-24.04-arm, Windows (clang-cl), `python` on the floor (the primary)
+and the newest version, `pre-commit` (`make lint`), the jm manifest drift
+gate and the sweep validators. They are the jobs that caught the most this
+cycle for the least. **Left to the PR run:** macOS, ubuntu-22.04, the middle
+Pythons, coverage, the sanitizers, `-Wall -Wextra`, Doxygen, docs, Docker,
+the Linux packages, glibc 2.28 and the wheel smoke. They are the jobs
+`ci.yml` gates on `needs.scope.outputs.scope == 'full'`, and `ci_passed.py`
+lets a `minimal` run skip exactly those (`PR_ONLY`); `make ci-aggregator-check` holds the two lists equal, as it does `SKIPPABLE` and
+`CODE_ONLY`.
+
+A newer push to a branch **cancels the older run**: it tests a commit
+nobody reads again. A push to `main` / `develop` never cancels.
+
+**To read a branch's state:**
+
+```sh
+gh run list --branch <branch> --limit 1 --json status,conclusion
+```
+
+`conclusion` is `success` only when `CI passed` was green, and for a
+`minimal` run that means the minimal set, not the PR's full one: a branch is
+not ready to merge until its PR run is green.
+
+**Every failure in one run.** After a job's build, its `make` steps do not
+stop at the first red one: each runs under `if: ${{ !cancelled() }}` and the
+job still ends red. One run lists every broken target. A step that reads an
+earlier step's output keeps its dependency (`steps.build.outcome == 'success'`): the build itself, and what needs a built tree, the broker or a
+coverage file, stay hard stops.
 
 There is **no merge queue**. It was retired on 2026-10-01. While it ran, a
 PR got only the fast gates and the queue ran the heavy jobs on main plus
@@ -364,6 +408,7 @@ ______________________________________________________________________
 
 | job                          | environment                                | what it runs                                                                                                                    |
 | ---------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `scope`                      | plain runner                               | says how much this run owes: `full`, `minimal` (a push with no PR) or `skip` (a PR already covers it); `scripts/ci_scope.py`    |
 | `changes`                    | the vendored `changes.yml` workflow        | classifies the diff, so a docs-only PR can skip the code jobs (`SKIPPABLE` / `CODE_ONLY`, above)                                |
 | `pythons`                    | plain runner                               | derives the Python matrix and the primary leg (`make -s print-python-primary`)                                                  |
 | `pin`                        | plain runner                               | resolves the pinned CI image digests the container jobs run in                                                                  |

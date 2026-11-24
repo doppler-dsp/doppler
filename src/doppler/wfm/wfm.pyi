@@ -1935,6 +1935,120 @@ class Frame:
             The frame's length in bits, or 0 for an empty description.
         """
 
+    def read_field(
+        self,
+        rx_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        name: str,
+    ) -> int:
+        """A named field's received value as an int, most significant bit first
+        -- the order the assembler writes a field in, so a field reads back as
+        the integer whose bits it was given. Read from `rx_bits` at the place
+        the description gives the field; a derived field (a CRC trailer) reads
+        as received, not recomputed, and the read checks nothing, so a header
+        is readable on a frame whose CRC failed. `rx_bits` are in the frame's
+        layout, the bits `check()` and `crc_ok()` read: for a coded frame,
+        after the Viterbi. Refused for a field longer than 63 bits (read it
+        with `read_field_bits`), a name the description lacks, or `rx_bits`
+        shorter than the frame.
+
+        Read from rx_bits at the place the description gives the field, most
+        significant bit first, so a field reads back as the integer its bits
+        were given. A derived field reads as received; the read checks nothing.
+
+        Parameters
+        ----------
+        rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
+            received bits, one per byte.
+        name : str
+            the field's name.
+
+        Returns
+        -------
+        int
+            the value, or -1 with why set: no such field, a field longer than
+            64 bits or a 64-bit one with its top bit set (read it with
+            dp_frame_read_field_bits()), or too few bits.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            the reason the C call gives, or ``read_field failed``, with the
+            return code appended (gh-869), when it gives none.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> d = FrameDesc()
+        >>> d.add_field("scid", np.array([0, 0, 0, 0, 1, 0, 1, 0, 1, 0], np.uint8))
+        0
+        >>> d.build()
+        >>> d.read_field(d.bits(), "scid")
+        42
+
+        """
+
+    def read_field_bits(
+        self,
+        rx_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        name: str,
+        out: npt.NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """A named field's received bits, one per element, for a field of any
+        length: `read_field`'s read, unpacked.
+
+        Parameters
+        ----------
+        rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
+            received bits, one per byte.
+        name : str
+            the field's name.
+        out : npt.NDArray[np.uint8] | None
+            receives the field's bits.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            the field's length in bits, or 0 with why set on
+            dp_frame_read_field()'s refusals, bar the 64-bit limit.
+
+        Raises
+        ------
+        ValueError
+            If the C call writes no output. Its return value is a count, so a
+            zero-length result is a REFUSAL rather than an empty answer. The
+            exception message is the reason the C call gives, or
+            ``read_field_bits failed`` when it gives none.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> d = FrameDesc()
+        >>> d.add_field("vcid", np.array([0, 0, 0, 0, 0, 1], np.uint8))
+        0
+        >>> d.build()
+        >>> d.read_field_bits(d.bits(), "vcid").tolist()
+        [0, 0, 0, 0, 0, 1]
+
+        """
+
+    def read_field_bits_max_out(self, rx_bits_len: int, /) -> int:
+        """Capacity dp_frame_read_field_bits() needs: the frame's bits, since a
+        field is at most the whole frame.
+
+        Parameters
+        ----------
+        rx_bits_len : int
+            unused; the length is the description's.
+
+        Returns
+        -------
+        int
+            the frame's length in bits.
+        """
+
     def check(
         self,
         rx_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
@@ -2948,6 +3062,120 @@ class FrameDesc:
         -------
         int
             The frame's length in bits, or 0 for an empty description.
+        """
+
+    def read_field(
+        self,
+        rx_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        name: str,
+    ) -> int:
+        """A named field's received value as an int, most significant bit first
+        -- the order the assembler writes a field in, so a field reads back as
+        the integer whose bits it was given. Read from `rx_bits` at the place
+        the description gives the field; a derived field (a CRC trailer) reads
+        as received, not recomputed, and the read checks nothing, so a header
+        is readable on a frame whose CRC failed. `rx_bits` are in the frame's
+        layout, the bits `check()` and `crc_ok()` read: for a coded frame,
+        after the Viterbi. Refused for a field longer than 63 bits (read it
+        with `read_field_bits`), a name the description lacks, or `rx_bits`
+        shorter than the frame.
+
+        Read from rx_bits at the place the description gives the field, most
+        significant bit first, so a field reads back as the integer its bits
+        were given. A derived field reads as received; the read checks nothing.
+
+        Parameters
+        ----------
+        rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
+            received bits, one per byte.
+        name : str
+            the field's name.
+
+        Returns
+        -------
+        int
+            the value, or -1 with why set: no such field, a field longer than
+            64 bits or a 64-bit one with its top bit set (read it with
+            dp_frame_read_field_bits()), or too few bits.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            the reason the C call gives, or ``read_field failed``, with the
+            return code appended (gh-869), when it gives none.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> d = FrameDesc()
+        >>> d.add_field("scid", np.array([0, 0, 0, 0, 1, 0, 1, 0, 1, 0], np.uint8))
+        0
+        >>> d.build()
+        >>> d.read_field(d.bits(), "scid")
+        42
+
+        """
+
+    def read_field_bits(
+        self,
+        rx_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        name: str,
+        out: npt.NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """A named field's received bits, one per element, for a field of any
+        length: `read_field`'s read, unpacked.
+
+        Parameters
+        ----------
+        rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
+            received bits, one per byte.
+        name : str
+            the field's name.
+        out : npt.NDArray[np.uint8] | None
+            receives the field's bits.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            the field's length in bits, or 0 with why set on
+            dp_frame_read_field()'s refusals, bar the 64-bit limit.
+
+        Raises
+        ------
+        ValueError
+            If the C call writes no output. Its return value is a count, so a
+            zero-length result is a REFUSAL rather than an empty answer. The
+            exception message is the reason the C call gives, or
+            ``read_field_bits failed`` when it gives none.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> d = FrameDesc()
+        >>> d.add_field("vcid", np.array([0, 0, 0, 0, 0, 1], np.uint8))
+        0
+        >>> d.build()
+        >>> d.read_field_bits(d.bits(), "vcid").tolist()
+        [0, 0, 0, 0, 0, 1]
+
+        """
+
+    def read_field_bits_max_out(self, rx_bits_len: int, /) -> int:
+        """Capacity dp_frame_read_field_bits() needs: the frame's bits, since a
+        field is at most the whole frame.
+
+        Parameters
+        ----------
+        rx_bits_len : int
+            unused; the length is the description's.
+
+        Returns
+        -------
+        int
+            the frame's length in bits.
         """
 
     def check(

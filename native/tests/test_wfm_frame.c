@@ -1083,6 +1083,115 @@ test_desc_rx (void)
   return 0;
 }
 
+/* A named field reads back as the integer its bits were given, MOST
+   significant first (docs/design/frame-description.md, "RB. Reading a field
+   back"): built by name, assembled, then every field read from the
+   assembled bits. Rejects an LSB-first pack (the 5-bit 0b10110 would read
+   0b01101), an off-by-one offset (the neighbour's bits leak in), a derived
+   field recomputed instead of read as received (the flipped trailer bit
+   must show), a >64-bit field truncated rather than refused, and a coded
+   frame's description refused instead of read in its frame layout. */
+static int
+test_field_read_back (void)
+{
+  static const uint8_t a_bits[5] = { 1, 0, 1, 1, 0 }; /* 0x16 */
+  wfm_seq_t            a = { 0 }, b = { 0 }, w = { 0 }, data = { 0 };
+  a.kind             = WFM_SEQ_LITERAL;
+  a.bits             = a_bits;
+  a.len              = 5;
+  b.kind             = WFM_SEQ_DOTTED; /* 101 */
+  b.len              = 3;
+  w.kind             = WFM_SEQ_PN; /* 70 bits: past the integer form */
+  w.len              = 70;
+  w.reg_bits         = 7;
+  data.kind          = WFM_SEQ_DATA;
+  data.len           = 16;
+  wfm_frame_desc_t d = { 0 };
+  DP_REQUIRE (dp_wfm_frame_add_field (&d, "a", &a, 1) >= 0);
+  DP_REQUIRE (dp_wfm_frame_add_field (&d, "b", &b, 1) >= 0);
+  DP_REQUIRE (dp_wfm_frame_add_field (&d, "w", &w, 1) >= 0);
+  DP_REQUIRE (dp_wfm_frame_add_field (&d, "data", &data, 1) >= 0);
+  DP_REQUIRE (dp_wfm_frame_add_derived (&d, "crc", 16) >= 0);
+  DP_REQUIRE (dp_wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "a", "crc") >= 0);
+  wfm_frame_desc_layout_t l;
+  DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &l) == 0);
+  static const uint8_t payload[16]
+      = { 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0 }; /* 0xCA1E */
+  uint8_t rx[5 + 3 + 70 + 16 + 16];
+  DP_REQUIRE (l.frame_bits == sizeof rx);
+  DP_REQUIRE (dp_wfm_frame_assemble_data (&d, NULL, payload, rx, sizeof rx)
+              == sizeof rx);
+
+  uint64_t    v   = 0;
+  const char *why = NULL;
+  DP_CHECK (dp_wfm_frame_desc_field (&d, rx, sizeof rx, "a", &v, &why) == 0
+            && v == 0x16u);
+  DP_CHECK (dp_wfm_frame_desc_field (&d, rx, sizeof rx, "b", &v, &why) == 0
+            && v == 0x5u);
+  DP_CHECK (dp_wfm_frame_desc_field (&d, rx, sizeof rx, "data", &v, &why) == 0
+            && v == 0xCA1Eu);
+  /* the trailer as received: the assembled CRC, then a flipped bit shows */
+  uint64_t crc = 0;
+  DP_CHECK (dp_wfm_frame_desc_field (&d, rx, sizeof rx, "crc", &crc, &why)
+            == 0);
+  DP_CHECK (crc == dp_crc16_ccitt (rx, 5 + 3 + 70 + 16));
+  rx[sizeof rx - 1] ^= 1u;
+  DP_CHECK (dp_wfm_frame_desc_field (&d, rx, sizeof rx, "crc", &v, &why) == 0
+            && v == (crc ^ 1u));
+  DP_CHECK (dp_wfm_frame_desc_crc_ok (&d, rx) == 0);
+  rx[sizeof rx - 1] ^= 1u;
+
+  /* the 70-bit field: refused as an integer, whole as bits */
+  why = NULL;
+  v   = 7;
+  DP_CHECK (dp_wfm_frame_desc_field (&d, rx, sizeof rx, "w", &v, &why) == -1
+            && why && strstr (why, "64 bits") && v == 7);
+  uint8_t wb[70];
+  DP_CHECK (
+      dp_wfm_frame_desc_field_bits (&d, rx, sizeof rx, "w", NULL, 0, NULL)
+      == 70);
+  DP_CHECK (dp_wfm_frame_desc_field_bits (&d, rx, sizeof rx, "w", wb, 70, NULL)
+            == 70);
+  DP_CHECK (memcmp (wb, rx + 8, 70) == 0);
+
+  /* refusals, each with its sentence */
+  why = NULL;
+  DP_CHECK (dp_wfm_frame_desc_field (&d, rx, sizeof rx, "nope", &v, &why) == -1
+            && why);
+  why = NULL;
+  DP_CHECK (dp_wfm_frame_desc_field (&d, rx, sizeof rx - 1, "a", &v, &why)
+                == -1
+            && why);
+  DP_CHECK (
+      dp_wfm_frame_desc_field_bits (&d, rx, sizeof rx - 1, "a", wb, 70, NULL)
+      == 0);
+  why = NULL;
+  DP_CHECK (dp_wfm_frame_desc_field (&d, rx, sizeof rx, "", &v, &why) == -1
+            && why);
+
+  /* A coded frame reads as an uncoded one: its description gains an
+     emitting stage (a rate-1/2 code over the frame), and the read takes the
+     FRAME-layout bits, what a Viterbi hands back and what check() and
+     crc_ok() read, not the coded stream. Rejects a read that refuses a
+     description with an emitting stage, which would refuse the very bits
+     the rest of the API reads. */
+  wfm_frame_desc_t c = d;
+  const int cst      = dp_wfm_frame_add_stage (&c, WFM_STAGE_CONV, "a", "crc");
+  DP_REQUIRE (cst >= 0);
+  c.stage[cst].emit_num = 2u;
+  c.stage[cst].emit_den = 1u;
+  wfm_frame_desc_layout_t cl;
+  DP_REQUIRE (dp_wfm_frame_desc_layout (&c, &cl) == 0);
+  DP_REQUIRE (cl.out_bits == 2u * cl.frame_bits); /* it does emit */
+  why = NULL;
+  DP_CHECK (dp_wfm_frame_desc_field (&c, rx, sizeof rx, "a", &v, &why) == 0
+            && v == 0x16u);
+  DP_CHECK (dp_wfm_frame_desc_field (&c, rx, sizeof rx, "data", &v, &why) == 0
+            && v == 0xCA1Eu);
+  DP_CHECK (dp_wfm_frame_desc_crc_ok (&c, rx) == 1);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -2254,6 +2363,8 @@ main (void)
   if (test_frame_fixed_claims ())
     return 1;
   if (test_desc_rx ())
+    return 1;
+  if (test_field_read_back ())
     return 1;
   DP_TEST_END ("wfm_frame");
 }

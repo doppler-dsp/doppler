@@ -86,6 +86,9 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 |  size\_t | [**dp\_frame\_n\_fields**](#function-dp_frame_n_fields) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state) <br>_Fields in the description._  |
 |  size\_t | [**dp\_frame\_n\_stages**](#function-dp_frame_n_stages) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state) <br>_Stages in the description._  |
 |  int | [**dp\_frame\_name\_field**](#function-dp_frame_name_field) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, uint32\_t index, const char \* name) <br>_Give an already-appended field a name, or clear it with_ `""` _._ |
+|  int64\_t | [**dp\_frame\_read\_field**](#function-dp_frame_read_field) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const uint8\_t \* rx\_bits, size\_t rx\_bits\_len, const char \* name, const char \*\* why) <br>_A named field's received value: the receive mirror of_ [_**dp\_frame\_add\_field**_](frame__core_8h.md#function-dp_frame_add_field) _(_[_**dp\_wfm\_frame\_desc\_field()**_](wfm__frame_8h.md#function-dp_wfm_frame_desc_field) _)._ |
+|  size\_t | [**dp\_frame\_read\_field\_bits**](#function-dp_frame_read_field_bits) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const uint8\_t \* rx\_bits, size\_t rx\_bits\_len, const char \* name, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_A named field's received bits, for a field of any length (_ [_**dp\_wfm\_frame\_desc\_field\_bits()**_](wfm__frame_8h.md#function-dp_wfm_frame_desc_field_bits) _)._ |
+|  size\_t | [**dp\_frame\_read\_field\_bits\_max\_out**](#function-dp_frame_read_field_bits_max_out) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t rx\_bits\_len) <br>_Capacity_ [_**dp\_frame\_read\_field\_bits()**_](frame__core_8h.md#function-dp_frame_read_field_bits) _needs: the frame's bits, since a field is at most the whole frame._ |
 |  size\_t | [**dp\_frame\_stage\_bits**](#function-dp_frame_stage_bits) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t i) <br>_Bits stage_ `i` _covers; 0 for a stage that did not run._ |
 |  size\_t | [**dp\_frame\_stage\_first**](#function-dp_frame_stage_first) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t i) <br>_First CADU bit stage_ `i` _covers; 0 for a stage that did not run._ |
 
@@ -1344,6 +1347,155 @@ int dp_frame_name_field (
 0
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_frame\_read\_field 
+
+_A named field's received value: the receive mirror of_ [_**dp\_frame\_add\_field**_](frame__core_8h.md#function-dp_frame_add_field) _(_[_**dp\_wfm\_frame\_desc\_field()**_](wfm__frame_8h.md#function-dp_wfm_frame_desc_field) _)._
+```C++
+int64_t dp_frame_read_field (
+    dp_frame_state_t * state,
+    const uint8_t * rx_bits,
+    size_t rx_bits_len,
+    const char * name,
+    const char ** why
+) 
+```
+
+
+
+Read from `rx_bits` at the place the description gives the field, most significant bit first, so a field reads back as the integer its bits were given. A derived field reads as received; the read checks nothing.
+
+
+
+
+**Parameters:**
+
+
+* `state` the frame. 
+* `rx_bits` received bits, one per byte. 
+* `rx_bits_len` how many; at least the frame's. 
+* `name` the field's name. 
+* `why` on refusal, receives a static sentence; may be NULL. 
+
+
+
+**Returns:**
+
+the value, or -1 with `why` set: no such field, a field longer than 64 bits or a 64-bit one with its top bit set (read it with [**dp\_frame\_read\_field\_bits()**](frame__core_8h.md#function-dp_frame_read_field_bits)), or too few bits.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import FrameDesc
+>>> d = FrameDesc()
+>>> d.add_field("scid", np.array([0, 0, 0, 0, 1, 0, 1, 0, 1, 0], np.uint8))
+0
+>>> d.build()
+>>> d.read_field(d.bits(), "scid")
+42
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_frame\_read\_field\_bits 
+
+_A named field's received bits, for a field of any length (_ [_**dp\_wfm\_frame\_desc\_field\_bits()**_](wfm__frame_8h.md#function-dp_wfm_frame_desc_field_bits) _)._
+```C++
+size_t dp_frame_read_field_bits (
+    dp_frame_state_t * state,
+    const uint8_t * rx_bits,
+    size_t rx_bits_len,
+    const char * name,
+    uint8_t * out,
+    size_t max_out,
+    const char ** why
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` the frame. 
+* `rx_bits` received bits, one per byte. 
+* `rx_bits_len` how many; at least the frame's. 
+* `name` the field's name. 
+* `out` receives the field's bits. 
+* `max_out` capacity of `out`. 
+* `why` on refusal, receives a static sentence; may be NULL. 
+
+
+
+**Returns:**
+
+the field's length in bits, or 0 with `why` set on [**dp\_frame\_read\_field()**](frame__core_8h.md#function-dp_frame_read_field)'s refusals, bar the 64-bit limit.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import FrameDesc
+>>> d = FrameDesc()
+>>> d.add_field("vcid", np.array([0, 0, 0, 0, 0, 1], np.uint8))
+0
+>>> d.build()
+>>> d.read_field_bits(d.bits(), "vcid").tolist()
+[0, 0, 0, 0, 0, 1]
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_frame\_read\_field\_bits\_max\_out 
+
+_Capacity_ [_**dp\_frame\_read\_field\_bits()**_](frame__core_8h.md#function-dp_frame_read_field_bits) _needs: the frame's bits, since a field is at most the whole frame._
+```C++
+size_t dp_frame_read_field_bits_max_out (
+    dp_frame_state_t * state,
+    size_t rx_bits_len
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` the frame. 
+* `rx_bits_len` unused; the length is the description's. 
+
+
+
+**Returns:**
+
+the frame's length in bits. 
+
+
+
 
 
         

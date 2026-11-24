@@ -1052,6 +1052,9 @@ dp_frame_meter_sync_miss function
 dp_frame_n_fields function
 dp_frame_n_stages function
 dp_frame_name_field function
+dp_frame_read_field function
+dp_frame_read_field_bits function
+dp_frame_read_field_bits_max_out function
 dp_frame_stage_bits function
 dp_frame_stage_first function
 dp_gauss_hermite function
@@ -1790,6 +1793,8 @@ dp_wfm_frame_assemble_data function
 dp_wfm_frame_check function
 dp_wfm_frame_copy function
 dp_wfm_frame_desc_crc_ok function
+dp_wfm_frame_desc_field function
+dp_wfm_frame_desc_field_bits function
 dp_wfm_frame_desc_layout function
 dp_wfm_frame_desc_rx function
 dp_wfm_frame_field_index function

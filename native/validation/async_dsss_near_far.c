@@ -34,9 +34,12 @@
  * code-only symbols of 500, the receivers' slow-time search). Each row is a
  * share of trials with its Wilson 95% interval (dp_stats_test.h).
  *
- * Gated, in --check and the sweep alike: no sidelobe is ever taken, with
- * or without W, at any level; from 4 dB apart the rank-1 search never
- * takes S (no `swapped`: the sweep measured none there, at either depth,
+ * Gated, in --check and the sweep alike: no sidelobe is taken with W on
+ * the air, at any level; with S alone, the rank-1 search's seeds (a
+ * sidelobe, or noise the search's own gate passes) are a RATE, held under
+ * ALONE_RATE_BOUND over every row of a run (see it); from 4 dB apart the
+ * rank-1 search never takes S (no `swapped`: the sweep measured none
+ * there, at either depth,
  * so rank 1 picking the strongest peak is red even where `taken` counts
  * a swap as a take); and in --check, at D = 1, W is taken in every valid
  * trial at 10 dB. The rest is measured, not claimed: the reach is
@@ -70,6 +73,29 @@
 #define FLOOR_ESN0_DB 5.0
 #define CODE_ONLY 450u /* the deep frame: code-only symbols ...       */
 #define FRAME 500u     /* ... of every FRAME                          */
+
+/* The rank-1 search on S alone seeds on some trials: a sidelobe whose
+   noise clears the gate, or noise alone, "the rate the search already
+   runs at" (async_dsss_receiver_core.h, the sidelobe rule). Rule 2's gate
+   is set per cell while the search takes the maximum over its cells, so
+   that rate is not the per-cell one; deriving it is doppler#3293.
+
+   MEASURED, until then: docs/design/async-dsss-receiver-measurements/
+   near-far-alone-9de3b8120/ (read_alone.py), D = 1 at 0 dB, the sweep's
+   own seeds: 3 seeds in 1,783 valid trials, 0.168%, Wilson 95% 0.057% to
+   0.494%. The bound is that interval's upper end. DERIVED: the test. A
+   run is red only when its own Wilson interval, over all its rows, lies
+   wholly above the bound: the sweep (about 480 valid trials) from 6
+   S-alone seeds, --check (12 trials at most) from 1. A bound of 0 is red
+   on the record's 3.
+
+   A red --check is a draw, not yet a regression. --check is
+   deterministic per tree, but any change to the receiver reshuffles which
+   fixed draw seeds where, and at the record's rate a 12-trial check meets
+   one S-alone seed about 2.0% of the time (1 - (1 - 0.00168)^12). Before
+   treating one as a regression, read the run-wide rate: the full sweep's
+   line, or a record like this one at the new head. */
+#define ALONE_RATE_BOUND 0.0049
 
 typedef struct
 {
@@ -255,6 +281,7 @@ main (int argc, char **argv)
   printf ("near-far at the floor (W at Es/N0 %.0f dB, %.1f dB-Hz), S "
           "delta dB above:\n",
           FLOOR_ESN0_DB, cn0_of (FLOOR_ESN0_DB));
+  size_t alone_all = 0, valid_all = 0;
   for (int d = 0; d < 2; d++)
     for (size_t l = 0; l < n_lv && depths[d].trials; l++)
       {
@@ -274,10 +301,12 @@ main (int argc, char **argv)
           printf ("%s,%.0f,%zu,%zu,%zu,%.4f,%.4f,%zu,%zu,%zu\n",
                   depths[d].deep ? "deep" : "one", levels[l], t.trials,
                   t.valid, t.taken, lo, hi, t.swapped, t.side, t.alone_side);
-        /* The gates. A sidelobe taken is the defect rule 2 exists to
-           prevent, at any level and either depth. */
+        /* The gates. A sidelobe taken beside W is the defect rule 2
+           exists to prevent, at any level and either depth. With S alone
+           the seeds are a rate, gated over the whole run below. */
         DP_CHECK (t.side == 0);
-        DP_CHECK (t.alone_side == 0);
+        alone_all += t.alone_side;
+        valid_all += t.valid;
         DP_CHECK (t.valid * 2 >= t.trials); /* the truth searches ran */
         /* A rank inversion: from 4 dB apart, S is read the stronger every
            time (the sweep, 2026-11-01: 0 swapped at 4 dB and above, both
@@ -291,5 +320,17 @@ main (int argc, char **argv)
         if (check && !depths[d].deep && levels[l] <= 10.0)
           DP_CHECK (t.taken == t.valid);
       }
+  {
+    double lo = 0.0, hi = 1.0;
+    if (valid_all)
+      dp_wilson ((double)alone_all, (double)valid_all, &lo, &hi);
+    printf ("S alone, every row: %zu seeds in %zu valid trials (%.3f%%, "
+            "Wilson %.3f-%.3f%%), bound %.3f%% (doppler#3293)\n",
+            alone_all, valid_all,
+            valid_all ? 100.0 * (double)alone_all / (double)valid_all : 0.0,
+            100.0 * lo, 100.0 * hi, 100.0 * ALONE_RATE_BOUND);
+    DP_CHECK_MSG (lo <= ALONE_RATE_BOUND,
+                  "the S-alone seed rate is not shown to exceed its bound");
+  }
   DP_TEST_END ("validate_async_dsss_near_far");
 }

@@ -9,7 +9,8 @@ on:
   # the gate. A branch that had no PR used to meet CI for the first time when
   # the PR opened, weeks in, with every red at once (docs/dev/ci.md).
   push:
-    tags-ignore: ['**']
+    branches: ['**']
+    tags-ignore: ['v*']
   # No base-branch filter: a stacked PR (base = another feature branch) must
   # get the same CI as one targeting main — an unfiltered pull_request event
   # runs on every PR.

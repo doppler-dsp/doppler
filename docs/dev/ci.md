@@ -271,6 +271,14 @@ the Linux packages, glibc 2.28 and the wheel smoke. They are the jobs
 lets a `minimal` run skip exactly those (`PR_ONLY`); `make ci-aggregator-check` holds the two lists equal, as it does `SKIPPABLE` and
 `CODE_ONLY`.
 
+The `push` trigger names both keys on purpose: `branches: ['**']` says every
+branch, and `tags-ignore: ['v*']` keeps release tags out, since `release.yml`
+runs on those. Naming `tags-ignore` alone would be "every tag except these",
+and GitHub reads a trigger that names only tags as one that never runs for a
+branch push (its syntax page: "the workflow won't run for events affecting the
+undefined Git ref"). `make lint`'s `check_workflow_tag_triggers` refuses that
+shape.
+
 A newer push to a branch **cancels the older run**: it tests a commit
 nobody reads again. A push to `main` / `develop` never cancels.
 

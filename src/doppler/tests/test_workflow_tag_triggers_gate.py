@@ -57,11 +57,18 @@ def test_a_bare_push_is_refused(tmp_path: Path) -> None:
         "  push:\n    branches: ['**']\n    paths:\n      - Dockerfile\n",
         "  push:\n    branches: [main]\n",
         "  push:\n    tags:\n      - 'v[0-9]*'\n",
-        "  push:\n    tags-ignore: ['**']\n",
+        "  push:\n    branches: ['**']\n    tags-ignore: ['v*']\n",
         "  pull_request:\n",
         "  workflow_dispatch:\n",
     ],
-    ids=["branches-glob", "branches", "tags", "tags-ignore", "pr", "manual"],
+    ids=[
+        "branches-glob",
+        "branches",
+        "tags",
+        "branches+tags-ignore",
+        "pr",
+        "manual",
+    ],
 )
 def test_an_explicit_choice_passes(tmp_path: Path, block: str) -> None:
     r = _run(tmp_path, block)
@@ -76,3 +83,18 @@ def test_no_workflows_is_not_a_pass(tmp_path: Path) -> None:
         text=True,
     )
     assert r.returncode == 1, r.stdout
+
+
+def test_tags_ignore_alone_is_refused(tmp_path: Path) -> None:
+    """The sabotage that shipped: `tags-ignore` with no branches runs for
+    no branch push (GitHub: "the workflow won't run for ... the undefined Git
+    ref"). Caught on the first scratch push that did not start."""
+    r = _run(tmp_path, "  push:\n    tags-ignore: ['**']\n")
+    assert r.returncode == 1, r.stdout
+    assert "tags-ignore with no branches" in r.stdout
+
+
+def test_a_bare_tags_filter_is_still_a_decision(tmp_path: Path) -> None:
+    """`tags:` alone is 'only tags' (release.yml), a deliberate choice."""
+    r = _run(tmp_path, "  push:\n    tags:\n      - 'v*'\n")
+    assert r.returncode == 0, r.stdout

@@ -62,7 +62,7 @@ measured at: the certification's 3.069 Mcps point, below, or the pool's
 5 Mcps sizing point (§5).
 
 **What the certification covers.** The receiver's
-[certification record](https://github.com/doppler-dsp/doppler/blob/v0.85.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
+[certification record](https://github.com/doppler-dsp/doppler/blob/v0.86.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
 holds 23 of 23 limits at 3.069 Mcps and 2,700 sym/s, two samples a chip,
 on continuous random data with no gap, `carrier_freq_hz` 0, and a search
 over ±3 kHz (±1/T_E), and at no other point: not this point's chip rates,
@@ -763,7 +763,7 @@ settled. A hand-over can still miss (finding `handoff_can_miss_the_carrier`),
 and a burst that did not settle
 would be counted beside the loss. Both are measured, with the loss's
 interval, in the
-[certification record](https://github.com/doppler-dsp/doppler/blob/v0.85.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
+[certification record](https://github.com/doppler-dsp/doppler/blob/v0.86.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
 (§2.6). Where the loss goes is the record's §2.7, measured by
 `validate_async_dsss_receiver_loss`
 (`native/validation/async_dsss_receiver_loss.c`): the 3.069 Mcps point's
@@ -2726,7 +2726,7 @@ ______________________________________________________________________
 - [the measurement record](async-dsss-receiver-measurements.md) — every run
     behind the numbers here, under the same section numbers, the pool's
     included.
-- [the certification record](https://github.com/doppler-dsp/doppler/blob/v0.85.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
+- [the certification record](https://github.com/doppler-dsp/doppler/blob/v0.86.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
     — the receiver at the 3.069 Mcps point (§1), and only there; the
     [validation log](../dev/contributing/validation-log.md) holds the stages
     under it.

@@ -13,6 +13,185 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.86.0] - 2026-11-24
+
+### Breaking
+
+- **Async DSSS receiver and pool: C face, status and blobs; carrier loops
+    narrower** ([§4](docs/design/async-dsss-receiver.md)):
+    - `CarrierNda` / `MpskReceiver`: one `bn`, narrower loop (the bn fix)
+    - both `*_create()` take a trailing `bool refine` (Python: default true)
+    - `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(bn, chip_rate, code_len)`
+    - the fields `car` and `car_held` are `dp_carrier_nda_state_t`
+    - `ReceiverStatus` / `PoolReceiverStatus`: 15 fields (14-name unpack)
+    - the probes `rx.car.freq_rate` and `rx.car.order` are gone
+    - v0.85.0 blobs refused (AsyncDsssReceiver 23, AsyncDsssPool 8, Dll 20,
+        Despreader 6, DsssReceiver 5, CarrierNda 6)
+
+### Added
+
+- **`AsyncDsssReceiver`'s loops show their filter terms at their own
+    cadence**: the code loop's per-steer set (`rx.code.steer.*`), the timing
+    loop's `prop` and `integ`, and the symbol-lock EMAs. They observe and
+    decide nothing (the probe list:
+    [`dp_async_dsss_receiver_set_telemetry()`](docs/c-api/async__dsss__receiver__core_8h.md)).
+
+- **`AsyncDsssReceiver` and `AsyncDsssPool` take `refine`** (in C, a new
+    trailing create parameter: see the breaking entry). False hands the
+    search's seed straight to tracking, at its own sample, with no refining
+    state; it needs a search at least 1/bn code periods deep, bn the carrier
+    loop's (about 101 / 135 at the 415.1-B-1 floor), and is refused below
+    that. At the 415.1-B-1 point on a 400 Hz/s ramp its
+    hand-over is within 13.6 Hz of the truth on 60 of 60 draws, and 52 of
+    60 lock by 0.5 s against 42 of 60 as built. Default true, the
+    receiver as built; the name is a placeholder.
+
+- **`CarrierNda` takes three options for a loop updated once a block**, each
+    off by default, so `steps()` and every caller are unchanged:
+    `set_update_period()` (bn per update, the command spread over it),
+    `set_denominator(alpha, gamma_d)` (the error over an average of `|z|^2`,
+    or that less a noise power, clamped; M = 2) and `set_block_lock()` (the
+    ratio of sums `(I^2 - Q^2)/(I^2 + Q^2)` on a block against its exact
+    Beta threshold; M = 2). A fifth probe, `.nco`, is the full NCO command
+    ([async-dsss-receiver](docs/design/async-dsss-receiver.md)).
+
+- **Every lock flag's header names the detection calls that size its rule.** `test_lock_rules.py` reads what each application's source calls from the detection module and requires its header to say so; a flag whose rule is literals is a declared gap with its issue, shrink-only ([#3230](https://github.com/doppler-dsp/doppler/issues/3230)). `SymbolSync`'s and `AsyncDsssReceiver`'s headers now name `dp_det_dwell_gauss`, `dp_det_threshold_gauss`, `dp_det_n_noncoh` and `dp_det_verify_count`.
+
+- **One matrix holds the loop-bandwidth contract where each loop meets it.** `test_loop_detector_contract.py` closes the loop around `LoopFilter` and `StateFilter`, reads each error detector's slope at lock at every level, and reads each loop object's closed-loop bandwidth with injected phase noise; a loop object with no row fails discovery. Rows for objects that miss the contract are strict `xfail` citing their issue ([#3224](https://github.com/doppler-dsp/doppler/issues/3224), [#3234](https://github.com/doppler-dsp/doppler/issues/3234)) ([#3229](https://github.com/doppler-dsp/doppler/issues/3229)).
+
+- **`Wlan` reaches the chain's stages.** `signal_bits`, `data_bits`, `map`, `points` and `mpdu` return each stage over the object's rate and the standard's tables, with the reason when one refuses ([#3175](https://github.com/doppler-dsp/doppler/issues/3175)).
+
+### Changed
+
+- **`AsyncDsssReceiver` and `AsyncDsssPool` declare their near-far limit.**
+    In practice, an emitter within 20 dB of the strongest one in range is
+    handed over, held and decoded. The exact figures:
+
+    - tracking tolerates 24.2 / 23.9 dB on a quarter of the code's lags and
+        60.2 dB on the rest;
+    - the fine hand-over tolerates 10 log10(N / K) on every lag (22.9 dB at
+        the 415.1-B-1 point).
+
+    A ghost on its parent's carrier is not separated from a co-located
+    weak emitter today (doppler#3263)
+    ([async-dsss-receiver §8.2](docs/design/async-dsss-receiver.md)).
+
+- **`AsyncDsssReceiver`'s carrier loop is sized by the loop-SNR rule**: its
+    bandwidth is `C/N0 T / 200` at `cn0_dbhz`, no wider than the old 0.04
+    (`dp_async_dsss_receiver_carrier_bn()`), and the pull-in bound and
+    `refine`-false search depth follow it
+    ([async-dsss-receiver §1.3](docs/design/async-dsss-receiver.md)).
+
+- **`AsyncDsssReceiver` forms its carrier error over the code-period window.**
+    The pre-despread carrier loop squares one coherent sum over the
+    code-period window the code loop's look-back picks, instead of squaring
+    each partial. A receiver (and `AsyncDsssPool`) therefore needs a symbol
+    of at least a code period (`symbol_rate * len(code) <= chip_rate`), and
+    refuses to build otherwise. At the CCSDS 415.1-B-1 floor this window
+    slipped 10 of 90 receivers where the per-partial form slipped 41 of 89.
+    `Dll` gains `dp_dll_get_window_sum()`.
+
+- **`AsyncDsssReceiver` and `AsyncDsssPool` size the carrier lock at the
+    bandwidth the carrier loop delivers, and refuse a C/N0 it cannot be
+    sized at.** `carrier_lock_n_noncoh` is 34 / 43 at the 415.1-B-1 floor
+    (2.2 / 2.8 GHz), detecting at Pd 0.99 against Pfa 1e-3; past 10^7
+    updates, `ValueError`
+    ([async-dsss-receiver §4.10](docs/design/async-dsss-receiver.md),
+    #3285).
+
+- **`AsyncDsssReceiver` hands over a fine carrier estimate**: the tone of
+    its refine `Dll`'s squared partial dumps (`PolynomialPhaseEstimator`,
+    `ho_src` 3) when it clears its check, else `CarrierAcquisition`'s
+    estimate or the seed. At 415.1-B-1 its median error is 0.10 / 0.06 Hz
+    at the floor (2.2 / 2.8 GHz), worst 1.68 Hz over 720 draws. The check,
+    set for 10⁻³ on noise, runs 1.5 to 2 times over it: the interpolated
+    peak searches more cells than its bound counts (#3293). State blob
+    version 23
+    ([async-dsss-receiver §4.11](docs/design/async-dsss-receiver.md)).
+
+- **The correlator design page states what the committed engine does without the phrase "as built".** The vocabulary entry is removed (keeping *emulated*), and the two sentences that used it say "the committed search" and "the committed engine".
+
+- **`Dll` correlates a run of samples at once between the samples that close
+    a partial or wrap the code.** The code is a `uint8_t` table, which C lets
+    alias anything, so the per-sample path stored and reloaded every running
+    sum and the phase on every sample; the block keeps them local and takes
+    the replica's grid values from a +-1 table `dp_dll_create()` builds
+    (`dp_dll_init()` allocates nothing and reads the code, to the same
+    values). The output is the same bits. The tracking receiver at the
+    415.1-B-1 point takes about a third of the time, and `dll::steps` half.
+
+- **just-makeit pin 0.134.1 → 0.135.0.** A defaulted parameter's docstring now names its default (`default None` where it read `default ...`), a bit-pattern CLI flag reads as `0x` hex, and a bytes field of a generated kind is copied and freed by a declared rule rather than per-field code
+    ([just-makeit#2701](https://github.com/just-buildit/just-makeit/issues/2701),
+    [just-makeit#2703](https://github.com/just-buildit/just-makeit/issues/2703),
+    [just-makeit#2706](https://github.com/just-buildit/just-makeit/issues/2706)).
+    The re-render changes five extension files and four stubs; no core changes.
+
+- **just-makeit pin 0.135.0 → 0.135.1.** An inline-built `Segment` builds
+    its source at the segment's `fs`: for `seg = Segment(type=..., fs=40e6)`,
+    `seg.sources[0].fs` is `40e6` where it was the source type's default
+    ([just-makeit#2725](https://github.com/just-buildit/just-makeit/issues/2725)).
+    The re-render changes `Segment_init` in the `wfm_compose` extension; no
+    core changes, and no doppler code read the old default.
+
+- **A loop's `bn` says what its delivered bandwidth depends on.** `Costas`, `CarrierMpsk`, `CarrierNda`, `Dll`, `RateSync` and `SymbolSync` state in their `bn` documentation what the detector's slope does with SNR per symbol or the level (Gardner goes as the amplitude squared and DTTL as the amplitude, so a quarter-amplitude stream runs a Gardner loop at 1/16 of `bn`) and the instances found (#3224, #3234, #3238).
+
+- **The loop filters state their contract where a caller reads it.** `LoopFilter` and `StateFilter` document what the caller must deliver for `bn` to be the closed loop's noise bandwidth (a unit-slope detector, a unit-gain actuator once per update, the linear region, no extra delay) and what a loop gain K does: `(4*K*zeta^2 + 1) / (4*zeta^2 + 1)` times `bn`, 5/3 at K = 2 and 3 at K = 4, not K ([#3229](https://github.com/doppler-dsp/doppler/issues/3229)).
+
+- **`AsyncDsssPool` joins its workers once every 16 code periods.** The
+    search and every receiver still step one period a call, on a grid
+    counted from reset; the controller runs once a group, so its seeds and
+    releases land up to 15 periods later. A pushed sample reaches the
+    receivers when its group is whole. Nine receivers tracking with the
+    search on 16 threads at the 415.1-B-1 point: 54 to 43 ns a sample at
+    2.2 GHz, 66 to 43 at 2.8 GHz.
+
+- **The `AsyncDsssReceiver` specification demo runs the CCSDS 415.1-B-1
+    forward link at the Doppler rate the receiver meets.**
+    `async_dsss_receiver_spec_demo` (Python and C) shows Gold-1023 at 3,000
+    sym/s and 11 MSa/s, 2.2 and 2.8 GHz, Es/N0 10 dB, on the 11 Hz/s
+    residual ramp the link's pre-compensation leaves
+    ([gallery page](docs/gallery/async-dsss-receiver-spec.md)).
+
+- **`dp_symsync_ted_slope`'s measured agreement is stated as the validator reports it.** The header said 0.99 to 1.00 for both detectors; `validate_ratesync_scurve` phase 3 reads Gardner 0.9447 at roll-off 0.1 and DTTL 0.9998 to 1.0013, and the matrix row holds it.
+
+- **The 802.11 data-rate list is held equal to the table.** `--wlan`'s help, the manifest and header docs, the bridge refusal and the guides name the rates of Table 17-6; `test_wlan_rate_list.py` derives the list from `Wlan.rate_mbps` and fails on any spelling that differs or any new typed copy.
+
+### Fixed
+
+- **`CarrierNda`'s `bn` and `MpskReceiver`'s `bn_carrier` were the loop
+    filter's design value, not the carrier loop's bandwidth.** The
+    discriminator's slope (2) went undivided, so both loops ran about 1.67
+    times wider than `bn` said. `bn` is now the loop's noise bandwidth, so
+    the same setting runs narrower, with less jitter and a smaller pull-in
+    window. A residual now locks promptly from inside `bn/(4M)` (it was
+    `bn/M`); size a coarse acquisition's bin to a quarter of what it was,
+    or widen `bn` (#3224).
+
+- **`CarrierNda`'s validation report claimed "noise never buys a larger
+    window", which its own table contradicts.** The limit checks only that
+    a longer budget never buys a smaller window, so the report now says
+    only that. The pool bench's comment now says its on-air stream changed
+    in this release (#3301).
+
+- **A one-segment `Dll`'s integral path is a unit-gain actuator, so its `bn` is the loop's.** One unit of the filter's integrator moved the code phase `sf` chips per update instead of one, which made the loop about `sf / 3` times wider than its `bn` (11 at 31 chips, 54 at 127) and unstable at 1023, including at the default `bn` of 0.01. The loop now reads the detector's slope alone (1.2 times `bn` at spacing 0.5), independent of the code length; the slope itself is the next change ([#3234](https://github.com/doppler-dsp/doppler/issues/3234)).
+
+- **A `Dll` command under one NCO step is no longer dropped.** The 32-bit `phase_inc` conversion truncates, so a command smaller than one step (2^-32 cycles per sample) vanished every update, which left long codes and large samples per chip with a dead zone: the one-segment loop at 1023 chips and narrow `bn` read 3.6 to 13.9 times its formula, and the four-segment loop 5 to 44 times. The truncated remainder is now carried into the next update, so the mean increment follows the command; one-segment rows at 1023 chips read 1.13 to 1.29 times the formula. The held rate of a coasting loop goes through the same carry at every period boundary, so a hold follows the loop's rate estimate to within one phase-word step of accumulated phase however long it lasts (a hold truncated once at its start drifted 2.6 chips a second at the certified point); a new rate aid reaches the held NCO at the next boundary, not at once. The state blob gains the remainder (version 17). A stream that ends exactly on a period boundary leaves the replica within one step of the wrap either side, so a count there is not deterministic; examples end mid-period ([#3249](https://github.com/doppler-dsp/doppler/issues/3249)).
+
+- **A generated Field reads back as its bits.** `Segment.data`, `data_code`, `acq_code`, `fill` and `mac_header` read a PN, Gold or dotted description as the bits it renders, where they read `None` ([#3192](https://github.com/doppler-dsp/doppler/issues/3192)); with just-makeit 0.135.0 a scene that uses one recomposes from `Composer.segments`.
+
+- **`DsssReceiver` and `AsyncDsssReceiver` no longer drop a code period of
+    despread partials.** Each runs its `Dll` a code period at a time, and a
+    period's samples hold two epoch ends when the boundary sits on its
+    edge. `AsyncDsssReceiver`'s refine path had room for one period's
+    partials, so one period went missing from the fine hand-over and
+    `CarrierAcquisition` (a 6 Hz hand-over error at a design sd of
+    0.58 Hz). `DsssReceiver` sized its scratch at the call's own length, so
+    a call of a few samples that completed a carried period kept only as
+    many of the period's partials as it had samples. Both are now sized
+    for the most a call can emit (#3281).
+
+- **A composer's `segments` compose again.** A segment whose sources set its length (a finite data source, a lone dsss burst) reads back with that length as `num_samples`, and a count equal to it is no longer refused as dropped; any other count still is ([#3225](https://github.com/doppler-dsp/doppler/issues/3225)).
+
 ## [0.85.0] - 2026-11-22
 
 ### Added
@@ -19923,5 +20102,6 @@ ______________________________________________________________________
 [0.83.0]: https://github.com/doppler-dsp/doppler/compare/v0.82.0...v0.83.0
 [0.84.0]: https://github.com/doppler-dsp/doppler/compare/v0.83.0...v0.84.0
 [0.85.0]: https://github.com/doppler-dsp/doppler/compare/v0.84.0...v0.85.0
+[0.86.0]: https://github.com/doppler-dsp/doppler/compare/v0.85.0...v0.86.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.85.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.86.0...HEAD

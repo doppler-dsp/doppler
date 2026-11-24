@@ -1,1 +1,0 @@
-- **`Wlan` reaches the chain's stages.** `signal_bits`, `data_bits`, `map`, `points` and `mpdu` return each stage over the object's rate and the standard's tables, with the reason when one refuses ([#3175](https://github.com/doppler-dsp/doppler/issues/3175)).

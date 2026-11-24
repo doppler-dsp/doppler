@@ -1,1 +1,0 @@
-- **`dp_symsync_ted_slope`'s measured agreement is stated as the validator reports it.** The header said 0.99 to 1.00 for both detectors; `validate_ratesync_scurve` phase 3 reads Gardner 0.9447 at roll-off 0.1 and DTTL 0.9998 to 1.0013, and the matrix row holds it.

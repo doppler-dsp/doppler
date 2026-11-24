@@ -50,6 +50,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) _CarrierAcquisition state: owned PSD and detector children, scratch, config and the running detection result._     
 * **struct** [**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) _M-PSK carrier loop state._     
 * **struct** [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) _NDA M-th-power carrier loop state._     
+* **struct** [**dp\_ccsds\_415\_scene\_t**](structdp__ccsds__415__scene__t.md) _The numbers a scene at the point is built from, at one carrier: what_ [_**dp\_ccsds\_415\_scene()**_](ccsds__415_8h.md#function-dp_ccsds_415_scene) _returns._    
 * **struct** [**dp\_chunk\_t**](structdp__chunk__t.md) _Reassembly geometry, present only when_ [_**DP\_FLAG\_CHUNKED**_](group__wire.md#define-dp_flag_chunked) _._    
 * **struct** [**dp\_cic\_state\_t**](structdp__cic__state__t.md) _CIC filter state._     
 * **struct** [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) _A code and the register encoding it, together._     

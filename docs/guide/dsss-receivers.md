@@ -264,6 +264,30 @@ look-back picks, the window a data transition does not split. So a symbol
 must be at least a code period, or the receiver refuses to build
 ([async-dsss-receiver](../design/async-dsss-receiver.md) §4.4).
 
+### At the CCSDS 415.1-B-1 point: `Ccsds415Receiver` and `Ccsds415Pool`
+
+The receiver and the pool at the specification point the receiver is
+designed for take only the mission's code (1,023 chips) and the carrier.
+Every other number is the point's, stated once in
+`doppler/ccsds/ccsds_415.h`: 3,000 symbols a second, 11 MSa/s, a
++/-1,500 Hz search, a Doppler rate of R_env (11 Hz/s), the code-only
+opening of each frame as the search's gap, and a carrier lock designed at
+the Es/N0 4 dB floor. The chip rate follows the carrier,
+`doppler.ccsds.ccsds415_chip_rate()`. A code of any other length is refused.
+
+```python
+import numpy as np
+from doppler.dsss import Ccsds415Pool, Ccsds415Receiver
+from doppler.wfm import Gold
+
+code = np.asarray(Gold().generate(1023), np.uint8)
+rx = Ccsds415Receiver(code, carrier_freq_hz=2.8e9)
+pool = Ccsds415Pool(code, n_receivers=4, carrier_freq_hz=2.8e9)
+```
+
+Each is the full class with the point's numbers, byte for byte:
+`src/doppler/examples/ccsds415_receiver.py` shows it and checks it.
+
 ## `AsyncDsssPool` — N receivers, one search
 
 `AsyncDsssPool` runs N `AsyncDsssReceiver`s on one stream under a controller

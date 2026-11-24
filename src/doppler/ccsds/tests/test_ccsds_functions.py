@@ -3,6 +3,8 @@
 # To make it yours, delete that line: jm then never writes it again.
 import unittest
 
+import doppler.ccsds as module
+
 
 class TestCcsdsFunctions(unittest.TestCase):
     """Contract smoke test for the module-level functions (gh-2127).
@@ -17,3 +19,19 @@ class TestCcsdsFunctions(unittest.TestCase):
     @unittest.skip("out_type changes the call's shape: no contract call yet")
     def test_asm_bits_contract(self):
         pass
+
+    def test_ccsds415_chip_rate_contract(self):
+        try:
+            result = module.ccsds415_chip_rate(fc=1.0)
+        except (ValueError, RuntimeError, OverflowError) as e:
+            self.skipTest(f"the kernel refused the synthetic arguments: {e}")
+        else:
+            self.assertIsInstance(result, float)
+
+    def test_ccsds415_cn0_contract(self):
+        try:
+            result = module.ccsds415_cn0(esn0_db=1.0)
+        except (ValueError, RuntimeError, OverflowError) as e:
+            self.skipTest(f"the kernel refused the synthetic arguments: {e}")
+        else:
+            self.assertIsInstance(result, float)

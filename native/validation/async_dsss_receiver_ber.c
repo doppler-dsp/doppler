@@ -27,7 +27,7 @@
  *     the link observed locked, not an analytic settle budget
  *     (docs/design/async-dsss-receiver.md, "The error-rate window"). A
  *     burst runs until that opens and DP_S415_SCORE_S more, or stops at
- *     DP_S415_LOCK_S without it: "not locked in 20 s", counted, never
+ *     DP_CCSDS_415_LOCK_S without it: "not locked in 20 s", counted, never
  *     scored. So the loss is the loss OVER THE BURSTS THAT LOCKED, and the
  *     rest are counted on their own (as unsettled), and none may be one
  *     handed over inside the carrier loop's reliable pull-in, where the
@@ -85,9 +85,9 @@
 #include <string.h>
 
 /* A burst runs until its five lock flags have all sustained, then
-   DP_S415_SCORE_S more, and stops at DP_S415_LOCK_S with none if they
+   DP_S415_SCORE_S more, and stops at DP_CCSDS_415_LOCK_S with none if they
    have not: at most this long, from the signal's first sample. */
-#define BURST_S (DP_S415_LOCK_S + DP_S415_SCORE_S)
+#define BURST_S (DP_CCSDS_415_LOCK_S + DP_S415_SCORE_S)
 #define MAX_BURSTS 400u /* a point's cap, so a clean receiver terminates  */
 /* Symbols up in a row that open a flag's sustained run: dp_ber_lock_symbol()'s
    rule, as dp_ber_settle() took it. */
@@ -125,14 +125,14 @@
 #define PULLIN_RELIABLE_HZ(fc)                                                \
   (2.0                                                                        \
    * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (                                        \
-       dp_async_dsss_receiver_carrier_bn (dp_s415_cn0 (DP_S415_FLOOR_DB),     \
-                                          dp_s415_chip_rate (fc),             \
-                                          DP_S415_SF),                        \
-       dp_s415_chip_rate (fc), DP_S415_SF))
+       dp_async_dsss_receiver_carrier_bn (                                    \
+           dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB),                     \
+           dp_ccsds_415_chip_rate (fc), DP_CCSDS_415_SF),                     \
+       dp_ccsds_415_chip_rate (fc), DP_CCSDS_415_SF))
 
 /* The sweep: both carriers of 415.1-B-1, from its Es/N0 floor (4 dB) to
    7 dB, where a point at 200 errors still costs under a minute. */
-static const double ber_fc[]   = { DP_S415_FC_LO, DP_S415_FC_HI };
+static const double ber_fc[]   = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
 static const double ber_esn0[] = { 4.0, 5.0, 6.0, 7.0 };
 #define N_FC (sizeof ber_fc / sizeof ber_fc[0])
 #define N_ESN0 (sizeof ber_esn0 / sizeof ber_esn0[0])
@@ -170,7 +170,7 @@ typedef struct
   size_t n_out;            /* symbols the receiver emitted              */
   size_t lock_at;          /* the window's start: all five flags
                               sustained (dp_ber_lock_all())             */
-  int lock20;              /* they sustained inside DP_S415_LOCK_S      */
+  int lock20;              /* they sustained inside DP_CCSDS_415_LOCK_S      */
   int unaligned_lock;      /* locked, and the meter could not align at
                               the window's start: its own verdict        */
   int early_lock;          /* the budget check: 1 the window opened
@@ -218,13 +218,13 @@ static int
 run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
            dp_ber_t *acc, burst_t *out, dp_ber_sync_t *last)
 {
-  uint32_t     st  = trial_rng (seed);
-  const double cn0 = dp_s415_cn0 (esn0_db);
-  out->carrier_hz  = (2.0 * dp_uni (&st) - 1.0) * DP_S415_SPAN_HZ;
-  const size_t fr
-      = (size_t)(dp_uni (&st) * (double)DP_S415_FRAME_SYM) % DP_S415_FRAME_SYM;
-  const size_t n_blk  = (size_t)(BURST_S * DP_S415_FS / PUSH);
-  const size_t n_bits = (size_t)(BURST_S * DP_S415_SYM) + 400;
+  uint32_t     st     = trial_rng (seed);
+  const double cn0    = dp_ccsds_415_cn0 (esn0_db);
+  out->carrier_hz     = (2.0 * dp_uni (&st) - 1.0) * DP_CCSDS_415_SPAN_HZ;
+  const size_t fr     = (size_t)(dp_uni (&st) * (double)DP_CCSDS_415_FRAME_SYM)
+                        % DP_CCSDS_415_FRAME_SYM;
+  const size_t n_blk  = (size_t)(BURST_S * DP_CCSDS_415_FS / PUSH);
+  const size_t n_bits = (size_t)(BURST_S * DP_CCSDS_415_SYM) + 400;
   uint8_t     *pay    = dp_xmalloc (n_bits);
   for (size_t i = 0; i < n_bits; i++)
     pay[i] = (uint8_t)(dp_uni (&st) < 0.5);
@@ -234,20 +234,20 @@ run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
   e.bits      = pay;
   e.n_bits    = n_bits;
   dp_air_t air;
-  DP_REQUIRE (
-      dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 7919u * seed + 1u, PUSH));
+  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, cn0,
+                           7919u * seed + 1u, PUSH));
   /* Whether the emitter sends `pay` needs no check of its own here: the
      truth alignment is that check, as it was on the 3.069 Mcps point,
      where the synth's own PRBS left 37 of 38 bursts unaligned and the
      38th caught as slipped. */
-  const size_t n_sym = (size_t)(BURST_S * DP_S415_SYM) + 200;
+  const size_t n_sym = (size_t)(BURST_S * DP_CCSDS_415_SYM) + 200;
   uint8_t     *bits  = dp_xmalloc (n_sym);
   for (size_t i = 0; i < n_sym; i++)
     bits[i] = (uint8_t)(dp_air_symbol_bit (&air, 0, (long)i) > 0);
   dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, true);
   DP_REQUIRE (rx != NULL);
 
-  const size_t   ocap = (size_t)(BURST_S * DP_S415_SYM) + 64 + OUT_CAP;
+  const size_t   ocap = (size_t)(BURST_S * DP_CCSDS_415_SYM) + 64 + OUT_CAP;
   float complex *blk  = dp_xmalloc (PUSH * sizeof *blk);
   float complex *syms = dp_xmalloc (ocap * sizeof *syms);
   /* The five lock flags, one a symbol (dp_s415_lock_flags()'s order). */
@@ -260,10 +260,11 @@ run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
   size_t run0[DP_S415_N_FLAGS];
   for (int k = 0; k < DP_S415_N_FLAGS; k++)
     run0[k] = SIZE_MAX;
-  const size_t score_syms = (size_t)(DP_S415_SCORE_S * DP_S415_SYM);
-  const size_t lock_blk   = (size_t)(DP_S415_LOCK_S * DP_S415_FS / PUSH);
-  size_t       stop_at    = SIZE_MAX;
-  size_t       n = 0, first_in = SIZE_MAX;
+  const size_t score_syms = (size_t)(DP_S415_SCORE_S * DP_CCSDS_415_SYM);
+  const size_t lock_blk
+      = (size_t)(DP_CCSDS_415_LOCK_S * DP_CCSDS_415_FS / PUSH);
+  size_t stop_at = SIZE_MAX;
+  size_t n = 0, first_in = SIZE_MAX;
   out->handover_err_hz = NAN;
   for (size_t b = 0; b < n_blk && n < stop_at; b++)
     {
@@ -316,7 +317,7 @@ run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
   out->n_out      = n;
   out->t_track_ms = first_in == SIZE_MAX
                         ? NAN
-                        : (double)(first_in + PUSH) / DP_S415_FS * 1e3;
+                        : (double)(first_in + PUSH) / DP_CCSDS_415_FS * 1e3;
   out->settled = out->slipped = out->slip_kind = 0;
   out->lock20 = out->unaligned_lock = 0;
   out->early_lock                   = -1;
@@ -328,11 +329,11 @@ run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
   if (n >= MIN_OUT && rx->rx && first_in != SIZE_MAX)
     {
       /* The window (async-dsss-receiver.md, "The error-rate window"): the
-         latest of the five flags' sustained symbols, inside DP_S415_LOCK_S
-         of the signal's first sample. Symbol i is about first_in / fs +
-         i / symbol_rate into the burst. */
-      const double  t0    = (double)(first_in + PUSH) / DP_S415_FS;
-      const double  lim_s = (DP_S415_LOCK_S - t0) * DP_S415_SYM;
+         latest of the five flags' sustained symbols, inside
+         DP_CCSDS_415_LOCK_S of the signal's first sample. Symbol i is about
+         first_in / fs + i / symbol_rate into the burst. */
+      const double  t0    = (double)(first_in + PUSH) / DP_CCSDS_415_FS;
+      const double  lim_s = (DP_CCSDS_415_LOCK_S - t0) * DP_CCSDS_415_SYM;
       const int64_t at
           = lim_s < 0.0 ? -1
                         : dp_ber_lock_all ((const unsigned char *const *)fl,
@@ -445,7 +446,7 @@ run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
  * The sweep: 2.2 and 2.8 GHz, 4 dB (SPEC_TRIALS_FLOOR draws) and 7 dB
  * (SPEC_TRIALS_HI), each until SPEC_K receivers have scored, printed.
  * Each receiver is scored on the error-rate window (the bursts' LOCKED,
- * above): from all five flags sustained, inside DP_S415_LOCK_S, for
+ * above): from all five flags sustained, inside DP_CCSDS_415_LOCK_S, for
  * DP_S415_SCORE_S, aligned once at the start. --check: one draw at
  * 2.8 GHz, the band's harder end, at 7 dB, asserting that every emitter is
  * held, locked inside 20 s and aligned at its lock, and none slipped; the loss
@@ -463,9 +464,9 @@ run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
 #define SPEC_NRX 4
 #define SPEC_PUSH 4096u
 /* A draw's cap: every held receiver's window opens inside
-   DP_S415_LOCK_S and scores DP_S415_SCORE_S, and the draw stops as soon
+   DP_CCSDS_415_LOCK_S and scores DP_S415_SCORE_S, and the draw stops as soon
    as SPEC_K have (spec_draw()). */
-#define SPEC_S (DP_S415_LOCK_S + DP_S415_SCORE_S)
+#define SPEC_S (DP_CCSDS_415_LOCK_S + DP_S415_SCORE_S)
 #define SPEC_TRIALS_FLOOR 30
 #define SPEC_TRIALS_HI 40
 
@@ -480,7 +481,7 @@ static const double spec_lag_chips[SPEC_K] = { 0.0, 300.0, 600.0 };
 typedef struct
 {
   size_t   held, scored, unaligned, slipped;
-  size_t   unlocked; /* held, and not locked inside DP_S415_LOCK_S     */
+  size_t   unlocked; /* held, and not locked inside DP_CCSDS_415_LOCK_S     */
   dp_ber_t all, clean;
 } spec_t;
 
@@ -490,10 +491,10 @@ static int
 spec_draw (const uint8_t *code, double fc, double esn0, uint32_t seed,
            double secs, spec_t *out)
 {
-  const double chip   = dp_s415_chip_rate (fc);
-  const double cn0    = dp_s415_cn0 (esn0);
-  const size_t n_in   = (size_t)(secs * DP_S415_FS);
-  const size_t n_bits = (size_t)(secs * DP_S415_SYM) + 400;
+  const double chip   = dp_ccsds_415_chip_rate (fc);
+  const double cn0    = dp_ccsds_415_cn0 (esn0);
+  const size_t n_in   = (size_t)(secs * DP_CCSDS_415_FS);
+  const size_t n_bits = (size_t)(secs * DP_CCSDS_415_SYM) + 400;
   uint8_t     *pay[SPEC_K], *bits[SPEC_K];
   uint32_t     st = trial_rng (seed);
   /* The emitters on the air (native/tests/dp_air_test.h): each the
@@ -514,8 +515,8 @@ spec_draw (const uint8_t *code, double fc, double esn0, uint32_t seed,
       e[k].spc    = spec_spc;
     }
   dp_air_t air;
-  DP_REQUIRE (
-      dp_air_init (&air, e, SPEC_K, DP_S415_FS, cn0, 7919u + seed, SPEC_PUSH));
+  DP_REQUIRE (dp_air_init (&air, e, SPEC_K, DP_CCSDS_415_FS, cn0, 7919u + seed,
+                           SPEC_PUSH));
   for (int k = 0; k < SPEC_K; k++)
     {
       bits[k] = dp_xmalloc (n_bits);
@@ -528,7 +529,7 @@ spec_draw (const uint8_t *code, double fc, double esn0, uint32_t seed,
   dp_async_dsss_pool_state_t *p = dp_s415_pool (code, fc, SPEC_NRX, 2.0, 0);
   DP_REQUIRE (p);
   float complex *x    = dp_xmalloc (SPEC_PUSH * sizeof *x);
-  const size_t   ocap = (size_t)(secs * DP_S415_SYM) + 4096;
+  const size_t   ocap = (size_t)(secs * DP_CCSDS_415_SYM) + 4096;
   float complex *tmp  = dp_xmalloc (ocap * sizeof *tmp);
   float complex *syms[SPEC_NRX];
   /* Each receiver's five lock flags, one a symbol of its current track,
@@ -536,8 +537,8 @@ spec_draw (const uint8_t *code, double fc, double esn0, uint32_t seed,
   unsigned char *fl[SPEC_NRX][DP_S415_N_FLAGS];
   size_t         run0[SPEC_NRX][DP_S415_N_FLAGS], done_at[SPEC_NRX];
   size_t         ns[SPEC_NRX], first_in[SPEC_NRX];
-  const size_t   score_syms = (size_t)(DP_S415_SCORE_S * DP_S415_SYM);
-  const size_t   lock_in    = (size_t)(DP_S415_LOCK_S * DP_S415_FS);
+  const size_t   score_syms = (size_t)(DP_S415_SCORE_S * DP_CCSDS_415_SYM);
+  const size_t   lock_in    = (size_t)(DP_CCSDS_415_LOCK_S * DP_CCSDS_415_FS);
   for (int i = 0; i < SPEC_NRX; i++)
     {
       syms[i]     = dp_xmalloc (ocap * sizeof **syms);
@@ -624,12 +625,13 @@ spec_draw (const uint8_t *code, double fc, double esn0, uint32_t seed,
         continue;
       taken[k] = 1;
       out->held++;
-      /* The window: all five flags sustained inside DP_S415_LOCK_S of
+      /* The window: all five flags sustained inside DP_CCSDS_415_LOCK_S of
          the signal (symbol j is about first_in / fs + j / symbol_rate
          in), scored DP_S415_SCORE_S from there; the meter aligns once,
          at its start. */
       const double lim_s
-          = (DP_S415_LOCK_S - (double)first_in[i] / DP_S415_FS) * DP_S415_SYM;
+          = (DP_CCSDS_415_LOCK_S - (double)first_in[i] / DP_CCSDS_415_FS)
+            * DP_CCSDS_415_SYM;
       const int64_t at
           = lim_s < 0.0
                 ? -1
@@ -706,7 +708,7 @@ spec_loss (double esn0, unsigned long e, unsigned long n)
 static int
 spec_rows (const uint8_t *code, int check, int emit)
 {
-  static const double fcs[2]   = { DP_S415_FC_LO, DP_S415_FC_HI };
+  static const double fcs[2]   = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
   static const double esn0s[2] = { 4.0, 7.0 };
   if (emit)
     printf ("# spec\nfc_ghz,esn0_db,draws,held,unlocked,scored,unaligned,"
@@ -749,8 +751,8 @@ spec_rows (const uint8_t *code, int check, int emit)
                   "%zu, clean loss %.2f dB [%.2f, %.2f] (%lu / %lu), all "
                   "%.2f dB\n",
                   fcs[f] / 1e9, esn0s[e], t.held, SPEC_K * draws,
-                  DP_S415_LOCK_S, t.unlocked, t.unaligned, t.slipped, t.scored,
-                  loss, esn0s[e] - dp_ber_esn0_db_for_ser (2, ci.lo),
+                  DP_CCSDS_415_LOCK_S, t.unlocked, t.unaligned, t.slipped,
+                  t.scored, loss, esn0s[e] - dp_ber_esn0_db_for_ser (2, ci.lo),
                   esn0s[e] - dp_ber_esn0_db_for_ser (2, ci.hi), t.clean.errors,
                   t.clean.symbols,
                   spec_loss (esn0s[e], t.all.errors, t.all.symbols));
@@ -779,7 +781,7 @@ main (int argc, char **argv)
       if (strcmp (argv[i], "--spc") == 0 && i + 1 < argc)
         spec_spc = (unsigned)strtoul (argv[++i], NULL, 10);
     }
-  uint8_t code[DP_S415_SF];
+  uint8_t code[DP_CCSDS_415_SF];
   dp_dsss_gold_1023 (code);
   /* `--spec-only`: the 415.1 pool rows alone, for a comparison of the
      scene's front end that the other sections do not use. */
@@ -790,7 +792,7 @@ main (int argc, char **argv)
         DP_TEST_EMIT_END ("validate_async_dsss_receiver_ber --spec-only");
       DP_TEST_END ("validate_async_dsss_receiver_ber --spec-only");
     }
-  const double replica_db = replica_loss_db (code, DP_S415_SF);
+  const double replica_db = replica_loss_db (code, DP_CCSDS_415_SF);
 
   if (emit)
     printf (
@@ -801,7 +803,7 @@ main (int argc, char **argv)
     printf ("AsyncDsssReceiver BER vs the BPSK bound at 415.1-B-1: "
             "Gold-%u, %.0f sym/s, %.1f s bursts, %lu errors a point; the "
             "Dll replica's loss %.2f dB (rho^2/kappa)\n",
-            DP_S415_SF, DP_S415_SYM, BURST_S, DP_BER_TARGET_ERRORS,
+            DP_CCSDS_415_SF, DP_CCSDS_415_SYM, BURST_S, DP_BER_TARGET_ERRORS,
             replica_db);
 
   dp_ber_report_t reps[N_PTS];

@@ -6,7 +6,7 @@ if(NOT JM_MATH_LIBRARY)
   set(JM_MATH_LIBRARY "")
 endif()
 
-add_library(ccsds_core OBJECT ccsds_core.c asm_bits.c)
+add_library(ccsds_core OBJECT ccsds_core.c asm_bits.c ccsds415_chip_rate.c ccsds415_cn0.c)
 target_include_directories(ccsds_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
@@ -14,6 +14,7 @@ if(BUILD_PYTHON)
 Python3_add_library(ccsds MODULE WITH_SOABI ccsds_ext.c)
 target_link_libraries(ccsds PRIVATE
     ccsds_core
+    ccsds_415_core
     ccsds_tm_core
     conv_core
     rs_core
@@ -39,6 +40,7 @@ add_executable(test_ccsds_core
     ${CMAKE_SOURCE_DIR}/native/tests/ccsds/test_ccsds_core.c)
 target_link_libraries(test_ccsds_core PRIVATE
     ccsds_core
+    ccsds_415_core
     ccsds_tm_core
     conv_core
     rs_core
@@ -57,6 +59,7 @@ add_executable(bench_ccsds_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/ccsds/bench_ccsds_core.c)
 target_link_libraries(bench_ccsds_core PRIVATE
     ccsds_core
+    ccsds_415_core
     ccsds_tm_core
     conv_core
     rs_core

@@ -26,8 +26,8 @@
 # NOT `fec`: doppler#828 retired that identifier prefix across 30 symbols, and
 # a module by that name regenerates it into its own generated filenames — the
 # retired-names gate catches it, which is the gate working.
-# CCSDS 131.0-B's picks, as a module BESIDE the general layer rather than
-# inside it (doppler#1220). `ccsds_asm_bits` used to be a function on
+# CCSDS 131.0-B's picks (and 415.1-B-1's specification point), as a module
+# BESIDE the general layer rather than inside it (doppler#1220). `ccsds_asm_bits` used to be a function on
 # `[module.wfm]`, which meant a CCSDS translation unit compiled into the
 # general `wfm_core` and a standard's name in `doppler.wfm.__all__` beside
 # `PN` and `Gold` -- and from there into `doppler.detection`'s doctests,
@@ -55,6 +55,14 @@ CCSDS 131.0-B TM Synchronization and Channel Coding — the literals the standar
 
 So the rule for this module is narrow: a literal a mission copies out of the
 Blue Book belongs here; a transform does not.
+
+It also carries the CCSDS 415.1-B-1 specification point the async DSSS
+receiver is specified for: `ccsds415_chip_rate()` and `ccsds415_cn0()` are
+its numbers, computed in C (`doppler/ccsds/ccsds_415.h` holds the rest), and
+`doppler.dsss.Ccsds415Receiver` is the receiver built there. The receiver's
+runs at this point are `docs/design/async-dsss-receiver-measurements.md`;
+its certification record holds at 3.069 Mcps, not at this point
+(`docs/design/async-dsss-receiver.md` §1, "What the certification covers").
 
 The marker is also the only thing in a CADU that can report a 180-degree
 carrier ambiguity. It is not randomised (131.0-B 10.4: "The ASM was not
@@ -84,7 +92,7 @@ It is what a receiver acquires on:
 
 """
 objects = []
-extra_link_libs = ["ccsds_tm_core", "conv_core", "rs_core", "wfm_frame_core", "cvt_core", "pn_core", "gold_core"]
+extra_link_libs = ["ccsds_415_core", "ccsds_tm_core", "conv_core", "rs_core", "wfm_frame_core", "cvt_core", "pn_core", "gold_core"]
 
 # The Attached Sync Marker as bits a Python receiver can search for.
 #
@@ -99,3 +107,18 @@ doc = "The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits — `out[
 out_type = "uint8_t"
 variable_output = true
 out_size = "32"
+
+# The CCSDS 415.1-B-1 specification point (native/inc/doppler/ccsds/
+# ccsds_415.h, which states it once). Computed in C with fast math off, so
+# a C program and its Python twin read the same bits.
+[[module.ccsds.functions]]
+name = "ccsds415_chip_rate"
+doc = "Chips a second at carrier `fc` (Hz) at the CCSDS 415.1-B-1 point: F_fwd x 31 / (221 x 96), table 4-1. Computed in C with fast math off, so every compiler and this function give the same bits.\n\n>>> from doppler.ccsds import ccsds415_chip_rate\n>>> ccsds415_chip_rate(2.2e9)\n3214555.052790347"
+return_type = "double"
+params = [{ name = "fc", type = "double" }]
+
+[[module.ccsds.functions]]
+name = "ccsds415_cn0"
+doc = "C/N0 in dB-Hz of an Es/N0 (dB) at the CCSDS 415.1-B-1 point's 3,000 symbols a second: `esn0_db + 10 log10(3000)`.\n\n>>> from doppler.ccsds import ccsds415_cn0\n>>> round(ccsds415_cn0(4.0), 4)\n38.7712"
+return_type = "double"
+params = [{ name = "esn0_db", type = "double" }]

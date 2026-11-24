@@ -211,6 +211,28 @@ _bind_asm_bits (PyObject *self, PyObject *Py_UNUSED (args))
   return _out;
 }
 
+static PyObject *
+_bind_ccsds415_chip_rate (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "fc", NULL };
+  double       fc        = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &fc))
+    return NULL;
+  return PyFloat_FromDouble (dp_ccsds415_chip_rate (fc));
+}
+
+static PyObject *
+_bind_ccsds415_cn0 (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "esn0_db", NULL };
+  double       esn0_db   = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &esn0_db))
+    return NULL;
+  return PyFloat_FromDouble (dp_ccsds415_cn0 (esn0_db));
+}
+
 /* ======================================================== */
 /* Module                                                    */
 /* ======================================================== */
@@ -257,6 +279,56 @@ static PyMethodDef ccsds_module_methods[] = {
     "(32, [0, 0, 0, 1, 1, 0, 1, 0])\n"
     ">>> int(\"\".join(map(str, b.tolist())), 2) == 0x1ACFFC1D\n"
     "True\n" },
+  { "ccsds415_chip_rate", (PyCFunction)(void *)_bind_ccsds415_chip_rate,
+    METH_VARARGS | METH_KEYWORDS,
+    "Chips a second at carrier `fc` (Hz) at the CCSDS 415.1-B-1 point: F_fwd "
+    "x 31 / (221 x 96), table 4-1. Computed in C with fast math off, so every "
+    "compiler and this function give the same bits.\n"
+    "\n"
+    ">>> from doppler.ccsds import ccsds415_chip_rate\n"
+    ">>> ccsds415_chip_rate(2.2e9)\n"
+    "3214555.052790347\n"
+    "\n"
+    "An alias over dp_ccsds_415_chip_rate(), which owns the arithmetic; the\n"
+    "point's other numbers and the scene helper are\n"
+    "doppler/ccsds/ccsds_415.h.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "fc : float\n"
+    "    The carrier, F_fwd, Hz.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    The chip rate, chips/s.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "printf (\"%.6f\\n\", dp_ccsds415_chip_rate (2.8e9));   // "
+    "4091251.885370\n" },
+  { "ccsds415_cn0", (PyCFunction)(void *)_bind_ccsds415_cn0,
+    METH_VARARGS | METH_KEYWORDS,
+    "C/N0 in dB-Hz of an Es/N0 (dB) at the CCSDS 415.1-B-1 point's 3,000 "
+    "symbols a second: `esn0_db + 10 log10(3000)`.\n"
+    "\n"
+    ">>> from doppler.ccsds import ccsds415_cn0\n"
+    ">>> round(ccsds415_cn0(4.0), 4)\n"
+    "38.7712\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "esn0_db : float\n"
+    "    Es/N0, dB.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    C/N0, dB-Hz.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "printf (\"%.4f\\n\", dp_ccsds415_cn0 (4.0));   // 38.7712\n" },
   { NULL, NULL, 0, NULL }
 };
 
@@ -277,6 +349,19 @@ static PyModuleDef ccsds_moduledef = {
     "So the rule for this module is narrow: a literal a mission copies out of "
     "the\n"
     "Blue Book belongs here; a transform does not.\n"
+    "\n"
+    "It also carries the CCSDS 415.1-B-1 specification point the async DSSS\n"
+    "receiver is specified for: `ccsds415_chip_rate()` and `ccsds415_cn0()` "
+    "are\n"
+    "its numbers, computed in C (`doppler/ccsds/ccsds_415.h` holds the rest), "
+    "and\n"
+    "`doppler.dsss.Ccsds415Receiver` is the receiver built there. The "
+    "receiver's\n"
+    "runs at this point are "
+    "`docs/design/async-dsss-receiver-measurements.md`;\n"
+    "its certification record holds at 3.069 Mcps, not at this point\n"
+    "(`docs/design/async-dsss-receiver.md` §1, \"What the certification "
+    "covers\").\n"
     "\n"
     "The marker is also the only thing in a CADU that can report a "
     "180-degree\n"

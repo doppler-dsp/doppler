@@ -202,7 +202,7 @@
 /* 415.1-B-1 §7.4.1, the acquisition requirement: short-code PN lock (the
    receiver's code lock, get_code_locked()) with probability at least
    PI_ACQ_P within PI_ACQ_S of arrival, the signal within +/-1,500 Hz. */
-#define PI_ACQ_S DP_S415_LOCK_S
+#define PI_ACQ_S DP_CCSDS_415_LOCK_S
 #define PI_ACQ_P 0.9
 #define PI_MAX_CELL 64u
 /* The excursion levels a change's second before is read against, deg of
@@ -291,7 +291,7 @@ typedef struct
   int false_lock, aligned, slipped, end_unsynced, works, data_ended;
   /* The error-rate window (async-dsss-receiver.md, "The error-rate
      window"): it opens at the latest of the five flags' sustained times,
-     t_lock_s (NAN: one never sustained, or not inside DP_S415_LOCK_S of
+     t_lock_s (NAN: one never sustained, or not inside DP_CCSDS_415_LOCK_S of
      arrival, lock20 0); the meter aligns once there, and a failure is
      its own verdict, unaligned_lock. The analytic budget is a check on the
      draws whose hand-over is inside the loop's worst-start edge (edge_hz,
@@ -463,16 +463,16 @@ static int pi_bn_rule_on = 0;
 static double
 pi_bn_rule (double fc)
 {
-  return dp_async_dsss_receiver_carrier_bn (dp_s415_cn0 (PI_FLOOR_ESN0_DB),
-                                            dp_s415_chip_rate (fc), SF);
+  return dp_async_dsss_receiver_carrier_bn (
+      dp_ccsds_415_cn0 (PI_FLOOR_ESN0_DB), dp_ccsds_415_chip_rate (fc), SF);
 }
 
 /* The per-update SNR rho = C/N0 T for a carrier fc at Es/N0 esn0. */
 static double
 pi_rho (double fc, double esn0)
 {
-  const double chip = dp_s415_chip_rate (fc), T = (double)SF / chip;
-  return pow (10.0, (dp_s415_cn0 (esn0)) / 10.0) * T;
+  const double chip = dp_ccsds_415_chip_rate (fc), T = (double)SF / chip;
+  return pow (10.0, (dp_ccsds_415_cn0 (esn0)) / 10.0) * T;
 }
 /* The five lock rules each cell's flags were decided by (the same for
    every draw of a cell: the configuration sets them). */
@@ -613,7 +613,7 @@ pi_live_align (const dp_air_t *air, size_t first_in, double secs,
       long base = dp_air_truth (air, 0, first_in).symbol - 60;
       if (base < 0)
         base = 0;
-      *n_truth = (size_t)(secs * DP_S415_SYM) + 1000;
+      *n_truth = (size_t)(secs * DP_CCSDS_415_SYM) + 1000;
       *truth   = dp_xmalloc (*n_truth);
       for (size_t i = 0; i < *n_truth; i++)
         (*truth)[i]
@@ -911,26 +911,26 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
     for (int v = 0; v < 2; v++)
       for (int q = 0; q < PQ_N; q++)
         dp_hist_init (&draw_hist[v][q], PQ[q].lo, PQ[q].hi, PQ[q].nb);
-  const double chip = dp_s415_chip_rate (fc);
-  const double cn0  = dp_s415_cn0 (esn0);
+  const double chip = dp_ccsds_415_chip_rate (fc);
+  const double cn0  = dp_ccsds_415_cn0 (esn0);
   uint32_t     st   = trial_rng (seed * 7919u + (uint32_t)(fc / 1e8)
                                  + (uint32_t)(esn0 * 10.0));
   memset (d, 0, sizeof *d);
   d->fc   = fc;
   d->esn0 = esn0;
   d->rate = rate_mag == 0.0 ? 0.0 : (seed & 1u ? 1.0 : -1.0) * rate_mag;
-  d->f0   = -DP_S415_SPAN_HZ + 2.0 * DP_S415_SPAN_HZ * uni (&st);
-  /* A pass draw keeps its offset inside +/-DP_S415_SPAN_HZ for the whole run:
-     where a constant rate would carry it out, the sign is toward zero. */
+  d->f0   = -DP_CCSDS_415_SPAN_HZ + 2.0 * DP_CCSDS_415_SPAN_HZ * uni (&st);
+  /* A pass draw keeps its offset inside +/-DP_CCSDS_415_SPAN_HZ for the whole
+     run: where a constant rate would carry it out, the sign is toward zero. */
   if (pi_pass_r_env > 0.0 && rate_mag != 0.0
-      && fabs (d->f0) > DP_S415_SPAN_HZ - rate_mag * secs)
+      && fabs (d->f0) > DP_CCSDS_415_SPAN_HZ - rate_mag * secs)
     d->rate = (d->f0 > 0.0 ? -1.0 : 1.0) * rate_mag;
   d->frame_off = (size_t)(1000.0 * uni (&st));
   if (d->frame_off > 999)
     d->frame_off = 999;
 
   /* The payload: one bit a data symbol, more than the run can send. */
-  const size_t n_pay = (size_t)(secs * DP_S415_SYM) + 2000;
+  const size_t n_pay = (size_t)(secs * DP_CCSDS_415_SYM) + 2000;
   uint8_t     *pay   = dp_xmalloc (n_pay);
   for (size_t i = 0; i < n_pay; i++)
     pay[i] = (uint8_t)(uni (&st) < 0.5);
@@ -944,7 +944,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   e.spc    = spc;
   dp_air_t air;
   DP_REQUIRE (
-      dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 8807u + seed, PI_PUSH));
+      dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, cn0, 8807u + seed, PI_PUSH));
 
   dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, true);
   DP_REQUIRE (rx != NULL);
@@ -954,7 +954,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   if (pi_fine_k1 && rx->fine_on)
     rx->fine.k = 1;
 
-  const size_t   n_blk  = (size_t)(secs * DP_S415_FS) / PI_PUSH;
+  const size_t   n_blk  = (size_t)(secs * DP_CCSDS_415_FS) / PI_PUSH;
   uint8_t       *f_sym  = dp_xmalloc (n_blk);
   uint8_t       *f_cod  = dp_xmalloc (n_blk);
   uint8_t       *f_x[3] = { dp_xmalloc (n_blk), dp_xmalloc (n_blk),
@@ -962,7 +962,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   uint8_t       *data   = dp_xmalloc (n_blk);
   uint8_t       *f_pull = dp_xmalloc (n_blk); /* |freq error| inside */
   float complex *x      = dp_xmalloc (PI_PUSH * sizeof *x);
-  const size_t   ocap   = (size_t)(secs * DP_S415_SYM) + 4096;
+  const size_t   ocap   = (size_t)(secs * DP_CCSDS_415_SYM) + 4096;
   float complex *syms   = dp_xmalloc (ocap * sizeof *syms);
   float complex *tmp    = dp_xmalloc (ocap * sizeof *tmp);
   size_t         ns = 0, first_in = SIZE_MAX;
@@ -1039,11 +1039,11 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   dp_ber_t        lv_acc;
   dp_ber_init (&lv_acc, 2, ULONG_MAX);
   dp_sample_clock_t clk;
-  const size_t      b_from = cp && cp->path
-                                 ? (size_t)(cp->from_s * DP_S415_FS) / PI_PUSH
-                                 : SIZE_MAX;
-  const size_t      b_to
-      = cp && cp->path ? (size_t)(cp->to_s * DP_S415_FS) / PI_PUSH : 0;
+  const size_t b_from = cp && cp->path
+                            ? (size_t)(cp->from_s * DP_CCSDS_415_FS) / PI_PUSH
+                            : SIZE_MAX;
+  const size_t b_to
+      = cp && cp->path ? (size_t)(cp->to_s * DP_CCSDS_415_FS) / PI_PUSH : 0;
   for (size_t b = 0; b < n_blk; b++)
     {
       if (b == b_from)
@@ -1067,7 +1067,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
                       && id_ecar >= 0 && id_ecod >= 0 && id_ecu >= 0
                       && id_hyp >= 0 && id_lag >= 0 && id_cnt >= 0
                       && id_edc >= 0);
-          dp_sample_clock_init (&clk, DP_S415_FS, 0);
+          dp_sample_clock_init (&clk, DP_CCSDS_415_FS, 0);
           cap = dp_tlm_capture_open (tlm, PI_PUSH, cp->path, &clk);
           DP_REQUIRE_MSG (cap != NULL, "the draw's capture opens");
         }
@@ -1081,8 +1081,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           dp_tlm_emit (tlm, id_hz, t.car_hz);
           dp_tlm_emit (tlm, id_data,
                        (double)(t.symbol >= 0
-                                && t.symbol % DP_S415_FRAME_SYM
-                                       >= DP_S415_CODE_ONLY_SYM));
+                                && t.symbol % DP_CCSDS_415_FRAME_SYM
+                                       >= DP_CCSDS_415_CODE_ONLY_SYM));
         }
       /* The loops' true errors at this call's first sample, read with the
          getters the receiver's rx.phase.car / rx.phase.code probes are
@@ -1102,7 +1102,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           e_car[b]        = (float)(ec - 0.5 * floor (ec / 0.5 + 0.5));
           const double ek
               = dp_dll_get_code_phase_ahead (rx->dll, rx->car_carry_len)
-                - t.code_chips + 0.5 * chip / DP_S415_FS;
+                - t.code_chips + 0.5 * chip / DP_CCSDS_415_FS;
           e_cod[b] = (float)(ek - (double)SF * floor (ek / (double)SF + 0.5));
           if (isnan (d->ho_code_chip))
             d->ho_code_chip = e_cod[b];
@@ -1186,7 +1186,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
                               - dp_air_truth (&air, 0, at).car_hz;
           d->fine_snr_db    = rx->fine_snr_db;
           d->fine_n         = rx->fine_n;
-          d->t_track_s      = (double)at / DP_S415_FS;
+          d->t_track_s      = (double)at / DP_CCSDS_415_FS;
           d->ho_age_s       = d->t_track_s - d->seed_t_s;
         }
       /* The first seed: the refine's chain is built at the seed's sample,
@@ -1197,10 +1197,10 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
         {
           const uint64_t       i0 = rx->samples_in - rx->state_samples;
           const dp_air_truth_t t  = dp_air_truth (&air, 0, i0);
-          const double         ek
-              = rx->seed_chip_phase - t.code_chips + 0.5 * chip / DP_S415_FS;
-          d->seed_t_s       = (double)i0 / DP_S415_FS;
-          d->seed_err_hz    = rx->seed_doppler_hz_est - t.car_hz;
+          const double         ek = rx->seed_chip_phase - t.code_chips
+                                    + 0.5 * chip / DP_CCSDS_415_FS;
+          d->seed_t_s             = (double)i0 / DP_CCSDS_415_FS;
+          d->seed_err_hz          = rx->seed_doppler_hz_est - t.car_hz;
           d->seed_code_chip = ek - (double)SF * floor (ek / (double)SF + 0.5);
         }
       if (!tracking)
@@ -1239,17 +1239,18 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           const double fe
               = dp_async_dsss_receiver_status (rx).doppler_hz
                 - dp_air_truth (&air, 0, (uint64_t)(b + 1) * PI_PUSH).car_hz;
-          f_pull[b]
-              = (uint8_t)(fabs (fe) < PI_PULL_FRAC
-                                          * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (
-                                              rx->car.lf.bn,
-                                              dp_s415_chip_rate (fc), SF));
+          f_pull[b] = (uint8_t)(fabs (fe)
+                                < PI_PULL_FRAC
+                                      * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (
+                                          rx->car.lf.bn,
+                                          dp_ccsds_415_chip_rate (fc), SF));
         }
       /* A block is DATA when the truth puts its middle in a data symbol. */
       const long sym
           = dp_air_truth (&air, 0, b * PI_PUSH + PI_PUSH / 2).symbol;
       data[b] = (uint8_t)(sym >= 0
-                          && sym % DP_S415_FRAME_SYM >= DP_S415_CODE_ONLY_SYM);
+                          && sym % DP_CCSDS_415_FRAME_SYM
+                                 >= DP_CCSDS_415_CODE_ONLY_SYM);
       if (!tracking)
         gen++;
       s_end[b] = tracking ? ns : SIZE_MAX;
@@ -1264,7 +1265,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           /* Settled: tracking, 1 s after the hand-over. */
           const int settled
               = tracking && !isnan (d->t_track_s)
-                && (double)b * PI_PUSH / DP_S415_FS >= d->t_track_s + 1.0;
+                && (double)b * PI_PUSH / DP_CCSDS_415_FS >= d->t_track_s + 1.0;
           const size_t nr = dp_tlm_read (itlm, 0, recs, rcap);
           DP_REQUIRE_MSG (dp_tlm_dropped (itlm) == 0,
                           "the instrument's ring drops nothing");
@@ -1398,7 +1399,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   /* Lock and its transitions, over the data. */
   const int64_t s_sym = dp_ber_lock_symbol (f_sym, n_blk, PI_SUSTAIN, 0.9);
   const int64_t s_cod = dp_ber_lock_symbol (f_cod, n_blk, PI_SUSTAIN, 0.9);
-  const double  blk_s = (double)PI_PUSH / DP_S415_FS;
+  const double  blk_s = (double)PI_PUSH / DP_CCSDS_415_FS;
   d->t_sym_s          = s_sym >= 0 ? (double)s_sym * blk_s : NAN;
   d->t_code_s         = s_cod >= 0 ? (double)s_cod * blk_s : NAN;
   int64_t first       = -1;
@@ -1489,7 +1490,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           = win_frac (cross, e_car, e_cod, n_blk, w1, blk_s, d->t_track_s);
       /* The lock statistic's own memory, in whole blocks (at least one):
          whether the excursion sits AT the change, not a second before. */
-      d->lock_mem_s     = 1.0 / rx->lock_alpha / DP_S415_SYM;
+      d->lock_mem_s     = 1.0 / rx->lock_alpha / DP_CCSDS_415_SYM;
       const size_t wm   = (size_t)fmax (1.0, round (d->lock_mem_s / blk_s));
       uint8_t     *mark = dp_xmalloc (n_blk);
       for (size_t x = 0; x < 3; x++)
@@ -1657,16 +1658,16 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   d->end_stale_hz = dp_async_dsss_receiver_get_doppler_hz (rx)
                     - dp_air_truth (&air, 0, n_in).car_hz;
   d->false_lock   = rx->state == ASYNC_DSSS_RX_TRACKING
-                    && fabs (d->end_resid_hz) >= 0.25 * DP_S415_SYM;
+                    && fabs (d->end_resid_hz) >= 0.25 * DP_CCSDS_415_SYM;
   d->pulled_in    = rx->state == ASYNC_DSSS_RX_TRACKING
                     && fabs (d->end_resid_hz) < d->base_pullin_hz;
 
   /* The error-rate window (async-dsss-receiver.md, "The error-rate
      window"): it opens at the latest of the five flags' sustained times,
-     inside DP_S415_LOCK_S of arrival (the draw's start); a draw outside it
-     is "not locked in 20 s" and is never scored. The block's end is
-     where the window opens, in the symbols of the track that is current
-     at the end (s_end, s_gen). */
+     inside DP_CCSDS_415_LOCK_S of arrival (the draw's start); a draw outside
+     it is "not locked in 20 s" and is never scored. The block's end is where
+     the window opens, in the symbols of the track that is current at the end
+     (s_end, s_gen). */
   d->t_lock_s = d->edge_hz = d->budget_s = NAN;
   d->lock20 = d->unaligned_lock = 0;
   d->early_lock                 = -1;
@@ -1676,7 +1677,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
         = { f_sym, f_cod, f_x[0], f_x[1], f_x[2] };
     const int64_t s5
         = dp_ber_lock_all (fl, DP_S415_N_FLAGS, n_blk, PI_SUSTAIN, 0.9,
-                           (size_t)(DP_S415_LOCK_S / blk_s), NULL);
+                           (size_t)(DP_CCSDS_415_LOCK_S / blk_s), NULL);
     if (s5 >= 0)
       {
         d->lock20   = 1;
@@ -1711,7 +1712,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
         {
           d->budget_s = (double)dp_ber_settle_syms (rx->rx->l.timing.bn,
                                                     rx->rx->l.bn_carrier)
-                        / DP_S415_SYM;
+                        / DP_CCSDS_415_SYM;
           if (d->lock20)
             d->early_lock = d->t_lock_s < d->t_track_s + d->budget_s;
         }
@@ -1728,7 +1729,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
       long base         = dp_air_truth (&air, 0, first_in).symbol - 60;
       if (base < 0)
         base = 0;
-      const size_t n_truth = (size_t)(secs * DP_S415_SYM) + 1000;
+      const size_t n_truth = (size_t)(secs * DP_CCSDS_415_SYM) + 1000;
       uint8_t     *truth   = dp_xmalloc (n_truth);
       for (size_t i = 0; i < n_truth; i++)
         {
@@ -1813,7 +1814,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   free (coast);
   {
     const int64_t sp = dp_ber_lock_symbol (f_pull, n_blk, PI_SUSTAIN, 0.9);
-    d->t_pull_s = sp >= 0 ? (double)sp * (double)PI_PUSH / DP_S415_FS : NAN;
+    d->t_pull_s
+        = sp >= 0 ? (double)sp * (double)PI_PUSH / DP_CCSDS_415_FS : NAN;
   }
   free (f_pull);
   /* The controls' verdicts (C12), one line a draw, stderr. */
@@ -1989,7 +1991,7 @@ print_cell (const draw_t *ds, size_t n)
       "loss %.2f dB\n",
       ds[0].fc / 1e9, ds[0].esn0, fabs (ds[0].rate), works, n, wl, wh, acq, fl,
       nt ? t[nt / 2] : NAN, nt ? t[(size_t)(0.9 * (double)nt)] : NAN,
-      nt ? t[nt - 1] : NAN, DP_S415_LOCK_S, late, unal, early, al, slip,
+      nt ? t[nt - 1] : NAN, DP_CCSDS_415_LOCK_S, late, unal, early, al, slip,
       unsync, ci.p_hat, ci.lo, ci.hi, err, sc, loss);
   /* Post-lock slips by the hand-over's source: the fine estimate's, and
      the fallback's (CarrierAcquisition's or the seed's). */
@@ -2200,7 +2202,7 @@ pi_design (const double fcs[2], const double esn0s[4])
           "o2_lag_at_prop_max_deg,res_f2_max_hz_s2");
   for (int i = 0; i < DP_S415_PASS_BINS; i++)
     printf (",env_%.0f",
-            (double)(i + 1) * DP_S415_SPAN_HZ / DP_S415_PASS_BINS);
+            (double)(i + 1) * DP_CCSDS_415_SPAN_HZ / DP_S415_PASS_BINS);
   printf ("\n");
   for (int g = 0; g < 2; g++)
     {
@@ -2210,7 +2212,7 @@ pi_design (const double fcs[2], const double esn0s[4])
       for (int f = 0; f < 2; f++)
         {
           dp_loop_filter_state_t lf;
-          const double           T = (double)SF / (dp_s415_chip_rate (fcs[f]));
+          const double T = (double)SF / (dp_ccsds_415_chip_rate (fcs[f]));
           dp_loop_filter_init (&lf, pi_bn_rule (fcs[f]), 0.707, 1.0);
           lag_per = fmax (
               lag_per,
@@ -2242,7 +2244,7 @@ pi_design (const double fcs[2], const double esn0s[4])
     for (int k = 0; k < 2; k++)
       {
         const double esn0 = k ? 10.0 : 4.0;
-        const double chip = dp_s415_chip_rate (fcs[f]);
+        const double chip = dp_ccsds_415_chip_rate (fcs[f]);
         uint8_t      code[SF];
         for (size_t i = 0; i < SF; i++)
           code[i] = (uint8_t)(i & 1u);
@@ -2288,8 +2290,9 @@ pi_design (const double fcs[2], const double esn0s[4])
   for (int f = 0; f < 2; f++)
     for (int e = 0; e < 4; e++)
       {
-        const double chip = dp_s415_chip_rate (fcs[f]), T = (double)SF / chip;
-        const double rho = pi_rho (fcs[f], esn0s[e]);
+        const double chip = dp_ccsds_415_chip_rate (fcs[f]),
+                     T    = (double)SF / chip;
+        const double rho  = pi_rho (fcs[f], esn0s[e]);
         /* One coherent sum over the code-period window: one update. */
         const int      kw = 1;
         const uint64_t sd = 4410u + (uint64_t)(f * 8 + e * 2 + 1);
@@ -2301,7 +2304,7 @@ pi_design (const double fcs[2], const double esn0s[4])
         DP_CHECK_MSG (fabs (k - 1.0) < 0.05,
                       "the unit denominator's slope is about 1 at every "
                       "rho");
-        if (esn0s[e] <= DP_S415_FLOOR_DB + 1e-9)
+        if (esn0s[e] <= DP_CCSDS_415_FLOOR_ESN0_DB + 1e-9)
           DP_CHECK_MSG (kl < k - 0.05, "control: the limiter form's gain "
                                        "falls at the floor");
         /* The rule's, and the run's: the receiver's own (built at the
@@ -2369,7 +2372,8 @@ pi_design (const double fcs[2], const double esn0s[4])
       const size_t seg = rx->segments;
       const double g   = rx->car.den_gamma;
       const double var = dp_async_dsss_receiver_carrier_phase_var (
-          dp_s415_cn0 (DP_S415_FLOOR_DB), dp_s415_chip_rate (fcs[f]), SF, seg);
+          dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB),
+          dp_ccsds_415_chip_rate (fcs[f]), SF, seg);
       DP_CHECK_MSG (n == pinned[f], "the carrier lock's count at the floor "
                                     "is 34 at 2.2 GHz and 43 at 2.8 GHz");
       /* The count, then one fewer, each read off the receiver's loop. The
@@ -2393,7 +2397,7 @@ pi_design (const double fcs[2], const double esn0s[4])
           dp_wilson ((double)r.miss, (double)r.blocks, &ml, &mh);
           printf ("%.1f,%.1f,%zu,%.2f,%.4f,%.5f,%.6f,%.6f,%u,%.6f,%zu,%.0e,"
                   "%zu,%.3e,%.3e,%.3e,%.2f,%zu,%.3e,%.3e,%.3e\n",
-                  fcs[f] / 1e9, DP_S415_FLOOR_DB, seg,
+                  fcs[f] / 1e9, DP_CCSDS_415_FLOOR_ESN0_DB, seg,
                   ASYNC_DSSS_RX_CAR_LOOP_DELAY (seg), g, rx->car.bn, var,
                   r.var_rad, r.n, r.thresh, r.blocks, rx->car.blk_pfa,
                   r.exceed, (double)r.exceed / (double)r.blocks, el, eh,
@@ -2461,15 +2465,16 @@ pi_design (const double fcs[2], const double esn0s[4])
   for (int f = 0; f < 2; f++)
     for (size_t seg = 1; seg <= PI_SEG_MAX; seg++)
       {
-        const double chip = dp_s415_chip_rate (fcs[f]);
-        const double cn0  = dp_s415_cn0 (DP_S415_FLOOR_DB);
+        const double chip = dp_ccsds_415_chip_rate (fcs[f]);
+        const double cn0  = dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB);
         uint8_t      code[SF];
         for (size_t i = 0; i < SF; i++)
           code[i] = (uint8_t)(i & 1u);
         dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-            code, DP_S415_SF, chip, DP_S415_SYM, DP_S415_FS, 2, cn0, 1e-3, 0.9,
-            DP_S415_SPAN_HZ, seg, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
-            fcs[f], 0.0, false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
+            code, DP_CCSDS_415_SF, chip, DP_CCSDS_415_SYM, DP_CCSDS_415_FS, 2,
+            cn0, 1e-3, 0.9, DP_CCSDS_415_SPAN_HZ, seg, 8, 0, 0.5, 4, 14.0, 64,
+            8, false, 100000, fcs[f], 0.0, false,
+            (double)DP_CCSDS_415_CODE_ONLY_SYM / DP_CCSDS_415_SYM,
             dp_s415_r_env (), true);
         const uint32_t n = dp_async_dsss_receiver_carrier_lock_n_noncoh (
             cn0, chip, SF, seg);
@@ -2560,7 +2565,7 @@ main (int argc, char **argv)
   uint8_t code[SF];
   dp_dsss_gold_1023 (code);
 
-  static const double fcs[2] = { DP_S415_FC_LO, DP_S415_FC_HI };
+  static const double fcs[2] = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
   /* The sweep's four levels, and a fifth only --esn0 selects: 20 dB, a
      high-SNR cell where the code lock's statistic reads its signal term
      with the max-over-windows selection's noise bias negligible. */
@@ -2756,10 +2761,10 @@ main (int argc, char **argv)
          R_env (dp_s415_r_env()). The draw is sized so the hand-over's Doppler
          is past the false-lock limit. */
       draw_t rd;
-      DP_REQUIRE (run_draw (code, DP_S415_FC_HI, 10.0, DP_S415_RATE_HZ_S, 1,
-                            PI_RAMP_CHECK_S, spc, NULL, NULL, &rd)
+      DP_REQUIRE (run_draw (code, DP_CCSDS_415_FC_HI, 10.0, DP_S415_RATE_HZ_S,
+                            1, PI_RAMP_CHECK_S, spc, NULL, NULL, &rd)
                   == 0);
-      const double lim = 0.25 * DP_S415_SYM;
+      const double lim = 0.25 * DP_CCSDS_415_SYM;
       printf ("  ramp: 2.8 GHz 10 dB +/-400 Hz/s, %.0f s: live "
               "carrier %.1f Hz off the truth; the hand-over's Doppler "
               "%.0f Hz off, %.2fx the %.0f Hz limit\n",
@@ -2787,16 +2792,17 @@ main (int argc, char **argv)
       {
         draw_t cd;
         pi_code_nl = 0;
-        DP_REQUIRE (run_draw (code, DP_S415_FC_HI, 10.0, 0.0, PI_CL_SEED,
+        DP_REQUIRE (run_draw (code, DP_CCSDS_415_FC_HI, 10.0, 0.0, PI_CL_SEED,
                               PI_CL_CHECK_S, spc, NULL, NULL, &cd)
                     == 0);
         dp_async_dsss_receiver_state_t *fl
-            = dp_s415_rx (code, DP_S415_FC_HI, true);
+            = dp_s415_rx (code, DP_CCSDS_415_FC_HI, true);
         dp_async_dsss_receiver_state_t *cell = dp_async_dsss_receiver_create (
-            code, DP_S415_SF, dp_s415_chip_rate (DP_S415_FC_HI), DP_S415_SYM,
-            DP_S415_FS, 2, dp_s415_cn0 (10.0), 1e-3, 0.9, DP_S415_SPAN_HZ, 4,
-            8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, DP_S415_FC_HI, 0.0,
-            false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
+            code, DP_CCSDS_415_SF, dp_ccsds_415_chip_rate (DP_CCSDS_415_FC_HI),
+            DP_CCSDS_415_SYM, DP_CCSDS_415_FS, 2, dp_ccsds_415_cn0 (10.0),
+            1e-3, 0.9, DP_CCSDS_415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8,
+            false, 100000, DP_CCSDS_415_FC_HI, 0.0, false,
+            (double)DP_CCSDS_415_CODE_ONLY_SYM / DP_CCSDS_415_SYM,
             dp_s415_r_env (), true);
         DP_REQUIRE (fl && cell);
         const size_t n_floor = fl->dll->n_looks, n_cell = cell->dll->n_looks;

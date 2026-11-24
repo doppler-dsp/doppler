@@ -11,7 +11,10 @@
 //   - receiver: its state, both lock flags, the symbol-lock metric against
 //     its threshold, C/N0, the Doppler and the code rate, as status()
 //     reports them: nothing here computes a measurement of its own;
-//   - progress through the scene.
+//   - progress through the scene;
+//   - frames: what the reader finds in the decided symbols, with no
+//     truth: the start sequence searched for or tracked, frames read and
+//     their CRC verdicts, and the last frame's header fields read back.
 //
 // One thread. The timed span in run.cpp is the receiver call alone; the
 // pacing sleep and the drawing both fall outside it, and the display never
@@ -127,10 +130,33 @@ document (const ccsds415::Run &run, double refresh_ms, bool paced,
           row ("symbols", fmt ("%.0f", static_cast<double> (run.symbols ()))),
           hbox ({ text ("progress ") | size (WIDTH, EQUAL, 32),
                   gauge (static_cast<float> (done))
-                      | size (WIDTH, EQUAL, 30) }),
+                      | size (WIDTH, EQUAL, 16) }),
+      }));
+  // The frames, as the reader finds them in the decided symbols: what a
+  // ground station would see, with no truth.
+  const ccsds415::FrameStats &fr = run.frames ();
+  const auto n = [] (size_t v) { return fmt ("%.0f", static_cast<double> (v)); };
+  const auto read_back = [&] (unsigned v) {
+    return fr.any ? n (v) : std::string ("none yet");
+  };
+  const Element frames = window (
+      text ("frames"),
+      vbox ({
+          row ("start sequence", fr.tracking ? "tracking" : "searching"),
+          row ("frames read", n (fr.found)),
+          row ("  CRC passed", n (fr.crc_ok)),
+          row ("  CRC failed", n (fr.crc_failed)),
+          row ("start sequences missed", n (fr.missed)),
+          row ("last frame's data",
+               fr.any ? n (fr.octets) + " octets" : "none yet"),
+          row ("  SCID", read_back (fr.scid)),
+          row ("  VCID", read_back (fr.vcid)),
+          row ("  frame sequence number", read_back (fr.seq)),
+          row ("  polarity",
+               fr.any ? (fr.inverted ? "inverted" : "upright") : "none yet"),
       }));
   Elements parts{ text (run.name ()) | bold, hbox ({ cost, receiver }),
-                  progress };
+                  hbox ({ progress, frames }) };
   if (held)
     parts.push_back (text ("the scene has ended: press q to exit"));
   return vbox (std::move (parts));

@@ -33,6 +33,16 @@ rows=(
     "carrier|$num GHz"
     "time|$num s"
     "symbols|[0-9]+"
+    "start sequence|(tracking|searching)"
+    "frames read|[0-9]+"
+    "CRC passed|[0-9]+"
+    "CRC failed|[0-9]+"
+    "start sequences missed|[0-9]+"
+    "last frame's data|[0-9]+ octets"
+    "SCID|[0-9]+"
+    "VCID|[0-9]+"
+    "frame sequence number|[0-9]+"
+    "polarity|(upright|inverted)"
 )
 # The terminal's escapes and box drawing are not the panel's text.
 plain="$(sed -e 's/\x1b\[[0-9;?]*[a-zA-Z]//g' -e 's/[│╭╮╰╯├┤─]/ /g' "$out")"

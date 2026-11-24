@@ -514,12 +514,6 @@ dp_frame_read_field (dp_frame_state_t *state, const uint8_t *rx_bits,
                      size_t rx_bits_len, const char *name, const char **why)
 {
   uint64_t v = 0;
-  if (!state)
-    {
-      if (why)
-        *why = "a frame read needs a frame";
-      return -1;
-    }
   if (dp_wfm_frame_desc_field (&state->d, rx_bits, rx_bits_len, name, &v, why)
       != 0)
     return -1;
@@ -545,12 +539,6 @@ dp_frame_read_field_bits (dp_frame_state_t *state, const uint8_t *rx_bits,
                           size_t rx_bits_len, const char *name, uint8_t *out,
                           size_t max_out, const char **why)
 {
-  if (!state)
-    {
-      if (why)
-        *why = "a frame read needs a frame";
-      return 0;
-    }
   return dp_wfm_frame_desc_field_bits (&state->d, rx_bits, rx_bits_len, name,
                                        out, max_out, why);
 }

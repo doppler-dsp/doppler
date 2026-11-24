@@ -1168,6 +1168,24 @@ test_field_read_back (void)
   why = NULL;
   DP_CHECK (dp_wfm_frame_desc_field (&d, rx, sizeof rx, "", &v, &why) == -1
             && why);
+  /* no received bits: refused, by both forms, in the same words */
+  why = NULL;
+  DP_CHECK (dp_wfm_frame_desc_field (&d, NULL, sizeof rx, "a", &v, &why) == -1
+            && why && strstr (why, "the received bits") != NULL);
+  why = NULL;
+  DP_CHECK (
+      dp_wfm_frame_desc_field_bits (&d, NULL, sizeof rx, "a", wb, 70, &why)
+          == 0
+      && why && strstr (why, "the received bits") != NULL);
+  /* a description its own layout refuses is refused, never read */
+  {
+    wfm_frame_desc_t bad = d;
+    bad.n_fields         = WFM_FRAME_MAX_FIELDS + 1u;
+    why                  = NULL;
+    DP_CHECK (dp_wfm_frame_desc_field (&bad, rx, sizeof rx, "a", &v, &why)
+                  == -1
+              && why && strstr (why, "the description is refused") != NULL);
+  }
 
   /* A coded frame reads as an uncoded one: its description gains an
      emitting stage (a rate-1/2 code over the frame), and the read takes the

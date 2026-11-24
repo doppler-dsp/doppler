@@ -41,8 +41,10 @@ make plot PLOT_ARGS=--save   # writes build/out/<capture>.png instead
 
 `make help` lists the knobs. The program's own options go through `ARGS`,
 for example `make run ARGS='--carrier hi --esn0 6'`; `--help` lists them.
-At 2.2 GHz the example's scene is not decoded below Es/N0 10 dB today
-(#3349), so no command here runs `--carrier lo` lower. `--errors` prints
+At 2.2 GHz the run fails at Es/N0 4, 6, 7 and 8 dB and passes at 5, 9 and
+10, not monotonically: for some arrival offsets the receiver slips whole
+symbols (#3349), and this scene arrives at one of them. So no command here
+runs `--carrier lo` below 10 dB. `--errors` prints
 where the bit errors fall in the scored stream: the first and last, the
 longest run, and a count for each tenth of it.
 
@@ -84,7 +86,9 @@ fields back are the next step; until then nothing here decodes a frame.
     receiver's certification record measured at this point (2.8 GHz, Es/N0
     4 dB; §2.6 of
     `src/doppler/dsss/tests/validation/async_dsss_receiver/results.md`),
-    and the allowed loss itself is the owner's to set (#3157). Each run
+    and the allowed loss itself is the owner's to set (#3157). The record
+    covers unslipped bursts at Es/N0 4 to 7 dB, so above 7 dB, the default
+    10 dB included, the figure is carried beyond what it measured. Each run
     prints the loss its own rate implies (`dp_ber_esn0_db_for_ser()`);
 1. no call filled its output capacity, so no symbol was dropped;
 1. the capture is complete (`dp_tlm_capture_close()` returns `DP_OK`);

@@ -64,6 +64,8 @@ from doppler.dsss import (
     AsyncDsssPool,
     AsyncDsssReceiver,
     BurstDespreader,
+    Ccsds415Pool,
+    Ccsds415Receiver,
     Despreader,
 )
 from doppler.filter import FIR, MovingAverage
@@ -520,6 +522,24 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
             n_receivers=2,
             cn0_dbhz=50.0,
             doppler_uncertainty=40000.0,
+            threads=1,
+        ),
+        lambda o, seg: (
+            o.push(seg),
+            np.frombuffer(o.get_state(), dtype=np.uint8),
+        )[1],
+    ),
+    # The two at the 415.1-B-1 point (doppler/ccsds/ccsds_415.h): views of
+    # the two above, so their rows put the same setters under #2022's gate
+    # on the receiver the point builds, with the point's 1,023-chip code.
+    "Ccsds415Receiver": (
+        lambda: Ccsds415Receiver(np.asarray(Gold().generate(1023), np.uint8)),
+        _track_feed,
+    ),
+    "Ccsds415Pool": (
+        lambda: Ccsds415Pool(
+            np.asarray(Gold().generate(1023), np.uint8),
+            n_receivers=2,
             threads=1,
         ),
         lambda o, seg: (

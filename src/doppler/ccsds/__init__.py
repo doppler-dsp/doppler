@@ -11,7 +11,8 @@ its numbers, computed in C (`doppler/ccsds/ccsds_415.h` holds the rest), and
 `doppler.dsss.Ccsds415Receiver` is the receiver built there. The receiver's
 runs at this point are `docs/design/async-dsss-receiver-measurements.md`;
 its certification record holds at 3.069 Mcps, not at this point
-(`docs/design/async-dsss-receiver.md` §1, "What the certification covers").
+(`docs/design/async-dsss-receiver.md` §1, The specification, whose
+paragraph on what the certification covers says so).
 
 The marker is also the only thing in a CADU that can report a 180-degree
 carrier ambiguity. It is not randomised (131.0-B 10.4: "The ASM was not

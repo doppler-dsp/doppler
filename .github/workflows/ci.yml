@@ -1229,7 +1229,9 @@ jobs:
       needs.changes.outputs.code == 'true' &&
       needs.scope.outputs.scope == 'full'
     needs: [pin, changes, scope]
-    name: ${{ matrix.san.label }}
+    # A literal prefix: a bare matrix value as a job name could reach 'CI passed'
+    # through the matrix (canonical #243). The prefix keeps every leg off that name.
+    name: sanitizer (${{ matrix.san.label }})
     # Pinned, not ubuntu-latest: on an ubuntu-26.04 host the TSan runtime
     # dies at startup ("unexpected memory mapping") before any test runs,
     # with the same container and tree that pass on 24.04 (#3058). The

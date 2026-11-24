@@ -372,8 +372,8 @@ class Writer:
 def write_blue_header(
     path: str | os.PathLike,
     fs: float,
-    sample_type: str = 'cf32',
-    endian: str = 'le',
+    sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"] = 'cf32',
+    endian: Literal["le", "be"] = 'le',
     fc: float = 0.0,
     data_start: float = 0.0,
     total: int = 0,
@@ -396,10 +396,10 @@ def write_blue_header(
     fs : float
         Sample rate (Hz) -> `xdelta = 1/fs`; 0.0 writes `xdelta = 0` (rate
         unknown).
-    sample_type : str, default 'cf32'
+    sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"], default 'cf32'
         One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``,
         ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
-    endian : str, default 'le'
+    endian : Literal["le", "be"], default 'le'
         One of ``"le"``, ``"be"``.
     fc : float, default 0.0
         Center frequency (Hz); non-zero adds a `FREQ` keyword in the HCB

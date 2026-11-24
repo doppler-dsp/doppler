@@ -63,13 +63,32 @@ def _venv_version() -> str:
     return m.group(1) if m else ""
 
 
+def _call(uv_bin: str, args: list[str]) -> int:
+    """Run uv, or refuse in one line when the OS cannot start it.
+
+    A UV_BIN that is not an executable the OS can start (a `#!/bin/sh` file
+    with no .exe on Windows, a file with no exec bit on POSIX) makes Popen
+    raise OSError. That is a refusal of the request, not a crash, so it is
+    one line and exit 2 rather than a traceback (#3305).
+    """
+    try:
+        return subprocess.call([uv_bin, *args])
+    except OSError as e:
+        print(
+            f"uvg: cannot start {uv_bin!r} ({e.strerror}). Point UV_BIN at "
+            "a uv that runs.",
+            file=sys.stderr,
+        )
+        return 2
+
+
 def main(argv: list[str]) -> int:
     if not argv:
         print("usage: uvg.py <uv> [args...]", file=sys.stderr)
         return 2
     uv_bin, args = argv[0], argv[1:]
     if not args or args[0] not in SYNCING or "--no-sync" in args:
-        return subprocess.call([uv_bin, *args])
+        return _call(uv_bin, args)
     want, source = _request()
     nested = int(os.environ.get("MAKELEVEL", "0") or 0) > 0
     have = _venv_version()
@@ -84,7 +103,7 @@ def main(argv: list[str]) -> int:
                 file=sys.stderr,
             )
             return 2
-    return subprocess.call([uv_bin, *args])
+    return _call(uv_bin, args)
 
 
 if __name__ == "__main__":

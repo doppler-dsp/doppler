@@ -78,3 +78,28 @@ def test_the_environment_request_wins_over_the_file(tmp_path: Path) -> None:
         _project(tmp_path, "3.14.4", "3.12"), makelevel="1", uv_python="3.14"
     )
     assert r.returncode == 0, r.stderr
+
+
+def test_a_uv_that_cannot_start_is_a_refusal_not_a_traceback(
+    tmp_path: Path,
+) -> None:
+    """A UV_BIN the OS cannot start is one line and exit 2, never a traceback.
+
+    The shape that broke the Windows leg (#3305): a `#!/bin/sh` file with no
+    .exe. CreateProcess cannot start it, so `subprocess.call` raises
+    OSError (WinError 193). On POSIX the same file with no exec bit raises
+    PermissionError. Both must come out as the guard's refusal. Sabotage:
+    drop the `except OSError` in uvg.py and this goes red with a Traceback.
+    """
+    uv = tmp_path / "uv"
+    uv.write_text("#!/bin/sh\necho fake\n", encoding="utf-8")
+    r = subprocess.run(
+        [sys.executable, str(GUARD), str(uv), "sync"],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        check=False,
+    )
+    assert "Traceback" not in r.stderr, r.stderr
+    assert r.returncode == 2, (r.returncode, r.stderr)
+    assert "uvg: cannot start" in r.stderr, r.stderr

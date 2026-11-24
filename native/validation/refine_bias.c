@@ -26,11 +26,19 @@
  * a Doppler of F_TRUE plus a chosen error, exactly what the searcher's
  * coarse D = 1 row hands it (its bin is 4.9 kHz wide, so ~1.1 kHz off at
  * 50 kHz). Blocks of one epoch are fed until `get_tracking()` first
- * reads 1, and `get_doppler_hz()` is read there: the value the live
- * carrier loop was seeded with, moved by at most one loop update over
- * the hand-over block's tail. The error is that reading minus F_TRUE; a
- * point is N_SEEDS noise seeds, reported as mean (the bias), standard
- * deviation (the noise), and the extremes.
+ * reads 1, and two Dopplers are read there, each minus F_TRUE: the one
+ * handed over (`get_doppler_hz()`, the value the live carrier loop was
+ * seeded with, moved by at most one loop update over the hand-over
+ * block's tail), and `CarrierAcquisition`'s own (the seed plus its
+ * `residual_hz`, as the receiver forms its data hand-over). Since the
+ * fine hand-over (docs/design/async-dsss-receiver.md, "The hand-over:
+ * the M-th power of the refine's partial dumps") the handed Doppler is
+ * the fine estimate wherever its check passes (`ho_src` 3), so the two
+ * differ: the bias this harness was built to see is
+ * `CarrierAcquisition`'s, and the handed Doppler is what the loop gets.
+ * A point is N_SEEDS noise seeds: the handed Doppler's mean (the bias),
+ * standard deviation (the noise) and extremes, the trials handed over
+ * fine, and `CarrierAcquisition`'s mean.
  *
  * Three axes. (1) The seed's error: 0, +-500, +-1100, +-2000 Hz, at the
  * floor's dwell -- `refine_design_margin_db` 19 at 45 dB-Hz sizes the
@@ -123,11 +131,14 @@ get_capture (const uint8_t *code, int sign_idx, size_t seed)
 
 typedef struct
 {
-  int    handed;   /* the refine handed over inside the capture      */
-  double err_hz;   /* get_doppler_hz() at the hand-over, minus truth */
-  double handed_s; /* seed -> hand-over, s                           */
-  size_t dwell;    /* CarrierAcquisition's dwell_target, blocks      */
-  size_t segments; /* look-back dumps per epoch                      */
+  int    handed;    /* the refine handed over inside the capture      */
+  double err_hz;    /* get_doppler_hz() at the hand-over, minus truth */
+  int    ca_ready;  /* CarrierAcquisition decided                      */
+  double ca_err_hz; /* its own estimate (seed + residual_hz) - truth   */
+  int    ho_src;    /* the hand-over's source (ASYNC_DSSS_RX_HO_*)      */
+  double handed_s;  /* seed -> hand-over, s                           */
+  size_t dwell;     /* CarrierAcquisition's dwell_target, blocks      */
+  size_t segments;  /* look-back dumps per epoch                      */
 } trial_t;
 
 static int
@@ -165,6 +176,10 @@ run_trial (const uint8_t *code, int sign_idx, size_t seed, double seed_err,
         {
           out->handed   = 1;
           out->err_hz   = dp_async_dsss_receiver_get_doppler_hz (rx) - truth;
+          out->ho_src   = dp_async_dsss_receiver_get_handover_source (rx);
+          out->ca_ready = rx->ca->ready;
+          if (rx->ca->ready)
+            out->ca_err_hz = seed_err + rx->ca->residual_hz;
           out->handed_s = (double)(pos + TE) / FS;
           break;
         }
@@ -179,6 +194,8 @@ typedef struct
   size_t n, handed;
   double mean, sd, min, max, handed_s;
   size_t dwell, segments;
+  size_t ca_n, fine; /* trials CarrierAcquisition decided; handed fine */
+  double ca_mean;    /* CarrierAcquisition's own bias                   */
 } point_t;
 
 /* One point: N seeds of one (sign, error, margin, stream); the error's
@@ -190,7 +207,7 @@ run_point (const uint8_t *code, int sign_idx, double seed_err,
   point_t p = { 0 };
   p.min     = HUGE_VAL;
   p.max     = -HUGE_VAL;
-  double s = 0.0, s2 = 0.0;
+  double s = 0.0, s2 = 0.0, sc = 0.0;
   for (size_t k = 0; k < n_seeds; k++)
     {
       trial_t t;
@@ -202,6 +219,12 @@ run_point (const uint8_t *code, int sign_idx, double seed_err,
       if (!t.handed)
         continue;
       p.handed++;
+      p.fine += t.ho_src == ASYNC_DSSS_RX_HO_FINE;
+      if (t.ca_ready)
+        {
+          p.ca_n++;
+          sc += t.ca_err_hz;
+        }
       s += t.err_hz;
       s2 += t.err_hz * t.err_hz;
       p.handed_s += t.handed_s;
@@ -218,7 +241,8 @@ run_point (const uint8_t *code, int sign_idx, double seed_err,
                             : 0.0;
       p.handed_s /= (double)p.handed;
     }
-  *out = p;
+  p.ca_mean = p.ca_n ? sc / (double)p.ca_n : NAN;
+  *out      = p;
   return 0;
 }
 
@@ -226,16 +250,16 @@ static void
 print_point_header (void)
 {
   printf ("    truth      seed err   dwell   handed    bias (mean)   "
-          "sd         min        max   hand-over\n");
+          "sd         min        max   hand-over   fine   CA bias (n)\n");
 }
 
 static void
 print_point (const point_t *p, double truth, double seed_err)
 {
   printf ("    %+7.0f Hz  %+7.0f Hz  %5zu   %zu/%zu   %+9.1f Hz  %7.1f  "
-          "%+8.1f  %+8.1f   %6.1f ms\n",
+          "%+8.1f  %+8.1f   %6.1f ms   %zu/%zu  %+8.1f Hz (%zu)\n",
           truth, seed_err, p->dwell, p->handed, p->n, p->mean, p->sd, p->min,
-          p->max, p->handed_s * 1e3);
+          p->max, p->handed_s * 1e3, p->fine, p->handed, p->ca_mean, p->ca_n);
 }
 
 int
@@ -319,8 +343,10 @@ main (int argc, char **argv)
                             "the shipped look-back gives 11 dumps per "
                             "epoch");
               /* The design's expectation (§12.10): on the shipped stream
-                 the estimate is inside loop 1's pull-in (60 Hz, its own
-                 header) from a seed the searcher's coarse row hands it. */
+                 the HANDED Doppler (get_doppler_hz(): the fine estimate
+                 where its check passes, else CarrierAcquisition's) is
+                 inside loop 1's pull-in (60 Hz, its own header) from a
+                 seed the searcher's coarse row hands it. */
               DP_CHECK_MSG (fabs (at_zero.mean) < 60.0
                                 && fabs (at_off[0].mean) < 60.0
                                 && fabs (at_off[1].mean) < 60.0,
@@ -330,14 +356,21 @@ main (int argc, char **argv)
           else
             {
               /* The defect this harness was built to see: on the
-                 retired stream the estimate keeps about a third of the
-                 seed's error, in the seed's direction. The check pins
-                 that the harness sees it. */
+                 retired stream CarrierAcquisition's OWN estimate keeps
+                 about a third of the seed's error, in the seed's
+                 direction. The check pins that the harness sees it, on
+                 that estimate: the handed Doppler is the fine one there
+                 and does not carry it. */
               DP_CHECK_MSG (at_zero.segments == 1,
                             "100 dB gives one dump per epoch");
-              DP_CHECK_MSG (at_off[0].mean > 200.0 && at_off[1].mean < -200.0,
-                            "on the retired stream the bias at +-1100 Hz "
-                            "is over 200 Hz toward the seed");
+              DP_CHECK_MSG (at_off[0].ca_n == at_off[0].n
+                                && at_off[1].ca_n == at_off[1].n,
+                            "CarrierAcquisition decides on every "
+                            "retired-stream trial");
+              DP_CHECK_MSG (at_off[0].ca_mean > 200.0
+                                && at_off[1].ca_mean < -200.0,
+                            "on the retired stream CarrierAcquisition's bias "
+                            "at +-1100 Hz is over 200 Hz toward the seed");
             }
         }
     }

@@ -169,7 +169,7 @@ def main(out_path: str) -> None:
     window = BN / (4 * M)
     budget = 2.0 / BN
 
-    cold_track, cold = track(rx, 0.0)
+    cold_track, _cold = track(rx, 0.0)
     seed_track, warm = track(rx, f_seed)
     s_cold = settled_after(cold_track, F0)
     s_seed = settled_after(seed_track, F0)
@@ -178,7 +178,19 @@ def main(out_path: str) -> None:
     print(f"coarse estimate   {f_fine:.5f}  (M-th power + {NFFT}-pt FFT)")
     print(f"seeded at         {f_seed:.5f}  (quantised to a {BIN:g} bin)")
     print(f"residual          {residual:.5f}  against a window of {window:g}")
-    print(f"unseeded settled  {s_cold:6d} samples = {s_cold * BN:7.2f} / bn")
+    # The unseeded start is a beat-note grind from u = |df| M / bn = 9.25,
+    # past the validation report's §2.5 table and beside the arm's wall: a
+    # cycle-skipping transient whose length swings with the noise and with
+    # bit-level differences between builds (1,143 / bn on one, past the
+    # run's end on another, seed for seed). So the demo shows it as the
+    # contrast and claims only what holds on every build: it is far slower
+    # than seeded, settled or not by the end.
+    run = rx.size
+    if s_cold < run:
+        tc = s_cold * BN
+        print(f"unseeded settled  {s_cold:6d} samples = {tc:7.2f} / bn")
+    else:
+        print(f"unseeded          had not settled in {run * BN:.0f} / bn")
     print(f"seeded settled    {s_seed:6d} samples = {s_seed * BN:7.2f} / bn")
     print(f"the rule          settle within 2 / bn = {budget:.0f} samples")
 
@@ -253,18 +265,19 @@ def main(out_path: str) -> None:
     )
     # 3. And the contrast that makes seeding worth doing at all. Without it
     #    this demo would pass on a loop that locked instantly from anywhere,
-    #    which is the vacuous version of the same story.
+    #    which is the vacuous version of the same story. A cold run that has
+    #    not settled by the end satisfies it too, and says so above.
     assert s_cold > 10 * s_seed, (
         f"cold start ({s_cold * BN:.1f}/bn) is not materially slower than "
         f"seeded ({s_seed * BN:.1f}/bn) — the regimes should differ by "
         f"orders"
     )
-    # 4. Both runs must reach the SAME carrier: a seed that biased the
-    #    answer would be worse than a slow lock.
-    assert abs(cold.norm_freq - warm.norm_freq) < 1e-4, (
-        "seeded and cold-start runs converged on different carriers"
-    )
-    assert abs(warm.norm_freq - F0) < 5e-4, "seeded run did not acquire"
+    # 4. The seeded run lands ON the carrier: a seed that biased the answer
+    #    would be worse than a slow lock. 1e-4 cycles/sample is the bound
+    #    the seeded and a settled cold run agreed to (6e-5 at worst over
+    #    eight noise seeds on gcc, clang and the coverage build); the cold
+    #    run is not held to it, because its length is the build's.
+    assert abs(warm.norm_freq - F0) < 1e-4, "seeded run did not acquire"
     assert warm.locked, "seeded run never declared lock"
 
 

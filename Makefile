@@ -1082,7 +1082,8 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 exported-link-check symbol-prefix-check export-check \
                 vendored-collision-check \
                 test-asan test-ubsan test-tsan warnings-check \
-                consumer-faces-check burst-pipeline-check uno-q-check uno-q-nats-check glibc-gate \
+                consumer-faces-check burst-pipeline-check rpm-consumer-check \
+                uno-q-check uno-q-nats-check glibc-gate \
                 check-isotime-parity nats-vendor-fresh-check \
                 coverage coverage-gate \
                 docker-examples package-linux-smoke \
@@ -2001,7 +2002,8 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 test-ubsan test-tsan test-asan warnings-check \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
-                burst-pipeline-check uno-q-check uno-q-nats-check \
+                burst-pipeline-check rpm-consumer-check uno-q-check \
+                uno-q-nats-check \
                 glibc-check glibc-gate glibc-image \
                 check-isotime-parity \
                 tests-ssot validation-report-check \
@@ -4868,6 +4870,27 @@ burst-pipeline-check: build ## Build+run example-projects/burst-pipeline against
 	        echo "burst-pipeline-check: static target not built"; exit 1; }; }; \
 	 rc=$$?; rm -rf "$$t"; \
 	 if [ $$rc -eq 0 ]; then echo "burst-pipeline-check: OK — both link modes"; fi; \
+	 exit $$rc
+
+# The same shape, for the C++ receiver at the CCSDS 415.1-B-1 point
+# (example-projects/rpm-consumer/ccsds-415): the example's OWN `make run`
+# against a scratch install, which self-checks (lock within the point's
+# allocation, BER, no symbol dropped, a complete capture, every probe
+# recorded), then its OWN `make plot` headless, so a change to the capture
+# format that breaks the plotter breaks here. It links statically only, as
+# from the -devel RPM; the RPM itself is built against on Fedora and EL8 by
+# package-linux-smoke.
+rpm-consumer-check: build ## Build+run+plot example-projects/rpm-consumer/ccsds-415 against an install prefix
+	@t=$$(mktemp -d); \
+	 $(CMAKE) --install $(BUILD_DIR) --prefix "$$t/pfx" > /dev/null \
+	 && $(MAKE) --no-print-directory -C example-projects/rpm-consumer/ccsds-415 \
+	        BUILD_DIR="$$t/b" PREFIX="$$t/pfx" OUT="$$t/out" run \
+	 && $(MAKE) --no-print-directory -C example-projects/rpm-consumer/ccsds-415 \
+	        OUT="$$t/out" PLOT_ARGS=--save PYTHON="$(DEV_RUN) python" plot \
+	 && { n=$$(ls "$$t"/out/*.png 2>/dev/null | wc -l); [ "$$n" -eq 2 ] || { \
+	        echo "rpm-consumer-check: want 2 plots, got $$n"; exit 1; }; }; \
+	 rc=$$?; rm -rf "$$t"; \
+	 if [ $$rc -eq 0 ]; then echo "rpm-consumer-check: OK — ran, checked and plotted both carriers"; fi; \
 	 exit $$rc
 
 # The same shape as burst-pipeline-check, for the RTL-SDR front end the UNO Q

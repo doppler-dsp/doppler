@@ -65,7 +65,8 @@ else
                --setopt=skip_if_unavailable=True)
     install() { say "installing: $*"; dnf "${dnf_opts[@]}" install -y "$@"; }
     have() { rpm -q "$1" >/dev/null 2>&1; }
-    toolchain=(gcc cmake make pkgconf-pkg-config)
+    # gcc-c++: the rpm legs also build the C++ RPM consumer (step 7).
+    toolchain=(gcc gcc-c++ cmake make pkgconf-pkg-config)
     # The runtime rpm is the one whose name has no -devel and no -tools.
     rt=("$PKGS"/libdoppler-dsp-[0-9]*.rpm)
     dev=("$PKGS"/libdoppler-dsp-devel-*.rpm)
@@ -232,4 +233,53 @@ done < <(cd "$inc" && find . -name '*.h' | sed 's|^\./||' | sort)
 [ "$n" -gt 100 ] || die "only $n installed headers found under $inc -- the walk is broken"
 [ -z "$bad" ] || die "not compilable at -std=c99 with pkg-config's own Cflags:$bad"
 say "all $n standalone installed headers compile at strict -std=c99 from pkg-config --cflags"
+
+# ── 7. the RPM consumer (rpm legs): example-projects/rpm-consumer/ccsds-415,
+#       C++ linked statically against /usr/lib64/libdoppler.a through the
+#       -devel package's CMake config, built and run through its own Makefile
+#       exactly as its README says, with no PREFIX: the RPM is the install.
+#       It checks itself (lock, BER, no dropped symbol, a complete capture),
+#       so a run that exits 0 is the test. Plotting needs numpy, which a
+#       stock image lacks; rpm-consumer-check plots on the CI image.
+if [ "$fmt" = rpm ]; then
+    rc_dir="$SRC/example-projects/rpm-consumer/ccsds-415"
+    make -C "$rc_dir" BUILD_DIR="$work/rc" OUT="$work/rc-out" run \
+        >"$work/rc.log" 2>&1 \
+        || { cat "$work/rc.log" >&2; die "the C++ RPM consumer did not build or run"; }
+    grep -q '^OK$' "$work/rc.log" || die "the C++ RPM consumer printed no OK"
+    say "the C++ RPM consumer (rpm-consumer/ccsds-415) builds statically and checks itself"
+    # Its TUI, on Fedora, which packages FTXUI (EL8 needs EPEL: documented
+    # in the project's README, not run here). --snapshot draws the last
+    # frame as text with no terminal; every panel row must carry its value.
+    if [ -f /etc/fedora-release ]; then
+        install ftxui-devel
+        make -C "$rc_dir" BUILD_DIR="$work/rc" OUT="$work/rc-out" build \
+            >"$work/rc-tui.log" 2>&1 \
+            || { cat "$work/rc-tui.log" >&2; die "the TUI did not build"; }
+        [ -x "$work/rc/ccsds415-tui" ] \
+            || die "ftxui-devel is installed but ccsds415-tui was not built"
+        "$work/rc/ccsds415-tui" --snapshot --out "$work/rc-out" \
+            --seconds 2.5 >"$work/rc-snap.txt" \
+            || { cat "$work/rc-snap.txt" >&2; die "the TUI's checks failed"; }
+        bash "$SRC/tests/install/tui-snapshot-check.sh" "$work/rc-snap.txt" 2 \
+            || die "a TUI panel is missing a value"
+        say "its TUI builds against Fedora's FTXUI and every panel carries a value"
+        # q, in a terminal: script(1) gives the TUI a pty, q arrives at 2 s
+        # of a paced 30 s scene. An early quit is the user's choice, so it
+        # exits 0 on the checks a partial run can answer, and says which
+        # full-scene checks it did not evaluate.
+        install util-linux-script
+        rc=0
+        (sleep 2; printf q; sleep 3) | TERM=xterm-256color script -qec \
+            "$work/rc/ccsds415-tui --carrier lo --out $work/rc-out" \
+            /dev/null >"$work/rc-quit.log" 2>&1 || rc=$?
+        [ "$rc" -eq 0 ] \
+            || { tail -c 600 "$work/rc-quit.log" >&2
+                 die "the TUI quit early with exit $rc, not 0"; }
+        grep -aq 'stopped at .* by the user;.*: held' "$work/rc-quit.log" \
+            || { tail -c 600 "$work/rc-quit.log" >&2
+                 die "the TUI's early quit did not say what it checked"; }
+        say "q quits the TUI early: exit 0, partial checks held, the rest named"
+    fi
+fi
 echo "   PASS ($fmt)"

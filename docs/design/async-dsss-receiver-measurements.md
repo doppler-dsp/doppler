@@ -2601,7 +2601,7 @@ The owner's rulings of 2026-11-21 come before any change of behavior: the testin
 - D1, owner's ruling 5 (§12.30): the carrier error is formed over the code-period window, its one mode (`72f577f90`).
 - `refine` is an argument (`b3d3bdf1c`), and its default is the release's behavior.
 - The refine's estimator is the release's. The squared-stream estimator (`79fa50cfe`) is reverted on this branch: a behavior change with no failing requirement behind it (owner, 2026-11-21).
-- The pool's 60 dB-Hz k = 0 case is `_test_shipped_pool_leaves_one_on_a`: under the shipped refine, the fine hand-over carries a k = 2 seed to its parent's carrier, where the ghost rule leaves it, and the pool holds it for the 20 s allocation (a strict xfail on [#3263](https://github.com/doppler-dsp/doppler/issues/3263)).
+- The pool's 60 dB-Hz ghost case is `_test_shipped_pool_frees_a_dropped_ghost`: it asserts that the loss release frees seed 2 inside the 20 s allocation, under every build. The held case is the record's rate, 5 of 20 at k = 2, 2.8 GHz (`final-9ce208250`); its count check is [#3263](https://github.com/doppler-dsp/doppler/issues/3263)'s.
 - The Dll's run correlation (`b6ed0118a`, `7e80adb45`), a performance change; the Dll's own tests hold its outputs.
 - The pool joins its workers once every 16 code periods (`3b41f5dd1`).
 - Probes and readbacks: the Dll's look terms, the receiver's state probes, and the lock-rule getters (`7772ced26`, `edfcb0c86`, `8a1e04e34`). No decision is touched.

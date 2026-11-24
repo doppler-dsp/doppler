@@ -1139,7 +1139,9 @@ The statistic certifies that the symbols are clean, not that they are
 the right symbols: `cos(2φ)` is the same after a half-cycle carrier slip,
 and every symbol after a whole-symbol timing slip is still a clean ±1, so
 the symbol lock stays up through both. A slip shows in the data, and the
-validator scores it there (`slipped`).
+validator scores it there (`slipped`), up to the end marker, about 0.2 s
+before each draw's end: a timing slip after it is not scored
+(doppler#3294).
 `reset()` returns the receiver to searching: a receiver that has locked
 cannot be reset back onto the same signal.
 The receiver carries the standard `state_bytes`/`get_state`/`set_state`
@@ -1891,6 +1893,7 @@ The receiver meets R_env (§1.8), so at the spec point the axis is off. The 400 
     - `PolynomialPhaseEstimator`'s `snr_db` is the peak's dB less the spectrum's mean dB.
     - An exponential bin's mean dB sits 2.51 dB under the dB of its mean (Euler's constant).
     - So the threshold is `snr_db ≥ 10·log10(t) + 2.51` = 14.2 dB at 2.2 GHz and 14.3 dB at 2.8, at `pfa` 10⁻³. It is derived, not fitted.
+- **What it delivers, and why it is more.** The union bound counts `N_s` independent bins. The estimator takes the peak of a 4× zero-padded spectrum and refines it by a parabola: neighbouring points are correlated and each adds a trial, so it searches more than `N_s` effective cells, and the check's false-alarm rate on noise is above its `pfa`. For an exponential bin a factor c in the cells is ln c on `t`. How many cells, and a threshold set from that count, are doppler#3293's; a diagnostic run there reads the rate at 1.5 to 2 times `pfa`, about 0.2 dB of threshold.
 - **A refusal falls back** to `CarrierAcquisition`'s estimate if it fired, otherwise the seed.
 - **The spectral estimate leaves the decision.** Its value is kept as a probe beside the fine one, and the `d-6fc84cc80` rows count where the two disagree.
 - **A new source:** `ho_src` 3, the fine estimate.
@@ -2249,8 +2252,13 @@ controller to the one search's. The engine is asked for 16 peaks a total dwell.
     one, measured (`native/validation/acq_emitter_floor.c`; a clean
     emitter's cells all sit under it, by 0.61 dB at least). Only the gate
     stands between such a cell and a false second signal. Over the
-    operating range the gate held, since the near-far sweep with data on
-    both signals took no sidelobe; past it the pick is not bounded
+    operating range the gate holds the pick to a small rate: the sidelobe
+    bound is per cell and the search takes the maximum over cells, so it
+    can take a sidelobe with the stronger emitter alone: 3 of 1,783
+    one-period searches, 0.17% (Wilson 95% 0.06% to 0.49%,
+    `near-far-alone-9de3b8120`), which `validate_async_dsss_near_far`
+    holds under 0.49%. The effective cell count behind it is
+    doppler#3293's. Past the range the pick is not bounded
     (doppler#2734).
 1. **Exclusions.** A peak within a chip of a code phase another receiver
     holds, refining or tracking, at any Doppler, is that receiver's signal.
@@ -2372,13 +2380,19 @@ They are printed from the code by `_test_near_far_levels`
 | -------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
 | tracking, a full code period           | the stronger one's autocorrelation at their offset: +63, −65 or −1 of 1023         | 24.2, 23.9, 60.2 dB                                                            | +63 and −65 on 136 lags each (a quarter of the 1022), −1 on the other 750 |
 | the fine hand-over, a K-th of a period | the stronger one's partial-period correlation, about K / N of its power on any lag | 10 log10(N / K): 22.9 dB at K 5 (derived 23.1), 19.6 dB at K 11 (derived 19.7) | every lag                                                                 |
+| the fine hand-over, carriers apart     | the cross term of the two emitters' squared sum, at (f_s + f_w + k / T) / 2        | 10 log10(N / (4K)): 17.1 dB at K 5, 13.7 dB at K 11                            | every lag                                                                 |
 
-**In practice, 20 dB.** An emitter within 20 dB of the strongest one in
-the fine estimator's range (Rs plus the search's row) is handed over,
-held and decoded. At the certified point (K 5) the leak is 22.9 dB, so 20
-dB leaves about 3 dB in hand for estimate bias and uncertainty. At K 11,
-which the fine hand-over's seed bound, `min(2 × doppler_uncertainty, symbol_rate + row)`, picks at a 5 Mcps, ±60 kHz configuration, the
-leak is itself 19.6 dB: 20 dB to the nearest dB, with nothing in hand.
+**In practice, 20 dB on one carrier; on different carriers, the cross
+lines' bound.** An emitter within 20 dB of the strongest one in the fine
+estimator's range (Rs plus the search's row), on the stronger one's
+carrier, is handed over, held and decoded. On different carriers the
+limit is the cross lines' (below), `10 log10(N / (4K))`: 17.1 dB at K 5
+and 13.7 dB at K 11 (doppler#3295). At the certified point (K 5) the leak
+is 22.9 dB, so 20 dB leaves about 3 dB in hand for estimate bias and
+uncertainty. At K 11, which the fine hand-over's seed bound,
+`min(2 × doppler_uncertainty, symbol_rate + row)`, picks at a 5 Mcps,
+±60 kHz configuration, the leak is itself 19.6 dB: 20 dB to the nearest
+dB, with nothing in hand.
 That figure is computed from the code and not measured in a receiver. For
 any other code length N and sum count K, the exact figure is
 10 log10(N / K).
@@ -2419,6 +2433,35 @@ lags; the hand-over tolerates about 23 dB on all of them.
     cannot resolve k at all, because the ambiguity interval is
     exactly their ambiguity.
 
+**Cross lines.** The estimator squares the sum of the two emitters'
+partial sums, w + s (w the weaker emitter's, s the stronger one's leak),
+and the square is w² + 2ws + s². Beside the stronger emitter's own lines
+(s²), the cross term carries both carriers. The leak repeats every code
+period T, so the cross term's lines sit at f_s + f_w + k / T for whole k,
+and the estimator, which halves, reads them at (f_s + f_w + k / T) / 2:
+the midpoint of the two carriers plus whole steps of 1 / (2T), with no
+whole-interval relation to either carrier. The squared sums are sampled
+at K / T, so a cross line is in the estimator's band when
+|f_s + f_w + k / T − 2f̂| < K / (2T), f̂ the seed, and the band holds K
+of them. Against the wanted line w², the cross term's power is 4ρK / N, ρ
+the stronger emitter's lead as a power ratio: the leak's K / N, times the
+4 of the cross term's factor 2. If it falls in one line, that line beats
+the wanted one from ρ = N / (4K), 10 log10(N / (4K)): 17.1 dB at K 5 and
+13.7 dB at K 11, 6 dB under the stronger emitter's own lines. At 20 dB,
+K 5, it is 2.9 dB over the wanted line; spread evenly over the K lines,
+4.1 dB under it. The fine check cannot tell a cross line from the wanted
+one: it is a real tone, and it clears the check as the wanted line does.
+Where the two carriers coincide (the scenes measured above), the k = 0
+cross line falls on the wanted line and adds to it, which is why they
+show no cross-line hand-over. Whether the hand-over can reject or avoid
+cross lines, rather than declare this bound, is doppler#3295.
+
+**What the pool does with one.** Its duplicate rule orders two holders
+by state, then time in state, then C/N0, before any lock reading
+(`keeps()`, `async_dsss_pool_core.c`), so a receiver handed over on a
+cross line can be kept over a correct, locked one on the same code phase
+until it is itself released (doppler#3263).
+
 **The pool: a ghost on its parent's carrier.** A receiver on a strong
 emitter's code sidelobe and a weak emitter within about 24 dB on the same
 carrier cannot be separated by power, code phase or data without also
@@ -2441,12 +2484,12 @@ for either (doppler#3263).
     (`read_ghosts.py`).
 - **The closest candidate,** the centered data-copy test, catches 27 of 27
     held ghosts but releases 13 of 180 distinct emitters that decode.
-- **The pin.** `_test_shipped_pool_leaves_one_on_a` is a strict xfail on
-    seed 12, a draw `final-9ce208250` holds for the whole 20 s allocation
-    (its longest run with both flags down 0.256 s, against
-    `lost_confirm_s` 2.0). Seed 2, which the loss release frees inside the
-    allocation, is its failing case. Which draws are held moves with the
-    tree; a count over the validator would not, and is doppler#3263's.
+- **The pin.** `_test_shipped_pool_frees_a_dropped_ghost` asserts that
+    the loss release frees seed 2 inside the allocation, under gcc and
+    clang Release, ASan and the coverage build alike. The held case is the
+    record's rate, not a draw: 5 of 20 at k = 2, 2.8 GHz, in
+    `final-9ce208250`. Which draws are held moves with the tree and the
+    build; a count over the validator would not, and is doppler#3263's.
 
 **What the evidence is, and is not.** The limit is measured in static
 scenes: a strong emitter with a second one pinned within 5 Hz of its

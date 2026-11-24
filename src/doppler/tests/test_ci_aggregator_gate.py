@@ -593,8 +593,10 @@ def test_the_live_workflow_runs_a_scope_job() -> None:
     doc = yaml.safe_load(text)
     assert "scope" in doc["jobs"]
     push = (doc.get(True) or doc.get("on"))["push"]
-    assert "branches" not in push  # every branch, tags ignored below
-    assert push["tags-ignore"]
+    # Every branch (a tags-ignore alone runs for no branch push, GitHub's
+    # syntax page), with release tags kept out.
+    assert push["branches"] == ["**"]
+    assert push["tags-ignore"] == ["v*"]
 
 
 def test_a_guarded_leg_step_still_names_its_leg(tmp_path: Path) -> None:

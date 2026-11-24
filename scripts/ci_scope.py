@@ -63,6 +63,32 @@ def scope(
     return "minimal"
 
 
+#: The Linux OS legs each scope builds, as the JSON the matrix reads with
+#: fromJSON. A push without a PR builds the newer image alone; every other run
+#: builds both glibcs.
+LINUX_OS = {
+    "full": ["ubuntu-22.04", "ubuntu-24.04"],
+    "minimal": ["ubuntu-24.04"],
+    "skip": ["ubuntu-22.04", "ubuntu-24.04"],
+}
+
+
+def linux_os(result: str) -> str:
+    """The Linux OS legs for ``result`` (``full`` | ``minimal`` | ``skip``),
+    as a compact JSON array. A ``skip`` run builds nothing (every job is
+    skipped), so its list is never read; it is the full list so an unknown
+    scope fails safe toward building more, not less.
+
+    >>> linux_os("minimal")
+    '["ubuntu-24.04"]'
+    >>> linux_os("full")
+    '["ubuntu-22.04","ubuntu-24.04"]'
+    """
+    return json.dumps(
+        LINUX_OS.get(result, LINUX_OS["full"]), separators=(",", ":")
+    )
+
+
 def _open_pr_heads(repo: str, branch: str) -> tuple[str, ...]:
     """The head shas of the open pull requests whose head branch is
     ``branch``, by ``gh`` (``GH_TOKEN`` is the job's, ``pull-requests:
@@ -101,6 +127,7 @@ def main() -> int:
     print(f"scope={result} (event={event} ref={ref} sha={sha[:9]})")
     with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
         fh.write(f"scope={result}\n")
+        fh.write(f"linux_os={linux_os(result)}\n")
     return 0
 
 

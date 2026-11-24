@@ -82,7 +82,8 @@ row (const std::string &label, const std::string &value)
 
 // The whole display for one run, from what the run and the receiver report.
 Element
-document (const ccsds415::Run &run, double refresh_ms, bool paced)
+document (const ccsds415::Run &run, double refresh_ms, bool paced,
+          bool held = false)
 {
   const async_dsss_receiver_status_t &st = run.status ();
   const double ts = ccsds415::sample_period_ns ();
@@ -114,7 +115,8 @@ document (const ccsds415::Run &run, double refresh_ms, bool paced)
           row ("  threshold", fmt ("%.3f", st.lock_threshold)),
           row ("C/N0", fmt ("%.1f dB-Hz", st.cn0_dbhz_est)),
           row ("Doppler", fmt ("%.2f Hz", st.doppler_hz)),
-          row ("code rate", fmt ("%.9f chips/chip", st.code_rate)),
+          // The received code rate over the nominal: 1 is no Doppler.
+          row ("code rate (received / nominal)", fmt ("%.9f", st.code_rate)),
       }));
   const Element progress = window (
       text ("scene"),
@@ -126,8 +128,11 @@ document (const ccsds415::Run &run, double refresh_ms, bool paced)
                   gauge (static_cast<float> (done))
                       | size (WIDTH, EQUAL, 30) }),
       }));
-  return vbox ({ text (run.name ()) | bold, hbox ({ cost, receiver }),
-                 progress });
+  Elements parts{ text (run.name ()) | bold, hbox ({ cost, receiver }),
+                  progress };
+  if (held)
+    parts.push_back (text ("the scene has ended: press q to exit"));
+  return vbox (std::move (parts));
 }
 
 } // namespace
@@ -175,8 +180,10 @@ main (int argc, char **argv)
       ccsds415::Run *cur = nullptr;
       double refresh_ms = 0.0;
       bool quit = false;
+      bool held = false; // every scene ended: the last frame stays up
       auto view = Renderer ([&] {
-        return cur ? document (*cur, refresh_ms, o.paced) : text ("starting");
+        return cur ? document (*cur, refresh_ms, o.paced, held)
+                   : text ("starting");
       });
       auto app = CatchEvent (view, [&] (Event e) {
         if (e == Event::Character ('q'))
@@ -222,8 +229,20 @@ main (int argc, char **argv)
                   }
               }
             stopped = more && quit;
-            cur = nullptr;
           }
+        // Every scene ended: keep the last frame on screen, drawn once more
+        // with the hold line, until q.
+        if (!quit && cur)
+          {
+            held = true;
+            screen.PostEvent (Event::Custom);
+            while (!quit)
+              {
+                loop.RunOnce ();
+                std::this_thread::sleep_for (std::chrono::milliseconds (50));
+              }
+          }
+        cur = nullptr;
       } // the Loop restores the terminal here, before any check can exit
       // A run the user stopped answers only the partial checks; the runs
       // before it finished their scenes and answer the full ones.

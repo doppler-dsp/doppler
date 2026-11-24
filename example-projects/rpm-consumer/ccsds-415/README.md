@@ -44,8 +44,10 @@ for example `make run ARGS='--carrier lo --esn0 6'`; `--help` lists them.
 
 ## What it runs
 
-The point's scene, built from installed objects with the numbers
-`doppler/ccsds/ccsds_415.h` holds, so nothing here restates one:
+The point's scene, built from installed objects. Its rates and limits are
+the ones `doppler/ccsds/ccsds_415.h` holds; the code's parameters are
+415.0-G-1's, named where `run.cpp` passes them (the C face has no names for
+them yet, #3348):
 
 - a 1,023-chip Gold code spreading a PN15 payload at 3,000 symbols a second,
     each 1,000-symbol frame opening with 275 code-only symbols (the shipped
@@ -54,11 +56,11 @@ The point's scene, built from installed objects with the numbers
     (`RateConverter`, at the ratio `dp_ccsds_415_scene()` computes);
 - a Doppler ramping at R_env, 11 Hz/s, through zero at mid-run
     (`doppler_channel`);
-- noise at Es/N0 10 dB, 6 dB above the point's 4 dB floor (`awgn`).
+- noise at Es/N0 10 dB, 6 dB above the point's Es/N0 4 dB (`awgn`).
 
 The receiver is the one the library builds at the point,
 `dp_async_dsss_receiver_create_ccsds415()` (Python: `Ccsds415Receiver`),
-designed for the floor, so it is built once for its weakest signal.
+designed for Es/N0 4 dB, so it is built once for its weakest signal.
 
 The scene's payload is continuous data, not transfer frames. The TC frame
 stimulus (232.0-B-4 frames as a frame description) and reading their header
@@ -149,8 +151,9 @@ the batch binary's. It draws, at most every 100 ms of wall time:
     as times faster than real time; and, apart, the display's own time per
     refresh, so it is plain that drawing is not what is being measured;
 - **receiver**: its state, both lock flags, the symbol-lock metric against
-    its threshold, C/N0, the Doppler and the code rate, as
-    `dp_async_dsss_receiver_status()` reports them;
+    its threshold, C/N0, the Doppler and the code rate (received over
+    nominal: 1 is no Doppler), as `dp_async_dsss_receiver_status()`
+    reports them;
 - **scene**: the carrier, the time, the symbols out, and progress.
 
 It runs on one thread. The timed span is the receiver call alone; the
@@ -160,6 +163,9 @@ then the Doppler ramping through zero; `--unpaced` runs it as fast as it
 goes. Paced, the processing time per sample reads higher than unpaced (7.6
 against 5.6 ns in one run on the box above): the receiver starts each chunk
 with a cache the sleep has let go cold, so the panel labels it "(paced)".
+
+When every scene has ended, the last frame stays on screen with a line
+saying so, until `q`.
 
 `q` quits early, through the same teardown: the display closes, then the
 capture. Stopping is the user's choice, not the receiver's failure, so a
@@ -183,10 +189,21 @@ prints the last frame as text. CI runs it on Fedora, against the
 distribution's FTXUI, and requires every panel row to carry a value of its
 kind (`tests/install/tui-snapshot-check.sh`).
 
-Where no package provides FTXUI (Ubuntu, Windows), fetch a pinned, hashed
+Where no package provides FTXUI (Ubuntu), fetch a pinned, hashed
 release: `make tui CMAKE_ARGS=-DCCSDS415_FETCH_FTXUI=ON`. That path builds
 on Ubuntu with FTXUI 7.0.3 and 5.0.0, but no CI job runs it; neither does
 one run EL8 with EPEL's FTXUI.
+
+## Compilers
+
+The example is C++17 over doppler's C headers, and passes doppler's
+complex samples as C99 `float _Complex`, which GCC and Clang accept in C++
+as an extension and MSVC does not. So it builds with:
+
+- **GCC**: 8.5 (EL8, the RPM's toolchain), 13.3 (Ubuntu) and Fedora's,
+    each in CI;
+- **Clang**: 21.1.8, by hand, not in CI (#3347);
+- **not MSVC**, so not the Windows build doppler itself has.
 
 ## Not here yet
 

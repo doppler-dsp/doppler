@@ -53,7 +53,7 @@ double sample_period_ns ();
 struct Options
 {
   std::vector<double> carriers;
-  double esn0_db = 10.0; // 6 dB above the point's 4 dB floor
+  double esn0_db = 10.0; // 6 dB above the point's Es/N0 4 dB
   double seconds = 2.5;  // signal after the lead-in
   size_t chunk = 4096;   // samples a push into the receiver
   std::string out = "."; // directory the captures go to

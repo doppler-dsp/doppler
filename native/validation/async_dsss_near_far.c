@@ -46,6 +46,12 @@
  *
  * Usage:
  *   validate_async_dsss_near_far           the sweep: 0..20 dB, both depths
+ *   ... --level DB --trials N [--shard i/n]
+ *                                          one level, D = 1 only, N trials
+ *                                          (seeds 31 k, k = 0..N-1: at 0 dB
+ *                                          its first 40 are the sweep's);
+ *                                          --shard runs every n-th k from i,
+ *                                          for a rate read in parallel
  *   validate_async_dsss_near_far --check   the regression points: D = 1 at
  *                                          10 and 20 dB, 6 trials each
  *   ... --emit                             also a `# near_far` CSV block
@@ -213,21 +219,35 @@ trial (const uint8_t *code, const depth_t *dp, double delta, uint32_t seed,
 int
 main (int argc, char **argv)
 {
-  int check = 0, emit = 0;
+  int      check = 0, emit = 0;
+  double   one_level = NAN;
+  unsigned n_trials = 0, shard = 0, shards = 1;
   for (int a = 1; a < argc; a++)
     {
       check |= strcmp (argv[a], "--check") == 0;
       emit |= strcmp (argv[a], "--emit") == 0;
+      if (strcmp (argv[a], "--level") == 0 && a + 1 < argc)
+        one_level = strtod (argv[++a], NULL);
+      else if (strcmp (argv[a], "--trials") == 0 && a + 1 < argc)
+        n_trials = (unsigned)strtoul (argv[++a], NULL, 10);
+      else if (strcmp (argv[a], "--shard") == 0 && a + 1 < argc)
+        DP_REQUIRE (sscanf (argv[++a], "%u/%u", &shard, &shards) == 2
+                    && shards > 0 && shard < shards);
     }
-  uint8_t code[SF];
+  /* --level and --trials: one level, one depth (D = 1), N trials. */
+  const int one = !check && !isnan (one_level) && n_trials > 0;
+  uint8_t   code[SF];
   dp_dsss_gold_1023 (code);
 
-  const depth_t depths[2]
-      = { { 0, 1500, check ? 6 : 40 }, { 1, 2000, check ? 0 : 20 } };
-  static const double sweep[] = { 0, 4, 8, 10, 12, 14, 16, 18, 20 };
-  static const double spot[]  = { 10, 20 };
-  const double       *levels  = check ? spot : sweep;
-  const size_t        n_lv    = check ? 2 : sizeof sweep / sizeof *sweep;
+  const depth_t       depths[2] = { { 0, 1500,
+                                      check ? 6
+                                      : one ? n_trials
+                                            : 40 },
+                                    { 1, 2000, check || one ? 0 : 20 } };
+  static const double sweep[]   = { 0, 4, 8, 10, 12, 14, 16, 18, 20 };
+  static const double spot[]    = { 10, 20 };
+  const double       *levels    = check ? spot : one ? &one_level : sweep;
+  const size_t n_lv = check ? 2 : one ? 1 : sizeof sweep / sizeof *sweep;
 
   if (emit)
     printf ("# near_far\ndepth,delta_db,trials,valid,taken,taken_lo,"
@@ -239,7 +259,7 @@ main (int argc, char **argv)
     for (size_t l = 0; l < n_lv && depths[d].trials; l++)
       {
         tally_t t = { 0 };
-        for (size_t k = 0; k < depths[d].trials; k++)
+        for (size_t k = shard; k < depths[d].trials; k += shards)
           DP_REQUIRE (trial (code, &depths[d], levels[l],
                              1000u * (uint32_t)l + 31u * (uint32_t)k, &t)
                       == 0);

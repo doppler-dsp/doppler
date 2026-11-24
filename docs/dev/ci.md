@@ -280,7 +280,7 @@ The `pythons` job emits a `primary` output, and a step's `if:` compares
 | Test                                                               | `make test-python`           | rest    | 264 s (3.9 leg)                                          |
 | Test with coverage                                                 | `make test-python`           | primary | 288 s                                                    |
 | Benchmark rows are labelled                                        | `make bench-labels-pr-check` | primary | under 1 s (local, 288 rows; not yet timed in CI)         |
-| C++ receiver at the CCSDS 415.1-B-1 point (install prefix, static) | `make rpm-consumer-check`    | primary | 22 s (local, zen-ai445, built tree; not yet timed in CI) |
+| C++ receiver at the CCSDS 415.1-B-1 point (install prefix, static) | `make rpm-consumer-check`    | primary | 39 s (local, zen-ai445, built tree; not yet timed in CI) |
 | Validation reports are not stale                                   | `make validate-check`        | primary | 233 s                                                    |
 | Upload coverage report                                             | `actions/upload-artifact`    | primary | 1 s                                                      |
 

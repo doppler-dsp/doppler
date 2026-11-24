@@ -41,15 +41,7 @@ make plot PLOT_ARGS=--save   # writes build/out/<capture>.png instead
 
 `make help` lists the knobs. The program's own options go through `ARGS`,
 for example `make run ARGS='--carrier hi --esn0 6'`; `--help` lists them.
-At 2.2 GHz below Es/N0 9 dB, some arrivals give an error rate near 1/3
-for seconds while the receiver reports lock (#3349): this scene fails at
-4, 6, 7 and 8 dB and passes at 5, 9 and 10. Scored from all five lock
-flags, which the certification reads through a test header and `status()`
-does not publish (#3350), some of those runs pass
-([#3349, the five-flag table](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7146889068))
-and one tested does not
-([#3349, the counterexample](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7146958718)).
-So no command here runs `--carrier lo` below 10 dB. `--errors` prints
+`--errors` prints
 where the bit errors fall in the scored stream: the first and last, the
 longest run, and a count for each tenth of it.
 
@@ -176,10 +168,14 @@ thread, a Release build of this tree linked against the build's
 `libdoppler.a`), it printed
 
 ```text
-ccsds415-2.2GHz: locked 0.26 s after arrival (allocation 20 s); BER 0.0e+00 over 6463 bits
-  processing time per sample 5.5 ns, sample period 90.9 ns: 6.0% of the sample period (16.5 times faster than real time); slowest chunk 3336.8 ns a sample; 6848 chunks of 4096
-ccsds415-2.8GHz: locked 0.30 s after arrival (allocation 20 s); BER 0.0e+00 over 6347 bits
-  processing time per sample 5.6 ns, sample period 90.9 ns: 6.2% of the sample period (16.2 times faster than real time); slowest chunk 2386.5 ns a sample; 6848 chunks of 4096
+ccsds415-2.2GHz: locked 0.26 s after arrival (allocation 20 s); BER 3.5e-05 (1 errors in 28952 bits; 99% interval 1.7e-07 to 1.8e-04)
+  the bound at Es/N0 10.0 dB less the allowed 1.13 dB: 4.3e-05; the loss this rate implies: 1.01 dB
+  processing time per sample 5.1 ns, sample period 90.9 ns: 5.7% of the sample period (17.7 times faster than real time); slowest chunk 4072.4 ns a sample; 26989 chunks of 4096
+  frames: 4 of the 4 sent in the locked stream read; CRC passed 3, failed 1; 0 verdicts the truth contradicts
+ccsds415-2.8GHz: locked 0.28 s after arrival (allocation 20 s); BER 0.0e+00 (0 errors in 28894 bits; 99% interval 0.0e+00 to 1.6e-04)
+  the bound at Es/N0 10.0 dB less the allowed 1.13 dB: 4.3e-05; the loss this rate implies: none measurable (no errors)
+  processing time per sample 4.8 ns, sample period 90.9 ns: 5.2% of the sample period (19.1 times faster than real time); slowest chunk 2491.4 ns a sample; 26989 chunks of 4096
+  frames: 4 of the 4 sent in the locked stream read; CRC passed 4, failed 0; 0 verdicts the truth contradicts
 OK
 ```
 

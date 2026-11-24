@@ -54,7 +54,7 @@ struct Options
 {
   std::vector<double> carriers;
   double esn0_db = 10.0; // 6 dB above the point's Es/N0 4 dB
-  double seconds = 2.5;  // signal after the lead-in
+  double seconds = 10.0; // signal after the lead-in: four whole frames
   size_t chunk = 4096;   // samples a push into the receiver
   std::string out = "."; // directory the captures go to
   bool paced = false;    // the TUI's: hold each chunk to real time
@@ -102,6 +102,7 @@ struct Result
   // their CRC verdicts, and the verdicts the truth contradicts.
   size_t frames_sent = 0, frames_read = 0, frames_ok = 0, frames_failed = 0;
   size_t frames_wrong = 0;
+  double frames_need_s = NAN; // with none sent: the --seconds one needs
 };
 
 // The summary lines for one carrier, and whether its checks held.

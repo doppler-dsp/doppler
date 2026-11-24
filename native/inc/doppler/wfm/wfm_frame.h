@@ -1171,8 +1171,18 @@ extern "C"
    *         @ref dp_wfm_frame_desc_field names, bar the 64-bit limit.
    *
    * @code
-   * size_t n = dp_wfm_frame_desc_field_bits (&d, rx, sizeof rx, "crc",
-   *                                          NULL, 0, NULL);   // 16
+   * const uint8_t    sync_bits[3] = { 1, 0, 1 };
+   * const wfm_seq_t  sync = { .kind = WFM_SEQ_LITERAL, .bits = sync_bits,
+   *                           .len = 3 };
+   * const wfm_seq_t  data = { .kind = WFM_SEQ_DATA, .len = 8 };
+   * wfm_frame_desc_t d;
+   * dp_wfm_frame_fixed (&d, NULL, 0, &sync, &data, 1); // sync|payload|crc
+   * uint8_t          payload[8] = { 1, 0, 1, 0, 0, 1, 0, 1 }, rx[27];
+   * dp_wfm_frame_assemble_data (&d, NULL, payload, rx, sizeof rx);
+   * uint8_t crc[16];
+   * size_t  n = dp_wfm_frame_desc_field_bits (&d, rx, sizeof rx, "crc",
+   *                                           crc, sizeof crc, NULL);
+   * // n == 16; crc holds the trailer's bits as received
    * @endcode
    */
   size_t dp_wfm_frame_desc_field_bits (const wfm_frame_desc_t *d,

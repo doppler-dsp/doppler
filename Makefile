@@ -4873,24 +4873,27 @@ burst-pipeline-check: build ## Build+run example-projects/burst-pipeline against
 	 exit $$rc
 
 # The same shape, for the C++ receiver at the CCSDS 415.1-B-1 point
-# (example-projects/rpm-consumer/ccsds-415): the example's OWN `make run`
-# against a scratch install, which self-checks (lock within the point's
-# allocation, BER, no symbol dropped, a complete capture, every probe
-# recorded), then its OWN `make plot` headless, so a change to the capture
-# format that breaks the plotter breaks here. It links statically only, as
+# (example-projects/rpm-consumer/ccsds-415): every `make` command its
+# README shows, as written, against a scratch install
+# (tests/install/readme-commands.sh discovers them). Each run self-checks
+# (lock within the point's allocation, BER against the bound, no symbol
+# dropped, a complete capture, every probe recorded), and `make plot` runs
+# headless, so a change to the capture format that breaks the plotter
+# breaks here. The script's expected failures, the reproducers of known
+# defects the README does not show, must still fail. It links statically only, as
 # from the -devel RPM; the RPM itself is built against on Fedora and EL8 by
 # package-linux-smoke.
-rpm-consumer-check: build ## Build+run+plot example-projects/rpm-consumer/ccsds-415 against an install prefix
+rpm-consumer-check: build ## Run every README command of example-projects/rpm-consumer/ccsds-415 against an install prefix
 	@t=$$(mktemp -d); \
 	 $(CMAKE) --install $(BUILD_DIR) --prefix "$$t/pfx" > /dev/null \
-	 && $(MAKE) --no-print-directory -C example-projects/rpm-consumer/ccsds-415 \
-	        BUILD_DIR="$$t/b" PREFIX="$$t/pfx" OUT="$$t/out" run \
-	 && $(MAKE) --no-print-directory -C example-projects/rpm-consumer/ccsds-415 \
-	        OUT="$$t/out" PLOT_ARGS=--save PYTHON="$(DEV_RUN) python" plot \
+	 && BUILD_DIR="$$t/b" PREFIX="$$t/pfx" OUT="$$t/out" \
+	    PYTHON="$(DEV_RUN) python" MAKEFLAGS= \
+	    bash tests/install/readme-commands.sh \
+	        example-projects/rpm-consumer/ccsds-415 \
 	 && { n=$$(ls "$$t"/out/*.png 2>/dev/null | wc -l); [ "$$n" -eq 2 ] || { \
 	        echo "rpm-consumer-check: want 2 plots, got $$n"; exit 1; }; }; \
 	 rc=$$?; rm -rf "$$t"; \
-	 if [ $$rc -eq 0 ]; then echo "rpm-consumer-check: OK — ran, checked and plotted both carriers"; fi; \
+	 if [ $$rc -eq 0 ]; then echo "rpm-consumer-check: OK — every README command ran and checked itself, both carriers plotted"; fi; \
 	 exit $$rc
 
 # The same shape as burst-pipeline-check, for the RTL-SDR front end the UNO Q

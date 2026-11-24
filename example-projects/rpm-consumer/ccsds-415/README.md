@@ -40,7 +40,11 @@ make plot PLOT_ARGS=--save   # writes build/out/<capture>.png instead
 ```
 
 `make help` lists the knobs. The program's own options go through `ARGS`,
-for example `make run ARGS='--carrier lo --esn0 6'`; `--help` lists them.
+for example `make run ARGS='--carrier hi --esn0 6'`; `--help` lists them.
+At 2.2 GHz the example's scene is not decoded below Es/N0 10 dB today
+(#3349), so no command here runs `--carrier lo` lower. `--errors` prints
+where the bit errors fall in the scored stream: the first and last, the
+longest run, and a count for each tenth of it.
 
 ## What it runs
 
@@ -72,8 +76,16 @@ fields back are the next step; until then nothing here decodes a frame.
 
 1. the symbol lock is sustained within the point's lock allocation, 20 s
     from arrival (`DP_CCSDS_415_LOCK_S`);
-1. the BER over the locked stream is at most 1e-3, scored against the
-    payload that was sent (`dp_ber_lock_symbol()`, `dp_ber_meter`);
+1. the BER over the locked stream, scored against the payload that was
+    sent (`dp_ber_lock_symbol()`, `dp_ber_meter`), is not shown to be worse
+    than the BPSK bound at the Es/N0 run less 1.13 dB: it fails when the
+    meter's exact 99% interval (`dp_ber_confidence()`) lies wholly above
+    `dp_ber_theory_ber()` there. 1.13 dB is the worst settled loss the
+    receiver's certification record measured at this point (2.8 GHz, Es/N0
+    4 dB; §2.6 of
+    `src/doppler/dsss/tests/validation/async_dsss_receiver/results.md`),
+    and the allowed loss itself is the owner's to set (#3157). Each run
+    prints the loss its own rate implies (`dp_ber_esn0_db_for_ser()`);
 1. no call filled its output capacity, so no symbol was dropped;
 1. the capture is complete (`dp_tlm_capture_close()` returns `DP_OK`);
 1. every probe the receiver registers emitted at least once.

@@ -920,23 +920,32 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
 typedef struct
 {
   size_t tenures, ghosts, by_ghost, by_lost, by_dup, open;
+  /* The carrier report's error, the epsilon of the scorer's ambiguous class
+     (the pool scene's page, #3345, §7.2): the largest
+     |status doppler_hz - the emitter's carrier| over the lone emitter's
+     tracked samples, from one second into each tenure (the pull-in law's
+     transient is a separate figure). Hz. */
+  double eps_hz;
 } gh_alone_t;
 
+/* The pull-in transient excluded from eps: one second into a tenure. */
+#define GH_ALONE_EPS_SKIP_S 1.0
+
 static int
-gh_alone (const uint8_t *code, double fc, uint32_t seed, gh_alone_t *o,
-          int emit)
+gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
+          gh_alone_t *o, int emit)
 {
   uint32_t                    st = trial_rng (seed);
   dp_async_dsss_pool_state_t *p  = gh_pool (code, fc, 4, 2.0);
   DP_REQUIRE (p != NULL);
   dp_air_emitter_t e = gh_emitter (code, fc, -1200.0 + 2400.0 * dp_uni (&st),
-                                   GH_PARENT_DBHZ, 0.0, 300u + seed);
+                                   cn0, 0.0, 300u + seed);
   dp_air_t         air;
   float complex   *x = dp_xmalloc (p->group * sizeof *x);
-  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, GH_PARENT_DBHZ,
-                           6007u + seed, p->group));
+  DP_REQUIRE (
+      dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, cn0, 6007u + seed, p->group));
   int      in[4] = { 0 }, off[4] = { 0 };
-  double   worst[4] = { 0 };
+  double   worst[4] = { 0 }, t_in[4] = { 0 };
   uint64_t g0 = 0, l0 = 0, d0 = 0;
   memset (o, 0, sizeof *o);
   while ((double)air.n_out / DP_CCSDS_415_FS < GH_ALONE_S)
@@ -959,8 +968,12 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, gh_alone_t *o,
                   in[r]    = 1;
                   off[r]   = 0;
                   worst[r] = 0.0;
+                  t_in[r]  = (double)air.n_out / DP_CCSDS_415_FS;
                   o->tenures++;
                 }
+              if ((double)air.n_out / DP_CCSDS_415_FS - t_in[r]
+                  >= GH_ALONE_EPS_SKIP_S)
+                o->eps_hz = fmax (o->eps_hz, fabs (s.doppler_hz - t.car_hz));
               if (d > 1.0)
                 off[r] = 1;
               if (d > worst[r])
@@ -1232,31 +1245,42 @@ main (int argc, char **argv)
   else
     printf ("  ALONE: one %.0f dB-Hz emitter, a pool of four, %.0f s\n",
             GH_PARENT_DBHZ, GH_ALONE_S);
-  for (int f = check ? 1 : 0; f < 2; f++)
-    {
-      gh_alone_t a = { 0 };
-      size_t     n = 0;
-      for (uint32_t s = 1; s <= draws; s++)
-        {
-          if ((s - 1) % shards != shard)
-            continue;
-          gh_alone_t o;
-          DP_REQUIRE (gh_alone (code, fcs[f], s, &o, emit) == 0);
-          n++;
-          a.tenures += o.tenures;
-          a.ghosts += o.ghosts;
-          a.by_ghost += o.by_ghost;
-          a.by_lost += o.by_lost;
-          a.by_dup += o.by_dup;
-          a.open += o.open;
-        }
-      if (!emit && n)
-        printf ("    %.1f GHz: %zu draws, %zu tenures, %zu off the emitter's "
-                "phase: ended by the ghost rule %zu, the loss release %zu, "
-                "the duplicate rule %zu, still held %zu\n",
-                fcs[f] / 1e9, n, a.tenures, a.ghosts, a.by_ghost, a.by_lost,
-                a.by_dup, a.open);
-    }
+  /* Three levels. Es/N0 4 dB (38.77 dB-Hz) is the design point: epsilon is
+     measured there, the lowest level anything on the air has, so the
+     resolution covers the weakest holder. Es/N0 5 dB (39.77 dB-Hz) is the
+     level the bars score from. The parent's 60 dB-Hz is the arm as it has
+     always run. */
+  const double levels[3]
+      = { dp_ccsds_415_cn0 (4.0), dp_ccsds_415_cn0 (5.0), GH_PARENT_DBHZ };
+  for (int lv = 0; lv < 3; lv++)
+    for (int f = check ? 1 : 0; f < 2; f++)
+      {
+        gh_alone_t a = { 0 };
+        size_t     n = 0;
+        for (uint32_t s = 1; s <= draws; s++)
+          {
+            if ((s - 1) % shards != shard)
+              continue;
+            gh_alone_t o;
+            DP_REQUIRE (gh_alone (code, fcs[f], s, levels[lv], &o, emit) == 0);
+            n++;
+            a.tenures += o.tenures;
+            a.ghosts += o.ghosts;
+            a.by_ghost += o.by_ghost;
+            a.by_lost += o.by_lost;
+            a.by_dup += o.by_dup;
+            a.open += o.open;
+            a.eps_hz = fmax (a.eps_hz, o.eps_hz);
+          }
+        if (!emit && n)
+          printf (
+              "    %.1f GHz at %.2f dB-Hz: %zu draws, %zu tenures, %zu off "
+              "the emitter's phase: ended by the ghost rule %zu, the loss "
+              "release %zu, the duplicate rule %zu, still held %zu; "
+              "carrier report error (epsilon) %.2f Hz\n",
+              fcs[f] / 1e9, levels[lv], n, a.tenures, a.ghosts, a.by_ghost,
+              a.by_lost, a.by_dup, a.open, a.eps_hz);
+      }
   if (emit)
     DP_TEST_EMIT_END ("validate_async_dsss_pool_ghosts");
   DP_TEST_END ("validate_async_dsss_pool_ghosts");

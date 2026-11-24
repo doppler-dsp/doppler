@@ -27,12 +27,22 @@ What is checked
   ``changes`` is the canonical workflow, vendored (#1809): a job that
   ``uses:`` a local workflow declares the outputs that FILE declares under
   ``on.workflow_call.outputs``, so that is where they are read;
+- the scope permission (``scripts/ci_scope.py``, ``ci_passed.py``): a push
+  to a branch with no PR runs the minimal set only, and the rest says so.
+  The ``scope`` job exists and declares a ``scope`` output; every other job
+  (``changes`` and the aggregator aside) needs it and reads it in its ``if``,
+  so a ``skip`` run skips them; and the aggregator's ``PR_ONLY`` is exactly
+  the set of jobs gated on ``needs.scope.outputs.scope == 'full'``. A job
+  gated that way and missing from ``PR_ONLY`` turns every push red; one in
+  ``PR_ONLY`` that is not gated would be a green skip nothing takes;
 - there is no second skip permission: the aggregator declares no ``HEAVY``
   and ``changes`` no ``full``/``heavy``/``primary_full`` output. Those were
   the merge queue's pull_request split, retired with the queue on
   2026-10-01; one left behind would grant a skip nothing takes;
 - a step that runs on one Python leg names the leg by ROLE: its ``if`` is
-  exactly one of the ``LEG_SELECTORS`` below, which compare
+  exactly one of the ``LEG_SELECTORS`` below (after the no-fail-fast guards,
+  ``!cancelled()`` and ``steps.<id>.outcome == 'success'``, are taken off:
+  they say WHETHER the step runs after a failure, not WHERE), which compare
   ``matrix.python-version`` against the ``pythons`` job's ``primary`` output
   -- never a version literal, which silently matches no leg once that version
   leaves the classifiers (doppler#1714). The job the selectors name
@@ -166,6 +176,7 @@ def check(path: pathlib.Path) -> list[str]:
         )
     problems += _check_fast_path(path, jobs, agg)
     problems += _check_retired(path, jobs, agg)
+    problems += _check_scope(path, jobs, agg)
     problems += _check_legs(path, jobs)[0]
     return problems
 
@@ -263,6 +274,83 @@ def _check_fast_path(path: pathlib.Path, jobs: dict, agg: dict) -> list[str]:
     return problems
 
 
+#: The job that decides how much a run owes, and the value that means "all".
+SCOPE_JOB = "scope"
+FULL = "needs.scope.outputs.scope == 'full'"
+#: Jobs that do not read the scope: it IS the scope; `changes` is the
+#: vendored classifier (a `uses:` job, which carries no `if` of ours); and
+#: the aggregator runs always.
+SCOPE_EXEMPT = {SCOPE_JOB, "changes", AGGREGATOR}
+
+
+def _check_scope(path: pathlib.Path, jobs: dict, agg: dict) -> list[str]:
+    """The scope permission: ``PR_ONLY`` equals the jobs gated on ``full``.
+
+    A push without a pull request runs the minimal set (scripts/ci_scope.py).
+    What it does not run is skipped, and a skip is green only through the
+    aggregator's ``PR_ONLY``. So, as for ``SKIPPABLE`` and ``CODE_ONLY``:
+    a job gated on ``full`` and absent from it turns every such push red;
+    one listed but not gated is a skip granted for nothing. And every job
+    must read the scope at all, or a ``skip`` run (the pushed commit heads
+    an open PR, whose own run is the gate) would run it a second time.
+    """
+    scope_job = jobs.get(SCOPE_JOB)
+    reads = any(
+        "needs.scope.outputs.scope" in str((j or {}).get("if", ""))
+        for j in jobs.values()
+    )
+    if scope_job is None:
+        if not reads and _declared(agg, "PR_ONLY") is None:
+            return []  # a workflow with no scope policy at all (a seed)
+        return [
+            f"{path}: no `{SCOPE_JOB}` job -- nothing says what a push "
+            "without a PR runs"
+        ]
+    problems: list[str] = []
+    if "scope" not in (scope_job.get("outputs") or {}):
+        problems.append(f"{path}: `{SCOPE_JOB}` declares no `scope` output")
+    gated: set[str] = set()
+    for name, job in jobs.items():
+        if name in SCOPE_EXEMPT:
+            continue
+        cond = _norm(str((job or {}).get("if", "")))
+        if "needs.scope.outputs.scope" not in cond:
+            problems.append(
+                f"{path}: job `{name}` does not read "
+                "`needs.scope.outputs.scope` in its `if`, so a run that "
+                "another PR run already covers would run it again"
+            )
+        if FULL in cond:
+            gated.add(name)
+        if "needs.scope.outputs.scope" in cond and SCOPE_JOB not in _needs(
+            job
+        ):
+            problems.append(
+                f"{path}: job `{name}` reads the scope but does not need "
+                f"`{SCOPE_JOB}`, so its condition reads nothing and it is "
+                "skipped on every run"
+            )
+    declared = _declared(agg, "PR_ONLY")
+    if gated and declared is None:
+        problems.append(
+            f"{path}: jobs are gated on `{FULL}` but `{AGGREGATOR}` "
+            "declares no PR_ONLY, so every push without a PR goes red"
+        )
+        return problems
+    for name in sorted(gated - (declared or set())):
+        problems.append(
+            f"{path}: `{name}` is gated on `{FULL}` but not in "
+            f"`{AGGREGATOR}`'s PR_ONLY -- every push without a PR goes red"
+        )
+    for name in sorted((declared or set()) - gated):
+        problems.append(
+            f"{path}: `{AGGREGATOR}`'s PR_ONLY lists `{name}`, which is not "
+            f"gated on `{FULL}` -- a skip it should never take would be "
+            "green"
+        )
+    return problems
+
+
 def _declared(agg: dict, key: str) -> set[str] | None:
     """The space-separated job set a ci-passed step declares in ``key``."""
     out: set[str] | None = None
@@ -311,6 +399,18 @@ def _norm(expr: str) -> str:
     return " ".join(e.split())
 
 
+#: A guard term of the no-fail-fast form: it decides whether a step runs
+#: after an earlier failure, never which Python leg it runs on.
+_GUARD = re.compile(r"!cancelled\(\)|steps\.[\w-]+\.outcome == 'success'")
+
+
+def _leg_cond(expr: str) -> str:
+    """``_norm(expr)`` with the no-fail-fast guards taken off its ``&&``
+    terms, so a step's LEG is judged by what is left."""
+    terms = [t.strip() for t in _norm(expr).split("&&")]
+    return " && ".join(t for t in terms if not _GUARD.fullmatch(t))
+
+
 def _target(step: dict) -> str:
     """What a step runs, as docs/dev/ci.md's table names it."""
     m = re.search(r"\bmake\s+([\w-]+)", str(step.get("run", "")))
@@ -332,7 +432,7 @@ def _check_legs(
     used: set[str] = set()
     for jname, job in jobs.items():
         for step in (job or {}).get("steps") or []:
-            cond = _norm(str(step.get("if", "")))
+            cond = _leg_cond(str(step.get("if", "")))
             if "matrix.python-version" not in cond:
                 continue
             name = step.get("name") or step.get("uses") or "?"

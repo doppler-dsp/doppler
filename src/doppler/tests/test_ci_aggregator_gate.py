@@ -486,3 +486,123 @@ def test_a_doc_without_the_jobs_table_is_refused(tmp_path: Path) -> None:
     r = _check_doc(tmp_path, doc)
     assert r.returncode == 1
     assert "ci-jobs:start" in r.stdout
+
+
+# ── the scope permission: PR_ONLY equals the jobs gated on `full` ──────────
+
+_SCOPE = """
+    jobs:
+      scope:
+        runs-on: ubuntu-latest
+        outputs:
+          scope: ${{ steps.s.outputs.scope }}
+      build:
+        needs: scope
+        if: needs.scope.outputs.scope != 'skip'
+        runs-on: ubuntu-latest
+      extra:
+        needs: scope
+        if: needs.scope.outputs.scope == 'full'
+        runs-on: ubuntu-latest
+      ci-passed:
+        name: CI passed
+        needs: [scope, build, extra]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+          - env:
+              PR_ONLY: extra
+"""
+
+
+def test_a_sound_scope_passes(tmp_path: Path) -> None:
+    r = _check(tmp_path, _SCOPE)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_full_only_job_missing_from_pr_only_is_caught(
+    tmp_path: Path,
+) -> None:
+    """Every push without a PR would go red on the job it never runs."""
+    r = _check(tmp_path, _SCOPE.replace("PR_ONLY: extra", "PR_ONLY: build"))
+    assert r.returncode == 1
+    assert "`extra` is gated on" in r.stdout
+    assert "not in `ci-passed`'s PR_ONLY" in r.stdout
+
+
+def test_pr_only_may_not_name_an_ungated_job(tmp_path: Path) -> None:
+    """A skip granted for a job that runs on every push."""
+    r = _check(
+        tmp_path, _SCOPE.replace("PR_ONLY: extra", "PR_ONLY: extra build")
+    )
+    assert r.returncode == 1
+    assert "PR_ONLY lists `build`" in r.stdout
+
+
+def test_a_job_that_ignores_the_scope_is_caught(tmp_path: Path) -> None:
+    """A `skip` run (a PR already covers the commit) would run it again."""
+    body = _SCOPE.replace(
+        "        if: needs.scope.outputs.scope != 'skip'\n", ""
+    )
+    r = _check(tmp_path, body)
+    assert r.returncode == 1
+    assert "job `build` does not read `needs.scope.outputs.scope`" in r.stdout
+
+
+def test_a_job_reading_the_scope_must_need_it(tmp_path: Path) -> None:
+    r = _check(
+        tmp_path,
+        _SCOPE.replace(
+            "      build:\n        needs: scope\n", "      build:\n"
+        ),
+    )
+    assert r.returncode == 1
+    assert "reads the scope but does not need `scope`" in r.stdout
+
+
+def test_a_scope_job_without_an_output_is_refused(tmp_path: Path) -> None:
+    r = _check(
+        tmp_path,
+        _SCOPE.replace(
+            "        outputs:\n"
+            "          scope: ${{ steps.s.outputs.scope }}\n",
+            "",
+        ),
+    )
+    assert r.returncode == 1
+    assert "declares no `scope` output" in r.stdout
+
+
+def test_scope_references_without_a_scope_job_are_refused(
+    tmp_path: Path,
+) -> None:
+    body = _SCOPE.split("      build:")[1]
+    r = _check(
+        tmp_path,
+        "    jobs:\n      build:" + body,
+    )
+    assert r.returncode == 1
+    assert "no `scope` job" in r.stdout
+
+
+def test_the_live_workflow_runs_a_scope_job() -> None:
+    """The tolerance above is for seeds; ci.yml itself must have the job."""
+    import yaml
+
+    text = (REPO / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    doc = yaml.safe_load(text)
+    assert "scope" in doc["jobs"]
+    push = (doc.get(True) or doc.get("on"))["push"]
+    assert "branches" not in push  # every branch, tags ignored below
+    assert push["tags-ignore"]
+
+
+def test_a_guarded_leg_step_still_names_its_leg(tmp_path: Path) -> None:
+    """`!cancelled() && ...` says whether a step runs after a red one, not
+    where; the leg is what is left after the guards come off."""
+    guard = "!cancelled() && steps.pyext.outcome == 'success' && "
+    r = _check(
+        tmp_path,
+        _legs(sel="${{ " + guard + _FAST_SEL + " }}"),
+    )
+    assert r.returncode == 0, r.stdout + r.stderr

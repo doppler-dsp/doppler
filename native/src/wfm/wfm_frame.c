@@ -1082,6 +1082,77 @@ dp_wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d, const uint8_t *rx_bits)
   return -1; /* no CRC stage: "carries no check" is not "the check failed" */
 }
 
+/* Where field `name` sits in a received frame laid out by `d`: its offset and
+   length, or a refusal. The one place both reads locate a field, so they
+   refuse the same frames for the same reasons. */
+static const char *
+field_span (const wfm_frame_desc_t *d, const uint8_t *rx_bits, size_t rx_len,
+            const char *name, size_t *off, size_t *bits)
+{
+  wfm_frame_desc_layout_t l;
+  if (!d || !rx_bits || !name)
+    return "a frame read needs a description, the received bits and a name";
+  if (dp_wfm_frame_desc_layout (d, &l) != 0)
+    return "the description is refused (dp_wfm_frame_desc_layout)";
+  /* rx_bits are in the FRAME's layout (frame_bits of them), the bits
+     dp_wfm_frame_check() and dp_wfm_frame_desc_crc_ok() read: after any
+     emitting stage (a convolutional code) is undone, so a coded frame reads
+     the same as an uncoded one. */
+  if (rx_len < l.frame_bits)
+    return "fewer received bits than the frame holds";
+  const int k = dp_wfm_frame_field_index (d, name);
+  if (k < 0)
+    return "no field of that name in the description";
+  *off  = l.field_off[k];
+  *bits = l.field_bits[k];
+  return NULL;
+}
+
+int
+dp_wfm_frame_desc_field (const wfm_frame_desc_t *d, const uint8_t *rx_bits,
+                         size_t rx_len, const char *name, uint64_t *value,
+                         const char **why)
+{
+  size_t      off = 0, n = 0;
+  const char *no = value ? field_span (d, rx_bits, rx_len, name, &off, &n)
+                         : "a frame read needs somewhere to put the value";
+  if (!no && n > 64u)
+    no = "the field is longer than 64 bits: read it with "
+         "dp_wfm_frame_desc_field_bits";
+  if (no)
+    {
+      if (why)
+        *why = no;
+      return -1;
+    }
+  /* most significant first, the order the assembler writes a field in */
+  uint64_t v = 0;
+  for (size_t i = 0; i < n; i++)
+    v = (v << 1) | (uint64_t)(rx_bits[off + i] & 1u);
+  *value = v;
+  return 0;
+}
+
+size_t
+dp_wfm_frame_desc_field_bits (const wfm_frame_desc_t *d,
+                              const uint8_t *rx_bits, size_t rx_len,
+                              const char *name, uint8_t *out, size_t max,
+                              const char **why)
+{
+  size_t      off = 0, n = 0;
+  const char *no = field_span (d, rx_bits, rx_len, name, &off, &n);
+  if (no)
+    {
+      if (why)
+        *why = no;
+      return 0;
+    }
+  if (out)
+    for (size_t i = 0; i < n && i < max; i++)
+      out[i] = (uint8_t)(rx_bits[off + i] & 1u);
+  return n;
+}
+
 int
 dp_wfm_frame_desc_rx (const wfm_frame_desc_t *d, uint8_t *sync,
                       size_t sync_max, size_t *sync_len, size_t *frame_syms,

@@ -504,3 +504,53 @@ dp_frame_add_stage_over (dp_frame_state_t *state, int kind, const char *first,
   state->d.stage[s].unit_bits = unit_bits;
   return s;
 }
+
+/* The receive mirror of add_field (#3309): delegates to the description's own
+   read, so a Frame reads a field from the place its layout gives it. The
+   integer form refuses a field of 64 bits, whose top bit an int64_t cannot
+   hold; the bits form reads it whole. */
+int64_t
+dp_frame_read_field (dp_frame_state_t *state, const uint8_t *rx_bits,
+                     size_t rx_bits_len, const char *name, const char **why)
+{
+  uint64_t v = 0;
+  if (!state)
+    {
+      if (why)
+        *why = "a frame read needs a frame";
+      return -1;
+    }
+  if (dp_wfm_frame_desc_field (&state->d, rx_bits, rx_bits_len, name, &v, why)
+      != 0)
+    return -1;
+  if (v > (uint64_t)INT64_MAX)
+    {
+      if (why)
+        *why = "the field is 64 bits wide and its top bit is set: read it "
+               "with read_field_bits";
+      return -1;
+    }
+  return (int64_t)v;
+}
+
+size_t
+dp_frame_read_field_bits_max_out (dp_frame_state_t *state, size_t rx_bits_len)
+{
+  (void)rx_bits_len; /* a field is at most the whole frame */
+  return state ? state->dl.frame_bits : 0u;
+}
+
+size_t
+dp_frame_read_field_bits (dp_frame_state_t *state, const uint8_t *rx_bits,
+                          size_t rx_bits_len, const char *name, uint8_t *out,
+                          size_t max_out, const char **why)
+{
+  if (!state)
+    {
+      if (why)
+        *why = "a frame read needs a frame";
+      return 0;
+    }
+  return dp_wfm_frame_desc_field_bits (&state->d, rx_bits, rx_bits_len, name,
+                                       out, max_out, why);
+}

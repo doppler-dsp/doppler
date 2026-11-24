@@ -100,6 +100,9 @@ size_t dp_frame_stage_first(dp_frame_state_t *state, size_t i);
 
 size_t dp_frame_stage_bits(dp_frame_state_t *state, size_t i);
 
+int64_t dp_frame_read_field(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len, const char * name, const char **why);
+size_t dp_frame_read_field_bits_max_out(dp_frame_state_t *state, size_t rx_bits_len);
+size_t dp_frame_read_field_bits(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len, const char * name, uint8_t *out, size_t max_out, const char **why);
 #ifdef __cplusplus
 }
 #endif

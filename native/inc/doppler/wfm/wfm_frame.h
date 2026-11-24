@@ -1097,6 +1097,90 @@ extern "C"
                              const uint8_t          *rx_bits);
 
   /**
+   * @brief A named field's RECEIVED value: the receive mirror of
+   *        @ref dp_wfm_frame_add_field, beside the check.
+   *
+   * The description already locates every field
+   * (@ref dp_wfm_frame_field_index, @ref dp_wfm_frame_desc_layout); this
+   * reads one out of @p rx_bits as an unsigned integer, MOST significant
+   * bit first, the order the assembler writes a field in. So a field reads
+   * back as the integer whose bits it was given, and a caller reading a
+   * header field needs no parser of its own (docs/design/
+   * frame-description.md, "RB. Reading a field back").
+   *
+   * A DERIVED field (a CRC trailer) reads as received, not recomputed: the
+   * verdict on it is @ref dp_wfm_frame_desc_crc_ok's. The read checks
+   * nothing, so a header is readable on a frame whose CRC failed. Read
+   * after @ref dp_wfm_frame_check for the repaired value.
+   *
+   * @param d        the description @p rx_bits is laid out by.
+   * @param rx_bits  received bits in the FRAME's layout, one per byte (the
+   *                 LSB is read): the bits @ref dp_wfm_frame_check and
+   *                 @ref dp_wfm_frame_desc_crc_ok read, after any emitting
+   *                 stage (a convolutional code) is undone. A caller holding
+   *                 a coded frame's channel symbols decodes first, as for
+   *                 the check.
+   * @param rx_len   bits in @p rx_bits; at least the layout's
+   *                 `frame_bits`.
+   * @param name     the field's name.
+   * @param value    receives the value.
+   * @param why      on refusal, receives a static sentence naming the fix;
+   *                 may be NULL.
+   * @return 0, or -1 with @p why set and @p value untouched: a NULL
+   *         argument, no field of that name, a field longer than 64 bits
+   *         (read it with @ref dp_wfm_frame_desc_field_bits), or @p rx_len
+   *         shorter than the frame.
+   *
+   * @code
+   * const uint8_t    sync_bits[3] = { 1, 0, 1 };
+   * const wfm_seq_t  sync = { .kind = WFM_SEQ_LITERAL, .bits = sync_bits,
+   *                           .len = 3 };
+   * const wfm_seq_t  data = { .kind = WFM_SEQ_DATA, .len = 8 };
+   * wfm_frame_desc_t d;
+   * dp_wfm_frame_fixed (&d, NULL, 0, &sync, &data, 1); // sync|payload|crc
+   * uint8_t          payload[8] = { 1, 0, 1, 0, 0, 1, 0, 1 }, rx[27];
+   * dp_wfm_frame_assemble_data (&d, NULL, payload, rx, sizeof rx);
+   * uint64_t v = 0;
+   * dp_wfm_frame_desc_field (&d, rx, sizeof rx, "payload", &v, NULL);
+   * // v == 0xA5
+   * @endcode
+   */
+  int dp_wfm_frame_desc_field (const wfm_frame_desc_t *d,
+                               const uint8_t *rx_bits, size_t rx_len,
+                               const char *name, uint64_t *value,
+                               const char **why);
+
+  /**
+   * @brief A named field's received bits, for a field of any length.
+   *
+   * As @ref dp_wfm_frame_desc_field, with the bits copied out rather than
+   * packed: one per byte, in wire order.
+   *
+   * @param d        the description @p rx_bits is laid out by.
+   * @param rx_bits  received bits, one per byte.
+   * @param rx_len   bits in @p rx_bits; at least the layout's
+   *                 `frame_bits`.
+   * @param name     the field's name.
+   * @param out      receives at most @p max bits; NULL with @p max 0 only
+   *                 sizes.
+   * @param max      capacity of @p out.
+   * @param why      on refusal, receives a static sentence naming the fix;
+   *                 may be NULL.
+   * @return the field's length in bits (which may exceed @p max: a larger
+   *         buffer reads it whole), or 0 with @p why set on the refusals
+   *         @ref dp_wfm_frame_desc_field names, bar the 64-bit limit.
+   *
+   * @code
+   * size_t n = dp_wfm_frame_desc_field_bits (&d, rx, sizeof rx, "crc",
+   *                                          NULL, 0, NULL);   // 16
+   * @endcode
+   */
+  size_t dp_wfm_frame_desc_field_bits (const wfm_frame_desc_t *d,
+                                       const uint8_t *rx_bits, size_t rx_len,
+                                       const char *name, uint8_t *out,
+                                       size_t max, const char **why);
+
+  /**
    * @brief What a receiver is told by a frame description: its sync word and
    *        its length.
    *

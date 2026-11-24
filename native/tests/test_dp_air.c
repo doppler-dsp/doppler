@@ -370,6 +370,146 @@ main (void)
     dp_air_free (&a);
     free (bits);
   }
+  /* 5. The set time: an emitter that has set contributes nothing from its
+     set sample on, so the scene is the one without it, bit for bit; before
+     the set the two scenes differ. Sabotage: the gate removed -> the samples
+     after the set still carry it, red. */
+  {
+    const double     t_set = 0.02; /* s: 220,000 receive samples in */
+    dp_air_emitter_t ea
+        = emitter (code, DP_CCSDS_415_FC_LO, 200.0, 0.0, 50.0, 0.0, 11u);
+    dp_air_emitter_t eb
+        = emitter (code, DP_CCSDS_415_FC_LO, -300.0, 0.0, 40.0, 0.0, 12u);
+    ea.off_s                 = t_set;
+    dp_air_emitter_t both[2] = { ea, eb };
+    dp_air_t         a, b;
+    DP_REQUIRE (dp_air_init (&a, both, 2, FS, NAN, 0u, n));
+    DP_REQUIRE (dp_air_init (&b, &eb, 1, FS, NAN, 0u, n));
+    float _Complex *y = malloc (n * sizeof *y);
+    DP_REQUIRE (y != NULL);
+    DP_REQUIRE (dp_air_next (&a, x, n));
+    DP_REQUIRE (dp_air_next (&b, y, n));
+    const size_t js            = (size_t)llround (t_set * FS);
+    size_t       differ_before = 0, differ_after = 0;
+    for (size_t j = 0; j < n; j++)
+      {
+        if (j < js)
+          differ_before += x[j] != y[j];
+        else
+          differ_after += x[j] != y[j];
+      }
+    printf ("  set at %.3f s: %zu samples differ before it, %zu after\n",
+            t_set, differ_before, differ_after);
+    DP_CHECK (differ_before > js / 2 && differ_after == 0);
+    DP_CHECK (dp_air_truth (&a, 0, js + 5).on == 0);
+    DP_CHECK (dp_air_truth (&a, 0, js - 5).on == 1);
+    dp_air_free (&a);
+    dp_air_free (&b);
+    free (y);
+  }
+
+  /* 6. The level track: a -10 dB step at 0.2 s; the power in the window after
+     it is 10 dB under the window before, to 0.2 dB, and the truth reports
+     the level. Sabotage: the track's gain ignored -> the step is absent,
+     red. */
+  {
+    const double     kt[4] = { 0.0, 0.2, 0.2001, 1.0 };
+    const double     kf[4] = { 0.0, 0.0, 0.0, 0.0 };
+    const double     kl[4] = { 0.0, 0.0, -10.0, -10.0 };
+    dp_air_track_t   tr    = { kt, kf, kl, 4 };
+    dp_air_emitter_t el
+        = emitter (code, DP_CCSDS_415_FC_LO, 0.0, 0.0, 50.0, 0.0, 13u);
+    el.track = &tr;
+    dp_air_t a;
+    DP_REQUIRE (dp_air_init (&a, &el, 1, FS, NAN, 0u, n));
+    const size_t blk      = 1u << 16;
+    double       p_before = 0.0, p_after = 0.0;
+    size_t       n_before = 0, n_after = 0;
+    for (size_t b0 = 0; (double)(b0 + blk) / FS < 0.9; b0 += blk)
+      {
+        DP_REQUIRE (dp_air_next (&a, x, blk));
+        for (size_t j = 0; j < blk; j++)
+          {
+            const double ts = (double)(b0 + j) / FS;
+            const double pw = (double)crealf (x[j]) * crealf (x[j])
+                              + (double)cimagf (x[j]) * cimagf (x[j]);
+            if (ts > 0.02 && ts < 0.18)
+              p_before += pw, n_before++;
+            else if (ts > 0.22 && ts < 0.88)
+              p_after += pw, n_after++;
+          }
+      }
+    const double step_db = 10.0
+                           * log10 ((p_after / (double)n_after)
+                                    / (p_before / (double)n_before));
+    printf ("  level track: a %.3f dB step, measured %.3f dB\n", -10.0,
+            step_db);
+    DP_CHECK (fabs (step_db + 10.0) < 0.2);
+    DP_CHECK (dp_air_truth (&a, 0, (size_t)(0.5 * FS)).level_db == -10.0);
+    DP_CHECK (dp_air_truth (&a, 0, (size_t)(0.1 * FS)).level_db == 0.0);
+    dp_air_free (&a);
+  }
+
+  /* 7. The carrier track: the truth's carrier phase and code phase, against
+     the stream itself. A code-only emitter (no data symbol) on a track that
+     ramps through zero is despread at the truth's own code chip and carrier
+     phase, block by block; the residual carrier phase of each block is the
+     truth's error there. Bound: printed below. Sabotage: the truth's phase
+     sign flipped -> the residual is twice the truth's, red. */
+  {
+    const double     kt[4] = { 0.0, 0.5, 1.0, 1.5 };
+    const double     kf[4] = { 300.0, -300.0, 400.0, 100.0 };
+    const double     kl[4] = { 0.0, 0.0, 0.0, 0.0 };
+    dp_air_track_t   tr    = { kt, kf, kl, 4 };
+    dp_air_emitter_t ec
+        = emitter (code, DP_CCSDS_415_FC_LO, 0.0, 0.0, 50.0, 0.0, 14u);
+    ec.track         = &tr;
+    ec.frame_sym     = 1000u; /* a window of code-only symbols */
+    ec.code_only_sym = 1000u;
+    dp_air_t a;
+    DP_REQUIRE (dp_air_init (&a, &ec, 1, FS, NAN, 0u, n));
+    const size_t blk    = (size_t)llround (1023.0 * FS / ec.chip_rate);
+    double       worst  = 0.0;
+    size_t       blocks = 0, bad = 0;
+    for (size_t b0 = 0; b0 + blk <= (size_t)(1.4 * FS); b0 += blk)
+      {
+        DP_REQUIRE (dp_air_next (&a, x, blk));
+        double _Complex on = 0;
+        for (size_t j = 0; j < blk; j++)
+          {
+            const dp_air_truth_t t = dp_air_truth (&a, 0, b0 + j);
+            if (!t.on || isnan (t.code_chips))
+              continue;
+            const double _Complex lo = cexp (
+                -2.0 * M_PI * I * (t.car_cycles - floor (t.car_cycles)));
+            on += (double _Complex)x[j] * lo
+                  * (code[(size_t)floor (t.code_chips)] ? -1.0 : 1.0);
+          }
+        const double res = carg (on) / (2.0 * M_PI);
+        /* The bound. The channel reads its carrier off its resampler's
+           position, which steps in 2^-32 of an input interval, so the
+           carrier it applies is within DP_CCSDS_415_FC_LO * 2^-32 Hz of the
+           track's (test_doppler_channel_core.c, 8b). A frequency error of
+           that size accumulates a phase of that many cycles per second, so
+           at time t the residual is at most fc 2^-32 t cycles. */
+        const double t_end = (double)(b0 + blk) / FS;
+        const double bound
+            = DP_CCSDS_415_FC_LO * 2.3283064365386963e-10 * t_end;
+        if (fabs (res) > worst)
+          worst = fabs (res);
+        if (fabs (res) > bound)
+          bad++;
+        blocks++;
+      }
+    printf (
+        "  carrier track: %zu blocks, worst residual %.4f cycles, %zu over "
+        "the 2^-32 bound\n",
+        blocks, worst, bad);
+    DP_CHECK (blocks > 10);
+    DP_CHECK (bad == 0);
+    dp_air_free (&a);
+  }
+
   free (x);
   DP_TEST_END ("test_dp_air");
 }

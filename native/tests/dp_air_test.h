@@ -56,6 +56,11 @@
  * clock. A receiver's ".phase.car" and ".phase.code" probes, stamped at the
  * same sample, are compared against these.
  *
+ * The truth is not bit-identical across the refactor that added the carrier
+ * track: under -ffast-math the reassociated closed forms move code_chips and
+ * tx_chips by at most 1.5e-11 chips. A bound, not a defect; the stream itself
+ * is byte-identical.
+ *
  * Which truth fields are exact. The code fields (code_chips, tx_chips,
  * symbol), the level (level_db) and the on-air flag (on) are closed forms of
  * the timeline and of the shipped objects' delays: exact. The carrier fields
@@ -134,7 +139,7 @@ typedef struct
                      images come through its transition band */
   double off_s; /**< the receive time it goes silent, s; 0: it never sets.
                      Its samples from there on are not summed into the scene,
-                     so the scene is the one without it, bit for bit */
+                     so the stream is the one without it, byte for byte */
   const dp_air_track_t *track; /**< NULL: the create-time carrier (f0_hz,
                      rate_hz_s) and level (cn0_dbhz) above. Otherwise the
                      carrier and level follow the track, rendered through
@@ -378,7 +383,7 @@ dp_air_next (dp_air_t *a, float _Complex *x, size_t n)
       for (size_t j = 0; j < n; j++)
         {
           /* An emitter that has set contributes nothing from its set sample
-             on, so the scene equals the one without it, bit for bit. */
+             on, so the stream equals the one without it, byte for byte. */
           const double ts = (double)(a->n_out + j) / a->fs;
           if (a->em[i].off_s > 0.0 && ts >= a->em[i].off_s)
             continue;

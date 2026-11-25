@@ -371,7 +371,7 @@ main (void)
     free (bits);
   }
   /* 5. The set time: an emitter that has set contributes nothing from its
-     set sample on, so the scene is the one without it, bit for bit; before
+     set sample on, so the stream is the one without it, byte for byte; before
      the set the two scenes differ. Sabotage: the gate removed -> the samples
      after the set still carry it, red. */
   {
@@ -501,6 +501,28 @@ main (void)
           bad++;
         blocks++;
       }
+    /* car_hz is the carrier the scorer classes on, in Hz. It must be the
+       track's own offset, and the derivative of the carrier phase the truth
+       reports: a flipped car_hz fails one or the other. The central
+       difference of car_cycles is exact to h^2 inside a segment. */
+    {
+      double worst_hz = 0.0, worst_track = 0.0;
+      for (size_t j = 1000; j < 1000 + 6000; j += 97)
+        {
+          const double         tj  = (double)j / FS;
+          const dp_air_truth_t up  = dp_air_truth (&a, 0, j + 1);
+          const dp_air_truth_t dn  = dp_air_truth (&a, 0, j - 1);
+          const dp_air_truth_t mid = dp_air_truth (&a, 0, j);
+          const double dphase = (up.car_cycles - dn.car_cycles) * FS / 2.0;
+          worst_hz            = fmax (worst_hz, fabs (dphase - mid.car_hz));
+          worst_track = fmax (worst_track,
+                              fabs (mid.car_hz - dp_air_track_f (&tr, tj)));
+        }
+      printf ("  car_hz: %.2e Hz from the phase derivative, %.2e Hz from the "
+              "track\n",
+              worst_hz, worst_track);
+      DP_CHECK (worst_hz < 1e-3 && worst_track == 0.0);
+    }
     printf (
         "  carrier track: %zu blocks, worst residual %.4f cycles, %zu over "
         "the 2^-32 bound\n",

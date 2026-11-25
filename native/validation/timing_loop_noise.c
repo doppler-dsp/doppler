@@ -71,7 +71,9 @@
  * `dp_cgauss()`; nothing is synthesized here.
  *
  * Usage:  timing_loop_noise [--check]
- *         timing_loop_noise --trace DIR   (one CSV a closed-loop scenario:
+ *         timing_loop_noise --trace DIR   (one CSV a closed-loop scenario,
+ *                                          started at the eye center and a
+ *                                          quarter and a half symbol off it:
  *                                          the loop filter's output, its
  *                                          integrator and the timing error
  *                                          at every symbol)
@@ -115,7 +117,9 @@ static int g_obj = OBJ_RATESYNC;
 
 /* `--trace` only: when set, every scored strobe writes one row here, the
    symbol index, the loop filter's output and its integrator (both in
-   symbols a symbol) and the timing error in symbols. */
+   symbols a symbol) and the timing error in symbols: the strobe against
+   the symbol's place INCLUDING the transmit offset, so runs started at
+   different offsets share one zero, to a whole number of symbols. */
 static FILE *g_trace = NULL;
 
 typedef struct
@@ -275,7 +279,7 @@ run_symsync (const run_cfg_t *c, run_out_t *o, float _Complex *x, size_t n)
           t[k] = pos / SPS - (double)(cnt - 1) * c->rate;
           if (g_trace)
             fprintf (g_trace, "%ld,%.9e,%.9e,%.6f\n", cnt, ctrl, ss->lf.integ,
-                     t[k]);
+                     t[k] - c->tau);
           cs += ctrl;
           cs2 += ctrl * ctrl;
           o->on_pwr += (double)(crealf (sym) * crealf (sym)
@@ -369,7 +373,8 @@ run_one (const run_cfg_t *c, run_out_t *o)
       t[k] = pos / SPS - (double)(cnt - 1) * c->rate;
       if (g_trace)
         fprintf (g_trace, "%ld,%.9e,%.9e,%.6f\n", cnt,
-                 rs->loop.ctrl / rs->loop.term_rate, rs->loop.lf.integ, t[k]);
+                 rs->loop.ctrl / rs->loop.term_rate, rs->loop.lf.integ,
+                 t[k] - c->tau);
       cs += rs->loop.ctrl;
       cs2 += rs->loop.ctrl * rs->loop.ctrl;
       o->on_pwr += (double)(crealf (sym) * crealf (sym)
@@ -767,20 +772,27 @@ measure (int check)
    filter's output can be plotted against time. The scenarios are the
    closed-loop rows of phases 1, 3, 4 and 5, one seed each. */
 #define TRACE_NSYM 60000
+/* An acquisition is over well inside this at every bandwidth traced, so
+   the kept rows can be finer than a holding scenario's. */
+#define TRACE_ACQ_NSYM 30000
 
+/* One scenario, started `off` symbols from the eye center. */
 static int
-trace_one (const char *dir, const char *label, const run_cfg_t *c)
+trace_one (const char *dir, const char *label, const run_cfg_t *c, double off)
 {
-  char path[1024];
-  snprintf (path, sizeof path, "%s/%s_%s_%s.csv", dir,
+  char      path[1024];
+  run_cfg_t s = *c;
+  s.tau += off;
+  s.nsym = off != 0.0 ? TRACE_ACQ_NSYM : TRACE_NSYM;
+  snprintf (path, sizeof path, "%s/%s_%s_%s_off%.3f.csv", dir,
             g_obj == OBJ_RATESYNC ? "ratesync" : "symsync",
-            c->rrc ? "rrc" : "iandd", label);
+            s.rrc ? "rrc" : "iandd", label, off);
   g_trace = fopen (path, "w");
   if (!g_trace)
     return -1;
   fprintf (g_trace, "symbol,lf_out,lf_integ,tau\n");
   run_out_t r;
-  int       rc = run_one (c, &r);
+  int       rc = run_one (&s, &r);
   fclose (g_trace);
   g_trace = NULL;
   printf ("%s  sigma_tau %.5f  max dev %.3f\n", path, sqrt (r.tau_var),
@@ -788,54 +800,62 @@ trace_one (const char *dir, const char *label, const run_cfg_t *c)
   return rc;
 }
 
+/* Every scenario, held (started at the eye center) and acquired: started
+   a quarter and a half symbol off it. Half a symbol is the detector's
+   unstable zero; a quarter is where its restoring force is largest. Both
+   are whole inputs at 8 samples a symbol, which the rectangle's transmit
+   grid needs. */
 static int
 trace_all (const char *dir)
 {
+  const double offs[3]    = { 0.0, 0.25, 0.5 };
   const double esn0_db[2] = { 4.0, 10.0 };
   const double bns[3]     = { 0.005, 0.002, 0.00068 };
   char         label[64];
   for (g_obj = OBJ_RATESYNC; g_obj <= OBJ_SYMSYNC; g_obj++)
     for (int p = 0; p < 2; p++)
-      {
-        double tau, eye;
-        if (find_lock (p, &tau, &eye) != 0)
-          return -1;
-        run_cfg_t c = { p, 1.0, 0.0, 0.005, 1.0, tau, TRACE_NSYM, 0, 7u };
-        if (trace_one (dir, "none_bn0.00500_a1.0_eps0", &c) != 0)
-          return -1;
-        for (int g = 0; g < 2; g++)
-          for (int b = 0; b < 3; b++)
+      for (int f = 0; f < 3; f++)
+        {
+          double tau, eye;
+          if (find_lock (p, &tau, &eye) != 0)
+            return -1;
+          run_cfg_t c = { p, 1.0, 0.0, 0.005, 1.0, tau, 0, 0, 7u };
+          if (trace_one (dir, "none_bn0.00500_a1.0_eps0", &c, offs[f]) != 0)
+            return -1;
+          for (int g = 0; g < 2; g++)
+            for (int b = 0; b < 3; b++)
+              {
+                c.esn0 = pow (10.0, esn0_db[g] / 10.0);
+                c.bn   = bns[b];
+                snprintf (label, sizeof label, "%.0fdB_bn%.5f_a1.0_eps0",
+                          esn0_db[g], bns[b]);
+                if (trace_one (dir, label, &c, offs[f]) != 0)
+                  return -1;
+              }
+          if (!p)
+            continue;
+          const double amps[2] = { 0.5, 2.0 };
+          for (int a = 0; a < 2; a++)
             {
-              c.esn0 = pow (10.0, esn0_db[g] / 10.0);
-              c.bn   = bns[b];
-              snprintf (label, sizeof label, "%.0fdB_bn%.5f_a1.0_eps0",
-                        esn0_db[g], bns[b]);
-              if (trace_one (dir, label, &c) != 0)
+              run_cfg_t l = { 1, amps[a], 10.0, 0.002, 1.0, tau, 0, 0, 7u };
+              snprintf (label, sizeof label, "10dB_bn0.00200_a%.1f_eps0",
+                        amps[a]);
+              if (trace_one (dir, label, &l, offs[f]) != 0)
                 return -1;
             }
-        if (!p)
-          continue;
-        const double amps[2] = { 0.5, 2.0 };
-        for (int a = 0; a < 2; a++)
-          {
-            run_cfg_t l
-                = { 1, amps[a], 10.0, 0.002, 1.0, tau, TRACE_NSYM, 0, 7u };
-            snprintf (label, sizeof label, "10dB_bn0.00200_a%.1f_eps0",
-                      amps[a]);
-            if (trace_one (dir, label, &l) != 0)
-              return -1;
-          }
-        const double eps[2] = { 1e-3, -1e-3 };
-        for (int i = 0; i < 2; i++)
-          {
-            run_cfg_t d
-                = { 1, 1.0, 0.0, 0.005, 1.0 + eps[i], tau, TRACE_NSYM, 0, 7u };
-            snprintf (label, sizeof label, "none_bn0.00500_a1.0_eps%+.0e",
-                      eps[i]);
-            if (trace_one (dir, label, &d) != 0)
-              return -1;
-          }
-      }
+          /* The sign is spelled out: a tracked path holds no `+`. */
+          const double eps[2]     = { 1e-3, -1e-3 };
+          const char  *eps_tag[2] = { "p1e-03", "m1e-03" };
+          for (int i = 0; i < 2; i++)
+            {
+              run_cfg_t d
+                  = { 1, 1.0, 0.0, 0.005, 1.0 + eps[i], tau, 0, 0, 7u };
+              snprintf (label, sizeof label, "none_bn0.00500_a1.0_eps%s",
+                        eps_tag[i]);
+              if (trace_one (dir, label, &d, offs[f]) != 0)
+                return -1;
+            }
+        }
   return 0;
 }
 

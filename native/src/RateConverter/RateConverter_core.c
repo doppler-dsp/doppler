@@ -258,6 +258,30 @@ rc_pulse_h (int pulse, double t, double beta)
   return wfm_rrc_h (t, beta); /* the canonical RRC, one home */
 }
 
+/* What one tap of an arm weighs: the tap sits `ts' symbols from the pulse
+   centre on a grid of `sps' samples a symbol.
+
+   A smooth pulse is sampled.  The rectangle is not: sampled, a tap is in
+   the symbol or out of it, so arms a fraction of an input apart come out
+   identical and the bank has one input interval of dead zone -- a timing
+   loop steering it sees no change until the instant crosses a whole input
+   (measured: 0.039 symbols rms of wander at 8 samples a symbol with no
+   noise at all).  So the rectangle's tap weighs the share of its own input
+   interval, [ts, ts + 1/sps), that lies inside the symbol.  Interior taps
+   weigh 1 as before, the two edge taps trade weight linearly as the arm
+   moves, and the weights always sum to sps: the integral over exactly one
+   symbol, on any grid.  At a lag of 0 on an integer grid this is the
+   half-open rectangle sampled, tap for tap. */
+static double
+rc_tap_w (int pulse, double ts, double sps, double beta)
+{
+  if (pulse != RC_PULSE_IANDD)
+    return rc_pulse_h (pulse, ts, beta);
+  double hi = ts + 1.0 / sps < 0.5 ? ts + 1.0 / sps : 0.5;
+  double lo = ts > -0.5 ? ts : -0.5;
+  return hi > lo ? (hi - lo) * sps : 0.0;
+}
+
 /* One-sided support in symbols. The rectangle is one symbol wide whatever
    `span' says. */
 static double
@@ -312,6 +336,30 @@ rc_pulse_support (int pulse, size_t span)
  *
  * Returns a malloc'd num_phases x (*out_ntaps) bank, or NULL on OOM.
  */
+
+/* One arm's taps before the common scale: the pulse at a LAG of `lag' input
+   intervals, the droop compensator folded in when `comp' is non-NULL.  `row'
+   holds nt taps and must arrive zeroed. */
+static void
+rc_arm_row (int pulse, double beta, double sps, double support, double lag,
+            const double *comp, size_t n_comp, size_t raw, float *row)
+{
+  double arm = -lag / sps;
+  for (size_t t = 0; t < raw; t++)
+    {
+      /* tap t multiplies x[n-t]: the delay line is newest-first. */
+      double ts = -(double)t / sps + support + arm;
+      double h  = rc_tap_w (pulse, ts, sps, beta);
+      if (!comp)
+        row[t] = (float)h;
+      else
+        /* Composite of comp FIR then this arm: both index x[n-k], so
+           the tap that multiplies x[n-(t+j)] gains comp[j]*h. */
+        for (size_t j = 0; j < n_comp; j++)
+          row[t + j] += (float)(comp[j] * h);
+    }
+}
+
 static float *
 rc_build_bank (int pulse, double beta, double sps, size_t span,
                size_t num_phases, const double *comp, size_t n_comp,
@@ -336,21 +384,8 @@ rc_build_bank (int pulse, double beta, double sps, size_t span,
          AHEAD of the newest loaded sample and the filter must reach less far
          back: the family descends, exactly as resamp's default Kaiser bank
          does (arm p peaks at tap (halflen - p)/num_phases). */
-      double arm = -(double)p / (double)num_phases / sps;
-      float *row = bank + p * nt;
-      for (size_t t = 0; t < raw; t++)
-        {
-          /* tap t multiplies x[n-t]: the delay line is newest-first. */
-          double ts = -(double)t / sps + support + arm;
-          double h  = rc_pulse_h (pulse, ts, beta);
-          if (!comp)
-            row[t] = (float)h;
-          else
-            /* Composite of comp FIR then this arm: both index x[n-k], so
-               the tap that multiplies x[n-(t+j)] gains comp[j]*h. */
-            for (size_t j = 0; j < n_comp; j++)
-              row[t + j] += (float)(comp[j] * h);
-        }
+      rc_arm_row (pulse, beta, sps, support, (double)p / (double)num_phases,
+                  comp, n_comp, raw, bank + p * nt);
     }
 
   /* ONE common scale across all arms, and it is the PULSE's own energy on
@@ -379,8 +414,11 @@ rc_build_bank (int pulse, double beta, double sps, size_t span,
   double e0 = 0.0;
   for (size_t t = 0; t < raw; t++)
     {
-      double hp = rc_pulse_h (pulse, -(double)t / sps + support, beta);
-      e0 += hp * hp;
+      double hp = rc_tap_w (pulse, -(double)t / sps + support, sps, beta);
+      /* The arriving symbol is 1 at every sample the window covers, so
+         what a rectangle's arm returns for it is the SUM of its weights;
+         for a sampled pulse the arriving samples are the taps themselves. */
+      e0 += pulse == RC_PULSE_IANDD ? hp : hp * hp;
     }
   float g = (float)(e0 > 0.0 ? 1.0 / e0 : 1.0);
   for (size_t i = 0; i < num_phases * nt; i++)

@@ -948,16 +948,20 @@ test_clipped_reports_overdrive (void)
       }
 }
 
-/* ── §14 — use m >= 4 with RATESYNC_PULSE_IANDD ──────────────────────────
+/* ── §14 — the rectangle locks at m = 2 as it does at m = 4 ──────────────
  *
- * C39: "at m = 2 its matched filter is a two-tap sum and the eye barely
- * opens". A guidance sentence with a measurement behind it and no test: the
- * only thing that would catch the rectangle's m = 2 case regressing further,
- * or the guidance becoming unnecessary, is this. */
+ * C39: "m = 2 is enough for either pulse". The header used to say the
+ * opposite ("use m >= 4 with RATESYNC_PULSE_IANDD ... the eye barely
+ * opens"), and this test used to pin that: lock statistic under the 0.311
+ * declare threshold at m = 2. That was the matched bank's dead zone, not the
+ * rectangle (doppler#3362): its arms were the rectangle sampled on the
+ * input grid, so the loop could not see a timing error inside one input
+ * interval. With arms that follow the fraction both counts lock, and on the
+ * sampled arms the m = 2 half of this goes red again (measured: 0.955 now,
+ * under 0.311 then). */
 static void
-test_iandd_needs_m4 (void)
+test_iandd_locks_at_m2 (void)
 {
-  double lock[5] = { 0 };
   for (size_t m = 2; m <= 4; m += 2)
     {
       size_t          n = 0;
@@ -977,27 +981,38 @@ test_iandd_needs_m4 (void)
       if (s)
         {
           (void)dp_ratesync_steps (s, x, n, y, n);
-          lock[m] = dp_ratesync_get_lock_stat (s);
-          if (m == 4)
-            {
-              DP_CHECK (lock[m] > 0.55);
-              DP_CHECK (dp_ratesync_get_locked (s) == 1);
-            }
-          else
-            {
-              /* Below the 0.311 declare threshold: the eye never opens, and
-                 the detector correctly declines to call it a lock. */
-              DP_CHECK (lock[m] < 0.311);
-              DP_CHECK (dp_ratesync_get_locked (s) == 0);
-            }
+          double lock = dp_ratesync_get_lock_stat (s);
+          DP_CHECK (lock > 0.55);
+          DP_CHECK (dp_ratesync_get_locked (s) == 1);
+          if (!(lock > 0.55))
+            DP_TEST_ERR ("  IANDD: lock_stat %.3f at m=%zu\n", lock, m);
           dp_ratesync_destroy (s);
         }
       free (x);
       free (y);
     }
-  DP_CHECK (lock[4] - lock[2] > 0.4); /* the gap is the reason for the rule */
-  if (!(lock[4] - lock[2] > 0.4))
-    DP_TEST_ERR ("  IANDD: lock_stat m=2 %.3f, m=4 %.3f\n", lock[2], lock[4]);
+
+  /* And at 2 INPUT samples a symbol, where the dead zone was half a symbol
+     wide and the loop did not hold lock at all. */
+  size_t               n = 0;
+  float _Complex      *x = _tx_nrz (2.0, &n);
+  float _Complex      *y = calloc (n ? n : 1, sizeof *y);
+  dp_ratesync_state_t *s
+      = dp_ratesync_create (2.0, RATESYNC_PULSE_IANDD, 0.0, 1, 2, 1024, 0.01,
+                            0.707, RATESYNC_TED_GARDNER);
+  DP_CHECK (x && y && s);
+  if (x && y && s)
+    {
+      (void)dp_ratesync_steps (s, x, n, y, n);
+      double lock = dp_ratesync_get_lock_stat (s);
+      DP_CHECK (lock > 0.55);
+      DP_CHECK (dp_ratesync_get_locked (s) == 1);
+      if (!(lock > 0.55))
+        DP_TEST_ERR ("  IANDD: lock_stat %.3f at sps=2, m=2\n", lock);
+    }
+  dp_ratesync_destroy (s);
+  free (x);
+  free (y);
 }
 
 /* ── §15 — the loop's own state triplet ──────────────────────────────────
@@ -1481,7 +1496,7 @@ main (void)
   test_loop_without_the_object ();
   test_ctrl_scale_is_the_terminal_rate ();
   test_clipped_reports_overdrive ();
-  test_iandd_needs_m4 ();
+  test_iandd_locks_at_m2 ();
   test_loop_state_roundtrip ();
   test_telemetry_attach_is_atomic ();
   test_configure_semantics ();

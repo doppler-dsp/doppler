@@ -1549,6 +1549,111 @@ test_matched_recovers_symbols (void)
     DP_TEST_ERR ("  matched EVM: halfband=%.1f dB  cic=%.1f dB\n", hb, cic);
 }
 
+static int
+_cmp_float (const void *a, const void *b)
+{
+  float x = *(const float *)a, y = *(const float *)b;
+  return (x > y) - (x < y);
+}
+
+/* The widest hole in a set of values once sorted. */
+static float
+_widest_gap (float *v, size_t n)
+{
+  qsort (v, n, sizeof *v, _cmp_float);
+  float g = 0.0f;
+  for (size_t i = 1; i < n; i++)
+    if (v[i] - v[i - 1] > g)
+      g = v[i] - v[i - 1];
+  return g;
+}
+
+/* The rectangle's arms follow the fraction of an input interval.
+ *
+ * A rectangle SAMPLED on the input grid has a tap either in the symbol or
+ * out of it, so arms a fraction of an input apart are the same taps and the
+ * output cannot move until the instant crosses a whole input: one input
+ * interval of dead zone, which a timing loop steering the bank cannot see
+ * into (doppler#3362: no lock at all at 2 samples a symbol).  The bank
+ * weighs each edge tap by the share of its input interval inside the symbol
+ * instead.
+ *
+ * Two properties, each red on the sampled rectangle:
+ *
+ *  1. Alternating symbols at 4 samples a symbol, converted at a rate just
+ *     under 1 so the sampling instant creeps through every fraction.  The
+ *     matched output is a triangle wave and the creep visits it densely.
+ *     Sampled arms can only return multiples of 1/2 here.
+ *  2. A constant input on a grid of 3.7 samples a symbol returns the
+ *     constant at every fraction: the weights sum to one symbol whatever
+ *     the grid.  Sampled arms hold 3 or 4 taps depending on the arm.
+ */
+static int
+test_rectangle_arms_follow_the_fraction (void)
+{
+  enum
+  {
+    N    = 4000,
+    SKIP = 64
+  };
+  float _Complex *in  = malloc (N * sizeof *in);
+  float _Complex *out = malloc (N * sizeof *out);
+  float          *v   = malloc (N * sizeof *v);
+  float          *q   = malloc (N * sizeof *q);
+  DP_REQUIRE (in && out && v && q);
+
+  /* 1. bank grid = pulse_sps / rate = 3.96 / 0.99 = 4 samples a symbol. */
+  for (size_t i = 0; i < N; i++)
+    in[i] = (i / 4u) % 2u ? -1.0f : 1.0f;
+  dp_RateConverter_state_t *rc = dp_RateConverter_create_matched (
+      0.99, 0, RC_PULSE_IANDD, 0.0, 1, 3.96, 1024);
+  DP_REQUIRE (rc != NULL);
+  size_t n = dp_RateConverter_execute (rc, in, N, out, N);
+  dp_RateConverter_destroy (rc);
+  DP_REQUIRE (n > 2000);
+  size_t m = 0;
+  for (size_t i = SKIP; i < n; i++, m++)
+    {
+      v[m] = crealf (out[i]);
+      q[m] = 0.5f * roundf (2.0f * v[m]); /* what sampled arms return */
+    }
+  float gap = _widest_gap (v, m);
+  DP_CHECK (v[0] < -0.99f && v[m - 1] > 0.99f); /* the whole triangle */
+  DP_CHECK (gap < 0.05f);
+  /* The control: the same values snapped to the sampled rectangle's levels
+     leave holes of a half, which the check above rejects. */
+  DP_CHECK (_widest_gap (q, m) > 0.45f);
+  if (!(gap < 0.05f))
+    DP_TEST_ERR ("  rectangle: widest gap in the output %.3f\n", (double)gap);
+
+  /* 2. bank grid = 3.663 / 0.99 = 3.7 samples a symbol. */
+  for (size_t i = 0; i < N; i++)
+    in[i] = 1.0f;
+  rc = dp_RateConverter_create_matched (0.99, 0, RC_PULSE_IANDD, 0.0, 1, 3.663,
+                                        1024);
+  DP_REQUIRE (rc != NULL);
+  n = dp_RateConverter_execute (rc, in, N, out, N);
+  dp_RateConverter_destroy (rc);
+  DP_REQUIRE (n > 2000);
+  float lo = 2.0f, hi = 0.0f;
+  for (size_t i = SKIP; i < n; i++)
+    {
+      float y = crealf (out[i]);
+      lo      = y < lo ? y : lo;
+      hi      = y > hi ? y : hi;
+    }
+  DP_CHECK (lo > 0.9999f && hi < 1.0001f);
+  if (!(lo > 0.9999f && hi < 1.0001f))
+    DP_TEST_ERR ("  rectangle: a constant came back as %.4f .. %.4f\n",
+                 (double)lo, (double)hi);
+
+  free (in);
+  free (out);
+  free (v);
+  free (q);
+  return 0;
+}
+
 static void
 test_pre_terminal_tap_on_a_cascade_with_no_fractional_tail (void)
 {
@@ -2141,6 +2246,7 @@ main (void)
   test_matched_bank_is_constant_in_input_rate ();
   test_matched_droop_folds_into_bank ();
   test_matched_recovers_symbols ();
+  DP_CHECK (test_rectangle_arms_follow_the_fraction () == 0);
   test_matched_cascade_returns_the_symbol_amplitude ();
   test_matched_push_equals_block ();
   test_pre_terminal_tap_on_a_cascade_with_no_fractional_tail ();

@@ -1078,9 +1078,8 @@ FIR** (§1.4) — but the two shapes and their meaning are unchanged:
 reaches the coherent bound.** The rectangle is one symbol wide, so its filter
 is an `m_out`-tap sum spanning it, and a smaller `m_out` samples the same
 integral more coarsely. Measured on QPSK against `EVM_dB = -(Es/N0)_dB`: at
-18 dB Es/N0, `m_out = 8` lands 0.41 dB off the bound where `m_out = 4` loses
-3.11 dB; at 14 dB it is 0.25 dB against 1.71 dB — the gap widens as noise
-stops hiding it.
+18 dB Es/N0, `m_out = 8` is on the bound to 0.05 dB where `m_out = 4` is
+0.8 dB off it.
 
 There is a second, M-dependent reason. `z^M` auto-convolves the spectrum M
 times, spreading energy over ~`M·Rs`, and whatever exceeds the update rate

@@ -135,8 +135,8 @@
    CASC_NSEED — the search runs at every scan point and the slope does not. */
 #define CASC_LOCK_NSEED 3
 /* Terminal outputs per symbol. 2 is the minimum the geometry allows and was
-   hard-coded at every call site until the m axis opened; finding
-   `iandd_rule_right_stated_evidence`'s `m >= 4 with IANDD` rule and DTTL's own
+   hard-coded at every call site until the m axis opened; what m costs the
+   rectangle (finding `iandd_m_rule_was_the_dead_zone`) and DTTL's own
    transition gate both live on it. */
 #define CASC_M 2
 /* Set from measurement, not chosen: see the printed table. Worst observed
@@ -1045,13 +1045,12 @@ main (int argc, char **argv)
   /* ── Phase 7: m, the terminal outputs per symbol ──────────────────────
    *
    * Everything above runs `m = 2`, the minimum the geometry allows, because
-   * that was hard-coded at every call site. It is also the one axis with a
-   * standing rule attached: the header requires `m >= 4 with IANDD`, and
-   * the RateSync report's finding `iandd_rule_right_stated_evidence`
-   * certifies that rule on the LOCK STATISTIC —
-   * m = 2 does not clear the declare threshold on an NRZ stream and m = 4
-   * clears it comfortably. Nothing had ever checked what m does to the TED
-   * SLOPE, which is a different question about the same number.
+   * that was hard-coded at every call site. The header used to require
+   * `m >= 4 with IANDD` on the LOCK STATISTIC; that was the matched bank's
+   * dead zone, and the rectangle locks at every m now (the RateSync
+   * report's finding `iandd_m_rule_was_the_dead_zone`). What m does to
+   * the TED SLOPE is a different question about the same number, and this
+   * phase is what answers it.
    *
    * It is the question the residual asks. After the equilibrium fix both
    * detectors read ~1.00 on RRC at every sps, and both read high on the
@@ -1121,10 +1120,9 @@ main (int argc, char **argv)
      than per combination, so a pulse or detector added later is covered
      without editing this gate. It is m that gets them there: on the
      rectangle at m = 2 the same measurement reads 1.19 (gardner) and 1.27
-     (dttl), which is what the header's `m >= 4 with IANDD` rule has been
-     asserting on the lock statistic (finding
-     `iandd_rule_right_stated_evidence`) without anything checking the TED
-     slope it also governs. Gardner on the rectangle is the slowest to
+     (dttl): the loop locks there (finding
+     `iandd_m_rule_was_the_dead_zone`) with a gain a fifth to a quarter
+     above the declared one. Gardner on the rectangle is the slowest to
      converge and sets this number. */
   printf ("  worst |scale - 1| at m = 8, over every ted x pulse: %.4f "
           "(%s/%s; tolerance %.2f)\n",

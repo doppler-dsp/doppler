@@ -6,7 +6,7 @@ if(NOT JM_MATH_LIBRARY)
   set(JM_MATH_LIBRARY "")
 endif()
 
-add_library(ccsds_core OBJECT ccsds_core.c asm_bits.c ccsds415_chip_rate.c ccsds415_cn0.c)
+add_library(ccsds_core OBJECT ccsds_core.c asm_bits.c ccsds415_chip_rate.c ccsds415_scene.c ccsds415_cn0.c)
 target_include_directories(ccsds_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)

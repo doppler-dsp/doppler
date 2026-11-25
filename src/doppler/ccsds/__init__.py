@@ -50,6 +50,18 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .ccsds import asm_bits, ccsds415_chip_rate, ccsds415_cn0  # noqa: E402
+from .ccsds import (  # noqa: E402
+    Ccsds415Scene,
+    asm_bits,
+    ccsds415_chip_rate,
+    ccsds415_cn0,
+    ccsds415_scene,
+)
 
-__all__ = ["asm_bits", "ccsds415_chip_rate", "ccsds415_cn0"]
+__all__ = [
+    "asm_bits",
+    "ccsds415_chip_rate",
+    "ccsds415_cn0",
+    "Ccsds415Scene",
+    "ccsds415_scene",
+]

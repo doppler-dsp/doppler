@@ -1,6 +1,49 @@
 # ccsds/ccsds.pyi — type stubs for the ccsds C extension.
+from typing import final
+
 import numpy as np
 from numpy.typing import NDArray
+
+@final
+class Ccsds415Scene(tuple[float, float, float, float]):
+    """A scene's derived numbers at the CCSDS 415.1-B-1 point, at one carrier:
+    chip_rate (chips/s), ratio (the rate converter's, from the emitter's
+    samples a chip to the capture), start_ppm and rate_ppm_s (the Doppler's
+    start and rate, ppm of the carrier).
+
+    Attributes
+    ----------
+    chip_rate : float
+        Chips a second, dp_ccsds_415_chip_rate().
+    ratio : float
+        The rate converter's ratio from an emitter at `spc` samples a chip to the capture: DP_CCSDS_415_FS / (spc x chip_rate).
+    start_ppm : float
+        The Doppler at the first sample in ppm of the carrier, the unit dp_doppler_channel_create() takes: start_hz / fc x 1e6.
+    rate_ppm_s : float
+        R_env in ppm of the carrier a second: DP_CCSDS_415_R_ENV_HZ_S / fc x 1e6.
+    """
+
+    @property
+    def chip_rate(self) -> float:
+        """Chips a second, dp_ccsds_415_chip_rate()."""
+
+    @property
+    def ratio(self) -> float:
+        """The rate converter's ratio from an emitter at `spc` samples a chip
+        to the capture: DP_CCSDS_415_FS / (spc x chip_rate).
+        """
+
+    @property
+    def start_ppm(self) -> float:
+        """The Doppler at the first sample in ppm of the carrier, the unit
+        dp_doppler_channel_create() takes: start_hz / fc x 1e6.
+        """
+
+    @property
+    def rate_ppm_s(self) -> float:
+        """R_env in ppm of the carrier a second: DP_CCSDS_415_R_ENV_HZ_S / fc x
+        1e6.
+        """
 
 def asm_bits() -> NDArray[np.uint8]:
     """The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits —
@@ -72,6 +115,42 @@ def ccsds415_chip_rate(fc: float) -> float:
     Examples
     --------
     printf ("%.6f\n", dp_ccsds415_chip_rate (2.8e9));   // 4091251.885370
+
+    """
+
+def ccsds415_scene(fc: float, spc: float, start_hz: float) -> Ccsds415Scene:
+    r"""The numbers a scene at the CCSDS 415.1-B-1 point is built from, at
+    carrier `fc` (Hz), for an emitter at `spc` samples a chip whose Doppler
+    starts at `start_hz`: the chip rate, the rate converter's ratio to the 11
+    MSa/s capture, and the Doppler's start and rate in ppm of the carrier (the
+    unit `DopplerChannel` takes). Computed in C with fast math off, so this and
+    `dp_ccsds_415_scene()` give the same bits.
+
+    >>> from doppler.ccsds import ccsds415_scene
+    >>> s = ccsds415_scene(2.2e9, 2.0, -13.75)
+    >>> s.chip_rate, s.ratio
+    (3214555.052790347, 1.7109677419354838)
+    >>> s.start_ppm, s.rate_ppm_s
+    (-0.0062499999999999995, 0.005)
+
+    Parameters
+    ----------
+    fc : float
+        The carrier, F_fwd, Hz.
+    spc : float
+        The emitter's samples a chip, > 0.
+    start_hz : float
+        The Doppler at the scene's first sample, Hz.
+
+    Returns
+    -------
+    Ccsds415Scene
+        The scene's numbers, a dp_ccsds_415_scene_t.
+
+    Examples
+    --------
+    dp_ccsds_415_scene_t s = dp_ccsds415_scene (2.2e9, 2.0, -13.75);
+    printf ("%.17g\n", s.ratio);   // 1.7109677419354838
 
     """
 

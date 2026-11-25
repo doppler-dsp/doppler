@@ -118,6 +118,34 @@ doc = "Chips a second at carrier `fc` (Hz) at the CCSDS 415.1-B-1 point: F_fwd x
 return_type = "double"
 params = [{ name = "fc", type = "double" }]
 
+# The scene's derived numbers at one carrier, as ONE record (a module
+# function returning a struct by value: `single` + `record_name`, jm 0.138.0,
+# just-makeit#2755). Computed in C with fast math off, so a Python program and
+# its C twin read the same bits.
+[[module.ccsds.functions]]
+name = "ccsds415_scene"
+doc = "The numbers a scene at the CCSDS 415.1-B-1 point is built from, at carrier `fc` (Hz), for an emitter at `spc` samples a chip whose Doppler starts at `start_hz`: the chip rate, the rate converter's ratio to the 11 MSa/s capture, and the Doppler's start and rate in ppm of the carrier (the unit `DopplerChannel` takes). Computed in C with fast math off, so this and `dp_ccsds_415_scene()` give the same bits.\n\n>>> from doppler.ccsds import ccsds415_scene\n>>> s = ccsds415_scene(2.2e9, 2.0, -13.75)\n>>> s.chip_rate, s.ratio\n(3214555.052790347, 1.7109677419354838)\n>>> s.start_ppm, s.rate_ppm_s\n(-0.0062499999999999995, 0.005)"
+return_type = "dp_ccsds_415_scene_t"
+params = [
+    { name = "fc", type = "double" },
+    { name = "spc", type = "double" },
+    { name = "start_hz", type = "double" },
+]
+# The fields' docs are dp_ccsds_415_scene_t's member docs (ccsds_415.h),
+# copied: jm reads a record field's doc from the MODULE's header only
+# (ccsds_core.h), and the struct is the point's own, in ccsds_415.h
+# (just-makeit#2778; these go when it reads there).
+result_fields = [
+    { name = "chip_rate", type = "double", doc = "Chips a second, dp_ccsds_415_chip_rate()." },
+    { name = "ratio", type = "double", doc = "The rate converter's ratio from an emitter at `spc` samples a chip to the capture: DP_CCSDS_415_FS / (spc x chip_rate)." },
+    { name = "start_ppm", type = "double", doc = "The Doppler at the first sample in ppm of the carrier, the unit dp_doppler_channel_create() takes: start_hz / fc x 1e6." },
+    { name = "rate_ppm_s", type = "double", doc = "R_env in ppm of the carrier a second: DP_CCSDS_415_R_ENV_HZ_S / fc x 1e6." },
+]
+single = true
+record_name = "Ccsds415Scene"
+record_module = "doppler.ccsds"
+record_doc = "A scene's derived numbers at the CCSDS 415.1-B-1 point, at one carrier: chip_rate (chips/s), ratio (the rate converter's, from the emitter's samples a chip to the capture), start_ppm and rate_ppm_s (the Doppler's start and rate, ppm of the carrier)."
+
 [[module.ccsds.functions]]
 name = "ccsds415_cn0"
 doc = "C/N0 in dB-Hz of an Es/N0 (dB) at the CCSDS 415.1-B-1 point's 3,000 symbols a second: `esn0_db + 10 log10(3000)`.\n\n>>> from doppler.ccsds import ccsds415_cn0\n>>> round(ccsds415_cn0(4.0), 4)\n38.7712"

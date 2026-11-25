@@ -1278,6 +1278,7 @@ $(UV) run python docs/design/acq-surface-measurements/record.py --check
 $(UV) run python docs/design/corr2d-hypotheses-measurements/prototype.py --check
 $(UV) run python docs/design/corr2d-hypotheses-measurements/record.py --check
 $(UV) run python docs/design/spectrogram-measurements/b2062.py --check
+$(UV) run python docs/design/symsync-measurements/record.py --check
 endef
 
 # docs-check's invariants WITHOUT the site build, so pre-commit can run them.
@@ -1966,6 +1967,7 @@ endef
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 corr2d-hypotheses-record \
+                symsync-record \
                 gallery blazing \
                 gen-c-api just-build docs-invariants \
                 jm-apply jm-apply-downstream jm-adopt jm-adopt-downstream jm-revendor \
@@ -2599,6 +2601,15 @@ acq-surface-record: build ## Re-run the acq surface's validator; rewrite its §8
 corr2d-hypotheses-record: build ## Re-time the hypothesis-bank orderings; rewrite §5's tables
 	$(UV) run python docs/design/corr2d-hypotheses-measurements/record.py measure
 	$(UV) run python docs/design/corr2d-hypotheses-measurements/record.py --write
+
+# docs/design/symsync.md §11 is one run of validate_timing_loop_noise
+# --trace. The run is stamped with the commit it was taken at and refused
+# from a dirty tree, so commit the harness first, then run this, then
+# commit the data and the figures.
+symsync-record: build ## Re-trace the timing loops' loop filters; redraw §11's figures and table
+	$(UV) run python docs/design/symsync-measurements/record.py measure
+	$(UV) run python docs/design/symsync-measurements/record.py figures
+	$(UV) run python docs/design/symsync-measurements/record.py --write
 
 # Run all plot-generating examples and copy output PNGs to docs/assets/.
 # Run before releasing whenever src/doppler/examples/ has changed.

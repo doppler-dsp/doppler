@@ -255,6 +255,76 @@ coasts on its rate state.
 1. The certification report (`tests/validation/symsync/`), which the
     object does not have.
 
+## 11. Measured: the loop filter's output against time
+
+One run of `validate_timing_loop_noise --trace`: both timing loops, each
+closed-loop scenario of the harness, from the first strobe. The stream
+starts at the eye center, so a panel shows the loop holding lock, not
+acquiring it. Each panel is the loop filter's output averaged over 120
+symbols, with its integrator, in parts per million of the symbol rate.
+The statistics are over the second half of each scenario, per symbol.
+
+<!-- symsync:stamp:start -->
+
+| run                                                                           | when                      | machine                                                     | commit             | toolchain                                                             | command               |
+| ----------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------- | ------------------ | --------------------------------------------------------------------- | --------------------- |
+| `validate_timing_loop_noise --trace`, 36 scenarios of 60006 symbols, one seed | 2026-11-25 15:14 UTC, 6 s | `omni-x7358h`: Intel(R) Core(TM) Ultra X7 358H (16 threads) | `0b295c122`, clean | GNU 15.2.0; glibc 2.43; build Release, flags -O3 -DNDEBUG, native OFF | `make symsync-record` |
+
+<!-- symsync:stamp:end -->
+
+<!-- symsync:scenarios:start -->
+
+| loop       | pulse              | Es/N0 | bn      | level A | clock, ppm | output mean, ppm | integrator mean, ppm | output rms, ppm | timing error rms, symbols | timing error span, symbols | figure                                               |
+| ---------- | ------------------ | ----- | ------- | ------- | ---------- | ---------------- | -------------------- | --------------- | ------------------------- | -------------------------- | ---------------------------------------------------- |
+| RateSync   | rectangle          | 10 dB | 0.00068 | 1       | 0          | +1.8             | +1.0                 | 486             | 0.0464                    | 0.130                      | [plot](symsync-measurements/lf_ratesync_iandd.png)   |
+| RateSync   | rectangle          | 10 dB | 0.002   | 1       | 0          | +3.3             | +2.7                 | 1430            | 0.0401                    | 0.139                      | [plot](symsync-measurements/lf_ratesync_iandd.png)   |
+| RateSync   | rectangle          | 10 dB | 0.005   | 1       | 0          | +13.5            | +12.4                | 3602            | 0.0418                    | 0.167                      | [plot](symsync-measurements/lf_ratesync_iandd.png)   |
+| RateSync   | rectangle          | 4 dB  | 0.00068 | 1       | 0          | +4.1             | +2.7                 | 1045            | 0.0395                    | 0.144                      | [plot](symsync-measurements/lf_ratesync_iandd.png)   |
+| RateSync   | rectangle          | 4 dB  | 0.002   | 1       | 0          | +9.9             | +9.2                 | 3070            | 0.0416                    | 0.187                      | [plot](symsync-measurements/lf_ratesync_iandd.png)   |
+| RateSync   | rectangle          | 4 dB  | 0.005   | 1       | 0          | +54.8            | +54.8                | 7668            | 0.0500                    | 0.334                      | [plot](symsync-measurements/lf_ratesync_iandd.png)   |
+| RateSync   | rectangle          | none  | 0.005   | 1       | 0          | -3.7             | -3.7                 | 0               | 0.0319                    | 0.127                      | [plot](symsync-measurements/lf_ratesync_iandd.png)   |
+| RateSync   | root-raised cosine | 10 dB | 0.00068 | 1       | 0          | +0.0             | +0.3                 | 941             | 0.0055                    | 0.038                      | [plot](symsync-measurements/lf_ratesync_rrc.png)     |
+| RateSync   | root-raised cosine | 10 dB | 0.002   | 0.5     | 0          | -0.2             | +0.0                 | 691             | 0.0071                    | 0.048                      | [plot](symsync-measurements/lf_level_and_offset.png) |
+| RateSync   | root-raised cosine | 10 dB | 0.002   | 1       | 0          | +4.3             | +4.6                 | 2777            | 0.0106                    | 0.085                      | [plot](symsync-measurements/lf_ratesync_rrc.png)     |
+| RateSync   | root-raised cosine | 10 dB | 0.002   | 2       | 0          | +101.7           | +103.5               | 11328           | 0.0213                    | 0.203                      | [plot](symsync-measurements/lf_level_and_offset.png) |
+| RateSync   | root-raised cosine | 10 dB | 0.005   | 1       | 0          | +36.9            | +38.5                | 7006            | 0.0182                    | 0.162                      | [plot](symsync-measurements/lf_ratesync_rrc.png)     |
+| RateSync   | root-raised cosine | 4 dB  | 0.00068 | 1       | 0          | +1.2             | +1.7                 | 1692            | 0.0125                    | 0.081                      | [plot](symsync-measurements/lf_ratesync_rrc.png)     |
+| RateSync   | root-raised cosine | 4 dB  | 0.002   | 1       | 0          | +19.6            | +20.7                | 4991            | 0.0240                    | 0.187                      | [plot](symsync-measurements/lf_ratesync_rrc.png)     |
+| RateSync   | root-raised cosine | 4 dB  | 0.005   | 1       | 0          | +137.0           | +141.2               | 12560           | 0.0400                    | 0.335                      | [plot](symsync-measurements/lf_ratesync_rrc.png)     |
+| RateSync   | root-raised cosine | none  | 0.005   | 1       | +1000      | -981.1           | -981.0               | 4369            | 0.0043                    | 0.073                      | [plot](symsync-measurements/lf_level_and_offset.png) |
+| RateSync   | root-raised cosine | none  | 0.005   | 1       | -1000      | +1019.0          | +1019.0              | 4375            | 0.0043                    | 0.089                      | [plot](symsync-measurements/lf_level_and_offset.png) |
+| RateSync   | root-raised cosine | none  | 0.005   | 1       | 0          | -5.4             | -5.3                 | 4372            | 0.0044                    | 0.026                      | [plot](symsync-measurements/lf_ratesync_rrc.png)     |
+| SymbolSync | rectangle          | 10 dB | 0.00068 | 1       | 0          | +2.2             | +2.4                 | 657             | 0.0084                    | 0.053                      | [plot](symsync-measurements/lf_symsync_iandd.png)    |
+| SymbolSync | rectangle          | 10 dB | 0.002   | 1       | 0          | +11.6            | +11.9                | 1939            | 0.0142                    | 0.095                      | [plot](symsync-measurements/lf_symsync_iandd.png)    |
+| SymbolSync | rectangle          | 10 dB | 0.005   | 1       | 0          | +49.9            | +49.9                | 4884            | 0.0221                    | 0.160                      | [plot](symsync-measurements/lf_symsync_iandd.png)    |
+| SymbolSync | rectangle          | 4 dB  | 0.00068 | 1       | 0          | +2.8             | +3.4                 | 1125            | 0.0171                    | 0.101                      | [plot](symsync-measurements/lf_symsync_iandd.png)    |
+| SymbolSync | rectangle          | 4 dB  | 0.002   | 1       | 0          | +15.0            | +15.4                | 3325            | 0.0300                    | 0.198                      | [plot](symsync-measurements/lf_symsync_iandd.png)    |
+| SymbolSync | rectangle          | 4 dB  | 0.005   | 1       | 0          | +70.0            | +70.7                | 8399            | 0.0469                    | 0.344                      | [plot](symsync-measurements/lf_symsync_iandd.png)    |
+| SymbolSync | rectangle          | none  | 0.005   | 1       | 0          | +0.0             | +0.0                 | 0               | 0.0000                    | 0.008                      | [plot](symsync-measurements/lf_symsync_iandd.png)    |
+| SymbolSync | root-raised cosine | 10 dB | 0.00068 | 1       | 0          | +7.0             | +6.7                 | 916             | 0.0064                    | 0.043                      | [plot](symsync-measurements/lf_symsync_rrc.png)      |
+| SymbolSync | root-raised cosine | 10 dB | 0.002   | 0.5     | 0          | +27.7            | +27.1                | 2709            | 0.0109                    | 0.075                      | [plot](symsync-measurements/lf_level_and_offset.png) |
+| SymbolSync | root-raised cosine | 10 dB | 0.002   | 1       | 0          | +27.7            | +27.1                | 2709            | 0.0109                    | 0.075                      | [plot](symsync-measurements/lf_symsync_rrc.png)      |
+| SymbolSync | root-raised cosine | 10 dB | 0.002   | 2       | 0          | +27.7            | +27.1                | 2709            | 0.0109                    | 0.075                      | [plot](symsync-measurements/lf_level_and_offset.png) |
+| SymbolSync | root-raised cosine | 10 dB | 0.005   | 1       | 0          | +110.8           | +110.0               | 6849            | 0.0178                    | 0.156                      | [plot](symsync-measurements/lf_symsync_rrc.png)      |
+| SymbolSync | root-raised cosine | 4 dB  | 0.00068 | 1       | 0          | +7.5             | +6.8                 | 1288            | 0.0126                    | 0.090                      | [plot](symsync-measurements/lf_symsync_rrc.png)      |
+| SymbolSync | root-raised cosine | 4 dB  | 0.002   | 1       | 0          | +29.1            | +27.5                | 3804            | 0.0232                    | 0.157                      | [plot](symsync-measurements/lf_symsync_rrc.png)      |
+| SymbolSync | root-raised cosine | 4 dB  | 0.005   | 1       | 0          | +117.8           | +115.0               | 9591            | 0.0374                    | 0.336                      | [plot](symsync-measurements/lf_symsync_rrc.png)      |
+| SymbolSync | root-raised cosine | none  | 0.005   | 1       | +1000      | -982.0           | -982.1               | 4748            | 0.0049                    | 0.073                      | [plot](symsync-measurements/lf_level_and_offset.png) |
+| SymbolSync | root-raised cosine | none  | 0.005   | 1       | -1000      | +1026.1          | +1026.1              | 4756            | 0.0050                    | 0.082                      | [plot](symsync-measurements/lf_level_and_offset.png) |
+| SymbolSync | root-raised cosine | none  | 0.005   | 1       | 0          | +202.4           | +202.3               | 4745            | 0.0049                    | 0.036                      | [plot](symsync-measurements/lf_symsync_rrc.png)      |
+
+<!-- symsync:scenarios:end -->
+
+![RateSync on the rectangle](symsync-measurements/lf_ratesync_iandd.png)
+
+![SymbolSync on the rectangle](symsync-measurements/lf_symsync_iandd.png)
+
+![RateSync on the root-raised cosine](symsync-measurements/lf_ratesync_rrc.png)
+
+![SymbolSync on the root-raised cosine](symsync-measurements/lf_symsync_rrc.png)
+
+![Level and clock offset, both loops](symsync-measurements/lf_level_and_offset.png)
+
 See also: [RateSync's timing on a rate cascade](ratesync-timing.md),
 [the lock statistic's sizing as shipped](timing_lock_detector.md),
 [the loop filter](loop-filter.md), [the NCO](nco.md).

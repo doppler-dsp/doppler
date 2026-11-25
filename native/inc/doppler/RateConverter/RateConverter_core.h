@@ -123,7 +123,10 @@ typedef struct
      constructor builds).  See dp_RateConverter_enable_agc(). ─────────────── */
   dp_agc_state_t *agc;          /**< NULL when off — one branch per sample  */
   double       bank_sps;     /**< symbol period on the terminal's grid   */
-  double       bank_e0;      /**< sum h(t)^2 on that grid; the bank's
+  double       bank_e0;      /**< what an arm returns for one unit symbol
+                                  before scaling: sum h(t)^2 on that grid
+                                  for the RRC, the sum of the tap weights
+                                  (bank_sps) for the rectangle; the bank's
                                   own normaliser, and the AGC's reference */
   double       agc_ref_db;   /**< derived: 10*log10(bank_e0 / bank_sps)  */
   double       agc_bn_sym;   /**< requested bandwidth, cycles/SYMBOL     */
@@ -217,6 +220,13 @@ dp_RateConverter_state_t *dp_RateConverter_create (double rate, int compensate);
  *                   bank here, not appended as a stage).
  * @param pulse      RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid
  *                   here — use dp_RateConverter_create() for a plain conversion.
+ *                   The RRC's arms are the pulse sampled at each arm's
+ *                   fraction of an input interval. The rectangle's are an
+ *                   integral over exactly one symbol: interior taps weigh
+ *                   1 and each edge tap weighs the share of its own input
+ *                   interval that lies inside the symbol, so the output
+ *                   follows the sampling instant continuously and a
+ *                   constant input returns the constant on any grid.
  * @param beta       RRC roll-off in `[0, 1]` (ignored for the rectangle).
  * @param span       One-sided RRC span in symbols (ignored for the rectangle,
  *                   whose support is always exactly one symbol).

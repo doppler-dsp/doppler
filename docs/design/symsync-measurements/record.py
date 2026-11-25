@@ -1,11 +1,16 @@
-"""Record the timing loops' loop-filter output against time, and plot it.
+"""Record the timing loops on the rectangle, and their loop-filter output.
 
 ``docs/design/symsync.md`` §11 shows one run of the harness
-``native/validation/timing_loop_noise.c`` in its ``--trace`` mode: every
-closed-loop scenario of the harness, on both timing loops (``RateSync`` and
-``SymbolSync``), from the first strobe, started at the eye center (the loop
-holding lock) and a quarter and a half symbol off it (the loop acquiring).
-The run's data is kept beside this file:
+``native/validation/timing_loop_noise.c`` on both timing loops
+(``RateSync`` and ``SymbolSync``), in two parts. Its full sweep at 2, 4
+and 8 input samples a symbol gives the rectangle's closed-loop timing
+error against the linear loop. Its ``--trace`` mode gives every
+closed-loop scenario from the first strobe, started at the eye center (the
+loop holding lock) and a quarter and a half symbol off it (the loop
+acquiring). The run's data is kept beside this file:
+
+- ``rectangle.json``: the sweep's rectangle rows (phase 5) for each loop
+  at each samples-per-symbol;
 
 - ``traces/<scenario>.csv``: for each scenario a figure draws
   (``FIGURES``), the harness's per-symbol trace reduced to ``ROWS``
@@ -28,7 +33,7 @@ failing. Data from a dirty tree is refused.
 
 Usage::
 
-    python record.py measure     # the harness's --trace -> traces/, *.json
+    python record.py measure     # the harness's runs -> traces/, *.json
     python record.py figures     # traces/ -> *.png
     python record.py             # print the blocks
     python record.py --write     # rewrite them in the page
@@ -62,6 +67,8 @@ SCRIPT = "docs/design/symsync-measurements/record.py"
 SOURCE = ROOT / "native/validation/timing_loop_noise.c"
 VALIDATOR = ROOT / "build/native/validation/validate_timing_loop_noise"
 TRACES = DATA / "traces"
+# Input samples a symbol the rectangle's sweep runs at.
+RECT_SPS = (2, 4, 8)
 # Rows a kept trace holds.
 ROWS = 300
 # An acquiring scenario keeps its first ACQ_TC / bn symbols: four times the
@@ -196,6 +203,18 @@ def measure() -> int:
             scenarios.append({**s, **stats})
     if not scenarios:
         raise SystemExit("the harness wrote no trace")
+    rect = []
+    for sps in RECT_SPS:
+        run = subprocess.run(
+            [str(VALIDATOR), "--sps", str(sps)], capture_output=True, text=True
+        )
+        if run.returncode != 0:
+            sys.stderr.write(run.stdout + run.stderr)
+            return run.returncode
+        rect += rectangle_rows(run.stdout, sps)
+    (DATA / "rectangle.json").write_text(
+        json.dumps(rect, indent=1) + "\n", encoding="utf-8"
+    )
     meta["load_after"] = blocks.load_avg()
     meta["wall_s"] = round(time.perf_counter() - t0, 1)
     (DATA / "scenarios.json").write_text(
@@ -205,10 +224,52 @@ def measure() -> int:
         json.dumps(meta, indent=1) + "\n", encoding="utf-8"
     )
     print(
-        f"measure: {VALIDATOR.name} --trace, {len(scenarios)} scenarios "
-        f"in {meta['wall_s']} s"
+        f"measure: {VALIDATOR.name} --trace, {len(scenarios)} scenarios, "
+        f"and its sweep at {len(RECT_SPS)} rates, in {meta['wall_s']} s"
     )
     return 0
+
+
+def rectangle_rows(out: str, sps: int) -> list[dict[str, Any]]:
+    """The sweep's rectangle rows (phase 5), for each loop.
+
+    A row of the harness's table is the Es/N0, the bandwidth, the timing
+    error's variance (and its standard error across seeds), its root, the
+    delivered ``Bn / bn`` (and its standard error), the loop filter's law
+    for this loop's gain, and the largest excursion; the no-noise row has
+    no standard errors and no ratio.
+    """
+    rows: list[dict[str, Any]] = []
+    obj, on = "", False
+    for line in out.splitlines():
+        head = re.match(r"==== (\w+) ====", line)
+        if head:
+            obj, on = head.group(1).lower(), False
+            continue
+        if line.startswith("Phase "):
+            on = line.startswith("Phase 5.")
+            continue
+        t = line.replace("+-", " ").split()
+        if not on or not t or not (t[0] == "none" or t[1:2] == ["dB"]):
+            continue
+        if t[0] == "none":
+            esn0, v = "none", [float(x) for x in t[1:]]
+            row = {"bn": v[0], "var": v[1], "law": v[3], "max_dev": v[4]}
+        else:
+            esn0, v = f"{t[0]}dB", [float(x) for x in t[2:]]
+            row = {
+                "bn": v[0],
+                "var": v[1],
+                "var_se": v[2],
+                "ratio": v[4],
+                "ratio_se": v[5],
+                "law": v[6],
+                "max_dev": v[7],
+            }
+        rows.append({"sps": sps, "obj": obj, "esn0": esn0, **row})
+    if len({r["obj"] for r in rows}) != len(OBJECTS):
+        raise SystemExit(f"--sps {sps}: the sweep printed no rectangle rows")
+    return rows
 
 
 def load() -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -221,6 +282,9 @@ def load() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     meta = json.loads((DATA / "meta.json").read_text(encoding="utf-8"))
     scenarios = json.loads(
         (DATA / "scenarios.json").read_text(encoding="utf-8")
+    )
+    meta["rectangle"] = json.loads(
+        (DATA / "rectangle.json").read_text(encoding="utf-8")
     )
     blocks.require_toolchain("meta.json", meta)
     if meta["dirty"]:
@@ -451,14 +515,12 @@ def figures() -> int:
 def scenarios_block(
     scenarios: list[dict[str, Any]], meta: dict[str, Any]
 ) -> str:
-    """Every scenario: its settings and its statistics."""
+    """The scenarios the figures draw: their settings and statistics."""
     rows = []
     for s in scenarios:
-        figs = (
-            f"[plot](symsync-measurements/{DRAWN[s['name']]})"
-            if s["name"] in DRAWN
-            else "—"
-        )
+        if s["name"] not in DRAWN:
+            continue
+        figs = f"[plot](symsync-measurements/{DRAWN[s['name']]})"
         rows.append(
             [
                 OBJECTS[s["obj"]],
@@ -496,6 +558,61 @@ def scenarios_block(
     )
 
 
+def rectangle_block(
+    scenarios: list[dict[str, Any]], meta: dict[str, Any]
+) -> str:
+    """The rectangle's closed-loop timing error against the linear loop.
+
+    The linear loop's figure is the measured variance scaled by the law
+    over the delivered ``Bn / bn``: the harness's own detector noise and
+    slope, through the loop filter's noise bandwidth for this loop's gain.
+    """
+    rows = []
+    for sps in RECT_SPS:
+        for obj in OBJECTS:
+            got = [
+                r
+                for r in meta["rectangle"]
+                # the sweep names a loop as its section header does
+                if r["sps"] == sps and r["obj"] == OBJECTS[obj].lower()
+            ]
+            quiet = next(r for r in got if r["esn0"] == "none")
+            noisy = sorted(
+                (r for r in got if r["esn0"] == "4dB"),
+                key=lambda r: -r["bn"],
+            )
+            rows.append(
+                [
+                    f"{sps}",
+                    OBJECTS[obj],
+                    f"{math.sqrt(quiet['var']):.5f}",
+                    " / ".join(f"{math.sqrt(r['var']):.4f}" for r in noisy),
+                    " / ".join(
+                        f"{math.sqrt(r['var'] * r['law'] / r['ratio']):.4f}"
+                        for r in noisy
+                    ),
+                    " / ".join(f"{r['ratio']:.2f}" for r in noisy),
+                    f"{noisy[0]['law']:.3f}",
+                ]
+            )
+    bns = " / ".join(
+        f"{b:g}"
+        for b in sorted({r["bn"] for r in meta["rectangle"]}, reverse=True)
+    )
+    return table(
+        [
+            "input samples per symbol",
+            "loop",
+            "no noise, bn 0.005: timing error rms, symbols",
+            f"Es/N0 4 dB, bn {bns}: timing error rms, symbols",
+            "the linear loop's, symbols",
+            "delivered Bn/bn",
+            "the loop filter's law",
+        ],
+        rows,
+    )
+
+
 def stamp(scenarios: list[dict[str, Any]], meta: dict[str, Any]) -> str:
     """The run: when, where, at which commit and toolchain."""
     lengths = sorted({s["symbols"] // 1000 for s in scenarios})
@@ -506,7 +623,9 @@ def stamp(scenarios: list[dict[str, Any]], meta: dict[str, Any]) -> str:
                 "`validate_timing_loop_noise --trace`, "
                 f"{len(scenarios)} scenarios of "
                 f"{' or '.join(f'{n},000' for n in lengths)} symbols, "
-                "one seed",
+                "one seed; and its sweep at `--sps` "
+                f"{', '.join(str(n) for n in RECT_SPS)}, 400,000 symbols "
+                "by 6 seeds a row",
                 f"{meta['date_utc']} UTC, {meta['wall_s']:.0f} s",
                 f"`{meta['machine']}`: {meta['cpu_model']} "
                 f"({meta['cpu_threads']} threads)",
@@ -518,7 +637,11 @@ def stamp(scenarios: list[dict[str, Any]], meta: dict[str, Any]) -> str:
     )
 
 
-BLOCKS = {"scenarios": scenarios_block, "stamp": stamp}
+BLOCKS = {
+    "rectangle": rectangle_block,
+    "scenarios": scenarios_block,
+    "stamp": stamp,
+}
 
 
 def render() -> dict[str, str]:

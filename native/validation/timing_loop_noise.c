@@ -600,7 +600,8 @@ measure (int check)
           "bn 0.005, rrc.\n  The strobe's position less the symbol's place "
           "must stay flat while the strobe drifts\n  196 symbols across "
           "the input grid. A position one input out is a step of "
-          "0.125.\n");
+          "%.3f.\n",
+          1.0 / SPS);
   printf ("  %10s  %14s  %14s  %12s\n", "eps", "rms residual", "max residual",
           "mean ctrl");
   {
@@ -614,9 +615,10 @@ measure (int check)
           return -1;
         printf ("  %+10.1e  %14.3e  %14.3e  %+12.4e\n", eps[i],
                 sqrt (r.tau_var), r.tau_max, r.ctrl_mean);
-        /* Half an input: under the 0.125 step a wrong position makes,
-           over the pulse's own pattern jitter (0.022 at most, measured). */
-        if (r.tau_max > 0.0625)
+        /* Half an input: under the one-input step a wrong position makes
+           (0.125 at 8 samples a symbol), over the pulse's own pattern
+           jitter (0.022 at most there, measured). */
+        if (r.tau_max > 0.5 / SPS)
           {
             printf ("  FAIL: residual %.4f symbols; the position is not "
                     "the strobe's\n",

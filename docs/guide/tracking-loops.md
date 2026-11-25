@@ -355,8 +355,8 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
         the terminal stage's **outputs per symbol** (even, 2–8, default 8), which
         sets the Gardner strobe/gate geometry. The default is 8 because that is
         where an I&D matched filter reaches the coherent bound: measured on QPSK
-        at `sps = 8` against `EVM_dB = -(Es/N0)_dB`, `m_out = 8` lands 0.41 dB
-        off the bound at 18 dB Es/N0 where `m_out = 4` loses 3.11 dB. **Never
+        at `sps = 8` against `EVM_dB = -(Es/N0)_dB`, `m_out = 8` is on the
+        bound to 0.05 dB at 18 dB Es/N0 where `m_out = 4` is 0.8 dB off it. **Never
         pair 2 with `pulse="iandd"`** — the rectangle is one symbol wide, so at 2
         its matched filter degenerates to a two-tap sum (measured lock statistic
         −0.34 at 2 against +0.95 at 4) and acquisition itself fails about half
@@ -462,10 +462,10 @@ pulse, both loop bandwidths, `differential`, `agc` — is still there as a
 keyword.
 
 **`m_out` deriving rather than defaulting is not cosmetic.** Pinning `m_out=4`
-against the default I&D pulse is measured **3.11 dB** off the coherent bound
-where the derived 8 is 0.41 dB off — the rectangle's matched filter is an
-`m_out`-tap sum, and four taps sample that integral too coarsely. A parameter
-nobody needed was a way to lose most of the link's margin quietly.
+against the default I&D pulse is measured **0.8 dB** off the coherent bound
+where the derived 8 is on it to 0.05 dB — the rectangle's matched filter is an
+`m_out`-tap sum, and four taps sample that integral more coarsely. A parameter
+nobody needed was a way to give up margin quietly.
 
 An impossible geometry is refused at construction rather than approximated: a
 non-positive rate makes `sps` meaningless, and a carrier outside Nyquist is a
@@ -655,9 +655,10 @@ eye is wide open. And check `clipped` at least once against real input — the
 cascade inherits its CIC's ±2.0 input bound, and overdriving it costs ~25 dB
 with a perfectly healthy lock.
 
-Use `m >= 4` with `pulse="iandd"`: the rectangle is one symbol wide, so at
-`m = 2` its matched filter is a two-tap sum and the eye barely opens. The RRC
-spans many symbols and is unaffected.
+Both pulses lock at every `m`. With `pulse="iandd"` a small `m` costs
+error-vector magnitude, not lock: it is largest at `m = 2`, smaller at
+`m = 4` and gone at `m = 6` and `8` on a noiseless stream at 8 samples a
+symbol. The RRC reads the same at every `m`.
 
 `SymbolSync` remains the answer when the matched filter is one this family does
 not build, or when the front end is already at a small integer `sps` and a

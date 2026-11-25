@@ -93,7 +93,7 @@ listed the moment its folder exists. There is no list here to update.
 | [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md)                | `track`       | 44/44  | 12       | 6 — F4, F5, F6, F7, F8, F9 |
 | [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md)                | `track`       | 26/26  | 10       | 1 — F6                     |
 | [MpskReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md)            | `track`       | 63/63  | 8        | 2 — F5, F6                 |
-| [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md)                     | `track`       | 37/37  | 18       | 3 — F7, F17, F18           |
+| [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md)                     | `track`       | 37/37  | 18       | 2 — F7, F17                |
 | [StateFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/state_filter/results.md)              | `track`       | 19/19  | 6        | 1 — F6                     |
 | [KalmanStateFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/state_filter_kalman/results.md) | `track`       | 23/23  | 6        | 1 — F5                     |
 | [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)                                | `util`        | 15/15  | 6        | none                       |

@@ -3165,14 +3165,11 @@ class RateSync:
         Terminal outputs per symbol: even, 2 <= m <= 8. Gardner needs a
         transition gate half a symbol from the on-time strobe, which is why m
         must be even and at least 2. The oversampled stream is a by-product of
-        the same dot products, not an extra cost. Use m >= 4 with
-        pulse="iandd": the rectangle is one symbol wide, so at m=2 its matched
-        filter is a 2-tap sum and the eye statistic barely opens. Measured on
-        an NRZ stream, m=2 does not clear the lock detector's own declare
-        threshold while m=4 clears it comfortably, with tens of dB of EVM
-        between them. The rule rests on that separation, not on a particular
-        pair of lock_stat values -- those move with sps and with the stream.
-        The RRC spans many symbols and is unaffected.
+        the same dot products, not an extra cost. Both pulses lock at every m.
+        With pulse="iandd" a small m costs EVM, not lock: on a noiseless NRZ
+        stream at 8 samples a symbol the error vector is largest at m=2,
+        smaller at m=4 and gone at m=6 and 8. The RRC reads the same at every
+        m.
     num_phases : int, default 1024
         Matched-filter arms; a power of two. Sets the fractional-timing
         resolution to 1/num_phases of an output period.
@@ -4568,9 +4565,8 @@ class MpskReceiver:
         rectangle is one symbol wide, so its matched filter is an m_out-tap sum
         spanning it, and a smaller m_out samples that same integral more
         coarsely. Measured on QPSK at the default sps=8 against the coherent
-        bound EVM_dB = -(Es/N0)_dB: at 18 dB Es/N0, m_out=8 lands 0.41 dB off
-        the bound where m_out=4 loses 3.11 dB; at 14 dB it is 0.25 dB against
-        1.71 dB -- the gap widens as noise stops hiding it. **Never pair 2 with
+        bound EVM_dB = -(Es/N0)_dB: at 18 dB Es/N0, m_out=8 is on the bound to
+        0.05 dB where m_out=4 is 0.8 dB off it. **Never pair 2 with
         pulse="iandd"**: the matched filter degenerates to a two-tap sum, the
         eye barely opens (measured lock statistic -0.34 at 2 against +0.95 at 4
         on the same NRZ stream) and acquisition itself fails about half the
@@ -5815,16 +5811,15 @@ class MpskReceiverR:
         rectangle is one symbol wide, so its matched filter is an m_out-tap sum
         spanning it, and a smaller m_out samples that same integral more
         coarsely. Measured on the complex face at its default sps=8 against the
-        coherent bound EVM_dB = -(Es/N0)_dB: at 18 dB Es/N0, m_out=8 lands 0.41
-        dB off the bound where m_out=4 loses 3.11 dB; at 14 dB it is 0.25 dB
-        against 1.71 dB -- the gap widens as noise stops hiding it. Because
-        `sps` must clear `2 * m_out` here, this default is also what puts the
-        `sps` default at 32. **Never pair 2 with pulse="iandd"**: the matched
-        filter degenerates to a two-tap sum, the eye barely opens (measured
-        lock statistic -0.34 at 2 against +0.95 at 4 on the same NRZ stream)
-        and acquisition itself fails about half the time. Replaces the old `n`
-        (NDA arm dumps per symbol): the cascade's own outputs now feed the
-        carrier discriminator, so there is no separate arm to size.
+        coherent bound EVM_dB = -(Es/N0)_dB: at 18 dB Es/N0, m_out=8 is on the
+        bound to 0.05 dB where m_out=4 is 0.8 dB off it. Because `sps` must
+        clear `2 * m_out` here, this default is also what puts the `sps`
+        default at 32. **Never pair 2 with pulse="iandd"**: the matched filter
+        degenerates to a two-tap sum, the eye barely opens (measured lock
+        statistic -0.34 at 2 against +0.95 at 4 on the same NRZ stream) and
+        acquisition itself fails about half the time. Replaces the old `n` (NDA
+        arm dumps per symbol): the cascade's own outputs now feed the carrier
+        discriminator, so there is no separate arm to size.
     pulse : Literal["iandd", "rrc"], default "iandd"
         The matched-filter shape.
         One of ``"iandd"``, ``"rrc"``.

@@ -1758,9 +1758,14 @@ five. The state blob needs no change: every detector's running state is
 already in it (the receiver's `extra`, and the Dll, carrier and
 `MpskReceiver` children it nests).
 
-**The order they come up in, measured, not promised.** At 2.2 GHz on the
-C++ example's scene (Es/N0 4 to 10 dB, the symbol at which each flag is
-sustained, [#3349](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7146889068)):
+**The order they come up in, measured, not promised.** This table is
+from the C++ example's first stimulus: 2.2 GHz, Es/N0 4 to 10 dB, PN15
+with 275 transition-free code-only symbols in every 1,000-symbol frame. It
+gives the symbol at which each flag is sustained
+([#3349](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7146889068)).
+The baseline record of
+[#3359](https://github.com/doppler-dsp/doppler/issues/3359) replaces it,
+with the standard's stimulus and a drawn arrival.
 
 | Es/N0 | code | car | sym | demod | timing |
 | ----- | ---- | --- | --- | ----- | ------ |
@@ -1769,30 +1774,55 @@ sustained, [#3349](https://github.com/doppler-dsp/doppler/issues/3349#issuecomme
 | 8 dB  | 40   | 62  | 29  | 28    | 1994   |
 | 10 dB | 40   | 62  | 29  | 19    | 929    |
 
-The first four are up inside the first 140 symbols; the timing lock comes
-last in every run, 0.3 to 1.6 s after the others. The bootstrap order is
-code, then symbol timing, then data (§3.3), and the timing flag is the one
-the other four do not stand in for: symbols scored before it are scored
-before the demodulator has locked its timing, and in the runs above they
-read an error rate near 1/3.
+There, the first four are up inside the first 140 symbols, and the timing
+lock comes last in every run. The receiver's own figure comes from the
+validator's scene (`dp_air`, 1,024 runs). The time to all five flags is:
 
-**When the symbols are valid.** Not an instant: from the window's start,
-the latest of the five flags' sustained times, each sustained by
-`dp_ber_lock_symbol()` (200 decisions up in a row, then up for 90% of the
-rest). That rule is `dp_ber_lock_all()`, public in `doppler/ber/ber_core.h`
-beside `dp_ber_lock_symbol()` (its copy in `native/tests/dp_ber_test.h`
-goes): a consumer records the five flags a symbol and opens its window
-where the certification opens its own. It is not a status field, because
-"sustained" needs the record after the point, not the flags at it, and a
-field that read all five up at one instant would read up across a dip.
+- at 2.2 GHz, 4 dB: median 0.40 s, 90th percentile 1.02 s, slowest 2.6 s;
+- at 2.8 GHz, 6 and 8 dB: median 0.27 s, 90th percentile 0.31 s.
+
+Both are from
+[#3349](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7147326629).
+
+The bootstrap order is code, then symbol timing, then data (§3.3). The
+timing flag is the one the other four do not stand in for. Symbols before
+it are not aligned to the transmitted symbols, and may gain or lose whole
+symbols.
+
+**When the symbols are valid, for a finished capture.** Validity is not
+an instant: it runs from the window's start, the latest of the five flags'
+sustained times. Each flag is sustained by `dp_ber_lock_symbol()`: 200
+decisions up in a row, then up for 90% of the rest. That rule is
+`dp_ber_lock_all()`. It becomes public in `doppler/ber/ber_core.h`, beside
+`dp_ber_lock_symbol()`, and its copy in `native/tests/dp_ber_test.h` goes.
+A consumer records the five flags a symbol and opens its window where the
+certification opens its own. The rule needs the record after the point, so
+it serves a meter scoring what was captured, and it is not a status field.
+
+**A consumer deciding now has no rule yet.** A modem deciding whether to
+pass a symbol on cannot wait for the rest of the record. The causal half
+of the same rule is all five flags up for 200 symbols in a row:
+
+- it delays the decision by 200 symbols, 66.7 ms at 3,000 symbols a
+    second;
+- it drops the 90% clause, which only the future can satisfy.
+
+Three things are not measured: whether that half alone marks valid
+symbols, how often it opens before the full rule would, and what count a
+modem should use. The receiver offers no real-time validity indication
+today, and that is open (#3350).
 
 **Valid is not slip-free.** A whole-symbol slip can occur with all five
-flags up. At 2.2 GHz, Es/N0 6 dB, one arrival slipped twice, about 800
-symbols apart, with every flag sustained and the timing flag's only dip
-between the two slips, not at either
-([#3349](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7147085954)).
-No flag here detects a slip ("No flag sees a carrier slip", above); a
-consumer that must know reads it from its data: a frame sync that
+flags up, and no flag reports it ("No flag sees a carrier slip", above):
+
+- on the validator's scene it is rare, 2 of 1,023 runs
+    ([#3349](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7147326629));
+- on the C++ example's first stimulus, one run at 2.2 GHz, 6 dB, slipped
+    twice about 800 symbols apart, with the timing flag's only dip between
+    the slips, not at either
+    ([#3349](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7147085954)).
+
+A consumer that must know reads a slip from its data: a frame sync that
 re-acquires a few symbols off, or the error-rate meter's end alignment.
 
 ### 4.11 The hand-over

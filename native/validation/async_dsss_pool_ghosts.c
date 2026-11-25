@@ -934,14 +934,32 @@ typedef struct
    apart too. */
 #define GH_ALONE_EPS_SKIP_S 1.0
 #define GH_EPS_QUANTILE 0.99
-#define GH_EPS_MIN_N 300
+/* The stability count. The largest of N draws from any distribution bounds
+   its 99th percentile from above with 95% confidence exactly when
+   0.99^N <= 0.05, i.e. N >= ln(0.05)/ln(0.99) = 298.07: N >= 299. */
+#define GH_EPS_MIN_N 299
 
 typedef struct
 {
   double *v; /* per on-phase tenure, Hz */
   size_t  n, cap;
-  size_t  off_phase, too_short;
+  size_t  too_short;
+  /* The off-phase tenures: a spare receiver on noise, not a ghost (there is
+     no parent). Its distance from the emitter's code phase, chips, and how it
+     ended: by the loss timer, still held at the run's end, or otherwise. */
+  size_t off_phase, off_n, off_loss, off_open, off_other;
+  double off_min, off_max;
 } gh_eps_t;
+
+static void
+gh_off_push (gh_eps_t *e, double chips)
+{
+  if (e->off_n == 0 || chips < e->off_min)
+    e->off_min = chips;
+  if (e->off_n == 0 || chips > e->off_max)
+    e->off_max = chips;
+  e->off_n++;
+}
 
 static void
 gh_eps_push (gh_eps_t *e, double x)
@@ -1030,6 +1048,11 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
               if (off[r])
                 {
                   ep->off_phase++;
+                  gh_off_push (ep, worst[r]);
+                  if (p->released_lost > l0)
+                    ep->off_loss++;
+                  else
+                    ep->off_other++;
                   o->ghosts++;
                   o->by_ghost += p->released_ghost > g0;
                   o->by_lost += p->released_lost > l0;
@@ -1050,6 +1073,8 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
         o->ghosts++;
         o->open++;
         ep->off_phase++;
+        gh_off_push (ep, worst[r]);
+        ep->off_open++;
       }
     else if (in[r])
       {
@@ -1083,8 +1108,9 @@ gh_alone_arm (const uint8_t *code, const double fcs[2], unsigned draws,
   if (emit)
     printf ("# alone\nfc_ghz,seed,receiver,worst_chips,ended_at\n");
   else
-    printf ("  ALONE: one %.0f dB-Hz emitter, a pool of four, %.0f s\n",
-            GH_PARENT_DBHZ, GH_ALONE_S);
+    printf (
+        "  ALONE: one emitter at each level below, a pool of four, %.0f s\n",
+        GH_ALONE_S);
   /* Three levels. Es/N0 4 dB (38.77 dB-Hz) is the design point: epsilon is
      measured there, the lowest level anything on the air has, so the
      resolution covers the weakest holder. Es/N0 5 dB (39.77 dB-Hz) is the
@@ -1124,18 +1150,28 @@ gh_alone_arm (const uint8_t *code, const double fcs[2], unsigned draws,
                 size_t k = (size_t)ceil (GH_EPS_QUANTILE * (double)ep.n);
                 q        = ep.v[k ? k - 1 : 0];
               }
-            printf ("    %.1f GHz at %.2f dB-Hz: %zu draws, %zu tenures, %zu "
-                    "off the emitter's phase (ghosts: ended by the ghost rule "
-                    "%zu, the loss release %zu, the duplicate rule %zu, still "
-                    "held %zu)\n",
-                    fcs[f] / 1e9, levels[lv], n, a.tenures, a.ghosts,
-                    a.by_ghost, a.by_lost, a.by_dup, a.open);
+            printf ("    %.1f GHz at %.2f dB-Hz: %zu draws, %zu tenures; "
+                    "release causes: loss timer %zu, duplicate rule %zu, "
+                    "ghost rule %zu, still held %zu\n",
+                    fcs[f] / 1e9, levels[lv], n, a.tenures, a.by_lost,
+                    a.by_dup, a.by_ghost, a.open);
             printf ("      epsilon: %.0f%% quantile %.2f Hz over %zu on-phase "
-                    "tenures (%zu shorter than the %.0f s skip, %zu off-phase "
-                    "excluded)%s\n",
+                    "tenures (%zu shorter than the %.0f s skip); largest of "
+                    "those %.2f Hz, the 95%% upper bound on the quantile for "
+                    "N >= 299%s\n",
                     100.0 * GH_EPS_QUANTILE, q, ep.n, ep.too_short,
-                    GH_ALONE_EPS_SKIP_S, ep.off_phase,
+                    GH_ALONE_EPS_SKIP_S, ep.n ? ep.v[ep.n - 1] : NAN,
                     ep.n >= GH_EPS_MIN_N ? "" : " -- NOT STABLE: too few");
+            printf ("      off-phase, excluded: %zu of %zu tenures (%.1f%%): "
+                    "a spare receiver on noise, %.1f to %.1f chips from the "
+                    "emitter; ended by the loss timer %zu, still held at the "
+                    "run's end %zu, other %zu\n",
+                    ep.off_phase, a.tenures,
+                    a.tenures
+                        ? 100.0 * (double)ep.off_phase / (double)a.tenures
+                        : 0.0,
+                    ep.off_min, ep.off_max, ep.off_loss, ep.off_open,
+                    ep.off_other);
           }
         free (ep.v);
       }

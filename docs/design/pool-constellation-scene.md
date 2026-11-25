@@ -295,8 +295,10 @@ receiver's own.
 Each tenure's value is its largest error from one second into the tenure: the
 pull-in transient is a separate figure. A tenure is on-phase when its code phase
 stays within one chip of the emitter's, the scorer's own real-class test. A
-tenure that leaves that band is a ghost: it is excluded from `ε` and counted
-apart, with the count printed, because a ghost is what the scene scores.
+tenure that leaves that band is excluded from `ε` and counted apart, with the
+count, its distance from the emitter's phase, and how it ended printed. On a
+lone emitter it is not a ghost: a ghost has a parent to be a ghost of, and a
+lone emitter has none. It is a spare receiver on noise.
 
 Why the 99th percentile and not the maximum. The maximum over a run grows with
 the number of draws, and one off-phase tenure sets it: 2.28 Hz over the first 20
@@ -306,9 +308,11 @@ matters: a holder whose error exceeds `ε` could be classed as another family, s
 the scorer needs the tail, and the 99th percentile is the tail it can read from a
 pool of on-phase tenures without the largest one deciding it.
 
-Stable once the pool holds 300 on-phase tenures; the run prints the count and
-says NOT STABLE below it. Off-phase tenures are a number the page carries: a pool
-of four on a lone emitter holding a ghost is what the scene exists to score.
+Stable once the pool holds 299 on-phase tenures; the run prints the count and
+says NOT STABLE below it. The count is derived, not chosen. The largest of `N`
+draws bounds the 99th percentile from above with 95% confidence exactly when
+`0.99^N ≤ 0.05`, so `N ≥ ln(0.05) / ln(0.99) = 298.07`, and `N ≥ 299`. The run
+prints that largest value beside the quantile, as the 95% upper bound on it.
 
 **What prints it.** `validate_async_dsss_pool_ghosts --alone` prints the quantile,
 its count, and the excluded tenures (off-phase, and shorter than the skip) at
@@ -320,11 +324,12 @@ seconds each:
 | 2.2 GHz | 364     | 340                 | 24 (6.6%)           | 2.76 Hz         |
 | 2.8 GHz | 359     | 340                 | 19 (5.3%)           | 2.50 Hz         |
 
-Both pools are at the stability count of 300. The excluded tenures are the lone
-emitter's ghosts, the thing the scene scores: a pool of four holds a ghost on a
-lone emitter in 5 to 7% of its tenures at this level. None of them ended by the
-ghost rule. They ended by the loss release (12 and 9) or were still held at the
-end of the run (12 and 10). The prediction written before the run (3.3 Hz at 2.2
+Both pools are at the stability count of 299. The excluded tenures are not
+ghosts: on a lone emitter they are a spare receiver on noise, 5 to 7% of
+tenures at this level. Their distance from the emitter's code phase runs from
+12.7 to 505.0 chips at 2.2 GHz and from 18.9 to 509.0 chips at 2.8 GHz. None
+ended by the ghost rule (0 and 0). They ended by the loss timer (12 and 9) or
+were still held at the end of the run (12 and 10). The prediction written before the run (3.3 Hz at 2.2
 GHz, range 2.8 to 4.0; 2.9 Hz at 2.8 GHz, range 2.4 to 3.6) was too high at 2.2 GHz:
 the measured 2.76 Hz sits just under its range. The error tail is lighter than the
 Rayleigh shape the prediction assumed. The page does not move to the prediction;

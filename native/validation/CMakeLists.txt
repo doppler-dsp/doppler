@@ -201,6 +201,18 @@ dp_gnu_compile_options(validate_timing_loop_noise PRIVATE -O3 -funroll-loops
 add_test(NAME validate_timing_loop_noise
          COMMAND validate_timing_loop_noise --check)
 
+# The rectangle as the matched bank sees it behind each planned cascade, and
+# the matched filter for that pulse and noise, beside the arms as built.
+add_executable(validate_ratesync_pulse_model
+               ${CMAKE_CURRENT_SOURCE_DIR}/ratesync_pulse_model.c)
+target_include_directories(validate_ratesync_pulse_model
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_ratesync_pulse_model PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_ratesync_pulse_model PRIVATE -O3)
+add_test(NAME validate_ratesync_pulse_model
+         COMMAND validate_ratesync_pulse_model --check)
+
 add_executable(validate_lockdet_verify
                ${CMAKE_CURRENT_SOURCE_DIR}/lockdet_verify.c)
 target_include_directories(validate_lockdet_verify

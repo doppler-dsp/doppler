@@ -258,8 +258,11 @@ if [ "$fmt" = rpm ]; then
             || { cat "$work/rc-tui.log" >&2; die "the TUI did not build"; }
         [ -x "$work/rc/ccsds415-tui" ] \
             || die "ftxui-devel is installed but ccsds415-tui was not built"
+        # 10 s, the batch default: the frames panel and its checks need
+        # whole frames in the locked stream (four a carrier at 10 s), and
+        # the snapshot runs unpaced, so it costs about 9 s, not 10.
         "$work/rc/ccsds415-tui" --snapshot --out "$work/rc-out" \
-            --seconds 2.5 >"$work/rc-snap.txt" \
+            --seconds 10 >"$work/rc-snap.txt" \
             || { cat "$work/rc-snap.txt" >&2; die "the TUI's checks failed"; }
         bash "$SRC/tests/install/tui-snapshot-check.sh" "$work/rc-snap.txt" 2 \
             || die "a TUI panel is missing a value"

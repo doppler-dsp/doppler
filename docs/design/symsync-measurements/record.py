@@ -3,19 +3,21 @@
 ``docs/design/symsync.md`` §11 shows one run of the harness
 ``native/validation/timing_loop_noise.c`` in its ``--trace`` mode: every
 closed-loop scenario of the harness, on both timing loops (``RateSync`` and
-``SymbolSync``), from the first strobe. The run's data is kept beside this
-file:
+``SymbolSync``), from the first strobe, started at the eye center (the loop
+holding lock) and a quarter and a half symbol off it (the loop acquiring).
+The run's data is kept beside this file:
 
 - ``traces/<scenario>.csv``: the harness's per-symbol trace reduced to
-  blocks of ``BLOCK`` symbols. Each row is one block: its middle symbol,
-  the mean, minimum and maximum of the loop filter's output, the mean of
-  its integrator (all in symbols a symbol) and the mean timing error in
-  symbols;
-- ``scenarios.json``: each scenario's settings and its statistics over the
-  second half of the per-symbol trace, taken before the reduction;
+  ``ROWS`` blocks. A held scenario keeps its whole length; an acquiring
+  one keeps its first ``ACQ_TC / bn`` symbols, where the acquisition is.
+  Each row is one block: its middle symbol, the mean, minimum and maximum
+  of the loop filter's output, the mean of its integrator (all in symbols
+  a symbol) and the mean timing error in symbols;
+- ``scenarios.json``: each scenario's settings and its statistics, taken
+  from the per-symbol trace before the reduction;
 - ``meta.json``: the run's stamp (``_record_blocks.run_stamp``): when,
   where, from which commit and with which toolchain;
-- ``lf_*.png``: the figures, drawn from ``traces/``.
+- ``hold_*.png``, ``acq_*.png``: the figures, drawn from ``traces/``.
 
 The table of §11 is this file's output, held between
 ``<!-- symsync:<block>:start -->`` and ``:end`` markers, so a cell cannot
@@ -25,7 +27,7 @@ failing. Data from a dirty tree is refused.
 Usage::
 
     python record.py measure     # the harness's --trace -> traces/, *.json
-    python record.py figures     # traces/ -> lf_*.png
+    python record.py figures     # traces/ -> *.png
     python record.py             # print the blocks
     python record.py --write     # rewrite them in the page
     python record.py --check     # fail when they differ (the gate)
@@ -58,28 +60,30 @@ SCRIPT = "docs/design/symsync-measurements/record.py"
 SOURCE = ROOT / "native/validation/timing_loop_noise.c"
 VALIDATOR = ROOT / "build/native/validation/validate_timing_loop_noise"
 TRACES = DATA / "traces"
-# Symbols a kept row averages. The harness traces 60,000 symbols a
-# scenario, so a scenario keeps 500 rows.
-BLOCK = 120
+# Rows a kept trace holds.
+ROWS = 300
+# An acquiring scenario keeps its first ACQ_TC / bn symbols: four times the
+# loop filter's own 5 / bn settling rule, so a slow acquisition still shows.
+ACQ_TC = 20.0
+# "Acquired" in the table: the timing error is inside this many symbols of
+# the eye center it ends at, and stays there. A quarter symbol is the edge
+# of the rectangle's S-curve, where the restoring force peaks.
+ACQ_BAND = 0.25
 PPM = 1e6
+BLUE, ORANGE = "#2a78d6", "#eb6834"
 
 OBJECTS = {"ratesync": "RateSync", "symsync": "SymbolSync"}
 PULSES = {"iandd": "rectangle", "rrc": "root-raised cosine"}
+ESN0S = ["none", "4dB", "10dB"]
 NAME = re.compile(
     r"(?P<obj>ratesync|symsync)_(?P<pulse>iandd|rrc)_(?P<esn0>none|\d+dB)"
-    r"_bn(?P<bn>[\d.]+)_a(?P<amp>[\d.]+)_eps(?P<eps>0|[pm]\de-\d+)$"
+    r"_bn(?P<bn>[\d.]+)_a(?P<amp>[\d.]+)_eps(?P<eps>0|[pm]\de-\d+)"
+    r"_off(?P<off>[\d.]+)$"
 )
 
 
-def kept_name(stem: str) -> str:
-    """The name a harness trace is kept under. The harness writes a clock
-    offset's sign as ``+`` or ``-``; a tracked path holds neither a ``+``
-    nor a doubled sign, so the kept name spells them ``p`` and ``m``."""
-    return stem.replace("eps+", "epsp").replace("eps-", "epsm")
-
-
 def parse(stem: str) -> dict[str, Any]:
-    """A kept trace's name as its scenario's settings."""
+    """A trace's name as its scenario's settings."""
     m = NAME.match(stem)
     if m is None:
         raise SystemExit(f"{stem}: not a scenario the harness names")
@@ -91,40 +95,60 @@ def parse(stem: str) -> dict[str, Any]:
         "bn": float(m["bn"]),
         "amp": float(m["amp"]),
         "eps": float(m["eps"].replace("p", "+").replace("m", "-")),
+        "off": float(m["off"]),
     }
 
 
-def reduce(src: Path) -> tuple[list[list[float]], dict[str, float]]:
-    """One per-symbol trace as block rows, and its second half's
-    statistics: the output's mean and rms about it, the integrator's mean
-    and the timing error's standard deviation."""
+def reduce(
+    src: Path, s: dict[str, Any]
+) -> tuple[list[list[float]], dict[str, Any]]:
+    """One per-symbol trace as block rows, and its statistics.
+
+    Over the second half: the output's mean and rms about it, the
+    integrator's mean and the timing error's standard deviation. Over the
+    whole trace: where the timing error starts and ends (the mean of the
+    first 8 symbols and of the last quarter), and the first symbol from
+    which it stays within ``ACQ_BAND`` of where it ends.
+    """
     with src.open(encoding="utf-8", newline="") as f:
         raw = [[float(v) for v in r] for r in list(csv.reader(f))[1:]]
+    keep = len(raw) if s["off"] == 0.0 else int(ACQ_TC / s["bn"])
+    keep = min(keep, len(raw))
+    blk_n = keep // ROWS
     rows = []
-    for i in range(0, len(raw) - BLOCK + 1, BLOCK):
-        blk = raw[i : i + BLOCK]
+    for i in range(0, ROWS * blk_n, blk_n):
+        blk = raw[i : i + blk_n]
         out = [r[1] for r in blk]
         rows.append(
             [
-                blk[BLOCK // 2][0],
-                sum(out) / BLOCK,
+                blk[blk_n // 2][0],
+                sum(out) / blk_n,
                 min(out),
                 max(out),
-                sum(r[2] for r in blk) / BLOCK,
-                sum(r[3] for r in blk) / BLOCK,
+                sum(r[2] for r in blk) / blk_n,
+                sum(r[3] for r in blk) / blk_n,
             ]
         )
     half = raw[len(raw) // 2 :]
     n = len(half)
     out_mean = sum(r[1] for r in half) / n
     tau_mean = sum(r[3] for r in half) / n
+    tail = raw[-(len(raw) // 4) :]
+    tau_end = sum(r[3] for r in tail) / len(tail)
+    last_out = 0
+    for i, r in enumerate(raw):
+        if abs(r[3] - tau_end) >= ACQ_BAND:
+            last_out = i + 1
     stats = {
         "symbols": len(raw),
+        "block": blk_n,
         "out_mean": out_mean,
         "out_rms": math.sqrt(sum((r[1] - out_mean) ** 2 for r in half) / n),
         "integ_mean": sum(r[2] for r in half) / n,
         "sigma_tau": math.sqrt(sum((r[3] - tau_mean) ** 2 for r in half) / n),
-        "tau_span": max(r[3] for r in raw) - min(r[3] for r in raw),
+        "tau_start": sum(r[3] for r in raw[:8]) / 8,
+        "tau_end": tau_end,
+        "acquired_at": last_out,
     }
     return rows, stats
 
@@ -146,9 +170,9 @@ def measure() -> int:
         for old in TRACES.glob("*.csv"):
             old.unlink()
         for src in sorted(Path(tmp).glob("*.csv")):
-            rows, stats = reduce(src)
-            name = kept_name(src.stem)
-            with (TRACES / f"{name}.csv").open(
+            s = parse(src.stem)
+            rows, stats = reduce(src, s)
+            with (TRACES / src.name).open(
                 "w", encoding="utf-8", newline=""
             ) as f:
                 w = csv.writer(f, lineterminator="\n")
@@ -163,8 +187,8 @@ def measure() -> int:
                     ]
                 )
                 for r in rows:
-                    w.writerow([f"{r[0]:.0f}"] + [f"{v:.6e}" for v in r[1:]])
-            scenarios.append({**parse(name), **stats})
+                    w.writerow([f"{r[0]:.0f}"] + [f"{v:.5e}" for v in r[1:]])
+            scenarios.append({**s, **stats})
     if not scenarios:
         raise SystemExit("the harness wrote no trace")
     meta["load_after"] = blocks.load_avg()
@@ -183,7 +207,12 @@ def measure() -> int:
 
 
 def load() -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """The run and its stamp, held to a clean tree and a full toolchain."""
+    """The run and its stamp, held to a clean tree and a full toolchain.
+
+    Each scenario gains ``center``: the eye center of its loop and pulse on
+    the trace's timing axis, which is where that loop's held, noiseless
+    scenario ends. A scenario's timing error is its trace less this.
+    """
     meta = json.loads((DATA / "meta.json").read_text(encoding="utf-8"))
     scenarios = json.loads(
         (DATA / "scenarios.json").read_text(encoding="utf-8")
@@ -191,9 +220,15 @@ def load() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     blocks.require_toolchain("meta.json", meta)
     if meta["dirty"]:
         raise SystemExit("record data from a dirty tree is refused")
+    center = {
+        (s["obj"], s["pulse"]): s["tau_end"]
+        for s in scenarios
+        if s["esn0"] == "none" and is_grid(s) and s["off"] == 0.0
+    }
     for s in scenarios:
         if not (TRACES / f"{s['name']}.csv").exists():
             raise SystemExit(f"traces/{s['name']}.csv is missing")
+        s["center"] = center[(s["obj"], s["pulse"])]
     return scenarios, meta
 
 
@@ -208,47 +243,83 @@ def is_grid(s: dict[str, Any]) -> bool:
     return s["amp"] == 1.0 and s["eps"] == 0.0
 
 
-def figure_of(s: dict[str, Any]) -> str:
-    """The figure a scenario is drawn in."""
-    if is_grid(s):
-        return f"lf_{s['obj']}_{s['pulse']}.png"
-    return "lf_level_and_offset.png"
+def off_tag(off: float) -> str:
+    return f"off{off:.3f}".replace(".", "p")
+
+
+def lf_figure(s: dict[str, Any]) -> str:
+    """The figure a scenario's loop-filter output is drawn in."""
+    stem = "hold" if s["off"] == 0.0 else "acq_lf"
+    what = f"{s['obj']}_{s['pulse']}" if is_grid(s) else "level_and_offset"
+    tail = "" if s["off"] == 0.0 else f"_{off_tag(s['off'])}"
+    return f"{stem}_{what}{tail}.png"
+
+
+def tau_figure(s: dict[str, Any]) -> str:
+    """The figure an acquiring scenario's timing error is drawn in."""
+    what = f"{s['obj']}_{s['pulse']}" if is_grid(s) else "level_and_offset"
+    return f"acq_tau_{what}.png"
 
 
 def esn0_text(s: dict[str, Any]) -> str:
     return "no noise" if s["esn0"] == "none" else f"Es/N0 {s['esn0'][:-2]} dB"
 
 
-def panel(ax: Any, s: dict[str, Any]) -> None:
-    """One scenario: the loop filter's output averaged over BLOCK symbols,
-    and its integrator, in parts per million of the symbol rate."""
+def settings(s: dict[str, Any]) -> str:
+    """A scenario's settings as a panel's first title line."""
+    text = f"{esn0_text(s)}, bn {s['bn']:g}"
+    if not is_grid(s):
+        text += f", A {s['amp']:g}, clock {s['eps'] * PPM:+.0f} ppm"
+    return text
+
+
+def lf_panel(ax: Any, s: dict[str, Any], prefix: str = "") -> None:
+    """One scenario: the loop filter's output averaged over a block, and
+    its integrator, in parts per million of the symbol rate."""
     rows = trace(s["name"])
     x = [r[0] / 1000.0 for r in rows]
-    ax.plot(
-        x,
-        [r[1] * PPM for r in rows],
-        color="#2a78d6",
-        lw=1.0,
-        label=f"output, mean of {BLOCK} symbols",
-    )
+    ax.plot(x, [r[1] * PPM for r in rows], color=BLUE, lw=1.0, label="output")
     ax.plot(
         x,
         [r[4] * PPM for r in rows],
-        color="#eb6834",
+        color=ORANGE,
         lw=2.0,
         label="integrator",
     )
     ax.axhline(0.0, color="#888888", lw=0.6)
-    title = f"{esn0_text(s)}, bn {s['bn']:g}"
-    if not is_grid(s):
-        title += f", A {s['amp']:g}, clock {s['eps'] * PPM:+.0f} ppm"
     # The statistics go above the panel, one a line: inside it they sit
     # on the trace, and on one line they run into the next panel's.
     ax.set_title(
-        f"{title}\n"
-        f"output {s['out_rms'] * PPM:.0f} ppm rms a symbol\n"
+        f"{prefix}{settings(s)}\n"
+        f"output is the mean of {s['block']} symbols; "
+        f"{s['out_rms'] * PPM:.0f} ppm rms a symbol\n"
         f"integrator mean {s['integ_mean'] * PPM:+.1f} ppm, "
         f"timing error {s['sigma_tau']:.4f} symbols rms",
+        fontsize=7.5,
+    )
+    ax.grid(True, color="#dddddd", lw=0.5)
+    ax.tick_params(labelsize=7)
+
+
+def tau_panel(ax: Any, pair: list[dict[str, Any]], prefix: str = "") -> None:
+    """One scenario's acquisitions: the timing error against time from each
+    starting offset, in symbols from the eye center."""
+    for s, color in zip(pair, [BLUE, ORANGE]):
+        rows = trace(s["name"])
+        ax.plot(
+            [r[0] / 1000.0 for r in rows],
+            [r[5] - s["center"] for r in rows],
+            color=color,
+            lw=1.5,
+            label=f"started {s['off']:g} symbol off",
+        )
+    for y in (0.0, -1.0):
+        ax.axhline(y, color="#888888", lw=0.6)
+    ax.set_title(
+        f"{prefix}{settings(pair[0])}\n"
+        + f"inside {ACQ_BAND:g} symbol for good after "
+        + " and ".join(f"{s['acquired_at']} (from {s['off']:g})" for s in pair)
+        + " symbols",
         fontsize=7.5,
     )
     ax.grid(True, color="#dddddd", lw=0.5)
@@ -265,72 +336,142 @@ def figures() -> int:
     scenarios, meta = load()
     by_name = {s["name"]: s for s in scenarios}
     bns = sorted({s["bn"] for s in scenarios if is_grid(s)}, reverse=True)
+    offs = sorted({s["off"] for s in scenarios})
+    for old in DATA.glob("*.png"):
+        old.unlink()
     made = []
+
+    def finish(fig: Any, axes: Any, title: str, name: str, ylab: str) -> None:
+        for ax in axes[-1]:
+            ax.set_xlabel("time, thousands of symbols", fontsize=8)
+        for row in axes:
+            row[0].set_ylabel(ylab, fontsize=8)
+        axes[0][0].legend(fontsize=7, loc="upper right")
+        fig.suptitle(f"{title} (commit {meta['commit']})", fontsize=10)
+        fig.tight_layout()
+        fig.savefig(DATA / name, dpi=100)
+        plt.close(fig)
+        made.append(name)
+
+    def grid_key(
+        obj: str, pulse: str, esn0: str, bn: float, off: float
+    ) -> str:
+        return f"{obj}_{pulse}_{esn0}_bn{bn:.5f}_a1.0_eps0_off{off:.3f}"
+
     for obj, obj_name in OBJECTS.items():
         for pulse, pulse_name in PULSES.items():
+            who = f"{obj_name}, {pulse_name}, Gardner"
+            for off in offs:
+                fig, axes = plt.subplots(
+                    3, len(bns), figsize=(13, 9.6), squeeze=False
+                )
+                for r, esn0 in enumerate(ESN0S):
+                    for c, bn in enumerate(bns):
+                        key = grid_key(obj, pulse, esn0, bn, off)
+                        if key not in by_name:
+                            axes[r][c].set_visible(False)
+                            continue
+                        lf_panel(axes[r][c], by_name[key])
+                start = (
+                    "started at the eye center"
+                    if off == 0.0
+                    else f"started {off:g} symbol off the eye center"
+                )
+                finish(
+                    fig,
+                    axes,
+                    f"{who}: the loop filter's output, {start}",
+                    lf_figure(
+                        by_name[grid_key(obj, pulse, "none", bns[0], off)]
+                    ),
+                    "ppm of the symbol rate",
+                )
             fig, axes = plt.subplots(
-                3, len(bns), figsize=(13, 9.6), sharex=True, squeeze=False
+                3, len(bns), figsize=(13, 9.6), squeeze=False
             )
-            for r, esn0 in enumerate(["none", "4dB", "10dB"]):
+            for r, esn0 in enumerate(ESN0S):
                 for c, bn in enumerate(bns):
-                    key = f"{obj}_{pulse}_{esn0}_bn{bn:.5f}_a1.0_eps0"
-                    if key not in by_name:
+                    pair = [
+                        by_name[k]
+                        for off in offs
+                        if off != 0.0
+                        and (k := grid_key(obj, pulse, esn0, bn, off))
+                        in by_name
+                    ]
+                    if not pair:
                         axes[r][c].set_visible(False)
                         continue
-                    panel(axes[r][c], by_name[key])
-            for ax in axes[-1]:
-                ax.set_xlabel("time, thousands of symbols", fontsize=8)
-            for row in axes:
-                row[0].set_ylabel("ppm of the symbol rate", fontsize=8)
-            axes[0][0].legend(fontsize=7, loc="upper right")
-            fig.suptitle(
-                f"{obj_name}, {pulse_name}, Gardner: the loop filter's "
-                f"output from the first strobe (commit {meta['commit']})",
-                fontsize=10,
+                    tau_panel(axes[r][c], pair)
+            finish(
+                fig,
+                axes,
+                f"{who}: the timing error while acquiring",
+                f"acq_tau_{obj}_{pulse}.png",
+                "symbols from the eye center",
             )
-            fig.tight_layout()
-            out = DATA / f"lf_{obj}_{pulse}.png"
-            fig.savefig(out, dpi=110)
-            plt.close(fig)
-            made.append(out.name)
+
     extra = [s for s in scenarios if not is_grid(s)]
-    per_obj = [[s for s in extra if s["obj"] == o] for o in OBJECTS]
-    width = max(len(r) for r in per_obj)
+    kinds = sorted({(s["esn0"], s["bn"], s["amp"], s["eps"]) for s in extra})
+
+    def extra_of(
+        obj: str, kind: tuple[Any, ...], off: float
+    ) -> dict[str, Any]:
+        return next(
+            s
+            for s in extra
+            if s["obj"] == obj
+            and (s["esn0"], s["bn"], s["amp"], s["eps"]) == kind
+            and s["off"] == off
+        )
+
+    for off in offs:
+        fig, axes = plt.subplots(
+            len(OBJECTS), len(kinds), figsize=(15, 7.6), squeeze=False
+        )
+        for r, (obj, obj_name) in enumerate(OBJECTS.items()):
+            for c, kind in enumerate(kinds):
+                lf_panel(axes[r][c], extra_of(obj, kind, off), f"{obj_name}: ")
+        start = (
+            "started at the eye center"
+            if off == 0.0
+            else f"started {off:g} symbol off the eye center"
+        )
+        finish(
+            fig,
+            axes,
+            "Root-raised cosine, Gardner, level and clock offset: the "
+            f"loop filter's output, {start}",
+            lf_figure(extra_of("ratesync", kinds[0], off)),
+            "ppm of the symbol rate",
+        )
     fig, axes = plt.subplots(
-        len(OBJECTS), width, figsize=(15, 7.4), sharex=True, squeeze=False
+        len(OBJECTS), len(kinds), figsize=(15, 7.6), squeeze=False
     )
-    for r, (obj_name, row) in enumerate(zip(OBJECTS.values(), per_obj)):
-        for c in range(width):
-            if c >= len(row):
-                axes[r][c].set_visible(False)
-                continue
-            panel(axes[r][c], row[c])
-            axes[r][c].set_title(
-                f"{obj_name}: " + axes[r][c].get_title(), fontsize=7.5
-            )
-        axes[r][0].set_ylabel("ppm of the symbol rate", fontsize=8)
-    for ax in axes[-1]:
-        ax.set_xlabel("time, thousands of symbols", fontsize=8)
-    axes[0][0].legend(fontsize=7, loc="upper right")
-    fig.suptitle(
-        "Root-raised cosine, Gardner: level and clock offset "
-        f"(commit {meta['commit']})",
-        fontsize=10,
+    for r, (obj, obj_name) in enumerate(OBJECTS.items()):
+        for c, kind in enumerate(kinds):
+            pair = [extra_of(obj, kind, off) for off in offs if off != 0.0]
+            tau_panel(axes[r][c], pair, f"{obj_name}: ")
+    finish(
+        fig,
+        axes,
+        "Root-raised cosine, Gardner, level and clock offset: the timing "
+        "error while acquiring",
+        "acq_tau_level_and_offset.png",
+        "symbols from the eye center",
     )
-    fig.tight_layout()
-    fig.savefig(DATA / "lf_level_and_offset.png", dpi=110)
-    plt.close(fig)
-    made.append("lf_level_and_offset.png")
-    print(f"figures: {', '.join(made)}")
+    print(f"figures: {len(made)} written")
     return 0
 
 
 def scenarios_block(
     scenarios: list[dict[str, Any]], meta: dict[str, Any]
 ) -> str:
-    """Every scenario: its settings and its second half's statistics."""
+    """Every scenario: its settings and its statistics."""
     rows = []
     for s in scenarios:
+        figs = f"[output](symsync-measurements/{lf_figure(s)})"
+        if s["off"] != 0.0:
+            figs += f", [timing](symsync-measurements/{tau_figure(s)})"
         rows.append(
             [
                 OBJECTS[s["obj"]],
@@ -339,12 +480,13 @@ def scenarios_block(
                 f"{s['bn']:g}",
                 f"{s['amp']:g}",
                 f"{s['eps'] * PPM:+.0f}" if s["eps"] else "0",
-                f"{s['out_mean'] * PPM:+.1f}",
+                f"{s['off']:g}",
+                f"{s['tau_end'] - s['center']:+.2f}",
+                "—" if s["off"] == 0.0 else f"{s['acquired_at']}",
                 f"{s['integ_mean'] * PPM:+.1f}",
                 f"{s['out_rms'] * PPM:.0f}",
                 f"{s['sigma_tau']:.4f}",
-                f"{s['tau_span']:.3f}",
-                f"[plot](symsync-measurements/{figure_of(s)})",
+                figs,
             ]
         )
     return table(
@@ -355,12 +497,13 @@ def scenarios_block(
             "bn",
             "level A",
             "clock, ppm",
-            "output mean, ppm",
+            "started off center, symbols",
+            "ends at, symbols from center",
+            f"inside {ACQ_BAND:g} symbol for good after, symbols",
             "integrator mean, ppm",
             "output rms, ppm",
             "timing error rms, symbols",
-            "timing error span, symbols",
-            "figure",
+            "figures",
         ],
         rows,
     )
@@ -368,13 +511,15 @@ def scenarios_block(
 
 def stamp(scenarios: list[dict[str, Any]], meta: dict[str, Any]) -> str:
     """The run: when, where, at which commit and toolchain."""
+    lengths = sorted({s["symbols"] // 1000 for s in scenarios})
     return table(
         ["run", "when", "machine", "commit", "toolchain", "command"],
         [
             [
                 "`validate_timing_loop_noise --trace`, "
                 f"{len(scenarios)} scenarios of "
-                f"{scenarios[0]['symbols']} symbols, one seed",
+                f"{' or '.join(f'{n},000' for n in lengths)} symbols, "
+                "one seed",
                 f"{meta['date_utc']} UTC, {meta['wall_s']:.0f} s",
                 f"`{meta['machine']}`: {meta['cpu_model']} "
                 f"({meta['cpu_threads']} threads)",

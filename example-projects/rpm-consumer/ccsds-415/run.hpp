@@ -60,6 +60,9 @@ struct Options
   bool paced = false;    // the TUI's: hold each chunk to real time
   bool snapshot = false; // the TUI's: no terminal, one frame at the end
   bool errors = false;   // print where in the scored stream errors fall
+  // A forced whole-symbol slip, for testing: the decided symbol at this
+  // index dropped, or repeated (SIZE_MAX: none).
+  size_t drop_symbol = SIZE_MAX, repeat_symbol = SIZE_MAX;
 };
 
 // Parse argv into o (whose fields hold the defaults); exits on --help or a
@@ -78,6 +81,9 @@ struct FrameStats
   size_t crc_ok = 0;     // of those, the FECF's CRC held
   size_t crc_failed = 0; // and did not
   size_t missed = 0;     // no start sequence where the last frame put it
+  size_t slips = 0;      // frames found a few symbols from where due
+  size_t slip_at = 0;    // the last such frame's start sequence, symbol
+  long slip_by = 0;      // and its shift, symbols
   bool tracking = false; // the next start sequence's place is known
   // The last frame read.
   bool any = false;
@@ -102,6 +108,11 @@ struct Result
   // their CRC verdicts, and the verdicts the truth contradicts.
   size_t frames_sent = 0, frames_read = 0, frames_ok = 0, frames_failed = 0;
   size_t frames_wrong = 0;
+  // Frames the truth places a few symbols from the meter's lag: read after
+  // a whole-symbol slip. The first's symbol, and its shift.
+  size_t frames_shifted = 0, shift_at = 0;
+  long shift_by = 0;
+  size_t reader_slips = 0; // the slips the reader reported, with no truth
   double frames_need_s = NAN; // with none sent: the --seconds one needs
 };
 
@@ -199,6 +210,7 @@ private:
   int proc_id_ = -1;
   std::unique_ptr<Scene> scene_;
   std::vector<cf32> x_, out_, syms_;
+  size_t rx_syms_ = 0; // symbols the receiver has emitted
   std::vector<uint8_t> flags_, code_flags_; // per symbol: symbol, code lock
   std::vector<size_t> emitted_;
   async_dsss_receiver_status_t st_{};

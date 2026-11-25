@@ -38,6 +38,8 @@ rows=(
     "CRC passed|[0-9]+"
     "CRC failed|[0-9]+"
     "start sequences missed|[0-9]+"
+    "slips|[0-9]+"
+    "last slip|(none|[-+][0-9]+ at symbol [0-9]+)"
     "last frame's data|[0-9]+ octets"
     "SCID|[0-9]+"
     "VCID|[0-9]+"

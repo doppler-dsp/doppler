@@ -36,6 +36,7 @@
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/screen/screen.hpp>
 
+#include <cctype>
 #include <chrono>
 #include <unistd.h>
 #include <cstdio>
@@ -77,11 +78,45 @@ state_name (int s)
     }
 }
 
+// The screen's text without its blank last lines: a line is blank when it
+// has nothing but spaces outside its escape sequences.
+std::string
+trimmed (const std::string &screen)
+{
+  std::vector<std::string> lines;
+  size_t from = 0;
+  for (size_t nl; (nl = screen.find ('\n', from)) != std::string::npos;
+       from = nl + 1)
+    lines.push_back (screen.substr (from, nl - from));
+  lines.push_back (screen.substr (from));
+  const auto blank = [] (const std::string &l) {
+    bool esc = false;
+    for (const char c : l)
+      {
+        if (esc)
+          esc = !std::isalpha (static_cast<unsigned char> (c));
+        else if (c == '\x1b')
+          esc = true;
+        else if (c != ' ' && c != '\r')
+          return false;
+      }
+    return true;
+  };
+  while (!lines.empty () && blank (lines.back ()))
+    lines.pop_back ();
+  std::string out;
+  for (const std::string &l : lines)
+    out += l + "\n";
+  if (!out.empty ())
+    out.pop_back ();
+  return out;
+}
+
 // One labelled value: the label in a fixed column, the value after it.
 Element
-row (const std::string &label, const std::string &value)
+row (const std::string &label, const std::string &value, int width = 32)
 {
-  return hbox ({ text (label) | size (WIDTH, EQUAL, 32), text (value) });
+  return hbox ({ text (label) | size (WIDTH, EQUAL, width), text (value) });
 }
 
 // The whole display for one run, from what the run and the receiver report.
@@ -139,20 +174,31 @@ document (const ccsds415::Run &run, double refresh_ms, bool paced,
   const auto read_back = [&] (unsigned v) {
     return fr.any ? n (v) : std::string ("none yet");
   };
+  // The frames panel's labels are shorter, so its values have room.
+  const auto fr_row = [] (const std::string &l, const std::string &v) {
+    return row (l, v, 26);
+  };
   const Element frames = window (
       text ("frames"),
       vbox ({
-          row ("start sequence", fr.tracking ? "tracking" : "searching"),
-          row ("frames read", n (fr.found)),
-          row ("  CRC passed", n (fr.crc_ok)),
-          row ("  CRC failed", n (fr.crc_failed)),
-          row ("start sequences missed", n (fr.missed)),
-          row ("last frame's data",
+          fr_row ("start sequence", fr.tracking ? "tracking" : "searching"),
+          fr_row ("frames read", n (fr.found)),
+          fr_row ("  CRC passed", n (fr.crc_ok)),
+          fr_row ("  CRC failed", n (fr.crc_failed)),
+          fr_row ("start sequences missed", n (fr.missed)),
+          // A frame found a few symbols from where the last one ended: the
+          // receiver slipped whole symbols between them.
+          fr_row ("slips", n (fr.slips)),
+          fr_row ("  last slip",
+               fr.slips ? fmt ("%+.0f", static_cast<double> (fr.slip_by))
+                              + " at symbol " + n (fr.slip_at)
+                        : std::string ("none")),
+          fr_row ("last frame's data",
                fr.any ? n (fr.octets) + " octets" : "none yet"),
-          row ("  SCID", read_back (fr.scid)),
-          row ("  VCID", read_back (fr.vcid)),
-          row ("  frame sequence number", read_back (fr.seq)),
-          row ("  polarity",
+          fr_row ("  SCID", read_back (fr.scid)),
+          fr_row ("  VCID", read_back (fr.vcid)),
+          fr_row ("  frame sequence number", read_back (fr.seq)),
+          fr_row ("  polarity",
                fr.any ? (fr.inverted ? "inverted" : "upright") : "none yet"),
       }));
   Elements parts{ text (run.name ()) | bold, hbox ({ cost, receiver }),
@@ -183,9 +229,12 @@ main (int argc, char **argv)
             }
           // The display's cost here is one render, timed, then drawn
           // again carrying that time.
+          // A screen taller than any frame, its blank tail trimmed when
+          // printed: Dimension::Fit under-measures two side-by-side windows
+          // of different heights and cut the taller one's last row.
           Element doc = document (run, 0.0, false);
           Screen screen
-              = Screen::Create (Dimension::Fixed (100), Dimension::Fit (doc));
+              = Screen::Create (Dimension::Fixed (100), Dimension::Fixed (80));
           const uint64_t t0 = dp_mono_ns ();
           Render (screen, doc);
           const double render_ms
@@ -193,7 +242,7 @@ main (int argc, char **argv)
           doc = document (run, render_ms, false);
           screen.Clear ();
           Render (screen, doc);
-          std::printf ("%s\n", screen.ToString ().c_str ());
+          std::printf ("%s\n", trimmed (screen.ToString ()).c_str ());
           results.emplace_back (run.name (), run.finish ());
         }
     }

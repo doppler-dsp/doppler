@@ -1,0 +1,28 @@
+{
+ "stamp_schema": 2,
+ "date_utc": "2026-11-25 15:14",
+ "machine": "omni-x7358h",
+ "cpu_model": "Intel(R) Core(TM) Ultra X7 358H",
+ "cpu_threads": 16,
+ "commit": "0b295c122",
+ "dirty": false,
+ "load_before": [
+  1.04,
+  0.93,
+  0.69
+ ],
+ "toolchain": {
+  "compiler": "GNU 15.2.0",
+  "compiler_path": "/usr/bin/cc",
+  "libc": "glibc 2.43",
+  "build_type": "Release",
+  "c_flags": "-O3 -DNDEBUG",
+  "native": "OFF"
+ },
+ "load_after": [
+  1.11,
+  0.94,
+  0.7
+ ],
+ "wall_s": 6.0
+}

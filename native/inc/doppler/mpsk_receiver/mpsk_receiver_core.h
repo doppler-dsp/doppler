@@ -247,8 +247,8 @@ extern "C"
    *                        filter is an m_out-tap sum spanning it, and a
    *                        smaller m_out samples the same integral more
    *                        coarsely. Measured on QPSK at sps = 8 against
-   *                        EVM_dB = -(Es/N0)_dB, at 18 dB Es/N0: 0.41 dB off
-   *                        the bound at 8, 3.11 dB at 4.
+   *                        EVM_dB = -(Es/N0)_dB, at 18 dB Es/N0: on the
+   *                        bound to 0.05 dB at 8, 0.8 dB off it at 4.
    *                        And the M-th-power discriminator: `z^M`
    *                        auto-convolves the spectrum M times, spreading
    *                        energy over ~`M*Rs`, and whatever exceeds the

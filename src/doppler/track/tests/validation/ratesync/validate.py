@@ -569,9 +569,9 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
     ("C29", "get_clipped() is always 0 when the plan has no CIC", "§13 NEW"),
     (
         "C30",
-        "use m >= 4 with IANDD: m = 2 does not clear the declare threshold",
-        "§14 NEW — rule holds; stale literals retired, see "
-        f"{R.ref('iandd_rule_right_stated_evidence')}",
+        "the rectangle locks at every m; a small m costs EVM, not lock",
+        "§14 + RateConverter's rectangle pin — claim rewritten, see "
+        f"{R.ref('iandd_m_rule_was_the_dead_zone')}",
     ),
     ("C31", "reset() reproduces the first run bit for bit", "§6"),
     (
@@ -1525,26 +1525,26 @@ def characterise() -> Data:
         ],
         rows,
     )
+    m2 = next(r for r in d.m_rows if r[0] == 2)
+    m4 = next(r for r in d.m_rows if r[0] == 4)
     R.md(
-        "The rectangle at `m = 2` is the case the header warns about: its "
-        "matched filter is a two-tap sum and the eye barely opens. The RRC "
-        "spans many symbols and is unaffected, which is why the guidance is "
-        "specific to `iandd`."
+        f"**The rectangle locks at every `m`.** On a noiseless stream "
+        f"`m = 2` passes {m2[6]:.0%} of its decisions with a mean decision "
+        f"of {m2[3]:+.3f} against the {LOCK_THRESH} threshold. What a small "
+        f"`m` costs with the rectangle is EVM: {m2[5]:.1f} dB at `m = 2` "
+        f"and {m4[5]:.1f} dB at `m = 4` against an exact answer at "
+        f"`m = 6` and `8` (-150 dB is the meter's report of no error). The "
+        f"RRC reads the same at every `m`."
     )
     R.md()
-    m2 = next(r for r in d.m_rows if r[0] == 2)
     R.md(
-        f"**The lock at `m = 2` with the rectangle is a false declare, not a "
-        f"lock.** On a noiseless stream it passes {m2[6]:.0%} of its "
-        f"decisions, its mean decision is {m2[3]:+.3f} against the "
-        f"{LOCK_THRESH} threshold, and it demodulates at {m2[5]:.1f} dB. "
-        f"Even so, two passing decisions in a row happen often enough to "
-        f"declare, and the flag reads locked for {m2[7]:.0%} of the record. "
-        f"The verify counts are derived for a statistic that passes with "
-        f"pd 0.9 when the eye is open and with pfa 1e-3 on noise. This one "
-        f"is neither, so no count makes the flag right here; the "
-        f"`m >= 4` rule is what keeps a caller out of the cell "
-        f"(**{R.ref('iandd_m2_lock_false_declare')}**)."
+        f"The header used to say `m = 2` barely opens the rectangle's eye, "
+        f"and this section used to show a false declare there. Both were "
+        f"the matched bank's dead zone "
+        f"([#3362](https://github.com/doppler-dsp/doppler/issues/3362)), "
+        f"not the rectangle "
+        f"(**{R.ref('iandd_m_rule_was_the_dead_zone')}**, "
+        f"**{R.ref('iandd_m2_lock_false_declare')}**)."
     )
     R.md()
 
@@ -1781,22 +1781,20 @@ def review(d: Data) -> None:
     m2 = next((r for r in d.m_rows if r[0] == 2), None)
     m4 = next((r for r in d.m_rows if r[0] == 4), None)
     R.find(
-        "iandd_rule_right_stated_evidence",
+        "iandd_m_rule_was_the_dead_zone",
         "FIXED",
-        f"the `m >= 4 with IANDD` rule is right and its stated evidence was "
-        f'stale. The header cited "lock_stat -0.34 at m = 2 against +0.95 '
-        f'at m = 4 on the same NRZ stream"; measured here on an NRZ stream '
-        f"at sps = 8, m = 2 reads {m2[3]:+.3f} and m = 4 reads {m4[3]:+.3f}, "
-        f"and across sps = 4 / 8 / 16 the m = 2 figure ranges -0.02 to "
-        f"+0.24 — never as low as -0.34, and m = 4 never as high as +0.95. "
-        f"The separation that matters is intact (m = 2 does not clear the "
-        f"0.311 declare threshold, m = 4 clears it comfortably) and §14 "
-        f"gates exactly that rather than the literals. The header now rests "
-        f"the rule on that separation too — m = 2 fails to clear the lock "
-        f"detector's own declare threshold while m = 4 clears it, with tens "
-        f"of dB of EVM between them — and says in as many words that the "
-        f"particular `lock_stat` values move with `sps` and with the "
-        f"stream, pointing at §2.7 for the sweep.",
+        f"the `m >= 4 with IANDD` rule described a defect, not the "
+        f"rectangle. The matched bank's arms were the rectangle sampled on "
+        f"the input grid, so arms a fraction of an input apart were the "
+        f"same taps and the loop could not see a timing error inside one "
+        f"input interval "
+        f"([#3362](https://github.com/doppler-dsp/doppler/issues/3362)). "
+        f"With arms that follow the fraction, an NRZ stream at sps = 8 "
+        f"reads a mean decision of {m2[3]:+.3f} at m = 2 and {m4[3]:+.3f} "
+        f"at m = 4, both far above the {LOCK_THRESH} declare threshold "
+        f"(they read +0.176 and +0.865 on the sampled arms). The header "
+        f"now says the rectangle locks at every `m` and that a small `m` "
+        f"costs EVM, pointing at §2.7 for the sweep.",
     )
     best = min(d.amp_rows, key=lambda r: r[1])
     cold = min(d.amp_rows, key=lambda r: r[0])
@@ -2069,21 +2067,20 @@ def review(d: Data) -> None:
     m2 = next(r for r in d.m_rows if r[0] == 2)
     R.find(
         "iandd_m2_lock_false_declare",
-        "GAP",
-        f"with the rectangle at `m = 2` the timing lock declares on a loop "
-        f"that is not usably tracking. On a noiseless NRZ stream it passes "
-        f"{m2[6]:.0%} of its decisions, its mean decision is {m2[3]:+.3f} "
-        f"against the {LOCK_THRESH} threshold, it demodulates at "
-        f"{m2[5]:.1f} dB, and `locked` still reads 1 for {m2[7]:.0%} of the "
-        f"record. Before #3133 (`n_up` 1, `n_down` 8) it declared on the "
-        f"first block's pull-in transient and never dropped, 96% of the "
-        f"record, because its longest failing run (7) is shorter than "
-        f"`n_down`. The derived counts (2 and 6) narrow it but cannot "
-        f"remove it: they are sized for a statistic that passes with pd 0.9 "
-        f"or with pfa 1e-3, and this one does neither. The `m >= 4 with "
-        f"iandd` rule that keeps a caller out of the cell is documentation "
-        f"only; enforcing it at create is "
-        f"[#3150](https://github.com/doppler-dsp/doppler/issues/3150).",
+        "FIXED",
+        f"with the rectangle at `m = 2` the timing lock used to declare on "
+        f"a loop that was not usably tracking: on a noiseless NRZ stream it "
+        f"passed 27% of its decisions, demodulated at -8.7 dB and still "
+        f"read locked for 58% of the record. The loop was not tracking "
+        f"because the matched bank gave it nothing to track with "
+        f"([#3362](https://github.com/doppler-dsp/doppler/issues/3362)). "
+        f"On the corrected bank the same stream passes {m2[6]:.0%} of its "
+        f"decisions, its mean decision is {m2[3]:+.3f} against the "
+        f"{LOCK_THRESH} threshold, it demodulates at {m2[5]:.1f} dB and "
+        f"`locked` reads 1 for {m2[7]:.0%} of the record, which is the "
+        f"share every other `m` reads. Refusing the pairing at create "
+        f"([#3150](https://github.com/doppler-dsp/doppler/issues/3150)) "
+        f"no longer has a case to refuse.",
     )
     R.md()
     R.table(
@@ -2325,27 +2322,23 @@ def limits(d: Data) -> None:
     # --- m and the rectangle --------------------------------------------
     m2 = next(r for r in d.m_rows if r[0] == 2)
     m4 = next(r for r in d.m_rows if r[0] == 4)
-    # The m >= 4 rule is asserted on what it COSTS, not on the lock flag.
-    #
-    # This used to read `m2[3] < 0.311 <= m4[3]` on the FINAL block's
-    # lock_stat, which is one decision of twenty-two. It flipped when the
-    # resamp ctrl fix moved that one block to +0.525, while m = 2 still
-    # demodulated at -8.7 dB. The flag is no better a witness: at m = 2 it
-    # false-declares on two lucky blocks (finding iandd_m2_lock_false_declare).
-    # So the rule is measured on EVM, which is the quantity that
-    # discriminates, and the flag's share of the record is reported beside it.
+    # The rectangle locks at every m (#3362 was why m = 2 did not), and what
+    # a small m costs is EVM. Both are asserted as orderings and shares the
+    # run prints, not as a margin in dB chosen to fit one.
+    rect = sorted(d.m_rows)
     R.limit(
-        m4[5] < m2[5] - 6.0,
-        f"with the rectangle, m = 4 demodulates {m2[5] - m4[5]:.1f} dB "
-        f"better than m = 2 ({m4[5]:.1f} vs {m2[5]:.1f} dB) — the m >= 4 "
-        f"rule, measured on EVM because the lock flag does not separate "
-        f"them (m = 2 passes {m2[6]:.0%} of its decisions and still reads "
-        f"locked for {m2[7]:.0%} of the record)",
+        all(r[6] >= 0.95 for r in rect),
+        f"with the rectangle every supported m passes at least 95% of its "
+        f"lock decisions on a noiseless stream (m = 2: {m2[6]:.0%}, "
+        f"m = 4: {m4[6]:.0%}); on the sampled arms of #3362, m = 2 passed "
+        f"27%",
     )
     R.limit(
-        all(r[1] > 0.55 for r in d.m_rows),
-        "with the RRC every supported m opens the eye, so the rule is "
-        "specific to the rectangle as documented",
+        m2[5] > m4[5] > max(r[5] for r in rect if r[0] > 4)
+        and all(r[1] > 0.55 for r in d.m_rows),
+        f"a small m costs the rectangle EVM, in order ({m2[5]:.1f} dB at "
+        f"m = 2, {m4[5]:.1f} dB at m = 4, exact above), while the RRC "
+        f"opens the eye at every supported m",
     )
 
     # --- clock tracking --------------------------------------------------

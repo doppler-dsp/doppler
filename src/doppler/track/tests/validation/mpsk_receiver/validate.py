@@ -1203,13 +1203,15 @@ def characterise(R, write):
     q = next(r for r in mo_sweep if r[0] == 4)
     costs = [r[3] for r in mo_sweep]
     R.md(
-        "**The direction is the header's and the magnitude reproduces its "
-        f"QPSK figure**: 8 taps sit {q[1]:+.2f} dB off the bound and 4 "
-        f"taps {q[2]:+.2f}, against the header's 0.41 and 3.11 at the same "
-        "Es/N0. So the first mechanism — a coarser sampling of the same "
-        "integral — is confirmed, and it is expensive: half the taps costs "
-        f"about {sum(costs) / len(costs):.1f} dB of an EVM budget that is "
-        "otherwise a quarter of a dB.\n\n"
+        "**The direction is the header's**: on QPSK 8 taps sit "
+        f"{q[1]:+.2f} dB off the bound and 4 taps {q[2]:+.2f}. So the first "
+        "mechanism — a coarser sampling of the same integral — is "
+        f"confirmed: half the taps costs about "
+        f"{sum(costs) / len(costs):.1f} dB of EVM where the derived 8 "
+        "costs nothing measurable. (These read 0.41 and 3.11 dB while the "
+        "matched bank's arms were a sampled rectangle, "
+        "[#3362](https://github.com/doppler-dsp/doppler/issues/3362): most "
+        "of that cost was the bank's dead zone, not the tap count.)\n\n"
         "**The M-DEPENDENCE is not confirmed, and this is the measurement "
         f"that says so.** The cost is {costs[0]:+.2f}, {costs[1]:+.2f} and "
         f"{costs[2]:+.2f} dB at M = 2, 4 "
@@ -1979,11 +1981,14 @@ def limits(R, d):
         f"({R.ref('stable_false_lock_reads_defect')})",
     )
 
-    # m_out: what this geometry establishes is the DIRECTION and a floor on
-    # the magnitude, at every M. Not the ordering across M -- see §2.8.
+    # m_out: what this geometry establishes is the DIRECTION, at every M.
+    # Not the ordering across M -- see §2.8. The bound used to be a floor of
+    # 2 dB on the cost, which the sampled-rectangle bank of #3362 supplied;
+    # on the corrected bank the cost is under 1 dB and only its sign is the
+    # header's claim.
     for m, ex8, ex4, cost in d["m_out"]:
         R.limit(
-            cost > 2.0,
+            cost > 0.0,
             f"M={int(m)}: halving m_out from 8 to 4 costs {cost:+.2f} dB of "
             f"EVM ({ex8:+.2f} -> {ex4:+.2f} dB over the bound) — the "
             f"matched filter's resolution is never free",

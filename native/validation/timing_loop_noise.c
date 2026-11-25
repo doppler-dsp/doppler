@@ -56,12 +56,13 @@
  *   - **Phase 4, level.** The same at half and at twice the amplitude:
  *     RateSync's law is 0.5 and 3.0, SymbolSync's does not move.
  *   - **Phase 5, the rectangle closed loop.** The same as phase 3 on the
- *     integrate-and-dump pulse. The bank's taps are a sampled rectangle
- *     (RateConverter_core.c, rc_pulse_h), so an arm differs from its
- *     neighbor only in which whole inputs it sums, and in RateSync the
- *     strobe's position within one input interval changes nothing.
- *     SymbolSync's Farrow filter interpolates between the bank's outputs.
- *     This phase prints both; it gates nothing.
+ *     integrate-and-dump pulse, held to the same relation. It is what
+ *     catches a matched bank whose arms do not follow the fraction of an
+ *     input interval: on a rectangle merely sampled on the input grid
+ *     RateSync read `Bn / bn` of 5.0 here where the law is 1.0, and did
+ *     not hold lock at all at 2 samples a symbol (doppler#3362).
+ *     SymbolSync steers a Farrow filter behind the bank and never had
+ *     the dead zone.
  *
  * `Kd` itself is not measured again here: `ratesync_scurve.c` holds each
  * pulse's slope through this cascade against `dp_symsync_ted_slope()`,
@@ -70,7 +71,8 @@
  * The stimulus is `dp_tx_make()` (the library's PRBS) and the noise is
  * `dp_cgauss()`; nothing is synthesized here.
  *
- * Usage:  timing_loop_noise [--check]
+ * Usage:  timing_loop_noise [--sps N] [--check]
+ *         (`--sps N`, first: N input samples a symbol in place of 8)
  *         timing_loop_noise --trace DIR   (one CSV a closed-loop scenario,
  *                                          started at the eye center and a
  *                                          quarter and a half symbol off it:
@@ -93,8 +95,14 @@
    cascade input is a terminal input and the strobe's position needs no
    decimation factor. main() refuses to run if the planner builds anything
    else. */
-#define SPS 8.0
-#define M 8
+/* Input samples a symbol: 8 unless `--sps N` says otherwise.  The loops'
+   OUTPUT stays at M samples a symbol whatever this is. */
+static double g_sps = 8.0;
+#define SPS g_sps
+/* RateSync's output samples a symbol: it refuses more than the input has,
+   so `--sps N` below 8 brings this down with it. */
+static int g_m = 8;
+#define M g_m
 #define ZETA 0.707
 #define BETA 0.35
 #define SPAN 8
@@ -686,8 +694,6 @@ measure (int check)
   const double bns[3] = { 0.005, 0.002, 0.00068 };
   for (int p = 1; p >= 0; p--)
     {
-      if (check && p == 0)
-        continue;
       printf ("\nPhase %d. Timing error, closed loop, unit amplitude, "
               "%s.\n  Bn = sigma_tau^2 * Kd^2 / (2 * S_e(0) measured in "
               "phase 2); law is the loop filter's for this object's loop "
@@ -862,6 +868,15 @@ trace_all (const char *dir)
 int
 main (int argc, char **argv)
 {
+  if (argc > 2 && strcmp (argv[1], "--sps") == 0)
+    {
+      g_sps = atof (argv[2]);
+      if (!(g_sps >= 2.0))
+        return 2;
+      g_m = g_sps < 8.0 ? (int)g_sps : 8;
+      argv += 2;
+      argc -= 2;
+    }
   if (argc > 2 && strcmp (argv[1], "--trace") == 0)
     return trace_all (argv[2]) == 0 ? 0 : 2;
   int check = (argc > 1 && strcmp (argv[1], "--check") == 0);

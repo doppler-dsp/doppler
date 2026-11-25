@@ -517,17 +517,12 @@ extern "C"
    *                    RATESYNC_MAX_M`. Gardner needs the half-symbol gate,
    *                    so m must be even and at least 2. The oversampled
    *                    stream is a by-product, not an extra cost.
-   *                    **Use m >= 4 with RATESYNC_PULSE_IANDD**: the
-   *                    rectangle is one symbol wide, so at m = 2 its matched
-   *                    filter is a two-tap sum and the eye barely opens.
-   *                    Measured on an NRZ stream, m = 2 does not clear the
-   *                    lock detector's own declare threshold while m = 4
-   *                    clears it comfortably, and the EVM between them
-   *                    differs by tens of dB. The rule rests on that
-   *                    SEPARATION, not on any particular pair of `lock_stat`
-   *                    values — those move with `sps` and with the stream,
-   *                    and report §2.7 sweeps them. The RRC spans many
-   *                    symbols and is unaffected.
+   *                    Both pulses lock at every m. With
+   *                    RATESYNC_PULSE_IANDD a small m costs EVM, not lock:
+   *                    on a noiseless NRZ stream at 8 samples a symbol the
+   *                    error vector is largest at m = 2, smaller at m = 4
+   *                    and gone at m = 6 and 8; report §2.7 sweeps it. The
+   *                    RRC reads the same at every m.
    * @param num_phases  Matched-filter arms; power of two (1024 is a good
    *                    default). Sets the fractional-timing resolution to
    *                    `1/num_phases` of an output period.

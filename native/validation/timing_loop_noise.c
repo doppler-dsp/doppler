@@ -71,7 +71,9 @@
  * The stimulus is `dp_tx_make()` (the library's PRBS) and the noise is
  * `dp_cgauss()`; nothing is synthesized here.
  *
- * Usage:  timing_loop_noise [--sps N] [--check]
+ * Usage:  timing_loop_noise [--sps N] [--check] [--emit]
+ *         (`--emit`: the measurements as CSV blocks on stdout, the tables
+ *          on stderr; `--check --emit` is the RateSync report's call)
  *         (`--sps N`, first: N input samples a symbol in place of 8)
  *         timing_loop_noise --trace DIR   (one CSV a closed-loop scenario,
  *                                          started at the eye center and a
@@ -86,6 +88,7 @@
 #include "dp_rng_test.h"
 #include "dp_tx_test.h"
 #include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -95,6 +98,32 @@
    cascade input is a terminal input and the strobe's position needs no
    decimation factor. main() refuses to run if the planner builds anything
    else. */
+/* `--emit`: the tables go to stderr and the measurements come out on stdout
+   as CSV blocks (`# name`, a header line, rows), which is what the RateSync
+   report's validator reads (`harness_blocks`, _validation_common.py). */
+static FILE *g_say;
+#define say(...) fprintf (g_say, __VA_ARGS__)
+enum
+{
+  BLK_SLOPE,
+  BLK_NOISE,
+  BLK_LOOP,
+  BLK_N
+};
+static char   g_blk[BLK_N][16384];
+static size_t g_blk_len[BLK_N];
+static void
+emitf (int b, const char *fmt, ...)
+{
+  va_list ap;
+  va_start (ap, fmt);
+  int n = vsnprintf (g_blk[b] + g_blk_len[b], sizeof g_blk[b] - g_blk_len[b],
+                     fmt, ap);
+  va_end (ap);
+  if (n > 0 && (size_t)n < sizeof g_blk[b] - g_blk_len[b])
+    g_blk_len[b] += (size_t)n;
+}
+
 /* Input samples a symbol: 8 unless `--sps N` says otherwise.  The loops'
    OUTPUT stays at M samples a symbol whatever this is. */
 static double g_sps = 8.0;
@@ -580,30 +609,32 @@ measure (int check)
       kd[p] = dp_symsync_ted_slope (
           SYMSYNC_TED_GARDNER, p ? SYMSYNC_PULSE_RRC : SYMSYNC_PULSE_IANDD,
           BETA, SPAN);
-      printf ("%s(sps %.0f, %s, gardner): dp_symsync_ted_slope %.6f\n"
-              "  eye center at transmit tau %.5f symbols, mean |symbol| "
-              "%.6f, mean detector output %+.2e\n",
-              obj, SPS, name[p], kd[p], tau_lock[p], eye, r.e_mean);
+      say ("%s(sps %.0f, %s, gardner): dp_symsync_ted_slope %.6f\n"
+           "  eye center at transmit tau %.5f symbols, mean |symbol| "
+           "%.6f, mean detector output %+.2e\n",
+           obj, SPS, name[p], kd[p], tau_lock[p], eye, r.e_mean);
+      emitf (BLK_SLOPE, "%s,%s,%.6f,%.6f,%.3e\n", obj, name[p], kd[p], eye,
+             r.e_mean);
       if (g_obj == OBJ_RATESYNC
           && (fabs (r.term_rate - 1.0) > 1e-12
               || fabs (1.0 / r.ted_scale - kd[p]) > 1e-9))
         {
-          printf ("FAIL: terminal rate %.6f, 1/ted_scale %.6f: the "
-                  "geometry is not the one this harness assumes\n",
-                  r.term_rate, 1.0 / r.ted_scale);
+          say ("FAIL: terminal rate %.6f, 1/ted_scale %.6f: the "
+               "geometry is not the one this harness assumes\n",
+               r.term_rate, 1.0 / r.ted_scale);
           return 1;
         }
     }
 
   /* ── phase 1: the timing truth, against a known clock offset ─────── */
-  printf ("\nPhase 1. Timing truth: no noise, transmit clock off by eps, "
-          "bn 0.005, rrc.\n  The strobe's position less the symbol's place "
-          "must stay flat while the strobe drifts\n  196 symbols across "
-          "the input grid. A position one input out is a step of "
-          "%.3f.\n",
-          1.0 / SPS);
-  printf ("  %10s  %14s  %14s  %12s\n", "eps", "rms residual", "max residual",
-          "mean ctrl");
+  say ("\nPhase 1. Timing truth: no noise, transmit clock off by eps, "
+       "bn 0.005, rrc.\n  The strobe's position less the symbol's place "
+       "must stay flat while the strobe drifts\n  196 symbols across "
+       "the input grid. A position one input out is a step of "
+       "%.3f.\n",
+       1.0 / SPS);
+  say ("  %10s  %14s  %14s  %12s\n", "eps", "rms residual", "max residual",
+       "mean ctrl");
   {
     const double eps[3] = { 1e-3, -1e-3, 0.0 };
     for (int i = 0; i < (check ? 1 : 3); i++)
@@ -613,30 +644,30 @@ measure (int check)
         run_out_t r;
         if (run_one (&c, &r) != 0)
           return -1;
-        printf ("  %+10.1e  %14.3e  %14.3e  %+12.4e\n", eps[i],
-                sqrt (r.tau_var), r.tau_max, r.ctrl_mean);
+        say ("  %+10.1e  %14.3e  %14.3e  %+12.4e\n", eps[i], sqrt (r.tau_var),
+             r.tau_max, r.ctrl_mean);
         /* Half an input: under the one-input step a wrong position makes
            (0.125 at 8 samples a symbol), over the pulse's own pattern
            jitter (0.022 at most there, measured). */
         if (r.tau_max > 0.5 / SPS)
           {
-            printf ("  FAIL: residual %.4f symbols; the position is not "
-                    "the strobe's\n",
-                    r.tau_max);
+            say ("  FAIL: residual %.4f symbols; the position is not "
+                 "the strobe's\n",
+                 r.tau_max);
             fails++;
           }
       }
   }
 
   /* ── phase 2: the detector's noise, open loop ────────────────────── */
-  printf ("\nPhase 2. Detector noise, open loop at the eye center, unit "
-          "amplitude.\n  %zu symbols x %d seeds a row; +- is one standard "
-          "error across seeds.\n  S_e(0) is %d times the variance of "
-          "%d-symbol block means.\n",
-          nsym, nseed, BLOCK, BLOCK);
-  printf ("  %-5s  %6s  %9s  %19s  %8s  %19s  %8s  %19s  %8s\n", "pulse",
-          "Es/N0", "at strobe", "R(0) measured", "theory", "R(1) measured",
-          "theory", "S_e(0) measured", "theory");
+  say ("\nPhase 2. Detector noise, open loop at the eye center, unit "
+       "amplitude.\n  %zu symbols x %d seeds a row; +- is one standard "
+       "error across seeds.\n  S_e(0) is %d times the variance of "
+       "%d-symbol block means.\n",
+       nsym, nseed, BLOCK, BLOCK);
+  say ("  %-5s  %6s  %9s  %19s  %8s  %19s  %8s  %19s  %8s\n", "pulse", "Es/N0",
+       "at strobe", "R(0) measured", "theory", "R(1) measured", "theory",
+       "S_e(0) measured", "theory");
   for (int p = 0; p < 2; p++)
     for (int g = 0; g < 3; g++)
       {
@@ -653,31 +684,37 @@ measure (int check)
         double r1_t   = -0.375 * ig - 0.125 * ig * ig;
         double s0_t   = 0.75 * ig * (1.0 + ig);
         if (p == 0)
-          printf ("  %-5s  %3.0f dB  %6.2f dB  %9.5f +- %7.5f  %8.5f  "
-                  "%9.5f +- %7.5f  %8.5f  %9.5f +- %7.5f  %8.5f\n",
-                  name[p], esn0_db[g], db (o.esn0_seen), o.r0, o.r0_se, r0_t,
-                  o.r1, o.r1_se, r1_t, o.s0, o.s0_se, s0_t);
+          say ("  %-5s  %3.0f dB  %6.2f dB  %9.5f +- %7.5f  %8.5f  "
+               "%9.5f +- %7.5f  %8.5f  %9.5f +- %7.5f  %8.5f\n",
+               name[p], esn0_db[g], db (o.esn0_seen), o.r0, o.r0_se, r0_t,
+               o.r1, o.r1_se, r1_t, o.s0, o.s0_se, s0_t);
         else
-          printf ("  %-5s  %3.0f dB  %6.2f dB  %9.5f +- %7.5f  %8s  "
-                  "%9.5f +- %7.5f  %8s  %9.5f +- %7.5f  %8s\n",
-                  name[p], esn0_db[g], db (o.esn0_seen), o.r0, o.r0_se, "",
-                  o.r1, o.r1_se, "", o.s0, o.s0_se, "");
+          say ("  %-5s  %3.0f dB  %6.2f dB  %9.5f +- %7.5f  %8s  "
+               "%9.5f +- %7.5f  %8s  %9.5f +- %7.5f  %8s\n",
+               name[p], esn0_db[g], db (o.esn0_seen), o.r0, o.r0_se, "", o.r1,
+               o.r1_se, "", o.s0, o.s0_se, "");
         /* The rectangle: 4% or four standard errors, whichever is wider,
            and the noise scaling to 0.1 dB on either pulse. */
         double tol = fmax (0.04 * s0_t, 4.0 * o.s0_se);
+        emitf (BLK_NOISE,
+               "%s,%s,%.1f,%.3f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
+               "%.6f\n",
+               obj, name[p], esn0_db[g], db (o.esn0_seen), o.r0, o.r0_se,
+               p == 0 ? r0_t : NAN, o.r1, o.r1_se, p == 0 ? r1_t : NAN, o.s0,
+               o.s0_se, p == 0 ? s0_t : NAN, p == 0 ? tol : NAN);
         if ((p == 0 && fabs (o.s0 - s0_t) > tol)
             || fabs (db (o.esn0_seen) - esn0_db[g]) > 0.1)
           {
-            printf ("  FAIL: %s at Es/N0 %.0f dB: S_e(0) %.5f against "
-                    "%.5f +- %.5f, or the strobe's Es/N0 is off\n",
-                    name[p], esn0_db[g], o.s0, s0_t, tol);
+            say ("  FAIL: %s at Es/N0 %.0f dB: S_e(0) %.5f against "
+                 "%.5f +- %.5f, or the strobe's Es/N0 is off\n",
+                 name[p], esn0_db[g], o.s0, s0_t, tol);
             fails++;
           }
       }
   if (!check)
     {
-      printf ("  The rectangle at Es/N0 4 dB off the contracted level, "
-              "over A^4:\n");
+      say ("  The rectangle at Es/N0 4 dB off the contracted level, "
+           "over A^4:\n");
       const double amps[2] = { 0.5, 2.0 };
       for (int a = 0; a < 2; a++)
         {
@@ -686,9 +723,9 @@ measure (int check)
                          &o)
               != 0)
             return -1;
-          printf ("    A %.1f: S_e(0)/A^4 %9.5f +- %7.5f, strobe Es/N0 "
-                  "%.2f dB\n",
-                  amps[a], o.s0, o.s0_se, db (o.esn0_seen));
+          say ("    A %.1f: S_e(0)/A^4 %9.5f +- %7.5f, strobe Es/N0 "
+               "%.2f dB\n",
+               amps[a], o.s0, o.s0_se, db (o.esn0_seen));
         }
     }
 
@@ -696,24 +733,24 @@ measure (int check)
   const double bns[3] = { 0.005, 0.002, 0.00068 };
   for (int p = 1; p >= 0; p--)
     {
-      printf ("\nPhase %d. Timing error, closed loop, unit amplitude, "
-              "%s.\n  Bn = sigma_tau^2 * Kd^2 / (2 * S_e(0) measured in "
-              "phase 2); law is the loop filter's for this object's loop "
-              "gain.\n",
-              p ? 3 : 5, name[p]);
-      printf ("  %6s  %8s  %21s  %9s  %15s  %6s  %8s  %10s  %10s\n", "Es/N0",
-              "bn", "sigma_tau^2 measured", "sigma_tau", "Bn/bn", "law",
-              "max dev", "mean ctrl", "var ctrl");
+      say ("\nPhase %d. Timing error, closed loop, unit amplitude, "
+           "%s.\n  Bn = sigma_tau^2 * Kd^2 / (2 * S_e(0) measured in "
+           "phase 2); law is the loop filter's for this object's loop "
+           "gain.\n",
+           p ? 3 : 5, name[p]);
+      say ("  %6s  %8s  %21s  %9s  %15s  %6s  %8s  %10s  %10s\n", "Es/N0",
+           "bn", "sigma_tau^2 measured", "sigma_tau", "Bn/bn", "law",
+           "max dev", "mean ctrl", "var ctrl");
       if (!check)
         {
           closed_out_t o;
           if (closed_loop (p, 1.0, 0.0, 0.005, tau_lock[p], nsym, 1, &o) != 0)
             return -1;
-          printf ("  %6s  %8.5f  %10.3e  %9s  %9.5f  %15s  %6.3f  %8.3f  "
-                  "%+10.3e  %10.3e\n",
-                  "none", 0.005, o.var, "", sqrt (o.var), "",
-                  bn_law (loop_gain (kd[p], 1.0, 0.0)), o.max_dev, o.ctrl_mean,
-                  o.ctrl_var);
+          say ("  %6s  %8.5f  %10.3e  %9s  %9.5f  %15s  %6.3f  %8.3f  "
+               "%+10.3e  %10.3e\n",
+               "none", 0.005, o.var, "", sqrt (o.var), "",
+               bn_law (loop_gain (kd[p], 1.0, 0.0)), o.max_dev, o.ctrl_mean,
+               o.ctrl_var);
         }
       for (int g = 0; g < 3; g += 2)
         for (int b = 0; b < 3; b++)
@@ -729,18 +766,23 @@ measure (int check)
             double ratio = o.var * sc, rse = o.var_se * sc;
             double law = bn_law (
                 loop_gain (kd[p], 1.0, pow (10.0, esn0_db[g] / 10.0)));
-            printf ("  %3.0f dB  %8.5f  %10.3e +- %8.1e  %9.5f  %6.3f +- "
-                    "%5.3f  %6.3f  %8.3f  %+10.3e  %10.3e\n",
-                    esn0_db[g], bns[b], o.var, o.var_se, sqrt (o.var), ratio,
-                    rse, law, o.max_dev, o.ctrl_mean, o.ctrl_var);
+            say ("  %3.0f dB  %8.5f  %10.3e +- %8.1e  %9.5f  %6.3f +- "
+                 "%5.3f  %6.3f  %8.3f  %+10.3e  %10.3e\n",
+                 esn0_db[g], bns[b], o.var, o.var_se, sqrt (o.var), ratio, rse,
+                 law, o.max_dev, o.ctrl_mean, o.ctrl_var);
+            emitf (BLK_LOOP,
+                   "%s,%s,%.1f,%.5f,%.6e,%.6e,%.6f,%.6f,%.6f,%.6f,"
+                   "%.6f\n",
+                   obj, name[p], esn0_db[g], bns[b], o.var, o.var_se, ratio,
+                   rse, law, fmax (0.08 * law, 4.0 * rse), o.max_dev);
             if (check)
               {
                 double tol = fmax (0.08 * law, 4.0 * rse);
                 if (fabs (ratio - law) > tol || o.max_dev > 0.5)
                   {
-                    printf ("  FAIL: Bn/bn %.3f is outside %.3f +- %.3f, or "
-                            "the loop slipped\n",
-                            ratio, law, tol);
+                    say ("  FAIL: Bn/bn %.3f is outside %.3f +- %.3f, or "
+                         "the loop slipped\n",
+                         ratio, law, tol);
                     fails++;
                   }
               }
@@ -749,12 +791,12 @@ measure (int check)
       /* ── phase 4: the level moves the bandwidth ──────────────────── */
       if (p == 1 && !check)
         {
-          printf ("\nPhase 4. Level, closed loop at Es/N0 10 dB, bn "
-                  "0.002, rrc.\n  The loop filter's law is Bn/bn = "
-                  "(4*K*zeta^2 + 1)/(4*zeta^2 + 1), K this object's loop "
-                  "gain.\n");
-          printf ("  %5s  %21s  %15s  %8s  %8s\n", "A", "sigma_tau^2 measured",
-                  "Bn/bn", "law", "max dev");
+          say ("\nPhase 4. Level, closed loop at Es/N0 10 dB, bn "
+               "0.002, rrc.\n  The loop filter's law is Bn/bn = "
+               "(4*K*zeta^2 + 1)/(4*zeta^2 + 1), K this object's loop "
+               "gain.\n");
+          say ("  %5s  %21s  %15s  %8s  %8s\n", "A", "sigma_tau^2 measured",
+               "Bn/bn", "law", "max dev");
           const double amps[3] = { 0.5, 1.0, 2.0 };
           for (int a = 0; a < 3; a++)
             {
@@ -765,10 +807,10 @@ measure (int check)
                 return -1;
               double law = bn_law (loop_gain (kd[1], amps[a], 10.0));
               double sc  = kd[1] * kd[1] / (2.0 * s0_meas[1][2]) / 0.002;
-              printf ("  %5.1f  %10.3e +- %8.1e  %6.3f +- %5.3f  %8.3f  "
-                      "%8.3f\n",
-                      amps[a], o.var, o.var_se, o.var * sc, o.var_se * sc, law,
-                      o.max_dev);
+              say ("  %5.1f  %10.3e +- %8.1e  %6.3f +- %5.3f  %8.3f  "
+                   "%8.3f\n",
+                   amps[a], o.var, o.var_se, o.var * sc, o.var_se * sc, law,
+                   o.max_dev);
             }
         }
     }
@@ -803,8 +845,8 @@ trace_one (const char *dir, const char *label, const run_cfg_t *c, double off)
   int       rc = run_one (&s, &r);
   fclose (g_trace);
   g_trace = NULL;
-  printf ("%s  sigma_tau %.5f  max dev %.3f\n", path, sqrt (r.tau_var),
-          r.tau_max);
+  say ("%s  sigma_tau %.5f  max dev %.3f\n", path, sqrt (r.tau_var),
+       r.tau_max);
   return rc;
 }
 
@@ -870,6 +912,7 @@ trace_all (const char *dir)
 int
 main (int argc, char **argv)
 {
+  g_say = stdout;
   if (argc > 2 && strcmp (argv[1], "--sps") == 0)
     {
       g_sps = atof (argv[2]);
@@ -881,17 +924,36 @@ main (int argc, char **argv)
     }
   if (argc > 2 && strcmp (argv[1], "--trace") == 0)
     return trace_all (argv[2]) == 0 ? 0 : 2;
-  int check = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  int check = 0, emit = 0;
+  for (int i = 1; i < argc; i++)
+    {
+      check |= strcmp (argv[i], "--check") == 0;
+      emit |= strcmp (argv[i], "--emit") == 0;
+    }
+  if (emit)
+    g_say = stderr;
   int fails = 0;
   for (g_obj = OBJ_RATESYNC; g_obj <= OBJ_SYMSYNC; g_obj++)
     {
-      printf ("%s==== %s ====\n", g_obj ? "\n" : "",
-              g_obj == OBJ_RATESYNC ? "RateSync" : "SymbolSync");
+      say ("%s==== %s ====\n", g_obj ? "\n" : "",
+           g_obj == OBJ_RATESYNC ? "RateSync" : "SymbolSync");
       int f = measure (check);
       if (f < 0)
         return 2;
       fails += f;
     }
-  printf ("\n%s\n", fails ? "FAIL" : "PASS");
+  say ("\n%s\n", fails ? "FAIL" : "PASS");
+  if (emit)
+    {
+      static const char *const head[BLK_N] = {
+        "# slope\nobj,pulse,kd,eye,e_mean\n",
+        "# detector_noise\nobj,pulse,esn0_db,esn0_seen_db,r0,r0_se,r0_theory,"
+        "r1,r1_se,r1_theory,s0,s0_se,s0_theory,s0_tol\n",
+        "# closed_loop\nobj,pulse,esn0_db,bn,var,var_se,ratio,ratio_se,law,"
+        "tol,max_dev\n",
+      };
+      for (int b = 0; b < BLK_N; b++)
+        printf ("%s%s\n", head[b], g_blk[b]);
+    }
   return fails ? 1 : 0;
 }

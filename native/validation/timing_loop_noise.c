@@ -1,5 +1,5 @@
 /**
- * @file ratesync_timing_noise.c
+ * @file timing_loop_noise.c
  * @brief Validation: the timing detector's noise, and the timing error a
  *        closed loop makes of it, against docs/design/symsync.md section 5.
  *
@@ -17,14 +17,26 @@
  *     R_e(1) = -0.375/g - 0.125/g^2   (lag one; zero beyond)
  *     S_e(0) = R_e(0) + 2*R_e(1) = (3/4) * (1/g) * (1 + 1/g)
  *
- * This harness measures each term on the shipped objects:
+ * This harness measures each term on both shipped timing loops, one pass
+ * each: RateSync, whose matched polyphase bank is also its fractional
+ * delay, and SymbolSync, which interpolates matched-filtered samples with
+ * a Farrow filter. SymbolSync is fed by the same matched bank, held at
+ * rate 1, so the two see one filter and one noise.
+ *
+ * The gain around the loop differs, and `bn` is the delivered bandwidth
+ * only when it is 1. RateSync multiplies the raw detector output by
+ * `1/Kd`, so its gain is `A^2`. SymbolSync divides it by the running
+ * on-time power, so its gain is `Kd * g / (1 + g)` at any level. Each
+ * closed-loop row prints the loop filter's law for that gain,
+ * `(4*K*zeta^2 + 1) / (4*zeta^2 + 1)`, beside the measurement.
  *
  *   - **Phase 1, the timing truth.** The timing error is the strobe's
  *     position on the input clock less where the transmitter put that
  *     symbol. The position is the resampler's own: the newest input under
  *     the taps plus dp_resamp_get_ctrl_acc(), the fraction its accumulator
  *     holds for the output about to be emitted (what
- *     dp_resamp_execute_ctrl_pos() reports). Phase 1 has no noise and a
+ *     dp_resamp_execute_ctrl_pos() reports); for SymbolSync it is where
+ *     its timing NCO wrapped. Phase 1 has no noise and a
  *     transmit clock `eps` off, so the strobe crosses every input boundary
  *     hundreds of times; a position that were one input out anywhere would
  *     show as a step of 1/8 symbol, and the residual must stay flat.
@@ -40,18 +52,16 @@
  *     timing error's variance, over phase 2's measured `S_e(0)`, is the
  *     bandwidth the loop delivered:
  *     `Bn = sigma_tau^2 * Kd^2 / (2 * S_e(0))`. The page's relation is
- *     `Bn / bn = 1`. Run on the root-raised cosine, whose bank moves the
- *     strobe smoothly.
- *   - **Phase 4, level.** Gardner's raw output carries `A^2`, and
- *     `ted_scale` is computed at `A = 1`, so the loop gain is `K = A^2`
- *     and the loop filter's law gives `Bn / bn = (4*K*zeta^2 + 1) /
- *     (4*zeta^2 + 1)`: 0.5 at `A = 0.5` and 3.0 at `A = 2`, zeta 0.707.
+ *     `Bn / bn` equal to the law above. Run on the root-raised cosine.
+ *   - **Phase 4, level.** The same at half and at twice the amplitude:
+ *     RateSync's law is 0.5 and 3.0, SymbolSync's does not move.
  *   - **Phase 5, the rectangle closed loop.** The same as phase 3 on the
- *     integrate-and-dump bank. Its taps are a sampled rectangle
+ *     integrate-and-dump pulse. The bank's taps are a sampled rectangle
  *     (RateConverter_core.c, rc_pulse_h), so an arm differs from its
- *     neighbor only in which whole inputs it sums and the strobe's
- *     position within one input interval changes nothing. This phase
- *     prints what that does to the timing error; it gates nothing.
+ *     neighbor only in which whole inputs it sums, and in RateSync the
+ *     strobe's position within one input interval changes nothing.
+ *     SymbolSync's Farrow filter interpolates between the bank's outputs.
+ *     This phase prints both; it gates nothing.
  *
  * `Kd` itself is not measured again here: `ratesync_scurve.c` holds each
  * pulse's slope through this cascade against `dp_symsync_ted_slope()`,
@@ -60,7 +70,7 @@
  * The stimulus is `dp_tx_make()` (the library's PRBS) and the noise is
  * `dp_cgauss()`; nothing is synthesized here.
  *
- * Usage:  ratesync_timing_noise [--check]
+ * Usage:  timing_loop_noise [--check]
  */
 #include "doppler/dp_complex.h"
 #include "doppler/ratesync/ratesync_core.h"
@@ -85,6 +95,19 @@
 /* Block length for S_e(0): long against any correlation the pulse's span
    can put in the detector output, short enough for thousands of blocks. */
 #define BLOCK 256
+
+/* The object under measurement, set once per pass by main(). RateSync
+   fuses the matched filter and the fractional delay in one polyphase bank.
+   SymbolSync takes matched-filtered samples and interpolates them with a
+   Farrow filter steered by an integer NCO; it is fed here by the same
+   matched bank RateSync builds, held at rate 1 with no control, so the
+   two see the same filter and the same noise. */
+enum
+{
+  OBJ_RATESYNC = 0,
+  OBJ_SYMSYNC  = 1
+};
+static int g_obj = OBJ_RATESYNC;
 
 typedef struct
 {
@@ -115,90 +138,11 @@ typedef struct
   double ted_scale; /* 1 / Kd as installed                            */
 } run_out_t;
 
-/* One stream through one RateSync, a sample at a time.
-
-   The strobe's position. The control port emits an output at the
-   accumulator's phase and only then loads the offered input
-   (resamp_core.c, ctrl_push_impl), so an output emitted while input `i` is
-   offered sits at `i - 1 + phase`, with `phase` the accumulator as it stood
-   before the call. A call can emit two outputs when the step is under one
-   input interval; both steps are the same size, so the second sits halfway
-   to the phase the call leaves behind, one wrap on. Which output is the
-   strobe is the loop's own count, `out_count % m == 0`. */
+/* Every statistic of one run, from the scored strobes' raw detector
+   outputs `e`, timing errors `t` and the sums the loop kept. Frees both. */
 static int
-run_one (const run_cfg_t *c, run_out_t *o)
+finish (run_out_t *o, double *e, double *t, long k, double cs, double cs2)
 {
-  memset (o, 0, sizeof *o);
-  dp_tx_cfg_t cfg         = dp_tx_defaults ();
-  cfg.pulse               = c->rrc ? DP_TX_RRC : DP_TX_NRZ;
-  cfg.sps                 = SPS;
-  cfg.beta                = BETA;
-  cfg.span                = SPAN;
-  cfg.amp                 = c->amp;
-  cfg.rate                = c->rate;
-  cfg.tau                 = c->tau;
-  cfg.nsym                = c->nsym;
-  cfg.seed                = c->seed;
-  size_t               n  = 0;
-  float _Complex      *x  = dp_tx_make (&cfg, NULL, &n);
-  dp_ratesync_state_t *rs = dp_ratesync_create (
-      SPS, c->rrc ? RATESYNC_PULSE_RRC : RATESYNC_PULSE_IANDD, BETA, SPAN, M,
-      1024, c->bn, ZETA, RATESYNC_TED_GARDNER);
-  size_t  cap = c->nsym + 8;
-  double *e   = (double *)malloc (cap * sizeof *e);
-  double *t   = (double *)malloc (cap * sizeof *t);
-  if (!x || !rs || !e || !t || !rs->loop.term)
-    {
-      free (x);
-      free (e);
-      free (t);
-      if (rs)
-        dp_ratesync_destroy (rs);
-      return -1;
-    }
-  o->term_rate = rs->loop.term_rate;
-  o->ted_scale = rs->loop.ted_scale;
-
-  /* Complex noise of variance N0 a sample: a symbol of SPS samples at
-     amplitude A has Es = A^2 * SPS, so N0 = A^2 * SPS / (Es/N0). */
-  double   sigma = c->esn0 > 0.0 ? c->amp * sqrt (SPS / c->esn0) : 0.0;
-  uint32_t rng   = c->seed * 2654435761u + 12345u;
-
-  long          cnt = 0, k = 0;
-  double        cs = 0.0, cs2 = 0.0;
-  float complex sym;
-  for (size_t i = 0; i < n; i++)
-    {
-      float complex xi = x[i];
-      if (sigma > 0.0)
-        xi += (float)sigma * dp_cgauss (&rng);
-      double p0     = dp_resamp_get_ctrl_acc (rs->loop.term);
-      size_t c0     = rs->loop.out_count;
-      int    primed = rs->loop.prime_left == 0;
-      int    got    = ratesync_step (rs, xi, &sym);
-      if (!got || !primed || ++cnt <= (long)c->skip || (size_t)k >= cap)
-        continue;
-      size_t nout = rs->loop.out_count - c0;
-      double pos  = (double)i - 1.0 + p0;
-      if (nout == 2 && c0 % M != 0)
-        {
-          /* The strobe is the second of two: one step past the first. */
-          double p2 = dp_resamp_get_ctrl_acc (rs->loop.term);
-          pos += (p2 - p0 + 1.0) / 2.0;
-        }
-      e[k] = rs->loop.last_error / rs->loop.ted_scale;
-      /* Timing error in symbols: the strobe against symbol k's place on
-         the transmit clock, to a constant. */
-      t[k] = pos / SPS - (double)(cnt - 1) * c->rate;
-      cs += rs->loop.ctrl;
-      cs2 += rs->loop.ctrl * rs->loop.ctrl;
-      o->on_pwr += (double)(crealf (sym) * crealf (sym)
-                            + cimagf (sym) * cimagf (sym));
-      o->on_mag += fabs ((double)crealf (sym));
-      k++;
-    }
-  dp_ratesync_destroy (rs);
-  free (x);
   if (k < 4 * BLOCK)
     {
       free (e);
@@ -264,6 +208,163 @@ run_one (const run_cfg_t *c, run_out_t *o)
   free (e);
   free (t);
   return 0;
+}
+
+/* SymbolSync's pass of run_one(). The strobe's position: the on-time
+   interpolant is taken when the timing NCO wraps, `phase / phase_inc` of an
+   input interval before the sample just pushed (symsync_core.h,
+   symsync_step_ted: `mu = 1 - phase / inc`), with the increment as it stood
+   before the step. The raw detector output is the error times the running
+   power the step divided it by. Takes ownership of `x`. */
+static int
+run_symsync (const run_cfg_t *c, run_out_t *o, float _Complex *x, size_t n)
+{
+  dp_RateConverter_state_t *mf = dp_RateConverter_create_matched (
+      1.0, 1, c->rrc ? RC_PULSE_RRC : RC_PULSE_IANDD, BETA, SPAN, (double)M,
+      1024);
+  dp_symsync_state_t *ss = dp_symsync_create (
+      (size_t)SPS, c->bn, ZETA, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
+  size_t  cap = c->nsym + 8;
+  double *e   = (double *)malloc (cap * sizeof *e);
+  double *t   = (double *)malloc (cap * sizeof *t);
+  if (!x || !mf || !ss || !e || !t)
+    {
+      free (x);
+      free (e);
+      free (t);
+      if (mf)
+        dp_RateConverter_destroy (mf);
+      if (ss)
+        dp_symsync_destroy (ss);
+      return -1;
+    }
+  o->term_rate = 1.0;
+  o->ted_scale = 0.0; /* SymbolSync has none: it divides by a power */
+
+  double   sigma = c->esn0 > 0.0 ? c->amp * sqrt (SPS / c->esn0) : 0.0;
+  uint32_t rng   = c->seed * 2654435761u + 12345u;
+
+  long          cnt = 0, k = 0, q = 0;
+  double        cs = 0.0, cs2 = 0.0;
+  float complex sym, ys[4];
+  for (size_t i = 0; i < n; i++)
+    {
+      float complex xi = x[i];
+      if (sigma > 0.0)
+        xi += (float)sigma * dp_cgauss (&rng);
+      size_t ny = dp_RateConverter_execute_ctrl_push (mf, xi, 0.0, ys, 4);
+      for (size_t j = 0; j < ny; j++, q++)
+        {
+          double inc0 = (double)ss->timing.phase_inc;
+          int    got = symsync_step_ted (ss, ys[j], &sym, SYMSYNC_TED_GARDNER);
+          if (!got || ++cnt <= (long)c->skip || (size_t)k >= cap)
+            continue;
+          double pos = (double)q - (double)ss->timing.phase / inc0;
+          double ctrl
+              = (double)ss->timing.phase_inc / (double)ss->base_inc - 1.0;
+          e[k] = ss->last_error * (ss->pwr_avg + 1e-6);
+          t[k] = pos / SPS - (double)(cnt - 1) * c->rate;
+          cs += ctrl;
+          cs2 += ctrl * ctrl;
+          o->on_pwr += (double)(crealf (sym) * crealf (sym)
+                                + cimagf (sym) * cimagf (sym));
+          o->on_mag += fabs ((double)crealf (sym));
+          k++;
+        }
+    }
+  dp_RateConverter_destroy (mf);
+  dp_symsync_destroy (ss);
+  free (x);
+  return finish (o, e, t, k, cs, cs2);
+}
+
+/* One stream through one RateSync, a sample at a time.
+
+   The strobe's position. The control port emits an output at the
+   accumulator's phase and only then loads the offered input
+   (resamp_core.c, ctrl_push_impl), so an output emitted while input `i` is
+   offered sits at `i - 1 + phase`, with `phase` the accumulator as it stood
+   before the call. A call can emit two outputs when the step is under one
+   input interval; both steps are the same size, so the second sits halfway
+   to the phase the call leaves behind, one wrap on. Which output is the
+   strobe is the loop's own count, `out_count % m == 0`. */
+static int
+run_one (const run_cfg_t *c, run_out_t *o)
+{
+  memset (o, 0, sizeof *o);
+  dp_tx_cfg_t cfg   = dp_tx_defaults ();
+  cfg.pulse         = c->rrc ? DP_TX_RRC : DP_TX_NRZ;
+  cfg.sps           = SPS;
+  cfg.beta          = BETA;
+  cfg.span          = SPAN;
+  cfg.amp           = c->amp;
+  cfg.rate          = c->rate;
+  cfg.tau           = c->tau;
+  cfg.nsym          = c->nsym;
+  cfg.seed          = c->seed;
+  size_t          n = 0;
+  float _Complex *x = dp_tx_make (&cfg, NULL, &n);
+  if (g_obj == OBJ_SYMSYNC)
+    return run_symsync (c, o, x, n);
+  dp_ratesync_state_t *rs = dp_ratesync_create (
+      SPS, c->rrc ? RATESYNC_PULSE_RRC : RATESYNC_PULSE_IANDD, BETA, SPAN, M,
+      1024, c->bn, ZETA, RATESYNC_TED_GARDNER);
+  size_t  cap = c->nsym + 8;
+  double *e   = (double *)malloc (cap * sizeof *e);
+  double *t   = (double *)malloc (cap * sizeof *t);
+  if (!x || !rs || !e || !t || !rs->loop.term)
+    {
+      free (x);
+      free (e);
+      free (t);
+      if (rs)
+        dp_ratesync_destroy (rs);
+      return -1;
+    }
+  o->term_rate = rs->loop.term_rate;
+  o->ted_scale = rs->loop.ted_scale;
+
+  /* Complex noise of variance N0 a sample: a symbol of SPS samples at
+     amplitude A has Es = A^2 * SPS, so N0 = A^2 * SPS / (Es/N0). */
+  double   sigma = c->esn0 > 0.0 ? c->amp * sqrt (SPS / c->esn0) : 0.0;
+  uint32_t rng   = c->seed * 2654435761u + 12345u;
+
+  long          cnt = 0, k = 0;
+  double        cs = 0.0, cs2 = 0.0;
+  float complex sym;
+  for (size_t i = 0; i < n; i++)
+    {
+      float complex xi = x[i];
+      if (sigma > 0.0)
+        xi += (float)sigma * dp_cgauss (&rng);
+      double p0     = dp_resamp_get_ctrl_acc (rs->loop.term);
+      size_t c0     = rs->loop.out_count;
+      int    primed = rs->loop.prime_left == 0;
+      int    got    = ratesync_step (rs, xi, &sym);
+      if (!got || !primed || ++cnt <= (long)c->skip || (size_t)k >= cap)
+        continue;
+      size_t nout = rs->loop.out_count - c0;
+      double pos  = (double)i - 1.0 + p0;
+      if (nout == 2 && c0 % M != 0)
+        {
+          /* The strobe is the second of two: one step past the first. */
+          double p2 = dp_resamp_get_ctrl_acc (rs->loop.term);
+          pos += (p2 - p0 + 1.0) / 2.0;
+        }
+      e[k] = rs->loop.last_error / rs->loop.ted_scale;
+      /* Timing error in symbols: the strobe against symbol k's place on
+         the transmit clock, to a constant. */
+      t[k] = pos / SPS - (double)(cnt - 1) * c->rate;
+      cs += rs->loop.ctrl;
+      cs2 += rs->loop.ctrl * rs->loop.ctrl;
+      o->on_pwr += (double)(crealf (sym) * crealf (sym)
+                            + cimagf (sym) * cimagf (sym));
+      o->on_mag += fabs ((double)crealf (sym));
+      k++;
+    }
+  dp_ratesync_destroy (rs);
+  free (x);
+  return finish (o, e, t, k, cs, cs2);
 }
 
 /* Mean and standard error of v[0..n). */
@@ -405,11 +506,33 @@ db (double x)
   return 10.0 * log10 (x);
 }
 
-int
-main (int argc, char **argv)
+/* The gain around the loop, which the loop filter's `bn` assumes is 1.
+   RateSync multiplies the raw detector output by a constant, 1/Kd at unit
+   amplitude, so its gain is A^2. SymbolSync divides it by the running
+   on-time power, A^2 * (1 + 1/g), so its gain is Kd * g / (1 + g) at any
+   level. */
+static double
+loop_gain (double kd, double amp, double esn0)
 {
-  int          check      = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  if (g_obj == OBJ_RATESYNC)
+    return amp * amp;
+  return esn0 > 0.0 ? kd * esn0 / (1.0 + esn0) : kd;
+}
+
+/* The loop filter's law for the bandwidth a loop of gain K delivers. */
+static double
+bn_law (double kk)
+{
+  return (4.0 * kk * ZETA * ZETA + 1.0) / (4.0 * ZETA * ZETA + 1.0);
+}
+
+/* Every phase, on the object `g_obj` names. Returns the failure count, or
+   -1 when a run could not be made. */
+static int
+measure (int check)
+{
   int          fails      = 0;
+  const char  *obj        = g_obj == OBJ_RATESYNC ? "RateSync" : "SymbolSync";
   size_t       nsym       = check ? 200000 : 400000;
   int          nseed      = check ? 2 : 6;
   const char  *name[2]    = { "iandd", "rrc" };
@@ -421,25 +544,25 @@ main (int argc, char **argv)
     {
       double eye;
       if (find_lock (p, &tau_lock[p], &eye) != 0)
-        return 2;
+        return -1;
       run_cfg_t c = { p, 1.0, 0.0, 0.0, 1.0, tau_lock[p], 4000, 64, 7u };
       run_out_t r;
       if (run_one (&c, &r) != 0)
-        return 2;
+        return -1;
       kd[p] = dp_symsync_ted_slope (
           SYMSYNC_TED_GARDNER, p ? SYMSYNC_PULSE_RRC : SYMSYNC_PULSE_IANDD,
           BETA, SPAN);
-      printf ("RateSync(sps %.0f, %s, m %d, gardner): terminal rate %.6f, "
-              "1/ted_scale %.6f, dp_symsync_ted_slope %.6f\n"
+      printf ("%s(sps %.0f, %s, gardner): dp_symsync_ted_slope %.6f\n"
               "  eye center at transmit tau %.5f symbols, mean |symbol| "
               "%.6f, mean detector output %+.2e\n",
-              SPS, name[p], M, r.term_rate, 1.0 / r.ted_scale, kd[p],
-              tau_lock[p], eye, r.e_mean);
-      if (fabs (r.term_rate - 1.0) > 1e-12
-          || fabs (1.0 / r.ted_scale - kd[p]) > 1e-9)
+              obj, SPS, name[p], kd[p], tau_lock[p], eye, r.e_mean);
+      if (g_obj == OBJ_RATESYNC
+          && (fabs (r.term_rate - 1.0) > 1e-12
+              || fabs (1.0 / r.ted_scale - kd[p]) > 1e-9))
         {
-          printf ("FAIL: the geometry is not the one this harness "
-                  "assumes\n");
+          printf ("FAIL: terminal rate %.6f, 1/ted_scale %.6f: the "
+                  "geometry is not the one this harness assumes\n",
+                  r.term_rate, 1.0 / r.ted_scale);
           return 1;
         }
     }
@@ -460,10 +583,12 @@ main (int argc, char **argv)
                         tau_lock[1], 200000, 4000, 7u };
         run_out_t r;
         if (run_one (&c, &r) != 0)
-          return 2;
+          return -1;
         printf ("  %+10.1e  %14.3e  %14.3e  %+12.4e\n", eps[i],
                 sqrt (r.tau_var), r.tau_max, r.ctrl_mean);
-        if (r.tau_max > 0.02)
+        /* Half an input: under the 0.125 step a wrong position makes,
+           over the pulse's own pattern jitter (0.022 at most, measured). */
+        if (r.tau_max > 0.0625)
           {
             printf ("  FAIL: residual %.4f symbols; the position is not "
                     "the strobe's\n",
@@ -491,7 +616,7 @@ main (int argc, char **argv)
         if (open_loop (p, 1.0, pow (10.0, esn0_db[g] / 10.0), tau_lock[p],
                        nsym, nseed, &o)
             != 0)
-          return 2;
+          return -1;
         s0_meas[p][g] = o.s0;
         double ig     = pow (10.0, -esn0_db[g] / 10.0);
         double r0_t   = 1.5 * ig + ig * ig;
@@ -530,7 +655,7 @@ main (int argc, char **argv)
           if (open_loop (0, amps[a], pow (10.0, 0.4), tau_lock[0], nsym, nseed,
                          &o)
               != 0)
-            return 2;
+            return -1;
           printf ("    A %.1f: S_e(0)/A^4 %9.5f +- %7.5f, strobe Es/N0 "
                   "%.2f dB\n",
                   amps[a], o.s0, o.s0_se, db (o.esn0_seen));
@@ -545,20 +670,22 @@ main (int argc, char **argv)
         continue;
       printf ("\nPhase %d. Timing error, closed loop, unit amplitude, "
               "%s.\n  Bn = sigma_tau^2 * Kd^2 / (2 * S_e(0) measured in "
-              "phase 2); the page's relation is Bn/bn = 1.\n",
+              "phase 2); law is the loop filter's for this object's loop "
+              "gain.\n",
               p ? 3 : 5, name[p]);
-      printf ("  %6s  %8s  %21s  %9s  %15s  %8s  %10s  %10s\n", "Es/N0", "bn",
-              "sigma_tau^2 measured", "sigma_tau", "Bn/bn", "max dev",
-              "mean ctrl", "var ctrl");
+      printf ("  %6s  %8s  %21s  %9s  %15s  %6s  %8s  %10s  %10s\n", "Es/N0",
+              "bn", "sigma_tau^2 measured", "sigma_tau", "Bn/bn", "law",
+              "max dev", "mean ctrl", "var ctrl");
       if (!check)
         {
           closed_out_t o;
           if (closed_loop (p, 1.0, 0.0, 0.005, tau_lock[p], nsym, 1, &o) != 0)
-            return 2;
-          printf ("  %6s  %8.5f  %10.3e  %9s  %9.5f  %15s  %8.3f  "
+            return -1;
+          printf ("  %6s  %8.5f  %10.3e  %9s  %9.5f  %15s  %6.3f  %8.3f  "
                   "%+10.3e  %10.3e\n",
-                  "none", 0.005, o.var, "", sqrt (o.var), "", o.max_dev,
-                  o.ctrl_mean, o.ctrl_var);
+                  "none", 0.005, o.var, "", sqrt (o.var), "",
+                  bn_law (loop_gain (kd[p], 1.0, 0.0)), o.max_dev, o.ctrl_mean,
+                  o.ctrl_var);
         }
       for (int g = 0; g < 3; g += 2)
         for (int b = 0; b < 3; b++)
@@ -569,21 +696,23 @@ main (int argc, char **argv)
             if (closed_loop (p, 1.0, pow (10.0, esn0_db[g] / 10.0), bns[b],
                              tau_lock[p], nsym, nseed, &o)
                 != 0)
-              return 2;
+              return -1;
             double sc    = kd[p] * kd[p] / (2.0 * s0_meas[p][g]) / bns[b];
             double ratio = o.var * sc, rse = o.var_se * sc;
+            double law = bn_law (
+                loop_gain (kd[p], 1.0, pow (10.0, esn0_db[g] / 10.0)));
             printf ("  %3.0f dB  %8.5f  %10.3e +- %8.1e  %9.5f  %6.3f +- "
-                    "%5.3f  %8.3f  %+10.3e  %10.3e\n",
+                    "%5.3f  %6.3f  %8.3f  %+10.3e  %10.3e\n",
                     esn0_db[g], bns[b], o.var, o.var_se, sqrt (o.var), ratio,
-                    rse, o.max_dev, o.ctrl_mean, o.ctrl_var);
+                    rse, law, o.max_dev, o.ctrl_mean, o.ctrl_var);
             if (check)
               {
-                double tol = fmax (0.06, 4.0 * rse);
-                if (fabs (ratio - 1.0) > tol || o.max_dev > 0.5)
+                double tol = fmax (0.08 * law, 4.0 * rse);
+                if (fabs (ratio - law) > tol || o.max_dev > 0.5)
                   {
-                    printf ("  FAIL: Bn/bn %.3f is outside 1 +- %.3f, or "
+                    printf ("  FAIL: Bn/bn %.3f is outside %.3f +- %.3f, or "
                             "the loop slipped\n",
-                            ratio, tol);
+                            ratio, law, tol);
                     fails++;
                   }
               }
@@ -593,8 +722,9 @@ main (int argc, char **argv)
       if (p == 1 && !check)
         {
           printf ("\nPhase 4. Level, closed loop at Es/N0 10 dB, bn "
-                  "0.002, rrc.\n  Loop gain K = A^2; the loop filter's law "
-                  "is Bn/bn = (4*K*zeta^2 + 1)/(4*zeta^2 + 1).\n");
+                  "0.002, rrc.\n  The loop filter's law is Bn/bn = "
+                  "(4*K*zeta^2 + 1)/(4*zeta^2 + 1), K this object's loop "
+                  "gain.\n");
           printf ("  %5s  %21s  %15s  %8s  %8s\n", "A", "sigma_tau^2 measured",
                   "Bn/bn", "law", "max dev");
           const double amps[3] = { 0.5, 1.0, 2.0 };
@@ -604,11 +734,9 @@ main (int argc, char **argv)
               if (closed_loop (1, amps[a], 10.0, 0.002, tau_lock[1], nsym,
                                nseed, &o)
                   != 0)
-                return 2;
-              double kk = amps[a] * amps[a];
-              double law
-                  = (4.0 * kk * ZETA * ZETA + 1.0) / (4.0 * ZETA * ZETA + 1.0);
-              double sc = kd[1] * kd[1] / (2.0 * s0_meas[1][2]) / 0.002;
+                return -1;
+              double law = bn_law (loop_gain (kd[1], amps[a], 10.0));
+              double sc  = kd[1] * kd[1] / (2.0 * s0_meas[1][2]) / 0.002;
               printf ("  %5.1f  %10.3e +- %8.1e  %6.3f +- %5.3f  %8.3f  "
                       "%8.3f\n",
                       amps[a], o.var, o.var_se, o.var * sc, o.var_se * sc, law,
@@ -617,6 +745,23 @@ main (int argc, char **argv)
         }
     }
 
+  return fails;
+}
+
+int
+main (int argc, char **argv)
+{
+  int check = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  int fails = 0;
+  for (g_obj = OBJ_RATESYNC; g_obj <= OBJ_SYMSYNC; g_obj++)
+    {
+      printf ("%s==== %s ====\n", g_obj ? "\n" : "",
+              g_obj == OBJ_RATESYNC ? "RateSync" : "SymbolSync");
+      int f = measure (check);
+      if (f < 0)
+        return 2;
+      fails += f;
+    }
   printf ("\n%s\n", fails ? "FAIL" : "PASS");
   return fails ? 1 : 0;
 }

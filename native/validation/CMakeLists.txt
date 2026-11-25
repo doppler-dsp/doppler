@@ -189,17 +189,17 @@ add_test(NAME validate_ratesync_scurve
 # against docs/design/symsync.md section 5. Same flags as ratesync_scurve:
 # the statistics are sums of products, and a fused multiply-add would move
 # their last digits between hosts.
-add_executable(validate_ratesync_timing_noise
-               ${CMAKE_CURRENT_SOURCE_DIR}/ratesync_timing_noise.c)
-target_include_directories(validate_ratesync_timing_noise
+add_executable(validate_timing_loop_noise
+               ${CMAKE_CURRENT_SOURCE_DIR}/timing_loop_noise.c)
+target_include_directories(validate_timing_loop_noise
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_ratesync_timing_noise PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
-dp_gnu_compile_options(validate_ratesync_timing_noise PRIVATE -O3 -funroll-loops
+target_link_libraries(validate_timing_loop_noise PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_timing_loop_noise PRIVATE -O3 -funroll-loops
                                                                -fno-fast-math
                                                                -ffp-contract=off)
-add_test(NAME validate_ratesync_timing_noise
-         COMMAND validate_ratesync_timing_noise --check)
+add_test(NAME validate_timing_loop_noise
+         COMMAND validate_timing_loop_noise --check)
 
 add_executable(validate_lockdet_verify
                ${CMAKE_CURRENT_SOURCE_DIR}/lockdet_verify.c)

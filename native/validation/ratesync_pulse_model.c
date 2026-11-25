@@ -50,6 +50,7 @@
 #include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/resamp/resamp_core.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 
 #include <math.h>
@@ -62,6 +63,8 @@
 #define MAXT 96   /* most taps an arm may have here                */
 #define GOFF 4096 /* g[] index of n = 0                            */
 #define GLEN 12288
+
+static double db10 (double x);
 
 typedef struct
 {
@@ -274,11 +277,300 @@ evaluate (const double *g, size_t d, size_t first, const resamp_state_t *rs,
   return 0;
 }
 
+/* ── The detectors on that pulse ──────────────────────────────────────────
+ *
+ * Two timing detectors, each fed the same symbols through the measured
+ * cascade, open loop, at the eye center:
+ *
+ *   - Gardner, as RateSync runs it: e = Re{ conj(mid) * (on - prev) }, the
+ *     on-time strobes and the one half a symbol between them, all from one
+ *     arm. Run on the best BUILT arm and again on the optimum arm.
+ *   - The derivative detector: e = Re{ conj(y) * dy }, y from the optimum
+ *     arm h(tau) and dy from its derivative in the timing hypothesis,
+ *     dh/dtau, a second bank. dh/dtau is the central difference of the
+ *     optimum arms for an edge one input sample either side.
+ *
+ * For each, the slope Kd at lock (from the mean output with the symbols
+ * moved one input sample early and late, no noise) and the output's
+ * spectral density at zero, S_e(0) (BLK times the variance of BLK-symbol
+ * block means). A loop of noise bandwidth bn then has a timing variance
+ * of 2 * bn * S_e(0) / Kd^2 symbols^2, so S_e(0) / Kd^2 is what the two
+ * detectors are compared on.
+ */
+
+#define NSYM 40000 /* symbols a run                         */
+#define BLK 256    /* symbols a block mean                  */
+#define NDET 3     /* gardner built, gardner optimum, derivative */
+
+typedef struct
+{
+  double mean[NDET], s0[NDET];
+} det_run_t;
+
+typedef struct
+{
+  size_t nt, m4;       /* taps an arm, bank samples a symbol  */
+  long   j_opt, j_blt; /* each arm's best bank sample         */
+  double h[MAXT];      /* optimum arm, unit symbol out        */
+  double hd[MAXT];     /* its derivative, per SYMBOL of timing */
+  double b[MAXT];      /* best built arm, unit symbol out     */
+} arms_t;
+
+static void
+autocorr (const double *g, size_t d, size_t nt, double *r)
+{
+  for (size_t k = 0; k < nt; k++)
+    {
+      r[k] = 0.0;
+      for (long n = -(long)GOFF; n < (long)(GLEN - GOFF); n++)
+        r[k] += gat (g, n) * gat (g, n + (long)(k * d));
+    }
+}
+
+/* h = R^-1 q for a symbol starting at input a, on bank sample j. Returns
+   h'q, or a negative number when the solve fails. */
+static double
+opt_arm (const double *g, size_t d, size_t first, size_t nt, const double *r,
+         long j, long a, size_t s, double *h)
+{
+  static double mat[MAXT * MAXT];
+  double        q[MAXT];
+  for (size_t t = 0; t < nt; t++)
+    {
+      q[t] = h[t] = qat (g, d, first, j - (long)t, a, s);
+      for (size_t u = 0; u < nt; u++)
+        mat[t * nt + u] = r[t > u ? t - u : u - t];
+    }
+  if (solve (mat, h, nt) != 0)
+    return -1.0;
+  double sig = 0.0;
+  for (size_t t = 0; t < nt; t++)
+    sig += h[t] * q[t];
+  return sig;
+}
+
+/* The arms for a symbol whose edge is on the bank grid. */
+static int
+build_arms (const double *g, size_t d, size_t first, const resamp_state_t *rs,
+            size_t s, arms_t *A)
+{
+  size_t nt = rs->num_taps;
+  double r[MAXT], tmp[MAXT];
+  autocorr (g, d, nt, r);
+  long reach = 0;
+  for (long n = 0; n < (long)(GLEN - GOFF); n++)
+    if (fabs (gat (g, n)) > 1e-12)
+      reach = n;
+  long   a    = (long)I0;
+  long   j_lo = ((long)I0 - (long)first) / (long)d - 4;
+  long   j_hi = j_lo + ((long)s + reach) / (long)d + (long)nt + 8;
+  double best = -1.0, bestb = -1.0;
+  size_t arm = 0;
+  for (long j = j_lo; j <= j_hi; j++)
+    {
+      double sig = opt_arm (g, d, first, nt, r, j, a, s, tmp);
+      if (sig > best)
+        {
+          best     = sig;
+          A->j_opt = j;
+        }
+      for (size_t p = 0; p < rs->num_phases; p++)
+        {
+          const float *row = rs->bank + p * nt;
+          double       sg = 0.0, nv = 0.0;
+          for (size_t t = 0; t < nt; t++)
+            {
+              sg += (double)row[t] * qat (g, d, first, j - (long)t, a, s);
+              for (size_t u = 0; u < nt; u++)
+                nv += (double)row[t] * (double)row[u]
+                      * r[t > u ? t - u : u - t];
+            }
+          double loss = nv > 0.0 ? sg * sg / nv : 0.0;
+          if (loss > bestb)
+            {
+              bestb    = loss;
+              A->j_blt = j;
+              arm      = p;
+            }
+        }
+    }
+  if (best <= 0.0 || bestb <= 0.0)
+    return -1;
+  A->nt = nt;
+  A->m4 = s / d;
+  double hp[MAXT], hm[MAXT];
+  double sig = opt_arm (g, d, first, nt, r, A->j_opt, a, s, A->h);
+  if (sig <= 0.0 || opt_arm (g, d, first, nt, r, A->j_opt, a + 1, s, hp) <= 0.0
+      || opt_arm (g, d, first, nt, r, A->j_opt, a - 1, s, hm) <= 0.0)
+    return -1;
+  double sgb = 0.0;
+  for (size_t t = 0; t < nt; t++)
+    sgb += (double)rs->bank[arm * nt + t]
+           * qat (g, d, first, A->j_blt - (long)t, a, s);
+  for (size_t t = 0; t < nt; t++)
+    {
+      /* one input sample is 1/s of a symbol, so the central difference
+         over two of them is scaled by s/2 */
+      A->hd[t] = (hp[t] - hm[t]) / sig * (double)s / 2.0;
+      A->h[t] /= sig;
+      A->b[t] = (double)rs->bank[arm * nt + t] / sgb;
+    }
+  return 0;
+}
+
+/* One open-loop run: symbols `shift` input samples late, complex noise of
+   variance n0 an input sample. */
+static int
+det_run (const double *g, size_t d, size_t first, const arms_t *A, size_t s,
+         long shift, double n0, uint32_t seed, det_run_t *o)
+{
+  size_t nx    = (size_t)I0 + (NSYM + 8) * s;
+  long   reach = 0;
+  for (long n = 0; n < (long)(GLEN - GOFF); n++)
+    if (fabs (gat (g, n)) > 1e-12)
+      reach = n;
+  float _Complex  *x  = malloc (nx * sizeof *x);
+  size_t           nj = (nx - first) / d;
+  double _Complex *sj = malloc (nj * sizeof *sj);
+  if (!x || !sj)
+    {
+      free (x);
+      free (sj);
+      return -1;
+    }
+  uint32_t rb = seed, rn = seed ^ 0x9E3779B9u;
+  double   sg  = sqrt (n0);
+  float    bit = 1.0f;
+  for (size_t i = 0; i < nx; i++)
+    {
+      long rel = (long)i - ((long)I0 + shift);
+      if (rel >= 0 && rel % (long)s == 0)
+        bit = (float)dp_bit (&rb);
+      x[i] = (rel >= 0 ? bit : 0.0f) + (float)sg * dp_cgauss (&rn);
+    }
+  for (size_t j = 0; j < nj; j++)
+    {
+      double _Complex acc = 0.0;
+      long top            = (long)first + (long)j * (long)d;
+      for (long n = 0; n <= reach && n <= top; n++)
+        acc += gat (g, n) * (double _Complex)x[top - n];
+      sj[j] = acc;
+    }
+  double sum[NDET] = { 0 }, bsum[NDET] = { 0 }, bm[NDET] = { 0 },
+         bm2[NDET] = { 0 };
+  size_t nb = 0, cnt = 0, inb = 0;
+  double _Complex prev_o = 0.0, prev_b = 0.0;
+  for (size_t k = 16; k + 16 < NSYM; k++)
+    {
+      long jo           = A->j_opt + (long)(k * A->m4);
+      long jb           = A->j_blt + (long)(k * A->m4);
+      long hf           = (long)(A->m4 / 2);
+      double _Complex y = 0.0, dy = 0.0, mo = 0.0, yb = 0.0, mb = 0.0;
+      for (size_t t = 0; t < A->nt; t++)
+        {
+          y += A->h[t] * sj[jo - (long)t];
+          dy += A->hd[t] * sj[jo - (long)t];
+          mo += A->h[t] * sj[jo - hf - (long)t];
+          yb += A->b[t] * sj[jb - (long)t];
+          mb += A->b[t] * sj[jb - hf - (long)t];
+        }
+      double e[NDET];
+      e[0]   = creal (conj (mb) * (yb - prev_b));
+      e[1]   = creal (conj (mo) * (y - prev_o));
+      e[2]   = creal (conj (y) * dy);
+      prev_o = y;
+      prev_b = yb;
+      if (k == 16)
+        continue; /* no previous strobe yet */
+      cnt++;
+      for (int i = 0; i < NDET; i++)
+        {
+          sum[i] += e[i];
+          bsum[i] += e[i];
+        }
+      if (++inb == BLK)
+        {
+          for (int i = 0; i < NDET; i++)
+            {
+              double v = bsum[i] / BLK;
+              bm[i] += v;
+              bm2[i] += v * v;
+              bsum[i] = 0.0;
+            }
+          nb++;
+          inb = 0;
+        }
+    }
+  for (int i = 0; i < NDET; i++)
+    {
+      o->mean[i] = sum[i] / (double)cnt;
+      double mu  = bm[i] / (double)nb;
+      o->s0[i]   = BLK * (bm2[i] / (double)nb - mu * mu);
+    }
+  free (x);
+  free (sj);
+  return 0;
+}
+
+static int
+detectors (const double *g, size_t d, size_t first, const resamp_state_t *rs,
+           size_t s)
+{
+  static const char *const name[NDET]
+      = { "gardner, built arm", "gardner, best arm", "derivative, best arm" };
+  arms_t A;
+  DP_REQUIRE (build_arms (g, d, first, rs, s, &A) == 0);
+  det_run_t lo, hi;
+  DP_REQUIRE (det_run (g, d, first, &A, s, -1, 0.0, 7u, &lo) == 0);
+  DP_REQUIRE (det_run (g, d, first, &A, s, +1, 0.0, 7u, &hi) == 0);
+  double kd[NDET];
+  for (int i = 0; i < NDET; i++)
+    kd[i] = (hi.mean[i] - lo.mean[i]) / (2.0 / (double)s);
+  printf ("  detectors, open loop at the eye center (%d symbols a run, "
+          "slope from +-1/%zu symbol):\n",
+          NSYM, s);
+  printf ("  %-6s  %-21s  %9s  %10s  %12s  %s\n", "Es/N0", "detector", "Kd",
+          "S_e(0)", "S_e(0)/Kd^2", "against gardner built, dB");
+  static const double esn0_db[4] = { 0.0, 4.0, 7.0, 10.0 };
+  for (int gi = 0; gi < 4; gi++)
+    {
+      double n0       = gi ? (double)s / pow (10.0, esn0_db[gi] / 10.0) : 0.0;
+      double s0[NDET] = { 0 };
+      enum
+      {
+        NSEED = 4
+      };
+      for (uint32_t sd = 0; sd < NSEED; sd++)
+        {
+          det_run_t r;
+          DP_REQUIRE (det_run (g, d, first, &A, s, 0, n0, 11u + sd, &r) == 0);
+          for (int i = 0; i < NDET; i++)
+            s0[i] += r.s0[i] / NSEED;
+        }
+      for (int i = 0; i < NDET; i++)
+        {
+          double fig = s0[i] / (kd[i] * kd[i]);
+          double ref = s0[0] / (kd[0] * kd[0]);
+          char   lab[16];
+          if (gi)
+            snprintf (lab, sizeof lab, "%.0f dB", esn0_db[gi]);
+          else
+            snprintf (lab, sizeof lab, "none");
+          printf ("  %-6s  %-21s  %9.4f  %10.3e  %12.3e  %+.2f\n", lab,
+                  name[i], kd[i], s0[i], fig, db10 (fig / ref));
+        }
+    }
+  return 0;
+}
+
 static double
 db10 (double x)
 {
   return x > 0.0 ? 10.0 * log10 (x) : -999.0;
 }
+
+static int detectors (const double *g, size_t d, size_t first,
+                      const resamp_state_t *rs, size_t s);
 
 static int
 run_plan (plan_t pl, int check)
@@ -336,7 +628,10 @@ run_plan (plan_t pl, int check)
           "up %.3f dB\n",
           db10 (worst_built), db10 (worst_opt),
           db10 (worst_opt) - db10 (worst_built));
-  (void)check;
+  /* The detectors, where the bank's grid is 4 samples a symbol and the
+     input is fine enough to move an edge by a small step. */
+  if (!check && rs->num_taps <= MAXT && s / d == 4 && d >= 4)
+    DP_CHECK (detectors (g, d, first, rs, s) == 0);
   dp_RateConverter_destroy (rc);
   return 0;
 }

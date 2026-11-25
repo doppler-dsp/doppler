@@ -139,6 +139,57 @@ Three things follow.
 With no stage ahead of the bank (`D = 1`) the pulse is whatever the caller
 delivers, and the object cannot know its band.
 
+### The detector that goes with that pulse
+
+The optimum arm depends on the timing hypothesis `tau`: `h(tau) = R^-1 q_tau`. Its derivative in `tau` is a second bank, and the pair is a
+timing detector:
+
+```text
+y  = h(tau)' s            the symbol
+dy = (dh/dtau)' s         its derivative in the timing hypothesis
+e  = Re{ conj(y) * dy }   zero where |y| peaks
+```
+
+One accumulator steers both banks. For the rectangle, `dh/dtau` is the
+two band-limited edges of the pulse with opposite signs, so it weighs the
+samples that carry the timing and ignores the flat middle that carries
+none.
+
+A loop of noise bandwidth `bn` has a timing variance of
+`2 * bn * S_e(0) / Kd^2`, so a detector is judged on `S_e(0) / Kd^2`: the
+spectral density of its output at zero over the square of its slope.
+For a pulse of normalized mean-square bandwidth `xi`, the bound on that
+figure is `1 / (8 * pi^2 * xi * gamma)` with `gamma` the Es/N0; the
+rectangle band-limited to `N` samples per symbol has `xi = N / (2 pi^2)`,
+so the bound is `1 / (4 * N * gamma)`.
+
+`validate_ratesync_pulse_model` runs both detectors open loop at the eye
+center on the measured cascade, at a bank grid of 4 samples per symbol
+(64 in, CIC(16) ahead; 40,000 symbols by 4 seeds a row):
+
+| Es/N0 | Gardner, built arm: `S_e(0)/Kd^2` | derivative bank: `S_e(0)/Kd^2` | the bound times `(1 + 1/gamma)` | derivative against Gardner |
+| ----- | --------------------------------- | ------------------------------ | ------------------------------- | -------------------------- |
+| 4 dB  | 0.1429                            | 0.0342                         | 0.0348                          | -6.2 dB                    |
+| 7 dB  | 0.0608                            | 0.0147                         | 0.0150                          | -6.2 dB                    |
+| 10 dB | 0.0278                            | 0.0068                         | 0.0069                          | -6.1 dB                    |
+| none  | 1.2e-05                           | 5.2e-05                        |                                 | +6.5 dB                    |
+
+- **The derivative bank sits on the bound**, less the same `1 + 1/gamma`
+    squaring term Gardner carries, at all three levels.
+- **It is 6.2 dB below Gardner at 4 samples per symbol**: the same loop
+    SNR at four times the bandwidth, or four times the loop SNR at the
+    same one. Its slope is 8.8 against Gardner's 1.5.
+- **With no noise it is the noisier of the two**, by 6.5 dB. That floor
+    is the data pattern's own, and it is a timing error of 0.0007 symbols
+    rms at `bn = 0.005`.
+- Gardner on the optimum arm is 2.3 dB worse than Gardner on the built
+    arm. The optimum arm is matched to the symbol at its center, which is
+    not what the half-symbol strobe wants.
+
+The model is open loop and at the eye center. The closed loop, the
+detector's full S-curve, its acquisition and its behavior on other grids
+are not measured.
+
 ### Arbitrary rate is not a feature, it is the default
 
 `sps` is a `double`. 4, 17.33389, an irrational ratio and a slowly drifting

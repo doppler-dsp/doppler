@@ -5,5 +5,6 @@
     assembles it. A reader with no truth finds each frame by its
     acquisition and start sequences, reads its header back by name and
     checks its CRC. Both binaries check that every frame sent was read and
-    that each CRC verdict agrees with the truth. The TUI gains a frames
-    panel.
+    that each CRC verdict agrees with the truth. Across a whole-symbol
+    slip in the receiver (#3349), the frames are still read, and the slip
+    is reported. The TUI gains a frames panel.

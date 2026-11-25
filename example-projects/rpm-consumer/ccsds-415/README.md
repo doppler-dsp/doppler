@@ -40,10 +40,12 @@ make plot PLOT_ARGS=--save   # writes build/out/<capture>.png instead
 ```
 
 `make help` lists the knobs. The program's own options go through `ARGS`,
-for example `make run ARGS='--carrier hi --esn0 6'`; `--help` lists them.
-`--errors` prints
-where the bit errors fall in the scored stream: the first and last, the
-longest run, and a count for each tenth of it.
+for example `make run ARGS='--carrier hi --esn0 6'`, or the point's Es/N0
+4 dB over 20 s, `make run ARGS='--carrier lo --esn0 4 --seconds 20'`;
+`--help` lists them. `--errors` prints where the bit errors fall in the
+scored stream: the first and last, the longest run, and a count for each
+tenth of it. `--drop-symbol N` and `--repeat-symbol N` force a whole-symbol
+slip at the receiver's Nth symbol, to see what the frames do across one.
 
 ## What it runs
 
@@ -83,8 +85,16 @@ truth, as a ground station would read them:
 - the CRC is checked (`dp_wfm_frame_desc_crc_ok()`), and every frame found
     counts, whatever it says;
 - after a frame whose CRC holds, the next marker is one period on, and is
-    tracked there; after one whose CRC fails, whose length field may itself
-    be wrong, the search resumes.
+    tracked there, within 4 symbols; after one whose CRC fails, whose
+    length field may itself be wrong, the search resumes;
+- a frame found 1 to 4 symbols from where the last one ended is a slip:
+    the stream gained or lost whole symbols between them, and the reader
+    counts it and says where. (A length field with its lowest bit wrong
+    moves the next frame by 8, so that is not counted.)
+
+A whole-symbol slip in the receiver (#3349) shows here as one failed CRC,
+then frames read shifted by the slip, which the reader and the report
+count.
 
 ## What it checks
 
@@ -109,7 +119,10 @@ truth, as a ground station would read them:
 1. every probe the receiver registers emitted at least once;
 1. every frame sent whole inside the locked stream was read, and each
     frame's CRC verdict is the one the truth gives: pass when it was
-    received as sent, fail when not. A frame read where none was sent is
+    received as sent, fail when not. Each frame is the period nearest
+    where the meter's alignment puts it, within 4 symbols, so frames read
+    across a slip are judged where they are, and the report says how many
+    were shifted and by how much. A frame read where none was sent is
     wrong whatever its CRC says.
 
 The locked stream opens where the symbol lock and the code lock are both
@@ -203,8 +216,9 @@ the batch binary's. It draws, at most every 100 ms of wall time:
     reports them;
 - **scene**: the carrier, the time, the symbols out, and progress;
 - **frames**: whether the start sequence is searched for or tracked, the
-    frames read with their CRC verdicts, the start sequences missed, and
-    the last frame's header read back: its data octets, SCID, VCID and
+    frames read with their CRC verdicts, the start sequences missed, the
+    slips and the last one's shift and place, and the last frame's header
+    read back: its data octets, SCID, VCID and
     frame sequence number, and the polarity it was read in.
 
 It runs on one thread. The timed span is the receiver call alone; the

@@ -33,6 +33,11 @@ constexpr double LEAD_IN_S = 0.05; // noise alone before the signal arrives
 constexpr unsigned PAYLOAD_SEED = 1, PAYLOAD_PN = 15;
 // The data lengths' own PN, apart from the data's.
 constexpr unsigned LENGTH_SEED = 2;
+// The largest shift, in symbols, the frame reader and the truth check read
+// as a receiver slip rather than a frame elsewhere. Below 8: a frame-length
+// field received with its lowest bit wrong moves where the next frame is
+// due by one octet, 8 symbols, and that is not a slip.
+constexpr size_t SLIP_MAX = 4;
 // What "sustained" means for the symbol lock is dp_ber_lock_symbol()'s
 // own: 0 and 0.0 select its defaults, so this file does not restate them.
 constexpr size_t LOCK_SUSTAIN = 0;
@@ -270,22 +275,42 @@ private:
   Outcome
   read_at (size_t h, bool tracking, uint32_t errors = 0, bool inverted = false)
   {
-    if (h < start_)
+    if (h < start_ + SLIP_MAX)
       return tracking ? MISS : REJECT;
-    const size_t at = h - start_;
-    if (bits_.size () < at + header_end_)
+    if (bits_.size () < h - start_ + header_end_ + SLIP_MAX)
       {
-        need_ = at + header_end_;
+        need_ = h - start_ + header_end_ + SLIP_MAX;
         return NEED;
       }
     syncword_hit_t hit{ 1, 0, inverted ? 1 : 0, errors };
     if (tracking)
       {
-        hit = dp_syncword_find (sw_.get (), &bits_[at + acq_], marker_len_,
-                                track_errors_);
+        // The marker where the last frame puts the next, or within
+        // SLIP_MAX symbols of it, where it has the fewest errors: a
+        // receiver that slipped whole symbols puts it a few off, and the
+        // shift is reported as a slip (the nearest of a tie).
+        long best_d = 0;
+        hit.found = 0;
+        for (long d = 0; d <= static_cast<long> (SLIP_MAX); d++)
+          for (const long sd : { d, -d })
+            {
+              const syncword_hit_t c = dp_syncword_find (
+                  sw_.get (), &bits_[h + sd - start_ + acq_], marker_len_,
+                  track_errors_);
+              if (c.found && c.offset == 0
+                  && (!hit.found || c.errors < hit.errors))
+                {
+                  hit = c;
+                  best_d = sd;
+                }
+              if (d == 0)
+                break;
+            }
         if (!hit.found)
           return MISS;
+        h = static_cast<size_t> (static_cast<long> (h) + best_d);
       }
+    const size_t at = h - start_;
     const uint8_t flip = hit.inverted ? 1 : 0;
 
     // The header, through the shortest description: the frame-length field
@@ -360,6 +385,21 @@ private:
   count (size_t h, size_t at, size_t len, uint8_t flip, bool ok,
          uint32_t errors)
   {
+    // A frame a few symbols from where the last one, read at its own
+    // length, ended: the stream slipped whole symbols between them. Further
+    // off is a length field received wrong, not a slip, and is not
+    // counted.
+    if (expect_)
+      {
+        const long by = static_cast<long> (h) - static_cast<long> (expect_);
+        if (by != 0 && std::labs (by) <= static_cast<long> (SLIP_MAX))
+          {
+            st_.slips++;
+            st_.slip_at = h;
+            st_.slip_by = by;
+          }
+      }
+    expect_ = len ? h + len : 0;
     st_.found++;
     (ok ? st_.crc_ok : st_.crc_failed)++;
     st_.any = true;
@@ -447,6 +487,7 @@ private:
   uint32_t track_errors_ = 0;
   std::vector<uint8_t> bits_, buf_;
   size_t scan_ = 0, next_ = 0, last_h_ = 0, need_ = 0;
+  size_t expect_ = 0; // where the next start sequence is due, or 0
   FrameStats st_;
   std::vector<Seen> seen_;
 };
@@ -515,7 +556,11 @@ parse (int argc, char **argv, Options &o, bool tui)
               "  --chunk     samples a push, at least %zu (default %zu)\n"
               "  --out       directory for the captures (default .)\n"
               "  --errors    print where the bit errors fall in the scored "
-              "stream\n",
+              "stream\n"
+              "  --drop-symbol N, --repeat-symbol N\n"
+              "              force a whole-symbol slip: drop or repeat the "
+              "decided\n"
+              "              symbol at index N (a test of the frame reader)\n",
               tui ? "ccsds415-tui" : "ccsds415",
               tui ? " [--unpaced] [--snapshot]" : "", o.esn0_db, o.seconds,
               MIN_CHUNK, o.chunk);
@@ -526,6 +571,13 @@ parse (int argc, char **argv, Options &o, bool tui)
                 "frame\n"
                 "  q          quit early, through the same checks\n");
           std::exit (0);
+        }
+      if (a == "--drop-symbol" || a == "--repeat-symbol")
+        {
+          check (i + 1 < argc, a + " needs a value");
+          const size_t k = count (a, argv[++i]);
+          (a == "--drop-symbol" ? o.drop_symbol : o.repeat_symbol) = k;
+          continue;
         }
       if (a == "--errors")
         {
@@ -767,15 +819,27 @@ Run::step ()
   total_ns_ += dt;
   worst_ns_ = std::max (worst_ns_, last_ns_);
   st_ = dp_async_dsss_receiver_status (rx_.get ());
+  // A forced whole-symbol slip (--drop-symbol, --repeat-symbol): the
+  // symbol at that index is dropped, or sent twice, before anything here
+  // reads it, as a receiver that slipped would. A test of what the reader
+  // and the report do across a slip, not a model of one.
+  const size_t from = syms_.size ();
   for (size_t i = 0; i < got; i++)
     {
-      syms_.push_back (out_[i]);
-      flags_.push_back (static_cast<uint8_t> (st_.locked));
-      code_flags_.push_back (static_cast<uint8_t> (st_.code_locked));
+      // Indexed by the receiver's own symbols, which a drop does not stop.
+      const size_t k = rx_syms_++;
+      const int copies
+          = k == o_.drop_symbol ? 0 : k == o_.repeat_symbol ? 2 : 1;
+      for (int c = 0; c < copies; c++)
+        {
+          syms_.push_back (out_[i]);
+          flags_.push_back (static_cast<uint8_t> (st_.locked));
+          code_flags_.push_back (static_cast<uint8_t> (st_.code_locked));
+        }
     }
   emitted_.push_back (syms_.size ());
   // The frames, read from what this chunk decided: outside the timed span.
-  reader_->feed (out_.data (), got);
+  reader_->feed (syms_.data () + from, syms_.size () - from);
   n_ += o_.chunk;
   return true;
 }
@@ -900,17 +964,40 @@ Run::finish ()
         continue;
       r.frames_read++;
       (f.crc_ok ? r.frames_ok : r.frames_failed)++;
+      // The period this frame is: the nearest period start within
+      // SLIP_MAX symbols of where the meter's one lag puts it. A receiver
+      // that slipped whole symbols moves every later frame by the slip,
+      // and the reader follows it, so the shift is a slip to report, not a
+      // frame read where none was sent.
       const long t = static_cast<long> (f.at) + lag;
-      const auto p = std::lower_bound (stim_.at.begin (), stim_.at.end (),
-                                       static_cast<size_t> (std::max (t, 0L)));
-      const size_t i = static_cast<size_t> (p - stim_.at.begin ());
+      const long slip = static_cast<long> (SLIP_MAX);
+      auto p = std::lower_bound (stim_.at.begin (), stim_.at.end (),
+                                 static_cast<size_t> (std::max (t - slip, 0L)));
+      auto best = stim_.at.end ();
+      for (; p != stim_.at.end () && static_cast<long> (*p) <= t + slip; ++p)
+        if (best == stim_.at.end ()
+            || std::labs (static_cast<long> (*p) - t)
+                   < std::labs (static_cast<long> (*best) - t))
+          best = p;
       // A frame read where no period begins is wrong whatever its CRC
       // says: nothing was sent there.
-      if (p == stim_.at.end () || static_cast<long> (*p) != t)
+      if (best == stim_.at.end ())
         {
           r.frames_wrong++;
           continue;
         }
+      const size_t i = static_cast<size_t> (best - stim_.at.begin ());
+      const long shift = static_cast<long> (*best) - t;
+      if (shift != 0)
+        {
+          if (!r.frames_shifted)
+            {
+              r.shift_at = f.at;
+              r.shift_by = shift;
+            }
+          r.frames_shifted++;
+        }
+      const size_t tp = *best;
       // Read at a period's start with another length: its length field
       // arrived wrong, and only a CRC that passed it is wrong.
       if (stim_.len[i] != f.len)
@@ -921,11 +1008,11 @@ Run::finish ()
         }
       bool same = true;
       for (size_t k = 0; same && k < f.len; k++)
-        same = (rx[f.at + k] ^ (f.inverted ? 1 : 0))
-               == stim_.bits[static_cast<size_t> (t) + k];
+        same = (rx[f.at + k] ^ (f.inverted ? 1 : 0)) == stim_.bits[tp + k];
       if (same != f.crc_ok)
         r.frames_wrong++;
     }
+  r.reader_slips = reader_->stats ().slips;
   return r;
 }
 
@@ -1114,6 +1201,15 @@ report (const std::string &name, const Result &r, size_t chunk)
                "contradicts\n",
                r.frames_read, r.frames_sent, r.frames_ok, r.frames_failed,
                r.frames_wrong);
+  // A whole-symbol slip in the receiver: the frames after it are read a
+  // few symbols from where the meter's one alignment puts them. Said here
+  // as what it is, with what the reader saw on its own.
+  if (r.frames_shifted || r.reader_slips)
+    std::printf ("  slip: %zu frame(s) read shifted from the first alignment, "
+                 "the first by %+ld symbol(s) at symbol %zu; the reader, with "
+                 "no truth, re-acquired %zu time(s) after a slip\n",
+                 r.frames_shifted, r.frames_shifted ? r.shift_by : 0L,
+                 r.shift_at, r.reader_slips);
   if (r.frames_sent == 0)
     {
       std::fprintf (stderr,

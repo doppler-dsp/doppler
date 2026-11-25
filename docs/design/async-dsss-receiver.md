@@ -1736,6 +1736,65 @@ rule rows at `2bb1a6c8f` for every flag but `car.locked`, whose length is
     The aid's choice reads the window being summed ("The code loop and its
     lock"), which is the difference.
 
+#### What a consumer reads
+
+`dp_async_dsss_receiver_status()` publishes all five flags, so a program
+holding only the installed headers reads what the certification reads,
+with no private field and no test header. They are in the record in the
+order of the table above:
+
+| status field       | the flag            | what it says is up                                  |
+| ------------------ | ------------------- | --------------------------------------------------- |
+| `code_locked`      | `code.locked`       | the code: the despreader is on the code's phase     |
+| `car_locked`       | `car.locked`        | the front end's carrier loop, before despreading    |
+| `locked`           | `sym.locked`        | the receiver's own `cos 2φ` on the symbols it emits |
+| `demod_car_locked` | `demod.car.locked`  | the demodulator's carrier loop, after despreading   |
+| `timing_locked`    | `demod.sync.locked` | the demodulator's symbol timing                     |
+
+`code_locked` and `locked` keep their names and meanings. Each flag reads
+0 outside `ASYNC_DSSS_RX_TRACKING`, as the test header's reader has them,
+and the pool's per-receiver record (`PoolReceiverStatus`) carries the same
+five. The state blob needs no change: every detector's running state is
+already in it (the receiver's `extra`, and the Dll, carrier and
+`MpskReceiver` children it nests).
+
+**The order they come up in, measured, not promised.** At 2.2 GHz on the
+C++ example's scene (Es/N0 4 to 10 dB, the symbol at which each flag is
+sustained, [#3349](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7146889068)):
+
+| Es/N0 | code | car | sym | demod | timing |
+| ----- | ---- | --- | --- | ----- | ------ |
+| 4 dB  | 40   | 62  | 53  | 54    | 2925   |
+| 6 dB  | 40   | 62  | 29  | 32    | 4786   |
+| 8 dB  | 40   | 62  | 29  | 28    | 1994   |
+| 10 dB | 40   | 62  | 29  | 19    | 929    |
+
+The first four are up inside the first 140 symbols; the timing lock comes
+last in every run, 0.3 to 1.6 s after the others. The bootstrap order is
+code, then symbol timing, then data (§3.3), and the timing flag is the one
+the other four do not stand in for: symbols scored before it are scored
+before the demodulator has locked its timing, and in the runs above they
+read an error rate near 1/3.
+
+**When the symbols are valid.** Not an instant: from the window's start,
+the latest of the five flags' sustained times, each sustained by
+`dp_ber_lock_symbol()` (200 decisions up in a row, then up for 90% of the
+rest). That rule is `dp_ber_lock_all()`, public in `doppler/ber/ber_core.h`
+beside `dp_ber_lock_symbol()` (its copy in `native/tests/dp_ber_test.h`
+goes): a consumer records the five flags a symbol and opens its window
+where the certification opens its own. It is not a status field, because
+"sustained" needs the record after the point, not the flags at it, and a
+field that read all five up at one instant would read up across a dip.
+
+**Valid is not slip-free.** A whole-symbol slip can occur with all five
+flags up. At 2.2 GHz, Es/N0 6 dB, one arrival slipped twice, about 800
+symbols apart, with every flag sustained and the timing flag's only dip
+between the two slips, not at either
+([#3349](https://github.com/doppler-dsp/doppler/issues/3349#issuecomment-7147085954)).
+No flag here detects a slip ("No flag sees a carrier slip", above); a
+consumer that must know reads it from its data: a frame sync that
+re-acquires a few symbols off, or the error-rate meter's end alignment.
+
 ### 4.11 The hand-over
 
 The refine's estimate is the carrier the tracking chain starts from. Its total dwell is `CarrierAcquisition`'s, lengthened to the fine hand-over's where that is designed, and the fine estimate is the hand-over when its check passes.
@@ -1982,9 +2041,9 @@ at 4 and 5 dB locks inside it (agreed;
 `validate_async_dsss_receiver_pullin`'s `check_acq()` holds it per cell).
 
 - **The start** is the latest of the five flags' sustained times
-    (`dp_ber_lock_all()`, `native/tests/dp_ber_test.h`): symbol, code,
-    carrier, demodulator carrier and sync, read through one reader,
-    `dp_s415_lock_flags()` (`native/tests/dp_s415_test.h`). A flag is
+    (`dp_ber_lock_all()`, `doppler/ber/ber_core.h`): symbol, code,
+    carrier, demodulator carrier and sync, read from
+    `dp_async_dsss_receiver_status()` ("What a consumer reads", §4.10). A flag is
     sustained at the first of 200 decisions up in a row after which it is up
     for 90% of the rest (`dp_ber_lock_symbol()`).
 - **A link whose latest flag has not sustained 20 s after arrival has not

@@ -172,8 +172,17 @@ window, and it is at most the total; a window need not reach it.
 For every emitter, `dp_air_truth()` reports at sample k the carrier and the
 level the emitter has at that sample, from its tracks. Truth is a closed form of
 the timeline, so it is exact by construction; the scorer never reads the pool to
-decide what is on the air. Whether the truth stays exact once a carrier track is
-rendered through `dp_doppler_channel_execute_profile()` is an unknown (§10).
+decide what is on the air. Which fields are exact is stated in `dp_air_test.h`:
+the code, symbol, level and on-air fields are exact closed forms.
+
+The carrier is exact to the track's own closed form, its integral, but not to the
+carrier the channel applies. Under a carrier track the channel reads its carrier
+off its resampler's position, which steps in 2^-32 of an input interval, so the
+realised carrier is within `fc × 2^-32` Hz of the truth's: 0.51 Hz at 2.2 GHz and
+0.65 Hz at 2.8 GHz. That is the channel's own bound, pinned by
+`test_doppler_channel_core.c` §8b. So carrier PHASE from the truth is not exact,
+and the scorer classes on carrier in Hz, where that bound is small against `ε`
+(§7.2).
 
 ## 6. The timeline, the windows and the bar
 
@@ -276,17 +285,34 @@ the rule's constants. The rule's bounds are what the pool's rule will change, an
 a scorer whose resolution moved with the rule would let the rule set its own
 grade.
 
-**Definition.** `ε` is the largest `|reported carrier − truth|` over the tracked
-tenures of a lone emitter at Es/N0 4 dB (38.77 dB-Hz), over the run. That is the
-lowest level anything on the air has, and every holder is classed (scored or not),
-so the resolution must cover the weakest one. A lone emitter has no
-other family on the air, so there is nothing to class ambiguously, and the
-error is the receiver's own.
+**Definition.** `ε` is the 99th percentile, nearest rank, of the per-tenure
+largest `|reported carrier − truth|` over the on-phase tenures of a lone emitter
+at Es/N0 4 dB (38.77 dB-Hz). That is the lowest level anything on the air has, and
+every holder is classed, scored or not, so the resolution must cover the weakest
+one. A lone emitter has no other family on the air, so the error is the
+receiver's own.
 
-**What prints it.** The ghost validator's ALONE arm already runs that scene. The
-measurement is one more column there, the largest reported-carrier error of the
-lone emitter's tracked tenures. It does not exist yet, so `ε` is an unknown
-(§10) until it does.
+Each tenure's value is its largest error from one second into the tenure: the
+pull-in transient is a separate figure. A tenure is on-phase when its code phase
+stays within one chip of the emitter's, the scorer's own real-class test. A
+tenure that leaves that band is a ghost: it is excluded from `ε` and counted
+apart, with the count printed, because a ghost is what the scene scores.
+
+Why the 99th percentile and not the maximum. The maximum over a run grows with
+the number of draws, and one off-phase tenure sets it: 2.28 Hz over the first 20
+draws of the 2.2 GHz run and 1403 Hz over 40, from draws 23 and 30 alone. A
+maximum of that kind is not a property of the receiver. The upper tail is what
+matters: a holder whose error exceeds `ε` could be classed as another family, so
+the scorer needs the tail, and the 99th percentile is the tail it can read from a
+pool of on-phase tenures without the largest one deciding it.
+
+Stable once the pool holds 300 on-phase tenures; the run prints the count and
+says NOT STABLE below it. Off-phase tenures are a number the page carries: a pool
+of four on a lone emitter holding a ghost is what the scene exists to score.
+
+**What prints it.** The ghost validator's ALONE arm prints the quantile, its
+count, and the excluded tenures (off-phase, and shorter than the skip) at each
+level. Its value is pending a run that gives the pool its count (§10).
 
 The scorer does not widen `ε` to hide a result. If a run's ambiguous count is
 large, the run reports that count; it does not take a larger `ε` to shrink it.
@@ -312,9 +338,15 @@ wrong, and the run reports that count.
 
 Reported per window, each with the rows that produced it:
 
-- per emitter: time to take once eligible, the held fraction while above the
-    holding level, symbol lock, BER against the truth bits (decodable is BER below 1e-2,
-    the line `read_cen.py` uses), and time to release after it sets;
+- per emitter: time to take once eligible, the held fraction while at or above
+    Es/N0 5 dB, symbol lock, BER against the truth bits (decodable is BER below
+    1e-2, the line `read_cen.py` uses), and time to release after it sets. BER is
+    taken per window against the alignment that window holds (below);
+- per tenure: the slips after all five lock flags, with the window each fell in.
+    A slip is a whole-symbol alignment change with no flag marking it (#3349).
+    It is its own row, not folded into BER. A tenure's symbols count from the
+    sample at which all five lock flags are up, which `dp_s415_lock_flags()`
+    reads; a tenure's symbols before that are not scored;
 - per ghost tenure: its length, parent, `k`, lead in dB, and the window's largest
     `|delta - k × interval|` (the column `gh_win_dev` writes);
 - per release: lost, duplicate or ghost, and whether it was right or wrong against
@@ -339,16 +371,16 @@ are the scorer's negative controls, written with the scorer.
 
 ## 9. Tolerances and where each comes from
 
-| tolerance                                         | value                  | from                                                                                                  |
-| ------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------- |
-| same code phase (on an emitter's code, duplicate) | 1 chip                 | `DP_CORRELATOR_SAME_PHASE_CHIPS`, the pool's own duplicate test                                       |
-| carrier resolution (ambiguous class)              | measured, unknown      | the largest reported-carrier error of a lone emitter at Es/N0 4 dB, the ALONE arm's new column (§7.2) |
-| ambiguity interval (comb spacing)                 | `1/(2T)`               | the code's lattice: `chip rate / (2 × code length)`, from the chip rate                               |
-| ghost tenure window                               | 0.2 s                  | `ASYNC_DSSS_POOL_GHOST_WINDOW_S`, the rule being scored                                               |
-| ghost end value                                   | 10 Hz                  | `ASYNC_DSSS_POOL_GHOST_EPS_HZ`, the rule being scored                                                 |
-| ghost end, existing validator                     | 40 Hz                  | EPS + 3 × STILL; the 3 is a 3-sigma coverage choice, labelled as such                                 |
-| decodable                                         | BER below 1e-2         | `read_cen.py`'s line                                                                                  |
-| bars                                              | 0.5 s, 98%, 1 in 1,000 | carried from the #2529 criteria with the #3263 pool terms (§6.3)                                      |
+| tolerance                                         | value                    | from                                                                                                   |
+| ------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| same code phase (on an emitter's code, duplicate) | 1 chip                   | `DP_CORRELATOR_SAME_PHASE_CHIPS`, the pool's own duplicate test                                        |
+| carrier resolution (ambiguous class)              | 99th percentile, unknown | per-tenure largest reported-carrier error over on-phase tenures of a lone emitter at Es/N0 4 dB (§7.2) |
+| ambiguity interval (comb spacing)                 | `1/(2T)`                 | the code's lattice: `chip rate / (2 × code length)`, from the chip rate                                |
+| ghost tenure window                               | 0.2 s                    | `ASYNC_DSSS_POOL_GHOST_WINDOW_S`, the rule being scored                                                |
+| ghost end value                                   | 10 Hz                    | `ASYNC_DSSS_POOL_GHOST_EPS_HZ`, the rule being scored                                                  |
+| ghost end, existing validator                     | 40 Hz                    | EPS + 3 × STILL; the 3 is a 3-sigma coverage choice, labelled as such                                  |
+| decodable                                         | BER below 1e-2           | `read_cen.py`'s line                                                                                   |
+| bars                                              | 0.5 s, 98%, 1 in 1,000   | carried from the #2529 criteria with the #3263 pool terms (§6.3)                                       |
 
 The 40 Hz end value is the one number here that is not derived: its 3 is a
 coverage choice on a sample standard deviation, and the scene does not inherit
@@ -361,15 +393,19 @@ it. The bound the scene uses for a ghost's carrier is read from the recorded
     and so whether 1 in 1,000 is resolvable on a run or is stated as a looser
     bound. It is measured first, at 8 to 10 emitters on air at 11 MSa/s, and the
     run is sized from it.
-- **Whether the truth stays exact under a carrier track.** `dp_air_truth()` is
-    exact to closed forms for a straight line. A rendered profile may not be.
+- **The slip rate after all five lock flags.** A receiver has been measured to
+    slip a whole symbol after all five flags are up, with no flag marking it
+    (#3349: 2 of 1023 runs slip, 4 slips in all, 3 of them in one run, both at
+    2.8 GHz; time to five flags has a 90th percentile of 1.0 s at 2.2 GHz, Es/N0
+    4 dB). The scorer reports slips as their own row (§7.4); their rate is what
+    the run must measure.
 - **Whether 30 s is long enough.** Some endings in the existing records came at
     20 s; a 30 s window is only enough if none runs past it.
 - **The cold start.** An emitter mid-pass at a window's start is on the air at
     t = 0. It is scored as a take, and that is declared with the results.
-- **The resolution `ε`.** Its value is not known until the ALONE arm prints its
-    column (§7.2). Until then the ambiguous class is defined but its size is not,
-    and the run prints the ambiguous count; it does not widen `ε`.
+- **The resolution `ε`.** Its value is not yet printed for a run long enough to
+    fix its quantile (§7.2). Until it is, the ambiguous class is defined but its
+    size is not, and the run prints the ambiguous count; it does not widen `ε`.
 - **The 0.5 s and 98% bars.** They are the #2529 criteria carried over. The run
     states the counts behind them; it does not re-derive them.
 
@@ -398,7 +434,7 @@ These six are settled and not reopened by this page:
 
 1. This page, reviewed before any code.
 1. `dp_air_test.h` gains a set time, a carrier track and a level track, each with a
-    sabotage-proven test; one existing scene stays byte-identical.
+    sabotage-proven test; the existing scene's stream stays byte-identical.
 1. The timeline in `dp_s415_test.h` (the per-pass table is already there), and the
     scorer as a shared header with its four negative controls.
 1. The validator, `--check` in ctest under the sweep label, beside

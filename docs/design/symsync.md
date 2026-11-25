@@ -41,8 +41,12 @@ transitions (the 415.1-B-1 period's 275-symbol gap).
 1. **The rate state stays inside what the signal can have.** The symbol
     rate is known to the source's tolerance and the Doppler dilation;
     nothing in the loop may sit outside that.
-1. **The lock quantity says what the timing error is**, and its
-    threshold follows from the timing error the consumer can accept.
+1. **The lock quantity says whether the loop samples near the eye
+    centre of a signal that has transitions.** It does not measure the
+    timing error (§7); the timing error is measured at the strobe. Its
+    threshold separates a locked loop from an unlocked one at the
+    consumer's lowest Es/N0, with stated false-lock and false-unlock
+    probabilities.
 
 ## 3. What it composes, and what each leaves to it
 
@@ -177,12 +181,29 @@ not a detection statistic with a noise-only null. On integrate-and-dump
 data with no noise it is +2 on a transition and 0 otherwise at the eye
 centre, mean +1; half a symbol off the two samples trade places and the
 mean is −1; with no transitions it is 0. Noise pulls the magnitude
-toward 0. Its mean is therefore a function of `τ` and `γ`, computed from
-the same model as §5, and:
+toward 0. With no noise, a transition at timing error `τ` (in symbols)
+gives
 
-- **its threshold is the mean at the largest timing error the consumer
-    accepts**, at the consumer's lowest `γ`, with the block length set by
-    the quantity's variance there;
+```text
+L(τ) = 2 · (1 − 4|τ|) / (1 − 4|τ| + 8τ²)  ≈  2 · (1 − 8τ²)   near τ = 0
+```
+
+So the quantity is not a measure of the timing error:
+
+- **it is flat at the centre.** The 20 dB rule's `σ_τ` of 0.0159 symbols
+    lowers the mean by 0.2%; it crosses zero only at a quarter symbol;
+- **it is even in `τ`**, so it cannot say which way the loop is off;
+- **its mean moves with `γ` and with the transition density** as much as
+    with `τ`: a centred loop at low Es/N0 and an off-centre loop at high
+    Es/N0 can read the same.
+
+What it can do is tell a loop near the eye centre from one that is not,
+or from no signal. Its mean and variance are computed from the same
+model as §5, locked and unlocked, and:
+
+- **its threshold sits between the locked mean at the consumer's lowest
+    `γ` and the unlocked mean**, with the block length and counts set by
+    the two variances and the stated error probabilities;
 - **its sign is information.** A block mean below zero says the loop is
     nearer the unstable zero than the stable one.
 

@@ -518,10 +518,10 @@ single-symbol return of `ratesync_step()` is still correct.
 
 ______________________________________________________________________
 
-## 9. The design, decided 2026-11-25
+## 9. The design the models lead to
 
-Section 2's three models settle what the object should be. Decided with
-the owner, and what the header is to state once built:
+Section 2's three models settle what the object should be. Four choices
+follow from them, and the header states the result once it is built:
 
 | question                              | decision                                                                                                     |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------ |

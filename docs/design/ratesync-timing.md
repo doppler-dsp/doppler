@@ -520,7 +520,7 @@ ______________________________________________________________________
 
 ## 9. The design, decided 2026-11-25
 
-Sections 2's three models settle what the object should be. Decided with
+Section 2's three models settle what the object should be. Decided with
 the owner, and what the header is to state once built:
 
 | question                              | decision                                                                                                     |
@@ -579,12 +579,22 @@ TRACK     the loop closes at tau_hat with its rate state seeded
 
 `L` is derived at construction from the design Es/N0 and the detector's
 linear range (the estimate's error is about `sqrt(figure / L)`, §2), and
-`K = 4`. `dp_ratesync_seed()` puts the object straight into TRACK at a
-caller's timing and rate, for a consumer that has them (the DSSS Dll's
-symbol aid finds the same boundary from the same statistic).
+`K = 4`.
 
-The state is published (`acquiring`, `tracking`), with the estimate's
-own quality, `|c| / sum |y|^2`, as the acquisition's lock quantity.
+**The estimator is its own object**, which `RateSync` composes: it takes
+power at `K` timing hypotheses per symbol and returns the timing, the
+rate between two blocks and the estimate's quality, `|c| / sum |y|^2`. It
+knows nothing of a bank or a loop, so anything that can form `|y|^2`
+against a timing hypothesis can use it (the DSSS Dll's symbol aid forms
+the same statistic from its partial sums). It gets its own design page,
+manifest, tests and report.
+
+A seed call puts `RateSync` straight into tracking at a caller's timing
+and rate, for a consumer that already has them.
+
+**The state machine is not designed yet.** Which states exist, what each
+emits, what moves between them and what bounds each one is settled before
+any of §9.6 is built.
 
 ### 9.4 What a caller sizes from
 
@@ -603,14 +613,15 @@ designed for.
 
 ### 9.5 The surface that changes
 
-|               | today                                                                        | finalized                                                                                                                                                                          |
-| ------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| create        | `sps, pulse, beta, span, m, num_phases, bn, zeta, ted`                       | the same arguments; `ted` gains `DERIVATIVE` and it is the default of the least-input constructor; `m >= 1`                                                                        |
-| new           |                                                                              | `dp_ratesync_seed (state, tau, rate)`; `dp_ratesync_get_state_name ()` (acquiring, tracking); `dp_ratesync_figure (state, esn0)`; `dp_ratesync_bn_for_loop_snr (state, esn0, rho)` |
-| symbol out    | the arm's output, 0.88 to 0.96 of the symbol on a band-limited input (#3366) | `a_u * y`: the symbol                                                                                                                                                              |
-| Resampler     | one bank                                                                     | an optional second bank and a paired output                                                                                                                                        |
-| RateConverter | `rc_build_bank` samples or integrates the pulse                              | builds `h`, `dh`, `a` from the plan's derived response                                                                                                                             |
-| blob          | version N                                                                    | version N + 1: the acquisition's sums and state                                                                                                                                    |
+|               | today                                                                        | finalized                                                                                                                               |
+| ------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| create        | `sps, pulse, beta, span, m, num_phases, bn, zeta, ted`                       | the same arguments; `ted` gains `DERIVATIVE` and it is the default of the least-input constructor; `m >= 1`                             |
+| new           |                                                                              | a seed call (timing, rate); the state, readable by name; the figure at a stated Es/N0; the `bn` for a stated loop SNR at a stated Es/N0 |
+| new object    |                                                                              | the feedforward timing estimator, composed here                                                                                         |
+| symbol out    | the arm's output, 0.88 to 0.96 of the symbol on a band-limited input (#3366) | `a_u * y`: the symbol                                                                                                                   |
+| Resampler     | one bank                                                                     | an optional second bank and a paired output                                                                                             |
+| RateConverter | `rc_build_bank` samples or integrates the pulse                              | builds `h`, `dh`, `a` from the plan's derived response                                                                                  |
+| blob          | version N                                                                    | version N + 1: the acquisition's sums and state                                                                                         |
 
 ### 9.6 The order of work
 
@@ -621,7 +632,8 @@ designed for.
 1. The Resampler's second bank and paired output.
 1. The derivative detector in `ratesync_loop_t`, its slope from the
     tables, `m = 1`.
-1. Acquisition and the seed.
+1. The feedforward estimator as its own object, then the state machine
+    and the seed in `RateSync`.
 1. The header rewritten claim by claim, the manifest, the bindings.
 1. The C pins with their sabotage; the state round trip; the probes.
 1. The six measurement lanes against §2's predictions, and the report.

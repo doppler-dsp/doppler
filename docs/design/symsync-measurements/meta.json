@@ -1,15 +1,15 @@
 {
  "stamp_schema": 2,
- "date_utc": "2026-11-25 15:14",
+ "date_utc": "2026-11-25 15:24",
  "machine": "omni-x7358h",
  "cpu_model": "Intel(R) Core(TM) Ultra X7 358H",
  "cpu_threads": 16,
- "commit": "0b295c122",
+ "commit": "27745815d",
  "dirty": false,
  "load_before": [
-  1.04,
-  0.93,
-  0.69
+  0.49,
+  0.6,
+  0.63
  ],
  "toolchain": {
   "compiler": "GNU 15.2.0",
@@ -20,9 +20,9 @@
   "native": "OFF"
  },
  "load_after": [
-  1.11,
-  0.94,
-  0.7
+  0.64,
+  0.63,
+  0.64
  ],
- "wall_s": 6.0
+ "wall_s": 12.6
 }

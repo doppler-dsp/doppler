@@ -197,7 +197,9 @@ typedef struct
 
 /* --handover: SECOND only, every level and carrier, the draws named by
    --seeds (all when empty), and the hand-over columns. */
-static int      gh_ho_only;
+static int gh_ho_only;
+/* --alone: the ALONE arm alone, at the design point, for epsilon. */
+static int      gh_alone_only;
 static uint32_t gh_seeds[16];
 static size_t   gh_n_seeds;
 
@@ -1070,6 +1072,76 @@ gh_rate (const char *what, size_t k, size_t n)
   printf ("      %-30s %3zu of %zu [%.2f, %.2f]\n", what, k, n, lo, hi);
 }
 
+/* The ALONE arm: one lone emitter per draw, at each level, both carriers
+   (check: the 2.8 GHz carrier only). design_only: the Es/N0 4 dB level alone,
+   the level epsilon is measured at (--alone uses it). */
+static int
+gh_alone_arm (const uint8_t *code, const double fcs[2], unsigned draws,
+              unsigned shard, unsigned shards, int check, int emit,
+              int design_only)
+{
+  if (emit)
+    printf ("# alone\nfc_ghz,seed,receiver,worst_chips,ended_at\n");
+  else
+    printf ("  ALONE: one %.0f dB-Hz emitter, a pool of four, %.0f s\n",
+            GH_PARENT_DBHZ, GH_ALONE_S);
+  /* Three levels. Es/N0 4 dB (38.77 dB-Hz) is the design point: epsilon is
+     measured there, the lowest level anything on the air has, so the
+     resolution covers the weakest holder. Es/N0 5 dB (39.77 dB-Hz) is the
+     level the bars score from. The parent's 60 dB-Hz is the arm as it has
+     always run. */
+  const double levels[3]
+      = { dp_ccsds_415_cn0 (4.0), dp_ccsds_415_cn0 (5.0), GH_PARENT_DBHZ };
+  for (int lv = 0; lv < (design_only ? 1 : 3); lv++)
+    for (int f = check ? 1 : 0; f < 2; f++)
+      {
+        gh_alone_t a  = { 0 };
+        gh_eps_t   ep = { 0 };
+        size_t     n  = 0;
+        for (uint32_t s = 1; s <= draws; s++)
+          {
+            if ((s - 1) % shards != shard)
+              continue;
+            gh_alone_t o;
+            DP_REQUIRE (gh_alone (code, fcs[f], s, levels[lv], &o, &ep, emit)
+                        == 0);
+            n++;
+            a.tenures += o.tenures;
+            a.ghosts += o.ghosts;
+            a.by_ghost += o.by_ghost;
+            a.by_lost += o.by_lost;
+            a.by_dup += o.by_dup;
+            a.open += o.open;
+          }
+        if (!emit && n)
+          {
+            /* The quantile over on-phase tenures, and its count: stable only
+               when the pool holds GH_EPS_MIN_N tenures or more. */
+            double q = NAN;
+            if (ep.n)
+              {
+                qsort (ep.v, ep.n, sizeof *ep.v, gh_eps_cmp);
+                size_t k = (size_t)ceil (GH_EPS_QUANTILE * (double)ep.n);
+                q        = ep.v[k ? k - 1 : 0];
+              }
+            printf ("    %.1f GHz at %.2f dB-Hz: %zu draws, %zu tenures, %zu "
+                    "off the emitter's phase (ghosts: ended by the ghost rule "
+                    "%zu, the loss release %zu, the duplicate rule %zu, still "
+                    "held %zu)\n",
+                    fcs[f] / 1e9, levels[lv], n, a.tenures, a.ghosts,
+                    a.by_ghost, a.by_lost, a.by_dup, a.open);
+            printf ("      epsilon: %.0f%% quantile %.2f Hz over %zu on-phase "
+                    "tenures (%zu shorter than the %.0f s skip, %zu off-phase "
+                    "excluded)%s\n",
+                    100.0 * GH_EPS_QUANTILE, q, ep.n, ep.too_short,
+                    GH_ALONE_EPS_SKIP_S, ep.off_phase,
+                    ep.n >= GH_EPS_MIN_N ? "" : " -- NOT STABLE: too few");
+          }
+        free (ep.v);
+      }
+  return 0;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -1087,6 +1159,8 @@ main (int argc, char **argv)
         gh_second_s = strtod (argv[++i], NULL);
       else if (strcmp (argv[i], "--handover") == 0)
         gh_ho_only = 1;
+      else if (strcmp (argv[i], "--alone") == 0)
+        gh_alone_only = 1;
       else if (strcmp (argv[i], "--seeds") == 0 && i + 1 < argc)
         for (char *tok = strtok (argv[++i], ","); tok && gh_n_seeds < 16;
              tok       = strtok (NULL, ","))
@@ -1135,6 +1209,14 @@ main (int argc, char **argv)
                               "source");
             }
       free (gh_ratios);
+      DP_TEST_END ("validate_async_dsss_pool_ghosts");
+    }
+  if (gh_alone_only)
+    {
+      /* --alone: the ALONE arm alone, at the design point (epsilon's level).
+       */
+      DP_REQUIRE (
+          gh_alone_arm (code, fcs, draws, shard, shards, check, emit, 1) == 0);
       DP_TEST_END ("validate_async_dsss_pool_ghosts");
     }
 
@@ -1292,65 +1374,8 @@ main (int argc, char **argv)
                 gh_ratios[i].dphi);
     }
   free (gh_ratios);
-  if (emit)
-    printf ("# alone\nfc_ghz,seed,receiver,worst_chips,ended_at\n");
-  else
-    printf ("  ALONE: one %.0f dB-Hz emitter, a pool of four, %.0f s\n",
-            GH_PARENT_DBHZ, GH_ALONE_S);
-  /* Three levels. Es/N0 4 dB (38.77 dB-Hz) is the design point: epsilon is
-     measured there, the lowest level anything on the air has, so the
-     resolution covers the weakest holder. Es/N0 5 dB (39.77 dB-Hz) is the
-     level the bars score from. The parent's 60 dB-Hz is the arm as it has
-     always run. */
-  const double levels[3]
-      = { dp_ccsds_415_cn0 (4.0), dp_ccsds_415_cn0 (5.0), GH_PARENT_DBHZ };
-  for (int lv = 0; lv < 3; lv++)
-    for (int f = check ? 1 : 0; f < 2; f++)
-      {
-        gh_alone_t a  = { 0 };
-        gh_eps_t   ep = { 0 };
-        size_t     n  = 0;
-        for (uint32_t s = 1; s <= draws; s++)
-          {
-            if ((s - 1) % shards != shard)
-              continue;
-            gh_alone_t o;
-            DP_REQUIRE (gh_alone (code, fcs[f], s, levels[lv], &o, &ep, emit)
-                        == 0);
-            n++;
-            a.tenures += o.tenures;
-            a.ghosts += o.ghosts;
-            a.by_ghost += o.by_ghost;
-            a.by_lost += o.by_lost;
-            a.by_dup += o.by_dup;
-            a.open += o.open;
-          }
-        if (!emit && n)
-          {
-            /* The quantile over on-phase tenures, and its count: stable only
-               when the pool holds GH_EPS_MIN_N tenures or more. */
-            double q = NAN;
-            if (ep.n)
-              {
-                qsort (ep.v, ep.n, sizeof *ep.v, gh_eps_cmp);
-                size_t k = (size_t)ceil (GH_EPS_QUANTILE * (double)ep.n);
-                q        = ep.v[k ? k - 1 : 0];
-              }
-            printf ("    %.1f GHz at %.2f dB-Hz: %zu draws, %zu tenures, %zu "
-                    "off the emitter's phase (ghosts: ended by the ghost rule "
-                    "%zu, the loss release %zu, the duplicate rule %zu, still "
-                    "held %zu)\n",
-                    fcs[f] / 1e9, levels[lv], n, a.tenures, a.ghosts,
-                    a.by_ghost, a.by_lost, a.by_dup, a.open);
-            printf ("      epsilon: %.0f%% quantile %.2f Hz over %zu on-phase "
-                    "tenures (%zu shorter than the %.0f s skip, %zu off-phase "
-                    "excluded)%s\n",
-                    100.0 * GH_EPS_QUANTILE, q, ep.n, ep.too_short,
-                    GH_ALONE_EPS_SKIP_S, ep.off_phase,
-                    ep.n >= GH_EPS_MIN_N ? "" : " -- NOT STABLE: too few");
-          }
-        free (ep.v);
-      }
+  DP_REQUIRE (gh_alone_arm (code, fcs, draws, shard, shards, check, emit, 0)
+              == 0);
   if (emit)
     DP_TEST_EMIT_END ("validate_async_dsss_pool_ghosts");
   DP_TEST_END ("validate_async_dsss_pool_ghosts");

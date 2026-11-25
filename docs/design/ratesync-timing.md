@@ -53,6 +53,16 @@ A polyphase bank already contains both. An arm of a `num_phases`-arm bank
 selects the delay; the dot product against it is the matched filter. One
 filter, one pass, no Farrow.
 
+That only steers a loop if neighboring arms differ, and for the rectangle
+sampling does not make them differ: a tap is in the symbol or out of it, so
+every arm inside one input interval is the same taps. The rectangle's arms
+are therefore an integral over exactly one symbol. Interior taps weigh 1
+and each edge tap weighs the share of its own input interval that lies
+inside the symbol, so the two edge taps trade weight as the arm moves and
+the weights always sum to one symbol. With that the loop's timing error is
+the linear loop's at 2, 4 and 8 input samples per symbol
+([measured](symsync.md#11-measured-both-loops-on-the-rectangle)).
+
 The consequence that matters more than the saved multiplies is what sits in
 **front** of the terminal stage. Because the cascade is a full
 `RateConverter`, the planner is free to put halfband and CIC stages ahead of

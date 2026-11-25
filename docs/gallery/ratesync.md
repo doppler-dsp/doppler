@@ -136,13 +136,10 @@ CIC's ±2.0 input bound, and an overdriven front end costs about 25 dB of EVM
 with a perfectly healthy lock — nothing in the timing metrics reveals it. That
 is exactly why the flag exists.
 
-One tuning note: use `m >= 4` with `pulse="iandd"`. The rectangle is one symbol
-wide, so at `m = 2` its matched filter is a two-tap sum and the eye barely
-opens — measured on an NRZ stream, `m = 2` does not clear the lock detector's
-own declare threshold while `m = 4` clears it comfortably, with tens of dB of
-EVM between them. The rule rests on that separation, not on a particular pair
-of `lock_stat` values: those move with `sps` and with the stream. The RRC spans
-many symbols and is unaffected.
+One tuning note on `pulse="iandd"`: it locks at every `m`, and a small `m`
+costs error-vector magnitude. On a noiseless stream at 8 samples per symbol
+the error is largest at `m = 2`, smaller at `m = 4` and gone at `m = 6` and
+`8`. The RRC reads the same at every `m`.
 
 ## Choosing a detector
 

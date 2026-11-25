@@ -213,6 +213,18 @@ dp_gnu_compile_options(validate_ratesync_pulse_model PRIVATE -O3)
 add_test(NAME validate_ratesync_pulse_model
          COMMAND validate_ratesync_pulse_model --check)
 
+# Gardner and the derivative-bank detector closed around each planned
+# cascade: a model of what the second would do, before it is built.
+add_executable(validate_ratesync_loop_model
+               ${CMAKE_CURRENT_SOURCE_DIR}/ratesync_loop_model.c)
+target_include_directories(validate_ratesync_loop_model
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_ratesync_loop_model PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_ratesync_loop_model PRIVATE -O3)
+add_test(NAME validate_ratesync_loop_model
+         COMMAND validate_ratesync_loop_model --check)
+
 add_executable(validate_lockdet_verify
                ${CMAKE_CURRENT_SOURCE_DIR}/lockdet_verify.c)
 target_include_directories(validate_lockdet_verify

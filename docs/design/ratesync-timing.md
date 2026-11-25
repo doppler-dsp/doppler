@@ -178,7 +178,7 @@ center on the measured cascade, at a bank grid of 4 samples per symbol
     squaring term Gardner carries, at all three levels.
 - **It is 6.2 dB below Gardner at 4 samples per symbol**: the same loop
     SNR at four times the bandwidth, or four times the loop SNR at the
-    same one. Its slope is 8.8 against Gardner's 1.5.
+    same one.
 - **With no noise it is the noisier of the two**, by 6.5 dB. That floor
     is the data pattern's own, and it is a timing error of 0.0007 symbols
     rms at `bn = 0.005`.
@@ -186,9 +186,57 @@ center on the measured cascade, at a bank grid of 4 samples per symbol
     arm. The optimum arm is matched to the symbol at its center, which is
     not what the half-symbol strobe wants.
 
-The model is open loop and at the eye center. The closed loop, the
-detector's full S-curve, its acquisition and its behavior on other grids
-are not measured.
+**The arm's scale is part of the detector.** The energy an arm's window
+keeps of the pulse, `q'R^-1 q`, changes with where the edge falls on the
+bank's grid. `|y|^2` peaks at the true timing only when the arm is scaled
+to unit noise gain, `h = R^-1 q / sqrt(q'R^-1 q)`, and the derivative bank
+is the derivative of that scaled arm. Scaled to return the symbol, or left
+unscaled, the peak is pulled toward the grid positions that keep more of
+the pulse: a standing error of 0.01 symbols behind CIC(16), and no usable
+S-curve at all on exactly 4 samples per symbol with nothing ahead of the
+bank. The symbol itself is read from the arm scaled to return it.
+
+### Closed, and on inputs with no whole number of samples per symbol
+
+`validate_ratesync_loop_model` closes both detectors around the measured
+cascade with the library's loop filter, each divided by its own slope at
+lock, one strobe per symbol out. The symbol period is any real number of
+input samples, and an input sample is the waveform's average over its own
+interval, so the timing is continuous in the samples. Timing error rms in
+symbols at Es/N0 4 dB and `bn = 0.005`, 120,000 symbols:
+
+| input samples per symbol | ahead of the bank | bank grid | Gardner | derivative | derivative against Gardner | half-symbol pull-in, symbols: Gardner / derivative |
+| ------------------------ | ----------------- | --------- | ------- | ---------- | -------------------------- | -------------------------------------------------- |
+| 64                       | CIC(16)           | 4         | 0.0400  | 0.0188     | -6.5 dB                    | 148 / 945                                          |
+| 34.67                    | CIC(8)            | 4.333     | 0.0413  | 0.0200     | -6.4 dB                    | 159 / 486                                          |
+| 9.3                      | none              | 9.3       | 0.0444  | 0.0144     | -9.5 dB                    | 176 / 659                                          |
+| 4.3                      | none              | 4.3       | 0.0416  | 0.0209     | -5.6 dB                    | 193 / 460                                          |
+| 4                        | none              | 4         | 0.0412  | 0.0203     | -6.0 dB                    | 282 / not inside 4000                              |
+
+- **The gain holds on a non-integer grid**, and it grows with the grid:
+    5.6 to 6.5 dB at 4 to 4.3 samples per symbol, 9.5 dB at 9.3.
+- **Each closed loop reads its own open-loop prediction.**
+    `sqrt(2 * bn * S_e(0) / Kd^2)` is within 6% of the measured rms on
+    every row at `bn` of 0.01 and under, at Es/N0 4, 7 and 10 dB.
+- **It holds where Gardner slips.** At `bn = 0.02` and Es/N0 4 dB Gardner
+    slips on four of the five plans (one to three symbols, or it leaves by
+    more than four); the derivative detector does not slip on any.
+- **It pulls in from far off more slowly, at the same `bn`.** Its
+    S-curve peaks at 0.05 to 0.10 of a symbol's worth near 0.19 symbols
+    off and falls away toward half a symbol, where Gardner's peaks at
+    0.15 to 0.17 at a quarter symbol. From half a symbol off it takes 2.4
+    to 6 times as long, and on exactly 4 samples per symbol with nothing
+    ahead of the bank its S-curve has extra zero crossings and it did not
+    arrive inside 4000 symbols.
+
+So the derivative detector is the tracking detector, and acquisition from
+an arbitrary offset is not settled by this model: a wider `bn` while
+acquiring (which its loop SNR affords) or Gardner to acquire and the
+derivative bank to track are the two candidates, neither modeled.
+
+The model is not the library. Its optimum arms are recomputed for every
+symbol's timing, where a bank holds a fixed number of them, and its
+Gardner reads the converter's own bank rows.
 
 ### Arbitrary rate is not a feature, it is the default
 

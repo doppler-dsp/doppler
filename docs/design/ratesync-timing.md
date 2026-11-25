@@ -78,6 +78,67 @@ is therefore sized by the **post-decimation** rate, not the input rate:
 A 16x span of input rates leaves the expensive filter the same size. A
 matched filter at 256 samples per symbol costs what one at 4 costs.
 
+### The pulse the bank sees
+
+The integer stages ahead of the bank band-limit the rectangle, so what
+reaches the bank is not a rectangle. The cascade ahead of the bank is
+linear and decimates by `D`; write `g[n]` for its response at the input
+rate. A unit symbol is `S` input samples of one starting at input `a`, and
+`a mod D` is where its edge falls inside a bank-grid interval. At the
+bank's input the pulse and the noise (white at the input, variance `N0` a
+sample) are
+
+```text
+q_a[j] = sum_{i=a}^{a+S-1} g[j*D - i]          the pulse
+r[k]   = sum_n g[n] g[n + k*D]                 the noise's autocorrelation
+```
+
+An arm `h` returns `h'q` for the symbol with noise variance `N0 * h'Rh`,
+`R[t,u] = r[t-u]`. An ideal integrate-and-dump at the input returns `S`
+with variance `N0 * S`, so the arm's loss against it is
+
+```text
+L(h) = (h'q)^2 / (S * h'Rh)      <= 1,   largest at  h = R^-1 q
+```
+
+`h = R^-1 q` is the matched filter for the rectangle given the cascade,
+one arm a position of the edge, and `L = q'R^-1 q / S` is the most any
+arm can keep. An arm's ISI is its response to the neighboring symbols,
+`h'q_{a +- S} / h'q_a`.
+
+`validate_ratesync_pulse_model` measures `g` from the built converter
+through its pre-terminal tap, forms `q` and `r`, and prints the built
+arms beside the optimum for nine plans. Worst edge position of each:
+
+| input samples per symbol | `m` | plan ahead of the bank | best arm, dB | built arm, dB | built arm's worst neighbor, dB |
+| ------------------------ | --- | ---------------------- | ------------ | ------------- | ------------------------------ |
+| 8                        | 8   | none                   | 0.000        | 0.000         | none                           |
+| 8                        | 4   | halfband               | -0.179       | -0.206        | -28.0                          |
+| 8                        | 2   | two halfbands          | -0.430       | -0.491        | -19.1                          |
+| 16                       | 8   | halfband               | -0.091       | -0.104        | -34.5                          |
+| 16                       | 4   | two halfbands          | -0.222       | -0.263        | -26.1                          |
+| 16                       | 2   | CIC(8)                 | -0.482       | -0.566        | -18.7                          |
+| 64                       | 8   | CIC(8)                 | -0.132       | -0.153        | -31.6                          |
+| 64                       | 4   | CIC(16)                | -0.263       | -0.313        | -25.1                          |
+| 64                       | 2   | CIC(32)                | -0.488       | -0.572        | -18.6                          |
+
+Three things follow.
+
+- **The loss is the band-limit's, and it is set by the bank's grid.** A
+    rectangle keeps 90.3%, 95.0% and 97.5% of its energy inside the
+    Nyquist band of a grid of 2, 4 and 8 samples per symbol: 0.44, 0.22
+    and 0.11 dB. The best arm reads 0.43 to 0.49, 0.18 to 0.26 and 0.09 to
+    0.13 dB.
+- **The built arms are within 0.084 dB of the best.** They are the
+    integral over one symbol (above) with the droop compensator folded in.
+- **Neither is free of ISI on a coarse grid.** At 2 samples per symbol a
+    neighbor comes through at about -19 dB on the built arm and -22 to
+    -26 dB on the best one. An arm that trades noise for ISI is not
+    derived here.
+
+With no stage ahead of the bank (`D = 1`) the pulse is whatever the caller
+delivers, and the object cannot know its band.
+
 ### Arbitrary rate is not a feature, it is the default
 
 `sps` is a `double`. 4, 17.33389, an irrational ratio and a slowly drifting

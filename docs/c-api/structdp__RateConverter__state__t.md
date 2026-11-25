@@ -212,7 +212,7 @@ double dp_RateConverter_state_t::bank_e0;
 
 
 
-sum h(t)^2 on that grid; the bank's own normaliser, and the AGC's reference 
+what an arm returns for one unit symbol before scaling: sum h(t)^2 on that grid for the RRC, the sum of the tap weights (bank\_sps) for the rectangle; the bank's own normaliser, and the AGC's reference 
 
 
         

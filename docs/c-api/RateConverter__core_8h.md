@@ -479,7 +479,7 @@ Keep the INPUT inside +-2.0 whenever the plan contains a CIC stage — see the f
 
 * `rate` Output-to-input sample rate ratio (finite and &gt; 0, [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok)). Rate-agnostic: this object never learns about symbols — a caller wanting `m` samples per symbol asks for `rate = m/sps`. 
 * `compensate` Non-zero to correct CIC passband droop (folded into the bank here, not appended as a stage). 
-* `pulse` RC\_PULSE\_RRC / RC\_PULSE\_IANDD. RC\_PULSE\_NONE is invalid here — use [**dp\_RateConverter\_create()**](RateConverter__core_8h.md#function-dp_rateconverter_create) for a plain conversion. 
+* `pulse` RC\_PULSE\_RRC / RC\_PULSE\_IANDD. RC\_PULSE\_NONE is invalid here — use [**dp\_RateConverter\_create()**](RateConverter__core_8h.md#function-dp_rateconverter_create) for a plain conversion. The RRC's arms are the pulse sampled at each arm's fraction of an input interval. The rectangle's are an integral over exactly one symbol: interior taps weigh 1 and each edge tap weighs the share of its own input interval that lies inside the symbol, so the output follows the sampling instant continuously and a constant input returns the constant on any grid. 
 * `beta` RRC roll-off in `[0, 1]` (ignored for the rectangle). 
 * `span` One-sided RRC span in symbols (ignored for the rectangle, whose support is always exactly one symbol). 
 * `pulse_sps` The pulse's period measured in **output** samples (2 = two samples per symbol out). This is a shape parameter, not a rate-planning one: a matched filter has a symbol duration, and the planner still knows nothing of symbols. 

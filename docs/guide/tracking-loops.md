@@ -655,6 +655,14 @@ eye is wide open. And check `clipped` at least once against real input — the
 cascade inherits its CIC's ±2.0 input bound, and overdriving it costs ~25 dB
 with a perfectly healthy lock.
 
+From C the lifecycle is create, feed, read the lock, destroy. This is
+`native/examples/ratesync_demo.c`, which recovers a rectangular-pulse
+stream and checks its own eye:
+
+```c
+--8<-- "native/examples/ratesync_demo.c"
+```
+
 Both pulses lock at every `m`. With `pulse="iandd"` a small `m` costs
 error-vector magnitude, not lock: it is largest at `m = 2`, smaller at
 `m = 4` and gone at `m = 6` and `8` on a noiseless stream at 8 samples a

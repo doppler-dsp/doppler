@@ -4880,7 +4880,9 @@ burst-pipeline-check: build ## Build+run example-projects/burst-pipeline against
 # dropped, a complete capture, every probe recorded), and `make plot` runs
 # headless, so a change to the capture format that breaks the plotter
 # breaks here. The script's expected failures, the reproducers of known
-# defects the README does not show, must still fail. It links statically only, as
+# defects the README does not show, must still fail. Then forced
+# whole-symbol slips (tests/install/rpm-consumer-slip.sh): the frames are
+# read across each and the slip reported, never blamed on the reader. It links statically only, as
 # from the -devel RPM; the RPM itself is built against on Fedora and EL8 by
 # package-linux-smoke.
 rpm-consumer-check: build ## Run every README command of example-projects/rpm-consumer/ccsds-415 against an install prefix
@@ -4890,10 +4892,11 @@ rpm-consumer-check: build ## Run every README command of example-projects/rpm-co
 	    PYTHON="$(DEV_RUN) python" MAKEFLAGS= \
 	    bash tests/install/readme-commands.sh \
 	        example-projects/rpm-consumer/ccsds-415 \
+	 && bash tests/install/rpm-consumer-slip.sh "$$t/b/ccsds415" "$$t/out" \
 	 && { n=$$(ls "$$t"/out/*.png 2>/dev/null | wc -l); [ "$$n" -eq 2 ] || { \
 	        echo "rpm-consumer-check: want 2 plots, got $$n"; exit 1; }; }; \
 	 rc=$$?; rm -rf "$$t"; \
-	 if [ $$rc -eq 0 ]; then echo "rpm-consumer-check: OK — every README command ran and checked itself, both carriers plotted"; fi; \
+	 if [ $$rc -eq 0 ]; then echo "rpm-consumer-check: OK — every README command ran and checked itself, both carriers plotted, forced slips read across and reported"; fi; \
 	 exit $$rc
 
 # The same shape as burst-pipeline-check, for the RTL-SDR front end the UNO Q

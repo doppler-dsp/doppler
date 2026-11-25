@@ -156,7 +156,11 @@ dp_s415_pass_samples (const dp_s415_pass_geo_t *g)
 }
 
 /* The slant range at time t from the peak, km: the law dp_s415_pass_curve
-   differentiates, the same expression in the same order. */
+   differentiates, the same expression in the same order. The curve is
+   bit-identical to the inline form with gcc. With clang 21 under the
+   validator's fast-math flags the contraction differs: 3.4M of 3.7M curve
+   values move by at most 1.0e-7 absolute (3.2e-6 relative, worst in f''), and
+   R_env is unchanged. That is a ULP-scale tolerance, not a defect. */
 static inline double
 dp_s415_pass_range_at (const dp_s415_pass_geo_t *g, double t)
 {

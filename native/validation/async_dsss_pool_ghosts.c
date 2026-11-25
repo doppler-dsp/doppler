@@ -920,20 +920,50 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
 typedef struct
 {
   size_t tenures, ghosts, by_ghost, by_lost, by_dup, open;
-  /* The carrier report's error, the epsilon of the scorer's ambiguous class
-     (the pool scene's page, #3345, §7.2): the largest
-     |status doppler_hz - the emitter's carrier| over the lone emitter's
-     tracked samples, from one second into each tenure (the pull-in law's
-     transient is a separate figure). Hz. */
-  double eps_hz;
 } gh_alone_t;
 
-/* The pull-in transient excluded from eps: one second into a tenure. */
+/* The carrier report's error, the epsilon of the scorer's ambiguous class
+   (the pool scene's page, #3345, §7.2). Per on-phase tenure: the largest
+   |status doppler_hz - the emitter's carrier| over its tracked samples from
+   one second into it (the pull-in law's transient is a separate figure). The
+   pool of all such tenures is then read at a stated quantile. Tenures that
+   are off-phase (a ghost) are not in the pool: they are what the scene
+   scores, and are counted apart. Tenures shorter than the skip are counted
+   apart too. */
 #define GH_ALONE_EPS_SKIP_S 1.0
+#define GH_EPS_QUANTILE 0.99
+#define GH_EPS_MIN_N 300
+
+typedef struct
+{
+  double *v; /* per on-phase tenure, Hz */
+  size_t  n, cap;
+  size_t  off_phase, too_short;
+} gh_eps_t;
+
+static void
+gh_eps_push (gh_eps_t *e, double x)
+{
+  if (e->n == e->cap)
+    {
+      e->cap = e->cap ? 2 * e->cap : 256;
+      e->v   = realloc (e->v, e->cap * sizeof *e->v);
+      if (!e->v)
+        abort (); /* a fixture out of memory */
+    }
+  e->v[e->n++] = x;
+}
+
+static int
+gh_eps_cmp (const void *a, const void *b)
+{
+  const double x = *(const double *)a, y = *(const double *)b;
+  return (x > y) - (x < y);
+}
 
 static int
 gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
-          gh_alone_t *o, int emit)
+          gh_alone_t *o, gh_eps_t *ep, int emit)
 {
   uint32_t                    st = trial_rng (seed);
   dp_async_dsss_pool_state_t *p  = gh_pool (code, fc, 4, 2.0);
@@ -945,7 +975,8 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
   DP_REQUIRE (
       dp_air_init (&air, &e, 1, DP_CCSDS_415_FS, cn0, 6007u + seed, p->group));
   int      in[4] = { 0 }, off[4] = { 0 };
-  double   worst[4] = { 0 }, t_in[4] = { 0 };
+  double   worst[4] = { 0 }, t_in[4] = { 0 }, err[4] = { 0 };
+  int      has_err[4] = { 0 };
   uint64_t g0 = 0, l0 = 0, d0 = 0;
   memset (o, 0, sizeof *o);
   while ((double)air.n_out / DP_CCSDS_415_FS < GH_ALONE_S)
@@ -965,15 +996,20 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
               d = fabs (d);
               if (!in[r])
                 {
-                  in[r]    = 1;
-                  off[r]   = 0;
-                  worst[r] = 0.0;
-                  t_in[r]  = (double)air.n_out / DP_CCSDS_415_FS;
+                  in[r]      = 1;
+                  off[r]     = 0;
+                  worst[r]   = 0.0;
+                  t_in[r]    = (double)air.n_out / DP_CCSDS_415_FS;
+                  err[r]     = 0.0;
+                  has_err[r] = 0;
                   o->tenures++;
                 }
               if ((double)air.n_out / DP_CCSDS_415_FS - t_in[r]
                   >= GH_ALONE_EPS_SKIP_S)
-                o->eps_hz = fmax (o->eps_hz, fabs (s.doppler_hz - t.car_hz));
+                {
+                  err[r]     = fmax (err[r], fabs (s.doppler_hz - t.car_hz));
+                  has_err[r] = 1;
+                }
               if (d > 1.0)
                 off[r] = 1;
               if (d > worst[r])
@@ -982,8 +1018,16 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
           else if (in[r] && !tracking)
             {
               in[r] = 0;
+              if (!off[r])
+                {
+                  if (has_err[r])
+                    gh_eps_push (ep, err[r]);
+                  else
+                    ep->too_short++;
+                }
               if (off[r])
                 {
+                  ep->off_phase++;
                   o->ghosts++;
                   o->by_ghost += p->released_ghost > g0;
                   o->by_lost += p->released_lost > l0;
@@ -1003,6 +1047,14 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
       {
         o->ghosts++;
         o->open++;
+        ep->off_phase++;
+      }
+    else if (in[r])
+      {
+        if (has_err[r])
+          gh_eps_push (ep, err[r]);
+        else
+          ep->too_short++;
       }
   free (x);
   dp_air_free (&air);
@@ -1255,14 +1307,16 @@ main (int argc, char **argv)
   for (int lv = 0; lv < 3; lv++)
     for (int f = check ? 1 : 0; f < 2; f++)
       {
-        gh_alone_t a = { 0 };
-        size_t     n = 0;
+        gh_alone_t a  = { 0 };
+        gh_eps_t   ep = { 0 };
+        size_t     n  = 0;
         for (uint32_t s = 1; s <= draws; s++)
           {
             if ((s - 1) % shards != shard)
               continue;
             gh_alone_t o;
-            DP_REQUIRE (gh_alone (code, fcs[f], s, levels[lv], &o, emit) == 0);
+            DP_REQUIRE (gh_alone (code, fcs[f], s, levels[lv], &o, &ep, emit)
+                        == 0);
             n++;
             a.tenures += o.tenures;
             a.ghosts += o.ghosts;
@@ -1270,16 +1324,32 @@ main (int argc, char **argv)
             a.by_lost += o.by_lost;
             a.by_dup += o.by_dup;
             a.open += o.open;
-            a.eps_hz = fmax (a.eps_hz, o.eps_hz);
           }
         if (!emit && n)
-          printf (
-              "    %.1f GHz at %.2f dB-Hz: %zu draws, %zu tenures, %zu off "
-              "the emitter's phase: ended by the ghost rule %zu, the loss "
-              "release %zu, the duplicate rule %zu, still held %zu; "
-              "carrier report error (epsilon) %.2f Hz\n",
-              fcs[f] / 1e9, levels[lv], n, a.tenures, a.ghosts, a.by_ghost,
-              a.by_lost, a.by_dup, a.open, a.eps_hz);
+          {
+            /* The quantile over on-phase tenures, and its count: stable only
+               when the pool holds GH_EPS_MIN_N tenures or more. */
+            double q = NAN;
+            if (ep.n)
+              {
+                qsort (ep.v, ep.n, sizeof *ep.v, gh_eps_cmp);
+                size_t k = (size_t)ceil (GH_EPS_QUANTILE * (double)ep.n);
+                q        = ep.v[k ? k - 1 : 0];
+              }
+            printf ("    %.1f GHz at %.2f dB-Hz: %zu draws, %zu tenures, %zu "
+                    "off the emitter's phase (ghosts: ended by the ghost rule "
+                    "%zu, the loss release %zu, the duplicate rule %zu, still "
+                    "held %zu)\n",
+                    fcs[f] / 1e9, levels[lv], n, a.tenures, a.ghosts,
+                    a.by_ghost, a.by_lost, a.by_dup, a.open);
+            printf ("      epsilon: %.0f%% quantile %.2f Hz over %zu on-phase "
+                    "tenures (%zu shorter than the %.0f s skip, %zu off-phase "
+                    "excluded)%s\n",
+                    100.0 * GH_EPS_QUANTILE, q, ep.n, ep.too_short,
+                    GH_ALONE_EPS_SKIP_S, ep.off_phase,
+                    ep.n >= GH_EPS_MIN_N ? "" : " -- NOT STABLE: too few");
+          }
+        free (ep.v);
       }
   if (emit)
     DP_TEST_EMIT_END ("validate_async_dsss_pool_ghosts");

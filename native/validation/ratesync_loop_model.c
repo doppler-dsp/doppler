@@ -477,6 +477,44 @@ closed_loop (const model_t *m, const stream_t *st, int det, double bn,
   free (err);
 }
 
+/* A feedforward estimate of the timing from `len` symbols, with no loop:
+ * the likelihood |y|^2 from the unit-noise-gain arm at FF_K hypotheses a
+ * symbol, summed over the symbols, and the phase of its first Fourier
+ * coefficient across the hypotheses,
+ *
+ *     c = sum_k sum_i |y_k(tau0 + i*S/FF_K)|^2 exp(-j 2 pi i / FF_K)
+ *     tau_hat = tau0 - (S / 2 pi) arg c
+ *
+ * which is the Oerder and Meyr estimator read off the bank instead of off
+ * a squared sample stream. It takes `len` symbols whatever the starting
+ * offset, and it has no half-symbol point to hang at. Returns the
+ * estimate's error in symbols, wrapped to [-0.5, 0.5). */
+#define FF_K 4
+static double
+feedforward (const model_t *m, const stream_t *st, size_t k0, size_t len,
+             double off)
+{
+  double _Complex c = 0.0;
+  for (size_t i = 0; i < len; i++)
+    {
+      double tau0 = st->t0 + (double)(k0 + i) * st->s + off * m->s;
+      for (int q = 0; q < FF_K; q++)
+        {
+          double h[MAXT], hd[MAXT];
+          double tau        = tau0 + (double)q * m->s / FF_K;
+          long   j          = opt_arms (m, tau, h, hd);
+          double _Complex y = dot_d (h, st->sj, j, m->nt);
+          double p          = creal (y) * creal (y) + cimag (y) * cimag (y);
+          c += p * cexp (-I * 2.0 * M_PI * (double)q / FF_K);
+        }
+    }
+  /* the likelihood peaks where the hypothesis meets the symbol, which is
+     -off symbols from tau0 */
+  double est = -carg (c) / (2.0 * M_PI); /* symbols past tau0, mod 1 */
+  double err = off + est;
+  return err - round (err);
+}
+
 typedef struct
 {
   double sps;
@@ -625,6 +663,28 @@ run_plan (plan_t pl, int check)
                           DET_NAME[det], bns[b], offs[oi], t[NST / 2],
                           t[NST - 1]);
                 }
+          /* The feedforward estimate, from 64 starting offsets spread
+             over one symbol. Its error is what the loop is then handed. */
+          printf ("  feedforward estimate at Es/N0 4 dB, %d hypotheses a "
+                  "symbol, 64 starts across one symbol:\n  %8s  %12s  "
+                  "%12s  %s\n",
+                  FF_K, "symbols", "error rms", "worst error",
+                  "sqrt(figure / symbols)");
+          static const size_t lens[4] = { 32, 64, 128, 256 };
+          for (int li = 0; li < 4; li++)
+            {
+              double s2 = 0.0, worst = 0.0;
+              for (int r = 0; r < 64; r++)
+                {
+                  double e = feedforward (&m, &st, 16 + (size_t)r * 300,
+                                          lens[li], (double)r / 64.0 - 0.5);
+                  s2 += e * e;
+                  worst = fmax (worst, fabs (e));
+                }
+              printf ("  %8zu  %12.4f  %12.4f  %.4f\n", lens[li],
+                      sqrt (s2 / 64.0), worst,
+                      sqrt (fig[0][DET_DERIV] / (double)lens[li]));
+            }
         }
       free (st.sj);
     }

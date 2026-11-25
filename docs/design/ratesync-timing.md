@@ -229,10 +229,42 @@ symbols at Es/N0 4 dB and `bn = 0.005`, 120,000 symbols:
     ahead of the bank its S-curve has extra zero crossings and it did not
     arrive inside 4000 symbols.
 
-So the derivative detector is the tracking detector, and acquisition from
-an arbitrary offset is not settled by this model: a wider `bn` while
-acquiring (which its loop SNR affords) or Gardner to acquire and the
-derivative bank to track are the two candidates, neither modeled.
+So the derivative detector is the tracking detector, and the loop is not
+what acquires.
+
+### Acquisition is feedforward, so it is bounded
+
+The same arms give an estimate of the timing with no loop. Take the
+likelihood `|y|^2` from the unit-noise-gain arm at `K` hypotheses per
+symbol, sum it over `L` symbols, and read the phase of its first Fourier
+coefficient across the hypotheses:
+
+```text
+c       = sum_k sum_{i=0}^{K-1} |y_k(tau0 + i*S/K)|^2 exp(-j 2 pi i / K)
+tau_hat = tau0 - (S / 2 pi) arg c
+```
+
+This is the Oerder and Meyr estimator read off the bank. It takes `L`
+symbols whatever the starting offset, it has no half-symbol point to hang
+at, and its error is what the loop is handed. Modeled with `K = 4` at
+Es/N0 4 dB, from 64 starting offsets spread over one whole symbol
+(`validate_ratesync_loop_model`), error rms and worst in symbols:
+
+| input samples per symbol | 32 symbols   | 64 symbols   | 128 symbols  | 256 symbols  |
+| ------------------------ | ------------ | ------------ | ------------ | ------------ |
+| 64, CIC(16)              | 0.050, 0.123 | 0.034, 0.088 | 0.022, 0.068 | 0.016, 0.044 |
+| 34.67, CIC(8)            | 0.047, 0.133 | 0.032, 0.103 | 0.020, 0.051 | 0.013, 0.028 |
+| 9.3                      | 0.072, 0.377 | 0.035, 0.107 | 0.024, 0.052 | 0.017, 0.037 |
+| 4.3                      | 0.052, 0.102 | 0.036, 0.103 | 0.021, 0.061 | 0.016, 0.044 |
+| 4                        | 0.050, 0.169 | 0.030, 0.081 | 0.027, 0.069 | 0.022, 0.060 |
+
+With 128 symbols the worst of 64 starts is inside 0.07 symbols on every
+plan, which is inside the derivative detector's linear range, so the loop
+starts already tracking. The estimate's rms is 1.1 to 1.5 times
+`sqrt(figure / L)`, the figure being the tracking detector's
+`S_e(0) / Kd^2`. Seeding the loop's rate state from two successive
+estimates, the handover rule, and `K` and `L` as derived quantities are
+not modeled.
 
 The model is not the library. Its optimum arms are recomputed for every
 symbol's timing, where a bank holds a fixed number of them, and its

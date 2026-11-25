@@ -310,9 +310,25 @@ Stable once the pool holds 300 on-phase tenures; the run prints the count and
 says NOT STABLE below it. Off-phase tenures are a number the page carries: a pool
 of four on a lone emitter holding a ghost is what the scene exists to score.
 
-**What prints it.** The ghost validator's ALONE arm prints the quantile, its
-count, and the excluded tenures (off-phase, and shorter than the skip) at each
-level. Its value is pending a run that gives the pool its count (§10).
+**What prints it.** `validate_async_dsss_pool_ghosts --alone` prints the quantile,
+its count, and the excluded tenures (off-phase, and shorter than the skip) at
+Es/N0 4 dB. Measured with 340 draws per carrier (`--alone --draws 340`), at 4
+seconds each:
+
+| carrier | tenures | on-phase (the pool) | off-phase, excluded | 99th percentile |
+| ------- | ------- | ------------------- | ------------------- | --------------- |
+| 2.2 GHz | 364     | 340                 | 24 (6.6%)           | 2.76 Hz         |
+| 2.8 GHz | 359     | 340                 | 19 (5.3%)           | 2.50 Hz         |
+
+Both pools are at the stability count of 300. The excluded tenures are the lone
+emitter's ghosts, the thing the scene scores: a pool of four holds a ghost on a
+lone emitter in 5 to 7% of its tenures at this level. None of them ended by the
+ghost rule. They ended by the loss release (12 and 9) or were still held at the
+end of the run (12 and 10). The prediction written before the run (3.3 Hz at 2.2
+GHz, range 2.8 to 4.0; 2.9 Hz at 2.8 GHz, range 2.4 to 3.6) was too high at 2.2 GHz:
+the measured 2.76 Hz sits just under its range. The error tail is lighter than the
+Rayleigh shape the prediction assumed. The page does not move to the prediction;
+the base scale is what is open (§10).
 
 The scorer does not widen `ε` to hide a result. If a run's ambiguous count is
 large, the run reports that count; it does not take a larger `ε` to shrink it.
@@ -371,16 +387,16 @@ are the scorer's negative controls, written with the scorer.
 
 ## 9. Tolerances and where each comes from
 
-| tolerance                                         | value                    | from                                                                                                   |
-| ------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------ |
-| same code phase (on an emitter's code, duplicate) | 1 chip                   | `DP_CORRELATOR_SAME_PHASE_CHIPS`, the pool's own duplicate test                                        |
-| carrier resolution (ambiguous class)              | 99th percentile, unknown | per-tenure largest reported-carrier error over on-phase tenures of a lone emitter at Es/N0 4 dB (§7.2) |
-| ambiguity interval (comb spacing)                 | `1/(2T)`                 | the code's lattice: `chip rate / (2 × code length)`, from the chip rate                                |
-| ghost tenure window                               | 0.2 s                    | `ASYNC_DSSS_POOL_GHOST_WINDOW_S`, the rule being scored                                                |
-| ghost end value                                   | 10 Hz                    | `ASYNC_DSSS_POOL_GHOST_EPS_HZ`, the rule being scored                                                  |
-| ghost end, existing validator                     | 40 Hz                    | EPS + 3 × STILL; the 3 is a 3-sigma coverage choice, labelled as such                                  |
-| decodable                                         | BER below 1e-2           | `read_cen.py`'s line                                                                                   |
-| bars                                              | 0.5 s, 98%, 1 in 1,000   | carried from the #2529 criteria with the #3263 pool terms (§6.3)                                       |
+| tolerance                                         | value                                                 | from                                                                                                   |
+| ------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| same code phase (on an emitter's code, duplicate) | 1 chip                                                | `DP_CORRELATOR_SAME_PHASE_CHIPS`, the pool's own duplicate test                                        |
+| carrier resolution (ambiguous class)              | 99th percentile: 2.76 Hz (2.2 GHz), 2.50 Hz (2.8 GHz) | per-tenure largest reported-carrier error over on-phase tenures of a lone emitter at Es/N0 4 dB (§7.2) |
+| ambiguity interval (comb spacing)                 | `1/(2T)`                                              | the code's lattice: `chip rate / (2 × code length)`, from the chip rate                                |
+| ghost tenure window                               | 0.2 s                                                 | `ASYNC_DSSS_POOL_GHOST_WINDOW_S`, the rule being scored                                                |
+| ghost end value                                   | 10 Hz                                                 | `ASYNC_DSSS_POOL_GHOST_EPS_HZ`, the rule being scored                                                  |
+| ghost end, existing validator                     | 40 Hz                                                 | EPS + 3 × STILL; the 3 is a 3-sigma coverage choice, labelled as such                                  |
+| decodable                                         | BER below 1e-2                                        | `read_cen.py`'s line                                                                                   |
+| bars                                              | 0.5 s, 98%, 1 in 1,000                                | carried from the #2529 criteria with the #3263 pool terms (§6.3)                                       |
 
 The 40 Hz end value is the one number here that is not derived: its 3 is a
 coverage choice on a sample standard deviation, and the scene does not inherit
@@ -403,9 +419,11 @@ it. The bound the scene uses for a ghost's carrier is read from the recorded
     20 s; a 30 s window is only enough if none runs past it.
 - **The cold start.** An emitter mid-pass at a window's start is on the air at
     t = 0. It is scored as a take, and that is declared with the results.
-- **The resolution `ε`.** Its value is not yet printed for a run long enough to
-    fix its quantile (§7.2). Until it is, the ambiguous class is defined but its
-    size is not, and the run prints the ambiguous count; it does not widen `ε`.
+- **The resolution `ε`.** Measured at 99th percentile: 2.76 Hz at 2.2 GHz and
+    2.50 Hz at 2.8 GHz, over 340 on-phase tenures each (§7.2). The scale is not
+    derived from the carrier loop's equations; that derivation is open, and a
+    loop change moves `ε`. The run prints the ambiguous count; it does not widen
+    `ε`.
 - **The 0.5 s and 98% bars.** They are the #2529 criteria carried over. The run
     states the counts behind them; it does not re-derive them.
 

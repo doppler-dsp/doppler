@@ -7,17 +7,19 @@ closed-loop scenario of the harness, on both timing loops (``RateSync`` and
 holding lock) and a quarter and a half symbol off it (the loop acquiring).
 The run's data is kept beside this file:
 
-- ``traces/<scenario>.csv``: the harness's per-symbol trace reduced to
-  ``ROWS`` blocks. A held scenario keeps its whole length; an acquiring
+- ``traces/<scenario>.csv``: for each scenario a figure draws
+  (``FIGURES``), the harness's per-symbol trace reduced to ``ROWS``
+  blocks. A held scenario keeps its whole length; an acquiring
   one keeps its first ``ACQ_TC / bn`` symbols, where the acquisition is.
   Each row is one block: its middle symbol, the mean, minimum and maximum
   of the loop filter's output, the mean of its integrator (all in symbols
   a symbol) and the mean timing error in symbols;
-- ``scenarios.json``: each scenario's settings and its statistics, taken
-  from the per-symbol trace before the reduction;
+- ``scenarios.json``: every scenario's settings and its statistics,
+  drawn or not, taken from the per-symbol trace before the reduction;
 - ``meta.json``: the run's stamp (``_record_blocks.run_stamp``): when,
   where, from which commit and with which toolchain;
-- ``hold_*.png``, ``acq_*.png``: the figures, drawn from ``traces/``.
+- ``hold_*.png``, ``acq_*.png``: the exemplary figures, drawn from
+  ``traces/``.
 
 The table of §11 is this file's output, held between
 ``<!-- symsync:<block>:start -->`` and ``:end`` markers, so a cell cannot
@@ -172,22 +174,25 @@ def measure() -> int:
         for src in sorted(Path(tmp).glob("*.csv")):
             s = parse(src.stem)
             rows, stats = reduce(src, s)
-            with (TRACES / src.name).open(
-                "w", encoding="utf-8", newline=""
-            ) as f:
-                w = csv.writer(f, lineterminator="\n")
-                w.writerow(
-                    [
-                        "symbol",
-                        "out_mean",
-                        "out_min",
-                        "out_max",
-                        "integ_mean",
-                        "tau_mean",
-                    ]
-                )
-                for r in rows:
-                    w.writerow([f"{r[0]:.0f}"] + [f"{v:.5e}" for v in r[1:]])
+            if s["name"] in DRAWN:
+                with (TRACES / src.name).open(
+                    "w", encoding="utf-8", newline=""
+                ) as f:
+                    w = csv.writer(f, lineterminator="\n")
+                    w.writerow(
+                        [
+                            "symbol",
+                            "out_mean",
+                            "out_min",
+                            "out_max",
+                            "integ_mean",
+                            "tau_mean",
+                        ]
+                    )
+                    for r in rows:
+                        w.writerow(
+                            [f"{r[0]:.0f}"] + [f"{v:.5e}" for v in r[1:]]
+                        )
             scenarios.append({**s, **stats})
     if not scenarios:
         raise SystemExit("the harness wrote no trace")
@@ -225,9 +230,13 @@ def load() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         for s in scenarios
         if s["esn0"] == "none" and is_grid(s) and s["off"] == 0.0
     }
+    names = {s["name"] for s in scenarios}
+    for name in DRAWN:
+        if name not in names:
+            raise SystemExit(f"{name}: a figure draws a scenario not run")
+        if not (TRACES / f"{name}.csv").exists():
+            raise SystemExit(f"traces/{name}.csv is missing")
     for s in scenarios:
-        if not (TRACES / f"{s['name']}.csv").exists():
-            raise SystemExit(f"traces/{s['name']}.csv is missing")
         s["center"] = center[(s["obj"], s["pulse"])]
     return scenarios, meta
 
@@ -243,22 +252,94 @@ def is_grid(s: dict[str, Any]) -> bool:
     return s["amp"] == 1.0 and s["eps"] == 0.0
 
 
-def off_tag(off: float) -> str:
-    return f"off{off:.3f}".replace(".", "p")
+def key(
+    obj: str,
+    pulse: str,
+    esn0: str,
+    bn: float,
+    off: float,
+    amp: float = 1.0,
+    eps: str = "0",
+) -> str:
+    """The name the harness gives a scenario."""
+    return f"{obj}_{pulse}_{esn0}_bn{bn:.5f}_a{amp:.1f}_eps{eps}_off{off:.3f}"
 
 
-def lf_figure(s: dict[str, Any]) -> str:
-    """The figure a scenario's loop-filter output is drawn in."""
-    stem = "hold" if s["off"] == 0.0 else "acq_lf"
-    what = f"{s['obj']}_{s['pulse']}" if is_grid(s) else "level_and_offset"
-    tail = "" if s["off"] == 0.0 else f"_{off_tag(s['off'])}"
-    return f"{stem}_{what}{tail}.png"
+def _figures() -> dict[str, dict[str, Any]]:
+    """The exemplary figures: for each, its title, its y label, and its
+    panels by row (one row a loop). A panel is the scenarios it draws:
+    one for a loop-filter panel, the two starting offsets for a timing
+    panel.
+
+    The record keeps every scenario's statistics in the table; the figures
+    show the case the DSSS receivers run (the rectangle, Es/N0 4 dB) and
+    the two settings that move a loop's rate state (level and clock
+    offset).
+    """
+    bns = [0.005, 0.002, 0.00068]
+    figs: dict[str, dict[str, Any]] = {
+        "hold_rectangle.png": {
+            "title": "Holding lock on the rectangle: the loop filter's "
+            "output, started at the eye center",
+            "kind": "lf",
+            "rows": [
+                [
+                    [key(o, "iandd", "none", 0.005, 0.0)],
+                    [key(o, "iandd", "4dB", 0.005, 0.0)],
+                    [key(o, "iandd", "4dB", 0.00068, 0.0)],
+                ]
+                for o in OBJECTS
+            ],
+        },
+        "acq_timing_rectangle.png": {
+            "title": "Acquiring on the rectangle at Es/N0 4 dB: the "
+            "timing error",
+            "kind": "tau",
+            "rows": [
+                [
+                    [key(o, "iandd", "4dB", bn, off) for off in (0.25, 0.5)]
+                    for bn in bns
+                ]
+                for o in OBJECTS
+            ],
+        },
+        "acq_output_rectangle.png": {
+            "title": "Acquiring on the rectangle at Es/N0 4 dB: the loop "
+            "filter's output, started half a symbol off the eye center",
+            "kind": "lf",
+            "rows": [
+                [[key(o, "iandd", "4dB", bn, 0.5)] for bn in bns]
+                for o in OBJECTS
+            ],
+        },
+        "hold_level_and_offset.png": {
+            "title": "Level and clock offset on the root-raised cosine: "
+            "the loop filter's output, started at the eye center",
+            "kind": "lf",
+            "rows": [
+                [
+                    [key(o, "rrc", "10dB", 0.002, 0.0, amp=0.5)],
+                    [key(o, "rrc", "10dB", 0.002, 0.0, amp=2.0)],
+                    [key(o, "rrc", "none", 0.005, 0.0, eps="p1e-03")],
+                    [key(o, "rrc", "none", 0.005, 0.0, eps="m1e-03")],
+                ]
+                for o in OBJECTS
+            ],
+        },
+    }
+    return figs
 
 
-def tau_figure(s: dict[str, Any]) -> str:
-    """The figure an acquiring scenario's timing error is drawn in."""
-    what = f"{s['obj']}_{s['pulse']}" if is_grid(s) else "level_and_offset"
-    return f"acq_tau_{what}.png"
+FIGURES = _figures()
+# Each drawn scenario's figure. The harness traces every scenario; only
+# these are kept as traces.
+DRAWN = {
+    name: fig
+    for fig, spec in FIGURES.items()
+    for row in spec["rows"]
+    for cell in row
+    for name in cell
+}
 
 
 def esn0_text(s: dict[str, Any]) -> str:
@@ -327,7 +408,7 @@ def tau_panel(ax: Any, pair: list[dict[str, Any]], prefix: str = "") -> None:
 
 
 def figures() -> int:
-    """Draw every figure from the kept traces."""
+    """Draw every figure of FIGURES from the kept traces."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -335,131 +416,35 @@ def figures() -> int:
 
     scenarios, meta = load()
     by_name = {s["name"]: s for s in scenarios}
-    bns = sorted({s["bn"] for s in scenarios if is_grid(s)}, reverse=True)
-    offs = sorted({s["off"] for s in scenarios})
     for old in DATA.glob("*.png"):
         old.unlink()
-    made = []
-
-    def finish(fig: Any, axes: Any, title: str, name: str, ylab: str) -> None:
+    for name, spec in FIGURES.items():
+        rows = spec["rows"]
+        ncol = len(rows[0])
+        fig, axes = plt.subplots(
+            len(rows), ncol, figsize=(4.4 * ncol, 7.4), squeeze=False
+        )
+        for r, (obj_name, row) in enumerate(zip(OBJECTS.values(), rows)):
+            for c, cell in enumerate(row):
+                drawn = [by_name[n] for n in cell]
+                if spec["kind"] == "tau":
+                    tau_panel(axes[r][c], drawn, f"{obj_name}: ")
+                else:
+                    lf_panel(axes[r][c], drawn[0], f"{obj_name}: ")
+            axes[r][0].set_ylabel(
+                "symbols from the eye center"
+                if spec["kind"] == "tau"
+                else "ppm of the symbol rate",
+                fontsize=8,
+            )
         for ax in axes[-1]:
             ax.set_xlabel("time, thousands of symbols", fontsize=8)
-        for row in axes:
-            row[0].set_ylabel(ylab, fontsize=8)
         axes[0][0].legend(fontsize=7, loc="upper right")
-        fig.suptitle(f"{title} (commit {meta['commit']})", fontsize=10)
+        fig.suptitle(f"{spec['title']} (commit {meta['commit']})", fontsize=10)
         fig.tight_layout()
         fig.savefig(DATA / name, dpi=100)
         plt.close(fig)
-        made.append(name)
-
-    def grid_key(
-        obj: str, pulse: str, esn0: str, bn: float, off: float
-    ) -> str:
-        return f"{obj}_{pulse}_{esn0}_bn{bn:.5f}_a1.0_eps0_off{off:.3f}"
-
-    for obj, obj_name in OBJECTS.items():
-        for pulse, pulse_name in PULSES.items():
-            who = f"{obj_name}, {pulse_name}, Gardner"
-            for off in offs:
-                fig, axes = plt.subplots(
-                    3, len(bns), figsize=(13, 9.6), squeeze=False
-                )
-                for r, esn0 in enumerate(ESN0S):
-                    for c, bn in enumerate(bns):
-                        key = grid_key(obj, pulse, esn0, bn, off)
-                        if key not in by_name:
-                            axes[r][c].set_visible(False)
-                            continue
-                        lf_panel(axes[r][c], by_name[key])
-                start = (
-                    "started at the eye center"
-                    if off == 0.0
-                    else f"started {off:g} symbol off the eye center"
-                )
-                finish(
-                    fig,
-                    axes,
-                    f"{who}: the loop filter's output, {start}",
-                    lf_figure(
-                        by_name[grid_key(obj, pulse, "none", bns[0], off)]
-                    ),
-                    "ppm of the symbol rate",
-                )
-            fig, axes = plt.subplots(
-                3, len(bns), figsize=(13, 9.6), squeeze=False
-            )
-            for r, esn0 in enumerate(ESN0S):
-                for c, bn in enumerate(bns):
-                    pair = [
-                        by_name[k]
-                        for off in offs
-                        if off != 0.0
-                        and (k := grid_key(obj, pulse, esn0, bn, off))
-                        in by_name
-                    ]
-                    if not pair:
-                        axes[r][c].set_visible(False)
-                        continue
-                    tau_panel(axes[r][c], pair)
-            finish(
-                fig,
-                axes,
-                f"{who}: the timing error while acquiring",
-                f"acq_tau_{obj}_{pulse}.png",
-                "symbols from the eye center",
-            )
-
-    extra = [s for s in scenarios if not is_grid(s)]
-    kinds = sorted({(s["esn0"], s["bn"], s["amp"], s["eps"]) for s in extra})
-
-    def extra_of(
-        obj: str, kind: tuple[Any, ...], off: float
-    ) -> dict[str, Any]:
-        return next(
-            s
-            for s in extra
-            if s["obj"] == obj
-            and (s["esn0"], s["bn"], s["amp"], s["eps"]) == kind
-            and s["off"] == off
-        )
-
-    for off in offs:
-        fig, axes = plt.subplots(
-            len(OBJECTS), len(kinds), figsize=(15, 7.6), squeeze=False
-        )
-        for r, (obj, obj_name) in enumerate(OBJECTS.items()):
-            for c, kind in enumerate(kinds):
-                lf_panel(axes[r][c], extra_of(obj, kind, off), f"{obj_name}: ")
-        start = (
-            "started at the eye center"
-            if off == 0.0
-            else f"started {off:g} symbol off the eye center"
-        )
-        finish(
-            fig,
-            axes,
-            "Root-raised cosine, Gardner, level and clock offset: the "
-            f"loop filter's output, {start}",
-            lf_figure(extra_of("ratesync", kinds[0], off)),
-            "ppm of the symbol rate",
-        )
-    fig, axes = plt.subplots(
-        len(OBJECTS), len(kinds), figsize=(15, 7.6), squeeze=False
-    )
-    for r, (obj, obj_name) in enumerate(OBJECTS.items()):
-        for c, kind in enumerate(kinds):
-            pair = [extra_of(obj, kind, off) for off in offs if off != 0.0]
-            tau_panel(axes[r][c], pair, f"{obj_name}: ")
-    finish(
-        fig,
-        axes,
-        "Root-raised cosine, Gardner, level and clock offset: the timing "
-        "error while acquiring",
-        "acq_tau_level_and_offset.png",
-        "symbols from the eye center",
-    )
-    print(f"figures: {len(made)} written")
+    print(f"figures: {', '.join(FIGURES)}")
     return 0
 
 
@@ -469,9 +454,11 @@ def scenarios_block(
     """Every scenario: its settings and its statistics."""
     rows = []
     for s in scenarios:
-        figs = f"[output](symsync-measurements/{lf_figure(s)})"
-        if s["off"] != 0.0:
-            figs += f", [timing](symsync-measurements/{tau_figure(s)})"
+        figs = (
+            f"[plot](symsync-measurements/{DRAWN[s['name']]})"
+            if s["name"] in DRAWN
+            else "—"
+        )
         rows.append(
             [
                 OBJECTS[s["obj"]],
@@ -503,7 +490,7 @@ def scenarios_block(
             "integrator mean, ppm",
             "output rms, ppm",
             "timing error rms, symbols",
-            "figures",
+            "figure",
         ],
         rows,
     )

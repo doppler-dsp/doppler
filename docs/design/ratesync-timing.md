@@ -518,7 +518,118 @@ single-symbol return of `ratesync_step()` is still correct.
 
 ______________________________________________________________________
 
-## 9. What is deliberately not here
+## 9. The design, decided 2026-11-25
+
+Sections 2's three models settle what the object should be. Decided with
+the owner, and what the header is to state once built:
+
+| question                              | decision                                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| detectors                             | the derivative-bank detector is the default; Gardner and DTTL stay selectable                                |
+| acquisition                           | a feedforward estimate off the bank by default, and a seed call for a consumer that already knows the timing |
+| input with no stage ahead of the bank | each sample is the waveform's average over its own interval                                                  |
+| the cascade's response                | derived from the stage definitions at construction, never measured through the signal path                   |
+
+### 9.1 The bank
+
+For the pulse `p` and the plan's response `g` (CIC and halfband impulse
+responses convolved, at the input rate), each of `num_phases` arms over
+one bank-sample interval is built for its own position `u` of the symbol
+edge:
+
+```text
+q_u  = p * g, sampled on the bank's grid at offset u
+h_u  = R^-1 q_u / sqrt(q_u' R^-1 q_u)        the arm, unit noise gain
+dh_u = d h_u / du                             the derivative arm
+a_u  = 1 / (h_u' q_u)                         what scales y to the symbol
+```
+
+Three tables: `h` and `dh` (`num_phases x num_taps` each) and `a`
+(`num_phases`). The terminal Resampler stores the second bank and returns
+`y = h_u's` and `dy = dh_u's` for each output, from one phase word. The
+droop compensator is no longer a separate fold: `R^-1` is that inverse,
+exact for the plan.
+
+The rectangle is built this way. The root-raised cosine keeps its sampled
+arms (its band already fits the grid) and gains `dh` and `a` by the same
+definitions.
+
+### 9.2 The detectors
+
+| `ted`                               | error                         | outputs per symbol it needs | on        |
+| ----------------------------------- | ----------------------------- | --------------------------- | --------- |
+| `RATESYNC_TED_DERIVATIVE` (default) | `Re{ conj(y) dy }`            | 1                           | `h`, `dh` |
+| `RATESYNC_TED_GARDNER`              | `Re{ conj(mid) (on - prev) }` | 2                           | `h`       |
+| `RATESYNC_TED_DTTL`                 | sign-sign                     | 2                           | `h`       |
+
+Each is divided by its slope at lock for random data, computed at
+construction from the tables (not measured, not fitted), so `bn` is the
+closed loop's one-sided noise bandwidth as a fraction of the symbol rate
+for any of them. `m` may be 1 with the derivative detector; Gardner and
+DTTL keep `m` even.
+
+### 9.3 Acquisition, then tracking
+
+```text
+ACQUIRE   sum |y|^2 at K hypotheses a symbol over L symbols
+          tau_hat = tau0 - (S / 2 pi) arg sum |y_i|^2 exp(-j 2 pi i / K)
+          a second block gives the rate: (tau_hat_2 - tau_hat_1) / L
+TRACK     the loop closes at tau_hat with its rate state seeded
+```
+
+`L` is derived at construction from the design Es/N0 and the detector's
+linear range (the estimate's error is about `sqrt(figure / L)`, §2), and
+`K = 4`. `dp_ratesync_seed()` puts the object straight into TRACK at a
+caller's timing and rate, for a consumer that has them (the DSSS Dll's
+symbol aid finds the same boundary from the same statistic).
+
+The state is published (`acquiring`, `tracking`), with the estimate's
+own quality, `|c| / sum |y|^2`, as the acquisition's lock quantity.
+
+### 9.4 What a caller sizes from
+
+The header states, and the certification holds, for a pulse, a detector,
+an Es/N0 `gamma` and a `bn`:
+
+```text
+timing variance   sigma_tau^2 = 2 * bn * F(gamma)       symbols^2
+loop SNR          rho = 1 / ((2 pi)^2 sigma_tau^2)
+figure            F = S_e(0) / Kd^2, from the tables, printed by a helper
+```
+
+and a helper returns the `bn` that gives a stated loop SNR (20 dB by
+rule) at a stated Es/N0, so the least input is the Es/N0 the link is
+designed for.
+
+### 9.5 The surface that changes
+
+|               | today                                                                        | finalized                                                                                                                                                                          |
+| ------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| create        | `sps, pulse, beta, span, m, num_phases, bn, zeta, ted`                       | the same arguments; `ted` gains `DERIVATIVE` and it is the default of the least-input constructor; `m >= 1`                                                                        |
+| new           |                                                                              | `dp_ratesync_seed (state, tau, rate)`; `dp_ratesync_get_state_name ()` (acquiring, tracking); `dp_ratesync_figure (state, esn0)`; `dp_ratesync_bn_for_loop_snr (state, esn0, rho)` |
+| symbol out    | the arm's output, 0.88 to 0.96 of the symbol on a band-limited input (#3366) | `a_u * y`: the symbol                                                                                                                                                              |
+| Resampler     | one bank                                                                     | an optional second bank and a paired output                                                                                                                                        |
+| RateConverter | `rc_build_bank` samples or integrates the pulse                              | builds `h`, `dh`, `a` from the plan's derived response                                                                                                                             |
+| blob          | version N                                                                    | version N + 1: the acquisition's sums and state                                                                                                                                    |
+
+### 9.6 The order of work
+
+1. The plan's response, derived (`RateConverter`), held to the measured
+    one by `validate_ratesync_pulse_model`.
+1. The three tables, held to the model's optimum arm by the same
+    validator, and the bank's gain (#3366) pinned.
+1. The Resampler's second bank and paired output.
+1. The derivative detector in `ratesync_loop_t`, its slope from the
+    tables, `m = 1`.
+1. Acquisition and the seed.
+1. The header rewritten claim by claim, the manifest, the bindings.
+1. The C pins with their sabotage; the state round trip; the probes.
+1. The six measurement lanes against §2's predictions, and the report.
+1. The guide, both examples, the gallery page, the benchmarks.
+1. The consumers: the M-PSK receiver, then the DSSS receivers, each
+    re-certified on it.
+
+## 10. What is deliberately not here
 
 - **A (pfa, pd) sizing entry point.** `dp_symsync_configure_lock()`'s constants
     were calibrated against symsync's own geometry by Monte Carlo. Re-exposing

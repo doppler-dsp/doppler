@@ -13,7 +13,8 @@ foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo agc_demo corr_demo cic_demo 
              ring_drip_feed_demo ring_chunking_demo ring_framer_demo
              ring_write_policy_demo ring_element_view_demo
              spectrogram_demo wlan_mac_demo wlan_ppdu_demo state_filter_demo
-             state_filter_kalman_demo ofdm_demo crc_demo ratesync_demo)
+             state_filter_kalman_demo ofdm_demo crc_demo ratesync_demo
+             symbol_timing_estimator_demo)
     add_executable(${_ex} ${_ex}.c)
     target_include_directories(${_ex} PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc

@@ -138,6 +138,8 @@
 * [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md)
 * [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md)
 * [**dp\_syncword\_state\_t**](structdp__syncword__state__t.md)
+* [**dp\_timing\_est\_state\_t**](structdp__timing__est__state__t.md)
+* [**dp\_timing\_estimate\_t**](structdp__timing__estimate__t.md)
 * [**dp\_tlm**](structdp__tlm.md)
 * [**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md)
 * [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md)

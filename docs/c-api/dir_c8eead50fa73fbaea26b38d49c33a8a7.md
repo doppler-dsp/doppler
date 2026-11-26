@@ -159,6 +159,7 @@
 | dir | [**syncword**](dir_e299403a0e03806f7aa46ec15fc4c91a.md) <br> |
 | dir | [**telemetry**](dir_d30f8ea704930bef6ef378fb8c932c43.md) <br> |
 | dir | [**timing**](dir_f312c7d1315f2596c2b71ef05d5d7b2b.md) <br> |
+| dir | [**timing\_est**](dir_ef0d777ccea6407e2e2ec8e704716d8f.md) <br> |
 | dir | [**tonemeas**](dir_e0665d68cb2c2ff7feb28506d37a8bd1.md) <br> |
 | dir | [**track**](dir_f98cb3fb09d38460dfcf46a77aa842c0.md) <br> |
 | dir | [**u8\_to\_f32**](dir_b468cb3e760d860bad02e34079834f5d.md) <br> |

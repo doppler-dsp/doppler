@@ -593,7 +593,7 @@ A seed call enters `SETTLING` from any state, and a reset enters
 | state       | what runs                                                       | `valid` | bounded by                                 |
 | ----------- | --------------------------------------------------------------- | ------- | ------------------------------------------ |
 | `PRIMING`   | the cascade fills; the loop is open                             | none    | the terminal bank's length, in its outputs |
-| `ACQUIRING` | the estimator, on `K` powers a symbol; the loop is open         | 0       | `L` symbols an attempt                     |
+| `ACQUIRING` | the estimator, on its own matched filter; the loop is open      | 0       | its lead-in, then `L` symbols an attempt   |
 | `SETTLING`  | the loop, closed from the estimate; the lock quantity gathers   | 0       | the lock decision's own count              |
 | `TRACKING`  | the loop, closed; lock declared                                 | 1       | nothing: the steady state                  |
 | `COASTING`  | the proportional path off, the rate state held; the power check | 1       | the coast budget, in symbols               |
@@ -628,44 +628,43 @@ Four choices shape it:
 
 What bounds each state, and what each bound is derived from:
 
-| quantity          | from                                                                                                        |
-| ----------------- | ----------------------------------------------------------------------------------------------------------- |
-| prime length      | the terminal bank's taps, plus one                                                                          |
-| `K`               | the terminal outputs a symbol, `m`; the estimator's line needs more than 2, so acquisition runs at `m >= 4` |
-| `L`               | the design Es/N0 and the detector's linear range: the estimate's error is about `sqrt(figure / L)` (§2)     |
-| quality threshold | a stated false-alarm probability on noise alone, from the noise's autocorrelation at the bank's output      |
-| `n_up`, `n_down`  | the per-decision budget, as today (2 and 6)                                                                 |
-| power threshold   | the power the acquisition's own block measured, against the noise the quality threshold assumed             |
-| coast budget      | how long the held rate keeps the timing inside the detector's linear range, from the rate state's variance  |
+| quantity          | from                                                                                                       |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| prime length      | the terminal bank's taps, plus one                                                                         |
+| lead-in           | the estimator's own converter filling, and a CIC plan's output for silence (#3365)                         |
+| `L`               | the design Es/N0 and the detector's linear range: the estimate's error is about `sqrt(figure / L)` (§2)    |
+| quality threshold | a stated false-alarm probability on noise alone, from the noise's autocorrelation at the estimator's bank  |
+| `n_up`, `n_down`  | the per-decision budget, as today (2 and 6)                                                                |
+| power threshold   | the power the acquisition's own block measured, against the noise the quality threshold assumed            |
+| coast budget      | how long the held rate keeps the timing inside the detector's linear range, from the rate state's variance |
 
-The estimate becomes the loop's starting point in two parts. The on-time
-output is the one of the `m` nearest the estimate, which is a count and
-costs nothing; what is left is under `1 / (2 m)` of a symbol and goes to
-the terminal stage as one symbol of control, the same path the loop's
-proportional term takes.
+**The estimator brings its own matched filter.** The matched flavor of
+[`SymbolTimingEstimator`](timing-estimator.md#the-matched-flavor) owns a
+matched converter of its own: the same decimating cascade, with a
+terminal stage that runs at a fixed rate to 4 samples a symbol and is
+never steered. `RateSync` hands it the samples it hands its own cascade.
+Acquisition therefore does not depend on `m`, on the detector, or on
+where the loop has pushed the tracking bank: it is the same at `m = 1`,
+2 and 4. It runs only in `ACQUIRING`.
 
-**With `m = 2` there is no acquisition.** Two powers a symbol put the
-symbol-rate line at the Nyquist rate, where it has one component and no
-phase. `PRIMING` then goes to `SETTLING` and the loop pulls in as it does
-today. The derivative detector's `m = 1` case has the same need, and the
-Resampler's paired output (§9.6 step 3) is where `K = 4` at any `m` is
-answered.
+**The estimate reaches the loop through the seed call.** The estimate is
+on the estimator's converter's timeline and the loop steers another
+converter, so the two group delays, each derived from its plan at
+construction (#3119), carry the eye center from one to the other. What
+arrives is a timing on the tracking bank's outputs: the on-time output
+is the nearest one, which is a count, and what is left is under half an
+output period and goes to the terminal stage as one symbol of control,
+the path the loop's proportional term takes. Built-in acquisition is
+`RateSync` making the seed call a caller could make.
 
-**The machine is the loop's.** It lives in `ratesync_loop_t`, where the
-terminal outputs arrive, so a receiver that composes the loop gets the
-same states. Acquisition is switched on there by its owner: `RateSync`
-turns it on, and each receiver turns it on when it is re-certified on it
-(§9.6 step 10).
-
-**The estimator is its own object**, which the loop composes:
-[`SymbolTimingEstimator`](timing-estimator.md) takes the power at each
-terminal output and returns the timing and the estimate's quality,
-`|c| / sum |y|^2`. It knows nothing of a bank or a loop. Its report
-measures it behind this converter's whole decimations, where its
-sampling-phase bias is 0.002 to 0.003 symbols; a CIC plan's output for
-silence lasts up to 128 outputs (#3365), which the prime length does not
-cover and the quality threshold has to. The root-raised cosine at
-roll-off 0.35 needs about four times the rectangle's `L`.
+**The machine is the loop's; the estimator is its owner's.** The states,
+`valid` and the transitions live in `ratesync_loop_t`, where the terminal
+outputs arrive, so a receiver that composes the loop gets the same
+machine. The estimator needs the samples ahead of the cascade, which the
+loop never sees, so it sits beside the loop in whatever owns the cascade:
+`RateSync` here, and each receiver when it is re-certified (§9.6 step
+10). A loop with no estimator beside it goes from `PRIMING` to `SETTLING`
+and pulls in as it does today.
 
 ### 9.4 What a caller sizes from
 
@@ -703,8 +702,8 @@ designed for.
 1. The Resampler's second bank and paired output.
 1. The derivative detector in `ratesync_loop_t`, its slope from the
     tables, `m = 1`.
-1. The state machine and the seed in the loop, on the feedforward
-    estimator (its own object, built and certified first).
+1. The estimator's matched flavor; the converter's group delay for
+    every plan (#3119); then the state machine and the seed in the loop.
 1. The header rewritten claim by claim, the manifest, the bindings.
 1. The C pins with their sabotage; the state round trip; the probes.
 1. The six measurement lanes against §2's predictions, and the report.

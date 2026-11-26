@@ -44,7 +44,7 @@ to hold with a frequency offset present.
 
 | consumer                                                                | what it hands the estimator                                   | what it does with the answer                           |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------ |
-| `RateSync`                                                              | its matched bank's output at `K` timing hypotheses per symbol | seeds its loop's phase and rate state, then tracks     |
+| `RateSync`                                                              | the samples it hands its own cascade (the matched flavor, §5) | seeds its loop's timing, then tracks                   |
 | a caller with a matched-filtered stream at 3 or more samples per symbol | the stream                                                    | resamples at the estimate, or seeds a loop of its own  |
 | a burst demodulator                                                     | one burst's stream                                            | one timing for the whole burst, with no loop behind it |
 
@@ -242,6 +242,38 @@ It does not filter, resample, or decide symbols. Whoever calls it owns the
 matched filter, which is why the pulse appears here only through the three
 constants.
 
+### The matched flavor
+
+A second constructor gives the estimator a matched filter of its own, for
+a caller that has samples and a pulse and nothing else. It takes the
+pulse (`pulse`, `beta`, `span`) and the input's samples a symbol, any
+real number, and owns one matched `RateConverter` built for `4 / sps`:
+the converter's decimating cascade, then its matched terminal stage at a
+fixed rate. Nothing steers that stage. Its output is the stream of §3 at
+`N = 4` exactly, whatever the input rate, and the rest of the object is
+unchanged.
+
+```text
+samples, sps a symbol --> RateConverter (matched, 4 / sps) --> x[n], N = 4 --> §3
+```
+
+It composes the converter and adds no filter of its own, so the pulse,
+the droop compensation and the plan are the ones a tracking loop on the
+same pulse uses. Three things follow from the converter being inside:
+
+- **A lead-in.** The first block starts after the converter has filled,
+    and after a CIC plan's output for silence has passed (up to 128
+    outputs, #3365). The object counts it and the caller does not.
+- **The false-alarm threshold is the object's.** The noise at the
+    bank's output has the autocorrelation of the plan's response, which
+    the object has at construction, so §4.4's threshold for a stated
+    false-alarm probability is a call on the object and not a validator's
+    table.
+- **An estimate on the input's timeline.** `tau` is on the converter's
+    output; the converter's group delay, derived from its plan (#3119),
+    carries it to the input, which is what lets a second cascade on the
+    same input (`RateSync`'s) be seeded from it.
+
 ## 6. What the report settled, and what is open
 
 Settled, each in the report's section 2:
@@ -266,7 +298,7 @@ Settled, each in the report's section 2:
     to 0.002 to 0.003, because the stages ahead of the bank band-limit
     the rectangle.
 
-Open, both in
+Open, the first two in
 [#3367](https://github.com/doppler-dsp/doppler/issues/3367):
 
 - **Behind a decimation that is not whole** (17.333 input samples a
@@ -277,6 +309,11 @@ Open, both in
 - **Through `doppler_channel` the validator's prediction is good to 2%
     in line energy and 1% in rate** on the rectangle at a whole `N`, and
     why it is not better is not known.
+- **The matched flavor is not built.** It needs the converter's group
+    delay for plans with a halfband or a CIC, which the converter does
+    not report (#3119), and the threshold's noise autocorrelation from
+    the plan's response. Its case with no whole decimation is the first
+    item above.
 
 ## 7. What the characterization measures
 

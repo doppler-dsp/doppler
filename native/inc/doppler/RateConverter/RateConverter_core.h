@@ -407,6 +407,40 @@ double dp_RateConverter_get_count_lag (const dp_RateConverter_state_t *s);
  * @endcode
  */
 double dp_RateConverter_get_group_delay (const dp_RateConverter_state_t *s);
+
+/**
+ * @brief The converter's memory, in its INPUT samples: how many inputs
+ *        after create or reset until an output depends on nothing but the
+ *        input.
+ *
+ * Before that, an output still carries what the delay lines held at the
+ * start: zeros for the filters, and for a CIC the registers' own startup
+ * values, which come out as a burst near full scale (doppler#3365). A
+ * caller that measures the output (a power, an estimate, a level) starts
+ * after `ceil (memory * rate) + 1` outputs.
+ *
+ * It is the sum of each stage's own memory, in that stage's input samples,
+ * divided by the rate the stages before it have applied (a stage's input
+ * is clean only once the stages ahead of it are):
+ *
+ *  - a halfband of `N` taps: `2 N - 1`, the reach of its two delay lines;
+ *  - a CIC of ratio `R`: `CIC_N * (R - 1) + 1`, the length of its
+ *    response, and with its droop compensator that filter's
+ *    `(taps - 1) * R` more;
+ *  - a Resampler: its taps plus the one input an output is formed ahead
+ *    of; on a plain plan that decimates, where the registers run at the
+ *    output rate, that many OUTPUTS.
+ *
+ * @param s State. Must be non-NULL.
+ * @return The memory in input samples.
+ * @code
+ * dp_RateConverter_state_t *rc = dp_RateConverter_create (0.25, 0);
+ * // two halfbands of 19 taps: 37 + 37 / 0.5
+ * printf ("%.1f\n", dp_RateConverter_get_memory (rc));  // 111.0
+ * dp_RateConverter_destroy (rc);
+ * @endcode
+ */
+double dp_RateConverter_get_memory (const dp_RateConverter_state_t *s);
 /**
  * @brief Label of stage @p i, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)".
  *

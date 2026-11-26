@@ -81,6 +81,13 @@ dp_ratesync_loop_init (ratesync_loop_t *l, double sps, size_t m, double bn,
   dp_ratesync_loop_reset (l);
 }
 
+double
+dp_ratesync_loop_settle_time (const ratesync_loop_t *l)
+{
+  return dp_loop_filter_settle_time (l->bn, l->zeta,
+                                     DP_LOOP_FILTER_SETTLE_EPS);
+}
+
 void
 dp_ratesync_loop_set_cascade (ratesync_loop_t *l, double term_rate,
                               size_t prime_taps)
@@ -468,6 +475,12 @@ double
 dp_ratesync_get_bn (const dp_ratesync_state_t *state)
 {
   return state->loop.bn;
+}
+
+double
+dp_ratesync_get_settle_time (const dp_ratesync_state_t *state)
+{
+  return dp_ratesync_loop_settle_time (&state->loop);
 }
 
 int

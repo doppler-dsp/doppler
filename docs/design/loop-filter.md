@@ -885,6 +885,26 @@ not choose between the analog and the discrete form. In the units of use
 case 1: a ramp of `R` Hz/s at an update period of `T` s is
 `r = R * T^2` cycles per update per update.
 
+**Settling time.** `dp_loop_filter_settle_time(bn, zeta, eps)` is the last
+time the error of a unit phase step is larger than `eps`, from the
+second-order loop's closed-form step response (under-damped, critical and
+over-damped). It scales as `1 / bn`:
+
+| `zeta` | `eps = 0.1` | `eps = 0.02` | `eps = 0.001` |
+| ------ | ----------- | ------------ | ------------- |
+| 0.5    | `2.01 / bn` | `3.75 / bn`  | `7.04 / bn`   |
+| 0.707  | `1.96 / bn` | `2.59 / bn`  | `4.91 / bn`   |
+| 1.0    | `1.87 / bn` | `3.37 / bn`  | `5.62 / bn`   |
+| 2.0    | `0.53 / bn` | `5.36 / bn`  | `17.24 / bn`  |
+
+`test_settle_time` (`test_loop_filter_core.c`) holds it against the filter
+closed around a unit-gain integrator, to 1% and two updates over seven
+dampings. `DP_LOOP_FILTER_SETTLE_EPS`, 0.02, is the residual the library's
+objects report their `settle_time` at: `RateSync` for its timing loop, and
+`MpskReceiver` and `AsyncDsssReceiver` for the timing and carrier loops
+added. It is the linear loop's figure: a detector slope of `K` scales the
+decay rate by `K` (§3), and a frequency offset's transient is not in it.
+
 ## 15. The unknowns, and what the sweep measured
 
 Written before the sweep, so that it answered them rather than confirmed a

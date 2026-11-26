@@ -725,6 +725,14 @@ dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state)
 }
 
 double
+dp_mpsk_receiver_get_settle_time (const dp_mpsk_receiver_state_t *state)
+{
+  return dp_ratesync_loop_settle_time (&state->l.timing)
+         + dp_loop_filter_settle_time (state->l.bn_carrier, state->l.zeta,
+                                       DP_LOOP_FILTER_SETTLE_EPS);
+}
+
+double
 dp_mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.car_error;

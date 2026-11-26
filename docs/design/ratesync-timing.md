@@ -710,6 +710,15 @@ and a helper returns the `bn` that gives a stated loop SNR (20 dB by
 rule) at a stated Es/N0, so the least input is the Es/N0 the link is
 designed for.
 
+`settle_time` is where the output may be measured from: the symbols the
+loop emits before its timing error is under 2% of where it started,
+`2.59 / bn` at damping 0.707
+([`dp_loop_filter_settle_time()`](loop-filter.md#14-closed-forms-a-caller-sizes-from)).
+The lock flag declares before that, on a statistic that crossed a
+threshold, so a window opened at the flag holds the pull-in. `MpskReceiver`
+and `AsyncDsssReceiver` report the timing and carrier loops' figures
+added. An acquisition ahead of the loop (§9.3) adds its block to it.
+
 ### 9.5 The surface that changes
 
 |               | today                                                                        | finalized                                                                                                                                                           |

@@ -3079,6 +3079,13 @@ dp_async_dsss_receiver_get_code_locked (
 }
 
 double
+dp_async_dsss_receiver_get_settle_time (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return dp_mpsk_receiver_get_settle_time (state->rx);
+}
+
+double
 dp_async_dsss_receiver_get_car_last_error (
     const dp_async_dsss_receiver_state_t *state)
 {

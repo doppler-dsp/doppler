@@ -59,6 +59,7 @@ const jm_any_fn jm_bound_symbols_async_dsss_receiver[] = {
     (jm_any_fn)dp_async_dsss_receiver_get_nco_freq,
     (jm_any_fn)dp_async_dsss_receiver_get_locked,
     (jm_any_fn)dp_async_dsss_receiver_get_code_locked,
+    (jm_any_fn)dp_async_dsss_receiver_get_settle_time,
     (jm_any_fn)dp_async_dsss_receiver_get_car_last_error,
     (jm_any_fn)dp_async_dsss_receiver_get_car_nco_freq,
     (jm_any_fn)dp_async_dsss_receiver_get_mpsk_last_error,

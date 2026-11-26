@@ -69,6 +69,7 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 |  int | [**dp\_loop\_filter\_params\_ok**](#function-dp_loop_filter_params_ok) (double bn, double zeta, double t) <br>_The domain the loop's gains are defined on:_ `bn >= 0` _,_`zeta > 0` _,_`t > 0` _, all three finite, and gains that come out finite._ |
 |  void | [**dp\_loop\_filter\_reset**](#function-dp_loop_filter_reset) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Zero the integrator memory while keeping the configured gains._  |
 |  int | [**dp\_loop\_filter\_set\_state**](#function-dp_loop_filter_set_state) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the blob is refused. The envelope (magic, version, endianness, size) is checked, then the payload is decoded into a temporary and accepted only when_ [_**dp\_loop\_filter\_state\_ok()**_](loop__filter__core_8h.md#function-dp_loop_filter_state_ok) _accepts it_ _the gains, bn, zeta and t that create() would refuse are refused (doppler#2641). The integrator is not checked: a NaN in it is garbage in (doppler#2128). An accepted payload is copied over the whole struct._ |
+|  double | [**dp\_loop\_filter\_settle\_time**](#function-dp_loop_filter_settle_time) (double bn, double zeta, double eps) <br>_How long the loop takes to settle from a step: the last time the error of a unit phase step is larger than_ `eps` _._ |
 |  size\_t | [**dp\_loop\_filter\_state\_bytes**](#function-dp_loop_filter_state_bytes) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  int | [**dp\_loop\_filter\_state\_ok**](#function-dp_loop_filter_state_ok) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* s) <br>_Whether a stored filter is one a live filter could hold._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) double | [**dp\_loop\_filter\_step**](#function-dp_loop_filter_step) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double x) <br>_Advance the loop one update with error_ `x` _and return the control value the tracker should apply._ |
@@ -105,6 +106,7 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**DP\_LOOP\_FILTER\_SETTLE\_EPS**](loop__filter__core_8h.md#define-dp_loop_filter_settle_eps)  `0.02`<br> |
 | define  | [**LOOP\_FILTER\_STATE\_MAGIC**](loop__filter__core_8h.md#define-loop_filter_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('L', 'P', 'F', 'L')`<br> |
 | define  | [**LOOP\_FILTER\_STATE\_VERSION**](loop__filter__core_8h.md#define-loop_filter_state_version)  `1u`<br> |
 
@@ -571,6 +573,69 @@ DP\_OK, or DP\_ERR\_INVALID on an envelope mismatch or a payload [**dp\_loop\_fi
 
 
 
+### function dp\_loop\_filter\_settle\_time 
+
+_How long the loop takes to settle from a step: the last time the error of a unit phase step is larger than_ `eps` _._
+```C++
+double dp_loop_filter_settle_time (
+    double bn,
+    double zeta,
+    double eps
+) 
+```
+
+
+
+The loop this filter closes is second order, and its error after a phase step of 1 is known in closed form. With `wn` from [**dp\_loop\_filter\_wn()**](loop__filter__core_8h.md#function-dp_loop_filter_wn), below critical damping it is `exp(-zeta*wn*t) * cos(wd*t + asin(zeta)) / sqrt(1 - zeta^2)`, `wd = wn*sqrt(1 - zeta^2)`; at `zeta = 1` it is `(1 - wn*t) * exp(-wn*t)`; above, it is the difference of two decaying exponentials. This returns the last time that error's magnitude equals `eps:` from then on it stays under. It is exact for the continuous loop, so it holds for the filter where `bn*t` is small (the same condition the bandwidth itself holds under, at the top of this file).
+
+
+The answer scales as `1/bn`. At `zeta = 0.707` and `eps = 0.02` it is `2.59/bn`, and at `eps = 0.001` it is `4.91/bn`, which is where the `5/bn` rule of thumb sits. Read in the reciprocal of `bn's` units: a `bn` normalized to the symbol rate gives symbols.
+
+
+What it does not know: it is the loop's linear response, so the start must be inside the detector's monotone range, and a detector whose slope is `K` and not 1 runs the loop at `K` times this decay rate. A frequency offset at the start adds its own transient, which this does not count.
+
+
+
+```C++
+#include <doppler/loop_filter/loop_filter_core.h>
+#include <stdio.h>
+
+int
+main (void)
+{
+  printf ("%.1f\n", dp_loop_filter_settle_time (0.005, 0.707, 0.02));
+  printf ("%.1f\n", dp_loop_filter_settle_time (0.005, 1.0, 0.02));
+  return 0;
+}
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `bn` Loop noise bandwidth, normalized. 
+* `zeta` Damping factor. 
+* `eps` The error called settled, as a fraction of the step; DP\_LOOP\_FILTER\_SETTLE\_EPS is the library's. 
+
+
+
+**Returns:**
+
+The settling time, in the reciprocal of `bn's` units; 0 for `eps >= 1`; infinity for a loop that never settles (`bn <= 0`, `zeta <= 0`, `eps <= 0`, or a NaN). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_loop\_filter\_state\_bytes 
 
 _Serialized-state byte size._ 
@@ -788,6 +853,23 @@ The natural frequency, in `bn's` units.
 ## Macro Definition Documentation
 
 
+
+
+
+### define DP\_LOOP\_FILTER\_SETTLE\_EPS 
+
+```C++
+#define DP_LOOP_FILTER_SETTLE_EPS `0.02`
+```
+
+
+
+The residual a loop is called settled at: the 2% settling-time convention of second-order systems. What the library's objects pass to [**dp\_loop\_filter\_settle\_time()**](loop__filter__core_8h.md#function-dp_loop_filter_settle_time) for their own `settle_time`. 
+
+
+        
+
+<hr>
 
 
 

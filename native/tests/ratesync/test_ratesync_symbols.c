@@ -30,6 +30,7 @@ const jm_any_fn jm_bound_symbols_ratesync[] = {
     (jm_any_fn)dp_ratesync_steps,
     (jm_any_fn)dp_ratesync_configure,
     (jm_any_fn)dp_ratesync_get_bn,
+    (jm_any_fn)dp_ratesync_get_settle_time,
     (jm_any_fn)dp_ratesync_set_bn,
     (jm_any_fn)dp_ratesync_get_timing_error,
     (jm_any_fn)dp_ratesync_get_rate,

@@ -103,6 +103,7 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 |  double | [**dp\_mpsk\_receiver\_get\_nco\_freq**](#function-dp_mpsk_receiver_get_nco_freq) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Instantaneous NCO frequency command (carrier loop filter output, cycles/sample): mean tracks a ramp with no lag, variance is loop stress._  |
 |  double | [**dp\_mpsk\_receiver\_get\_norm\_freq**](#function-dp_mpsk_receiver_get_norm_freq) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Carrier frequency the receiver is tracking, cycles/sample at the input rate: the create-time centre plus the loop's own estimate._  |
 |  size\_t | [**dp\_mpsk\_receiver\_get\_num\_phases**](#function-dp_mpsk_receiver_get_num_phases) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Matched-filter bank arms in use — derived unless pinned (§8.1)._  |
+|  double | [**dp\_mpsk\_receiver\_get\_settle\_time**](#function-dp_mpsk_receiver_get_settle_time) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Symbols emitted before both loops have settled: where a steady-state measurement of the output may start._  |
 |  double | [**dp\_mpsk\_receiver\_get\_sps**](#function-dp_mpsk_receiver_get_sps) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Nominal samples per symbol at the receiver's input, as constructed;_ `timing_rate` _is the tracked value._ |
 |  void | [**dp\_mpsk\_receiver\_get\_state**](#function-dp_mpsk_receiver_get_state) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state, void \* blob) <br>_Serialize the receiver's running state into_ `blob` _._ |
 |  double | [**dp\_mpsk\_receiver\_get\_sync\_lock\_drop\_thresh**](#function-dp_mpsk_receiver_get_sync_lock_drop_thresh) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Timing DROP threshold on_ `sync.lock` _. Equal to the declare threshold when the timing loop carries no level hysteresis._ |
@@ -1279,6 +1280,61 @@ size_t dp_mpsk_receiver_get_num_phases (
 **Returns:**
 
 Number of polyphase arms in the cascade's terminal stage. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_receiver\_get\_settle\_time 
+
+_Symbols emitted before both loops have settled: where a steady-state measurement of the output may start._ 
+```C++
+double dp_mpsk_receiver_get_settle_time (
+    const dp_mpsk_receiver_state_t * state
+) 
+```
+
+
+
+The timing loop's [**dp\_ratesync\_loop\_settle\_time()**](ratesync__core_8h.md#function-dp_ratesync_loop_settle_time) plus the carrier loop's [**dp\_loop\_filter\_settle\_time()**](loop__filter__core_8h.md#function-dp_loop_filter_settle_time) at DP\_LOOP\_FILTER\_SETTLE\_EPS, each from its own bandwidth and the shared damping. They add because the loops are in cascade: the carrier discriminator reads the on-time strobe, so the carrier settles after the timing has. At the default damping that is `2.59 / bn_timing + 2.59 / bn_carrier` symbols.
+
+
+A design figure, known at construction, where [**dp\_mpsk\_receiver\_get\_lock\_time()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_get_lock_time) is an observation: `locked` declares on a statistic that crossed a threshold, which it does while the loops are still moving, so the first declaration comes well before this. It is the linear loops' figure, for a start inside each detector's range; a carrier offset's own transient is not counted.
+
+
+Example (Python): 
+> 
+> 
+> from doppler.track import MpskReceiver rx = MpskReceiver(m=2, sps=8, m\_out=4, bn\_carrier=0.01, 
+
+
+... bn\_timing=0.005) 
+> 
+> 
+> round(rx.settle\_time) 
+
+
+779
+
+
+
+
+**Parameters:**
+
+
+* `state` Receiver state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+Symbols, from the first one emitted; infinity when either bandwidth is 0. 
 
 
 

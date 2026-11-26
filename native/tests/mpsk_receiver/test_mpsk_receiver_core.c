@@ -322,6 +322,25 @@ main (void)
      construction. At sps = 8 with an inclusive bound the rule reaches its
      cap. */
   {
+    /* settle_time: the two loops' figures, each from its own bandwidth,
+       added. The bandwidths differ so that a getter reading one of them
+       twice, or dropping a term, is red; each was sabotaged so. */
+    dp_mpsk_receiver_state_t *st = dp_mpsk_receiver_create (
+        2, SPS, 4u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.005, 0.3, 0.0,
+        0, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
+    DP_CHECK (st != NULL);
+    if (st)
+      {
+        const double t = dp_loop_filter_settle_time (
+            0.005, 0.707, DP_LOOP_FILTER_SETTLE_EPS);
+        const double c = dp_loop_filter_settle_time (
+            0.01, 0.707, DP_LOOP_FILTER_SETTLE_EPS);
+        DP_CHECK (dp_mpsk_receiver_get_settle_time (st) == t + c);
+        DP_CHECK_NEAR (dp_mpsk_receiver_get_settle_time (st), 778.47, 0.01);
+        dp_mpsk_receiver_destroy (st);
+      }
+  }
+  {
     /* The loop filter's own domain, once per loop: the private check this
        replaced took an infinite bandwidth (doppler#2103). */
     DP_CHECK (dp_mpsk_receiver_create (4, SPS, 0u, MPSK_RX_PULSE_IANDD, 0.35,

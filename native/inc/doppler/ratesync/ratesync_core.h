@@ -347,6 +347,20 @@ extern "C"
    *  @param l  Must be non-NULL. */
   void dp_ratesync_loop_reset (ratesync_loop_t *l);
 
+  /** @brief Symbols the loop emits before its timing has settled.
+   *
+   *  dp_loop_filter_settle_time() of the loop's own `bn` and `zeta` at
+   *  DP_LOOP_FILTER_SETTLE_EPS: the timing error left from the start is
+   *  under 2% of it from that symbol on. An index into the symbols the loop
+   *  emits, so the outputs dropped while the cascade fills are not in it.
+   *  It follows dp_ratesync_loop_configure(). It is the linear loop's
+   *  figure: the detector's slope at lock is taken as 1 (what `ted_scale`
+   *  delivers for the bound pulse), and a clock offset's own transient is
+   *  not counted.
+   *  @param l  Must be non-NULL.
+   *  @return Symbols; infinity at `bn = 0`, a loop that does not steer. */
+  double dp_ratesync_loop_settle_time (const ratesync_loop_t *l);
+
   /** @brief Retune the loop; preserves the integrator (and so the lock).
    *
    *  A (@p bn, @p zeta) outside dp_loop_filter_params_ok() is refused:
@@ -876,6 +890,29 @@ extern "C"
    *  @param state  Must be non-NULL.
    *  @return bn: the create() value or the last one configure() accepted. */
   double dp_ratesync_get_bn (const dp_ratesync_state_t *state);
+  /** @brief Symbols emitted before the timing has settled: where a
+   *  steady-state measurement of the output may start.
+   *
+   *  The timing loop's own figure, dp_ratesync_loop_settle_time(): the time
+   *  the closed loop takes to bring a starting timing error under 2% of
+   *  itself, from the bandwidth and damping in use, 2.59 / bn symbols at
+   *  the default damping. It is known at construction and follows
+   *  configure(). `locked` says a statistic crossed a threshold, which
+   *  happens while the timing is still moving; this says when it has
+   *  stopped.
+   *
+   *  Example (Python):
+   *  >>> from doppler.track import RateSync
+   *  >>> rs = RateSync(sps=8.0, bn=0.01)
+   *  >>> round(rs.settle_time)
+   *  259
+   *  >>> rs.bn = 0.005
+   *  >>> round(rs.settle_time)
+   *  519
+   *
+   *  @param state  Must be non-NULL.
+   *  @return Symbols, from the first one emitted; infinity at `bn = 0`. */
+  double dp_ratesync_get_settle_time (const dp_ratesync_state_t *state);
   /** @brief Retune bn at the current zeta, through dp_ratesync_configure().
    *
    *  An out-of-domain value is refused and nothing changes, so

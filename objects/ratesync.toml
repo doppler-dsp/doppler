@@ -135,6 +135,10 @@ arg_type = "void"
 return_type = "void"
 
 [[ratesync.properties]]
+name = "settle_time"
+type = "double"
+
+[[ratesync.properties]]
 name = "bn"
 type = "double"
 writable = true

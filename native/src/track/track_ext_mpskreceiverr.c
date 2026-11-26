@@ -835,6 +835,17 @@ MpskReceiverR_getprop_lock_time (MpskReceiverRObject *self,
       (long long)dp_mpsk_receiver_get_lock_time (self->handle));
 }
 static PyObject *
+MpskReceiverR_getprop_settle_time (MpskReceiverRObject *self,
+                                   void                *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dp_mpsk_receiver_get_settle_time (self->handle));
+}
+static PyObject *
 MpskReceiverR_getprop_timing_rate (MpskReceiverRObject *self,
                                    void                *Py_UNUSED (closure))
 {
@@ -984,6 +995,10 @@ static PyGetSetDef MpskReceiverR_getset[] = {
     "re-acquire does not restamp it, because the question this answers is "
     "'how long did this receiver take to lock', not 'when did it last hold'. "
     "`reset()` clears it to -1.\n",
+    NULL },
+  { "settle_time", (getter)MpskReceiverR_getprop_settle_time, NULL,
+    "Symbols emitted before both loops have settled: where a steady-state "
+    "measurement of the output may start.\n",
     NULL },
   { "timing_rate", (getter)MpskReceiverR_getprop_timing_rate, NULL,
     "Smoothed tracked samples per symbol — departs from the nominal `sps` by "

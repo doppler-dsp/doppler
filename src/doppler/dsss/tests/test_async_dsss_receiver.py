@@ -751,3 +751,10 @@ def test_a_telemetry_attach_that_cannot_allocate_raises_memoryerror(
         "0",
         "True",
     ]
+
+
+def test_settle_time_is_the_demodulators():
+    # The demodulator's figure at the bandwidths the receiver builds it
+    # with (test_async_dsss_receiver_core.c), known before a sample is fed.
+    rx = _new_receiver(40.0)
+    assert rx.settle_time == pytest.approx(778.47, abs=0.01)

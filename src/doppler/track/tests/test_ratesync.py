@@ -394,3 +394,17 @@ def test_bad_bn_raises_and_keeps_the_running_value(bad: float) -> None:
     with pytest.raises(ValueError, match=r"\(bn, zeta\) is outside"):
         rs.configure(bad, 0.707)
     assert rs.bn == 0.01
+
+
+def test_settle_time_follows_the_bandwidth():
+    # The property reaches the binding: the C figure (2.59 / bn at damping
+    # 0.707, test_ratesync_core.c), read back, following a retune, and
+    # infinite for a loop that does not steer.
+    rs = RateSync(sps=8.0, bn=0.01)
+    assert rs.settle_time == pytest.approx(259.49, abs=0.01)
+    rs.bn = 0.005
+    assert rs.settle_time == pytest.approx(518.98, abs=0.01)
+    rs.bn = 0.0
+    assert np.isinf(rs.settle_time)
+    with pytest.raises(AttributeError):
+        rs.settle_time = 1.0

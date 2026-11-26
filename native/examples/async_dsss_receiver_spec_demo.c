@@ -45,7 +45,8 @@
  *   - every hand-off that locked pulled in within LOST_CONFIRM_S, so the
  *     release rule cut none short;
  *   - every draw locked before the Doppler's zero crossing;
- *   - the pooled BER is at most MAX_BER: the frames decode.
+ *   - the pooled BER over the settled windows is at most MAX_BER: the
+ *     frames decode.
  *
  * It prints the same lines as the Python twin; a pair test in
  * src/doppler/tests/test_c_example_pairs.py compares them.
@@ -110,8 +111,11 @@
    where it does. Symbol lock is a per-draw outcome on random noise, so one
    draw in four may miss. */
 #define MIN_LOCK_FRACTION (3.0 / 4.0)
-/* "Decoded": the pooled BER over the locked windows. */
+/* "Decoded": the pooled BER over the settled windows. */
 #define MAX_BER 1e-3
+/* The least a settled window holds: fewer than 1 / MAX_BER symbols and one
+   error alone is over the bound. */
+#define MIN_WINDOW_SYM ((size_t)(1.0 / MAX_BER + 0.5))
 #define LAG_SPAN 1000 /* symbols the stream may start into the payload */
 /* What "sustained" means for the symbol lock: ber_lock_symbol()'s defaults
    on the Python face. */
@@ -397,18 +401,17 @@ run_draw (const uint8_t *code, const uint8_t *payload, const struct regime *r,
   CHECK (!dp_wfm_synth_data_ended (cap.syn),
          "the payload ran out before the run ended");
 
-  /* Score it: the window starts where the symbol lock is sustained, and the
-     meter detects where the stream sits against the payload from a marker.
-     BER and EVM are scored on the same window. */
+  /* Score it: the window starts where the hand-off that locked has
+     settled, the receiver's own settle_time into its track, or where its
+     symbol lock is sustained if that is later. The lock
+     comes up while the timing is still pulling in, and the errors made
+     doing so are the pull-in's, not the decode's. The meter detects where
+     the stream sits against the payload from a marker. BER, EVM and M2M4
+     are scored on the same window. */
   struct draw d = { 0 };
   int64_t lo = dp_ber_lock_symbol (flags, n_sym, LOCK_SUSTAIN, LOCK_MIN_FRAC);
   if (lo >= 0)
     {
-      CHECK (dp_ber_meter_align (meter, syms, n_sym, marker_at ((size_t)lo), 0,
-                                 0, LAG_SPAN, 0.0),
-             "the payload marker was not detected in the locked stream");
-      dp_ber_meter_score (meter, syms, n_sym, (size_t)lo, n_sym);
-
       /* Pushes are the time base: the push that emitted symbol lo, the first
          push with the lock up, and the start of the track it came up on. */
       size_t sustained = 0;
@@ -426,11 +429,24 @@ run_draw (const uint8_t *code, const uint8_t *payload, const struct regime *r,
             && state[i] != ASYNC_DSSS_RX_TRACKING)
           d.released++;
 
+      /* The settled window, counted from the first symbol of that track. */
+      const size_t track_sym = track_start ? emitted[track_start - 1] : 0;
+      const size_t settle
+          = (size_t)ceil (dp_async_dsss_receiver_get_settle_time (rx));
+      const size_t settled = track_sym + settle;
+      const size_t start   = settled > (size_t)lo ? settled : (size_t)lo;
+      CHECK (start + MIN_WINDOW_SYM <= n_sym,
+             "the capture ends before a settled window");
+      CHECK (dp_ber_meter_align (meter, syms, n_sym, marker_at (start), 0, 0,
+                                 LAG_SPAN, 0.0),
+             "the payload marker was not detected in the settled stream");
+      dp_ber_meter_score (meter, syms, n_sym, start, n_sym);
+
       d.locked    = 1;
       d.pull_in_s = (double)(first_lock - track_start) * PUSH / FS;
       d.lock_s    = ((double)(sustained + 1) * PUSH - LEAD_IN) / FS;
-      d.evm_db    = dp_ber_evm_db (syms, n_sym, (size_t)lo, n_sym, m);
-      d.m2m4_db   = dp_snr_m2m4_db (syms + lo, n_sym - (size_t)lo);
+      d.evm_db    = dp_ber_evm_db (syms, n_sym, start, n_sym, m);
+      d.m2m4_db   = dp_snr_m2m4_db (syms + start, n_sym - start);
     }
 
   /* The receiver owns its internals; destroy() frees them. The buffers are

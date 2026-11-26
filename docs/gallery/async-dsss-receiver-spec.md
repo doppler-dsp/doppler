@@ -56,10 +56,10 @@ decoded:
     rule cut no good hand-off short.
 - Every draw locked before the Doppler's zero crossing, so the receiver holds
     the lock through it.
-- The pooled BER over the locked windows is at most `MAX_BER`.
+- The pooled BER over the settled windows is at most `MAX_BER`.
 
-It also reads the decode out three ways, on the window from the sustained
-symbol lock to the end of the capture:
+It also reads the decode out three ways, on the window from where the
+hand-off has settled to the end of the capture:
 
 - **BER** against the known payload, with [`ber.BerMeter`][doppler.ber.BerMeter].
     The meter detects where the symbol stream sits against the payload by
@@ -102,9 +102,13 @@ else is its default. After each push the script reads `status()` and
 --8<-- "src/doppler/examples/async_dsss_receiver_spec_demo.py:receiver"
 ```
 
-The checks run on those rows and symbols. The window starts where the symbol
-lock is sustained, by [`ber.ber_lock_symbol`][doppler.ber.ber_lock_symbol] over
-each symbol's lock flag, and BER and EVM are scored on the same window.
+The checks run on those rows and symbols. The symbol lock comes up while the
+demodulator's timing is still pulling in, so the window starts where the
+hand-off has settled: the receiver's own `settle_time` into the track (779
+symbols, from its demodulator's two loop bandwidths), or where
+the symbol lock is sustained, by
+[`ber.ber_lock_symbol`][doppler.ber.ber_lock_symbol] over each symbol's lock
+flag, if that is later. BER, EVM and M2M4 are scored on the same window.
 
 ```python
 --8<-- "src/doppler/examples/async_dsss_receiver_spec_demo.py:validate"
@@ -122,7 +126,7 @@ armed it is released after `lost_confirm_s` and searched again.
 ## What you're seeing
 
 1. **The constellation** (top left): one 2.2 GHz draw's symbols from the
-    sustained symbol lock on, with that window's EVM.
+    settled point on, with that window's EVM.
 1. **The live carrier** (top right): `status().doppler_hz` while tracking,
     against the Doppler the channel applied, through the zero crossing.
 1. **The time to symbol lock** (bottom left), for every draw at both carriers,

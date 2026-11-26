@@ -24,6 +24,7 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_timing_est[] = {
     (jm_any_fn)dp_timing_est_create,
+    (jm_any_fn)dp_timing_est_create_matched,
     (jm_any_fn)dp_timing_est_destroy,
     (jm_any_fn)dp_timing_est_reset,
     (jm_any_fn)dp_timing_est_state_bytes,

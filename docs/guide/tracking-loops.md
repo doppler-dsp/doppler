@@ -341,6 +341,23 @@ What to size it by, measured in its report
     passes noise 1% of the time, a signal at Es/N0 4 dB 93% of the
     time, and a stream with no transitions never in 9000 blocks.
 
+**With no matched filter of your own**, `MatchedSymbolTimingEstimator`
+carries one: give it the pulse and the input's samples a symbol (any real
+number from 4 up) and hand it the samples as they arrive. It decimates to
+4 samples a symbol through the same matched converter a timing loop on
+that pulse uses, skips that converter's own start, and estimates as
+above. Its `eye` is the sample index, among the samples you handed it, of
+the eye center nearest the block's middle, with the filter's delay taken
+out, so a second filter on the same samples can be set to it:
+
+```python
+--8<-- "src/doppler/examples/symbol_timing_estimator_demo.py:matched"
+```
+
+On a root-raised cosine of span 8 `eye` reads 0.005 to 0.009 symbols
+early
+([#3368](https://github.com/doppler-dsp/doppler/issues/3368)).
+
 From C, `native/examples/symbol_timing_estimator_demo.c` does the same
 with a rectangular pulse and checks the eye center it finds. Why the
 object has this shape, and what is still open about it, is on

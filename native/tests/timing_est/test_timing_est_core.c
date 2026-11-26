@@ -76,6 +76,7 @@ same (const dp_timing_estimate_t *a, const dp_timing_estimate_t *b)
          && memcmp (&a->quality, &b->quality, sizeof a->quality) == 0
          && memcmp (&a->power, &b->power, sizeof a->power) == 0
          && memcmp (&a->symbols, &b->symbols, sizeof a->symbols) == 0
+         && memcmp (&a->eye, &b->eye, sizeof a->eye) == 0
          && a->has_rate == b->has_rate;
 }
 
@@ -470,6 +471,276 @@ test_whole_sps_fold (void)
   DP_CHECK (worst[1] < 0.002);
 }
 
+/* ── §9 the matched flavor: its own filter, and the input's timeline ───── */
+
+/* Alternating symbols through a root-raised cosine are one tone at half
+   the symbol rate, for any roll-off: the next line of an alternating
+   stream is at three halves, past the pulse's band. So this is what a
+   root-raised-cosine transmitter sends for +1 -1 +1 ..., with a symbol
+   instant at input sample `n0` and every `sps` after it, written down
+   exactly and for any real `sps`. Matched-filtered it is the same tone,
+   and its power is A + A cos (2 pi (t - n0) / sps): the stimulus of this
+   file's other sections, with the eye center at `n0`. */
+static void
+make_alt (float _Complex *x, size_t n, double sps, double n0, double f_sym)
+{
+  for (size_t i = 0; i < n; i++)
+    {
+      double v = 0.25 * cos (M_PI * ((double)i - n0) / sps);
+      /* a carrier offset of f_sym cycles a symbol */
+      double a = 2.0 * M_PI * f_sym * (double)i / sps;
+      x[i]     = CMPLXF ((float)(v * cos (a)), (float)(v * sin (a)));
+    }
+}
+
+/* The same, held: +1 -1 +1 ... as a rectangle, symbol j over the samples
+   n0 + j sps .. n0 + (j + 1) sps - 1, so its center is (sps - 1) / 2
+   samples after n0. Whole sps only. */
+static void
+make_alt_rect (float _Complex *x, size_t n, size_t sps, size_t n0)
+{
+  for (size_t i = 0; i < n; i++)
+    {
+      size_t j = (i + 2 * sps * 64 - n0) / sps;
+      x[i]     = CMPLXF ((j & 1u) ? -0.25f : 0.25f, 0.0f);
+    }
+}
+
+static int
+test_matched (void)
+{
+  /* refusals: the terminal stage does not interpolate, and the converter's
+     own domain */
+  DP_CHECK (dp_timing_est_create_matched (3.9, RC_PULSE_RRC, 0.35, 8) == NULL);
+  DP_CHECK (dp_timing_est_create_matched (NAN, RC_PULSE_RRC, 0.35, 8) == NULL);
+  DP_CHECK (dp_timing_est_create_matched (INFINITY, RC_PULSE_RRC, 0.35, 8)
+            == NULL);
+  DP_CHECK (dp_timing_est_create_matched (8.0, 7, 0.35, 8) == NULL);
+  DP_CHECK (dp_timing_est_create_matched (8.0, RC_PULSE_RRC, 1.5, 8) == NULL);
+  DP_CHECK (dp_timing_est_create_matched (8.0, RC_PULSE_RRC, 0.35, 0) == NULL);
+
+  /* The eye, on the input's timeline, at whole and fractional sps, behind
+     every kind of plan (one stage, halfbands, a CIC with its compensator
+     folded in), with a carrier offset of 0.02 cycles a symbol on the
+     root-raised-cosine rows.
+       What the eye is held to is computed, a row at a time. The block's
+     leak (the constant and the line's image, as in §2: here A = B and the
+     clock runs at 4). For the root-raised cosine, how far the bank's
+     low-frequency delay, which is what `eye` takes out, sits from its
+     pulse's center, which is where the eye is: the bank's arms truncate
+     the pulse's tails unevenly, 0.005 to 0.009 symbols at span 8
+     (doppler#3368). For the rectangle, the sampling-phase bias the header
+     states for a whole number of samples a symbol, 0.011 symbols.
+       Sabotages, each shown red: the group delay left out of `eye` ->
+     all twelve rows; the lead-in left out of it -> the eight rows whose
+     lead-in is not a whole number of symbols; `eye` left in the clock's
+     samples -> the nine rows off 4 samples a symbol whose eye is not at
+     input 0 modulo a symbol; the lead-in not skipped -> the same eight
+     rows, and the lead-in checks below. */
+  static const struct
+  {
+    double sps, n0;
+    int    pulse;
+  } rows[] = {
+    { 4.0, 1.25, RC_PULSE_RRC },    { 5.0, 3.5, RC_PULSE_RRC },
+    { 8.0, 2.0, RC_PULSE_RRC },     { 8.0, 6.75, RC_PULSE_RRC },
+    { 17.333, 11.1, RC_PULSE_RRC }, { 32.0, 20.0, RC_PULSE_RRC },
+    { 64.0, 5.5, RC_PULSE_RRC },    { 67.3, 40.0, RC_PULSE_RRC },
+    { 4.0, 1.0, RC_PULSE_IANDD },   { 8.0, 5.0, RC_PULSE_IANDD },
+    { 16.0, 3.0, RC_PULSE_IANDD },  { 64.0, 50.0, RC_PULSE_IANDD },
+  };
+  enum
+  {
+    L = 256
+  };
+  /* A = B on a clock of 4: geo = 1 / sin (pi / 4), img = 1 / sin (pi / 2) */
+  const double leak4
+      = (1.0 / sin (M_PI / 4.0) + 0.5) / (0.5 * 4.0 * L) / (2.0 * M_PI) + 1e-6;
+  for (size_t r = 0; r < sizeof rows / sizeof *rows; r++)
+    {
+      const double           sps = rows[r].sps;
+      dp_timing_est_state_t *s
+          = dp_timing_est_create_matched (sps, rows[r].pulse, 0.35, 8);
+      DP_REQUIRE (s != NULL);
+      DP_CHECK (s->lead > 0 && s->delay > 0.0 && s->sps == sps);
+      const size_t n
+          = (size_t)(((double)s->lead + 4.0 * L + 2.0) * sps / 4.0) + 8;
+      float _Complex *x = malloc (n * sizeof *x);
+      DP_REQUIRE (x != NULL);
+      double want, tol;
+      if (rows[r].pulse == RC_PULSE_RRC)
+        {
+          make_alt (x, n, sps, rows[r].n0, 0.02);
+          want = rows[r].n0;
+          /* the pulse's center in the bank: its span, and the folded
+             droop compensator's own center when the plan has a CIC */
+          double center
+              = 8.0 * s->mf->bank_sps
+                + (s->mf->stage_types[0] == RC_STAGE_CIC ? 3.0 : 0.0);
+          tol = leak4 + fabs (s->mf->bank_delay - center) / s->mf->bank_sps
+                + 1e-3;
+        }
+      else
+        {
+          make_alt_rect (x, n, (size_t)sps, (size_t)rows[r].n0);
+          want = rows[r].n0 + 0.5 * (sps - 1.0);
+          tol  = leak4 + 0.011;
+        }
+      dp_timing_estimate_t e    = dp_timing_est_estimate (s, x, n);
+      double               miss = wrap ((e.eye - want) / sps); /* symbols */
+      printf ("  matched sps %.3f pulse %d: lead %llu, delay %.3f, %.0f "
+              "symbols, quality %.3f, eye off by %+.5f of %.5f symbols\n",
+              sps, rows[r].pulse, (unsigned long long)s->lead, s->delay,
+              e.symbols, e.quality, miss, tol);
+      DP_CHECK (e.symbols >= (double)L);
+      DP_CHECK (e.quality > 0.4);
+      DP_CHECK (fabs (miss) <= tol);
+      /* the eye it names is the one nearest the block's middle */
+      double mid_in
+          = ((double)s->lead + 0.5 * 4.0 * e.symbols) * sps / 4.0 - s->delay;
+      DP_CHECK (fabs (e.eye - mid_in) <= 0.5 * sps + 1e-6);
+      free (x);
+      dp_timing_est_destroy (s);
+    }
+
+  /* The lead-in is the object's: a block that ends inside it gave nothing,
+     and the block after it is counted from the first output past it.
+     Sabotage: the lead-in not skipped -> the first block has symbols. */
+  {
+    dp_timing_est_state_t *s
+        = dp_timing_est_create_matched (8.0, RC_PULSE_RRC, 0.35, 8);
+    DP_REQUIRE (s != NULL);
+    enum
+    {
+      N = 4096
+    };
+    static float _Complex x[N];
+    make_alt (x, N, 8.0, 3.0, 0.0);
+    const size_t         in_lead = (size_t)(s->lead - 1) * 2; /* rate 1/2 */
+    dp_timing_estimate_t e0      = dp_timing_est_estimate (s, x, in_lead);
+    DP_CHECK (e0.symbols == 0.0 && e0.power == 0.0 && e0.quality == 0.0);
+    DP_CHECK (s->lead_left > 0 && s->count == 0);
+    dp_timing_estimate_t e1
+        = dp_timing_est_estimate (s, x + in_lead, N - in_lead);
+    DP_CHECK (s->lead_left == 0);
+    DP_CHECK (e1.symbols == (double)((N / 2) - s->lead) / 4.0);
+    DP_CHECK (fabs (wrap ((e1.eye - 3.0) / 8.0)) < 0.011);
+
+    /* reset is create's state: the same stream gives the same records.
+       Sabotage: the lead-in not re-armed -> the first record. */
+    dp_timing_est_reset (s);
+    dp_timing_estimate_t r0 = dp_timing_est_estimate (s, x, in_lead);
+    dp_timing_estimate_t r1
+        = dp_timing_est_estimate (s, x + in_lead, N - in_lead);
+    DP_CHECK (same (&e0, &r0) && same (&e1, &r1));
+
+    /* The converter is reset with it. The lead-in outlasts the
+       converter's memory, so what a stale delay line holds never reaches
+       a record; what does is the terminal stage's phase, which at 5
+       samples a symbol (rate 0.8) is left off zero by a stream whose
+       length is not a multiple of 5. Sabotage: the converter not reset. */
+    dp_timing_est_state_t *s5
+        = dp_timing_est_create_matched (5.0, RC_PULSE_RRC, 0.35, 8);
+    DP_REQUIRE (s5 != NULL);
+    make_alt (x, N, 5.0, 2.0, 0.0);
+    dp_timing_estimate_t f5 = dp_timing_est_estimate (s5, x, 2001);
+    dp_timing_est_reset (s5);
+    dp_timing_estimate_t g5 = dp_timing_est_estimate (s5, x, 2001);
+    DP_CHECK (f5.symbols > 100.0 && same (&f5, &g5));
+    dp_timing_est_destroy (s5);
+    make_alt (x, N, 8.0, 3.0, 0.0);
+
+    /* The state resumes bit for bit from inside the lead-in and from
+       inside a block, and the converter is in it. Sabotage: the
+       converter's sub-blob not written -> both splits. */
+    static const size_t splits[2] = { 40, 1500 };
+    for (size_t c = 0; c < 2; c++)
+      {
+        dp_timing_est_state_t *a
+            = dp_timing_est_create_matched (8.0, RC_PULSE_RRC, 0.35, 8);
+        dp_timing_est_state_t *b
+            = dp_timing_est_create_matched (8.0, RC_PULSE_RRC, 0.35, 8);
+        DP_REQUIRE (a != NULL && b != NULL);
+        dp_timing_estimate_t whole = dp_timing_est_estimate (a, x, N);
+        dp_timing_est_reset (a);
+        /* a block left open across the hand-off: feed without finishing */
+        dp_timing_estimate_t part = dp_timing_est_estimate (a, x, splits[c]);
+        (void)part;
+        const size_t nb   = dp_timing_est_state_bytes (a);
+        uint8_t     *blob = malloc (nb);
+        DP_REQUIRE (blob != NULL);
+        DP_CHECK (nb > dp_RateConverter_state_bytes (a->mf));
+        dp_timing_est_get_state (a, blob);
+        (void)dp_timing_est_estimate (b, x, 777); /* b somewhere else */
+        DP_CHECK (dp_timing_est_set_state (b, blob) == DP_OK);
+        dp_timing_estimate_t ra
+            = dp_timing_est_estimate (a, x + splits[c], N - splits[c]);
+        dp_timing_estimate_t rb
+            = dp_timing_est_estimate (b, x + splits[c], N - splits[c]);
+        DP_CHECK (same (&ra, &rb));
+        DP_CHECK (ra.symbols > 0.0);
+        (void)whole;
+        /* a refused converter leaves the object as it was: clobber the
+           child's envelope, which starts right after this object's own
+           fields */
+        uint8_t      before[512];
+        const size_t own = nb - dp_RateConverter_state_bytes (b->mf);
+        dp_timing_est_get_state (b, blob);
+        uint8_t *keep = malloc (nb);
+        DP_REQUIRE (keep != NULL);
+        memcpy (keep, blob, nb);
+        (void)dp_timing_est_estimate (a, x, 333); /* a moves on */
+        dp_timing_est_get_state (a, blob);
+        blob[own] ^= 0xFFu;
+        DP_CHECK (dp_timing_est_set_state (b, blob) == DP_ERR_INVALID);
+        dp_timing_est_get_state (b, blob);
+        DP_CHECK (memcmp (blob, keep, nb) == 0);
+        /* a plain blob is not a matched one's, and the reverse */
+        dp_timing_est_state_t *p = dp_timing_est_create (4.0);
+        DP_REQUIRE (p != NULL);
+        DP_CHECK (dp_timing_est_state_bytes (p) < sizeof before);
+        dp_timing_est_get_state (p, before);
+        DP_CHECK (dp_timing_est_set_state (b, before) == DP_ERR_INVALID);
+        DP_CHECK (dp_timing_est_set_state (p, keep) == DP_ERR_INVALID);
+        dp_timing_est_destroy (p);
+        free (keep);
+        free (blob);
+        dp_timing_est_destroy (a);
+        dp_timing_est_destroy (b);
+      }
+    dp_timing_est_destroy (s);
+  }
+  return 0;
+}
+
+/* ── §10 tau stays in (-1/2, 1/2], at the edge too ─────────────────────── */
+/* Powers 0 1 0 1 on a clock of 4 put the coefficient on the negative real
+   axis with an imaginary part of exactly +0 (the two samples' sines are +1
+   and -1 and cancel), where atan2 returns +pi and -atan2 / 2 pi is -1/2:
+   outside the interval the header states, and a `prev_tau` the object's
+   own dp_timing_est_set_state() refuses. The estimate there is +1/2, and
+   the blob that carries it restores. Sabotage: the fold removed -> tau
+   reads -0.5 and the object refuses its own blob. */
+static void
+test_tau_edge (void)
+{
+  dp_timing_est_state_t *s = dp_timing_est_create (4.0);
+  DP_CHECK (s != NULL);
+  if (!s)
+    return;
+  static const double p[4] = { 0.0, 1.0, 0.0, 1.0 };
+  for (int k = 0; k < 64; k++)
+    dp_timing_est_accumulate (s, p[k & 3]);
+  DP_CHECK (s->c_im == 0.0 && s->c_re < 0.0); /* the stimulus is the edge */
+  dp_timing_estimate_t e = dp_timing_est_finish (s);
+  DP_CHECK (e.tau == 0.5);
+  uint8_t blob[256];
+  DP_CHECK (dp_timing_est_state_bytes (s) <= sizeof blob);
+  dp_timing_est_get_state (s, blob);
+  DP_CHECK (dp_timing_est_set_state (s, blob) == DP_OK);
+  dp_timing_est_destroy (s);
+}
+
 int
 main (void)
 {
@@ -481,5 +752,7 @@ main (void)
   test_reset ();
   test_state ();
   test_whole_sps_fold ();
+  DP_CHECK (test_matched () == 0);
+  test_tau_edge ();
   DP_TEST_END ("test_timing_est_core");
 }

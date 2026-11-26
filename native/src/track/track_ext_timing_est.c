@@ -86,6 +86,13 @@ static PyStructSequence_Field SymbolTimingEstimatorObj_estimate_fields[] = {
   { "symbols", "The block's length in symbols of the clock: samples / sps." },
   { "has_rate",
     "1 when a previous block exists to take `rate` against, else 0." },
+  { "eye",
+    "Where an eye center sits on the INPUT's timeline: the sample index, "
+    "counted from create or reset and not whole, of the eye center nearest "
+    "the block's middle. Other eye centers are whole symbols (`sps` samples) "
+    "either side. On a matched instance the converter's group delay and the "
+    "lead-in it skipped are taken out, so the index is into the samples the "
+    "estimate was handed. 0 when the block has no power." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc SymbolTimingEstimatorObj_estimate_desc
@@ -93,7 +100,7 @@ static PyStructSequence_Desc SymbolTimingEstimatorObj_estimate_desc
         "One feedforward symbol-timing estimate: the eye center's place on "
         "the estimator's symbol clock, the symbol rate's error against the "
         "previous block, and how strong the symbol-rate line was.",
-        SymbolTimingEstimatorObj_estimate_fields, 6 };
+        SymbolTimingEstimatorObj_estimate_fields, 7 };
 static PyTypeObject *SymbolTimingEstimatorObj_estimate_type = NULL;
 
 static PyObject *
@@ -152,6 +159,7 @@ SymbolTimingEstimatorObj_estimate (SymbolTimingEstimatorObject *self,
   PyStructSequence_SET_ITEM (_o, 3, PyFloat_FromDouble (_r.power));
   PyStructSequence_SET_ITEM (_o, 4, PyFloat_FromDouble (_r.symbols));
   PyStructSequence_SET_ITEM (_o, 5, PyLong_FromLong ((long)_r.has_rate));
+  PyStructSequence_SET_ITEM (_o, 6, PyFloat_FromDouble (_r.eye));
   return _o;
 }
 
@@ -243,7 +251,7 @@ SymbolTimingEstimator_getprop_sps (SymbolTimingEstimatorObject *self,
 
 static PyGetSetDef SymbolTimingEstimator_getset[]
     = { { "sps", (getter)SymbolTimingEstimator_getprop_sps, NULL,
-          "Samples per symbol the estimator's symbol clock runs at.\n", NULL },
+          "Samples per symbol of the stream handed to estimate.\n", NULL },
         { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
@@ -299,13 +307,14 @@ static PyMethodDef SymbolTimingEstimatorObj_methods[] = {
 
   { "estimate", (PyCFunction)SymbolTimingEstimatorObj_estimate, METH_VARARGS,
     "estimate(x) -> TimingEstimate record (tau, rate, quality, power, "
-    "symbols, has_rate)\n"
+    "symbols, has_rate, eye)\n"
     "\n"
-    "Estimate the symbol timing from one block of matched-filtered samples; "
-    "returns a TimingEstimate. The block is the whole call, so its length "
-    "sets the estimate's variance; consecutive calls stay on one symbol "
-    "clock, and from the second call on the result also carries the symbol "
-    "rate's error.\n"
+    "Estimate the symbol timing from one block of samples (matched-filtered "
+    "for SymbolTimingEstimator, as they arrive for "
+    "MatchedSymbolTimingEstimator); returns a TimingEstimate. The block is "
+    "the whole call, so its length sets the estimate's variance; consecutive "
+    "calls stay on one symbol clock, and from the second call on the result "
+    "also carries the symbol rate's error.\n"
     "\n"
     "The block is the whole call: its length sets the estimate's variance\n"
     "and the time the estimate takes. Consecutive calls stay on one symbol\n"

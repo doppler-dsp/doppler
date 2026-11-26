@@ -3,8 +3,9 @@
  *
  * Objects: LoopFilter, StateFilter, KalmanStateFilter, Costas, Dll,
  * SymbolSync, RateSync, CarrierMpsk, CarrierNda, MpskReceiver,
- * SymbolTimingEstimator, BpskReceiver, MpskReceiverR GENERATED — do not
- * hand-edit. Patches belong in the _ext_<obj>.c fragments.
+ * SymbolTimingEstimator, BpskReceiver, MpskReceiverR,
+ * MatchedSymbolTimingEstimator GENERATED — do not hand-edit. Patches belong in
+ * the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -195,6 +196,7 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 #include "track_ext_costas.c"
 #include "track_ext_dll.c"
 #include "track_ext_loop_filter.c"
+#include "track_ext_matchedsymboltimingestimator.c"
 #include "track_ext_mpsk_receiver.c"
 #include "track_ext_mpskreceiverr.c"
 #include "track_ext_ratesync.c"
@@ -262,6 +264,11 @@ PyInit_track (void)
     return NULL;
   if (PyType_Ready (&MpskReceiverRObjType) < 0)
     return NULL;
+  if (PyType_Ready (&MatchedSymbolTimingEstimatorObjType) < 0)
+    return NULL;
+  MatchedSymbolTimingEstimatorObj_estimate_type
+      = SymbolTimingEstimatorObj_estimate_type; /* TimingEstimate: one public
+                                                   name, one type */
   PyObject *m = PyModule_Create (&track_moduledef);
   if (!m)
     return NULL;
@@ -371,6 +378,15 @@ PyInit_track (void)
       < 0)
     {
       Py_DECREF (&MpskReceiverRObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&MatchedSymbolTimingEstimatorObjType);
+  if (PyModule_AddObject (m, "MatchedSymbolTimingEstimator",
+                          (PyObject *)&MatchedSymbolTimingEstimatorObjType)
+      < 0)
+    {
+      Py_DECREF (&MatchedSymbolTimingEstimatorObjType);
       Py_DECREF (m);
       return NULL;
     }

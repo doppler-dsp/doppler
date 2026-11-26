@@ -12,13 +12,32 @@ add_library(timing_est_core OBJECT timing_est_core.c)
 target_include_directories(
   timing_est_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                          ${CMAKE_SOURCE_DIR}/native/inc/doppler/timing_est)
+target_link_libraries(timing_est_core PUBLIC
+    RateConverter_core
+    resamp_core
+    hbdecim_core
+    cic_core
+    fir_core
+    resample_core
+    agc_core
+    dp_tlm_core
+    nco_core)
 
 # The C unit test; `ctest` runs it.
 add_executable(test_timing_est_core
                ${CMAKE_SOURCE_DIR}/native/tests/timing_est/test_timing_est_core.c
                ${CMAKE_SOURCE_DIR}/native/tests/timing_est/test_timing_est_symbols.c)
 target_link_libraries(test_timing_est_core
-                      PRIVATE timing_est_core ${JM_MATH_LIBRARY})
+                      PRIVATE timing_est_core RateConverter_core
+    resamp_core
+    hbdecim_core
+    cic_core
+    fir_core
+    resample_core
+    agc_core
+    dp_tlm_core
+    nco_core
+    ${JM_MATH_LIBRARY})
 target_include_directories(test_timing_est_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
@@ -29,7 +48,16 @@ add_executable(
   bench_timing_est_core
   ${CMAKE_SOURCE_DIR}/native/benchmarks/timing_est/bench_timing_est_core.c)
 target_link_libraries(bench_timing_est_core
-                      PRIVATE timing_est_core ${JM_MATH_LIBRARY})
+                      PRIVATE timing_est_core RateConverter_core
+    resamp_core
+    hbdecim_core
+    cic_core
+    fir_core
+    resample_core
+    agc_core
+    dp_tlm_core
+    nco_core
+    ${JM_MATH_LIBRARY})
 target_include_directories(
   bench_timing_est_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)

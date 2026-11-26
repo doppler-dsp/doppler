@@ -9,7 +9,11 @@ triplet and the context-manager lifecycle.
 import numpy as np
 import pytest
 
-from doppler.track import SymbolTimingEstimator, TimingEstimate
+from doppler.track import (
+    MatchedSymbolTimingEstimator,
+    SymbolTimingEstimator,
+    TimingEstimate,
+)
 
 SPS = 4.3
 N = 1100
@@ -104,3 +108,88 @@ def test_context_manager_and_destroy():
         assert te.sps == 4.0
     obj = SymbolTimingEstimator()
     obj.destroy()
+
+
+# -- the matched flavor: its own filter, and the input's timeline ----------
+#
+# Alternating symbols through a root-raised cosine are one tone at half the
+# symbol rate, so the stream below is what such a transmitter sends, with a
+# symbol instant at sample ``n0`` and every ``sps`` after it. The C test
+# (test_timing_est_core.c, section 9) holds the eye to a computed bound on
+# every kind of plan; these check that the binding reaches the same object.
+
+
+def alternating(sps, n0, n=4096):
+    i = np.arange(n)
+    return (0.25 * np.cos(np.pi * (i - n0) / sps)).astype(np.complex64)
+
+
+@pytest.mark.parametrize(
+    "sps,n0", [(4.0, 1.25), (8.0, 3.0), (17.333, 11.1), (64.0, 5.5)]
+)
+def test_matched_names_the_eye_on_the_input_timeline(sps, n0):
+    te = MatchedSymbolTimingEstimator(sps=sps, pulse="rrc")
+    e = te.estimate(alternating(sps, n0, n=int(600 * sps)))
+    assert isinstance(e, TimingEstimate)
+    miss = (e.eye - n0) / sps
+    miss -= round(miss)
+    # 0.013 symbols: the C test's largest computed bound over its rows
+    assert abs(miss) < 0.013
+    assert e.quality > 0.4
+    assert te.sps == sps
+
+
+def test_plain_eye_is_tau_on_the_input_timeline():
+    e = SymbolTimingEstimator(sps=SPS).estimate(stream(0.3))
+    miss = e.eye / SPS - e.tau
+    assert abs(miss - round(miss)) < 1e-9
+    assert abs(e.eye - 0.5 * N) <= 0.5 * SPS  # the one nearest the middle
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"sps": 3.9},
+        {"sps": float("nan")},
+        {"sps": 8.0, "beta": 1.5},
+        {"sps": 8.0, "span": 0},
+    ],
+)
+def test_matched_refuses_what_its_converter_cannot_build(kw):
+    with pytest.raises(ValueError, match="MatchedSymbolTimingEstimator"):
+        MatchedSymbolTimingEstimator(**kw)
+
+
+def test_matched_refuses_an_unknown_pulse():
+    with pytest.raises((ValueError, TypeError)):
+        MatchedSymbolTimingEstimator(sps=8.0, pulse="gaussian")
+
+
+def test_matched_skips_its_own_start():
+    te = MatchedSymbolTimingEstimator(sps=8.0, pulse="rrc")
+    x = alternating(8.0, 3.0)
+    first = te.estimate(x[:64])  # inside the converter's start
+    assert (first.symbols, first.power, first.quality) == (0.0, 0.0, 0.0)
+    rest = te.estimate(x[64:])
+    assert 0.0 < rest.symbols < (len(x) - 64) / 8.0
+
+
+def test_matched_state_resumes_and_reset_restarts():
+    x = alternating(5.0, 2.0)
+    a = MatchedSymbolTimingEstimator(sps=5.0, pulse="rrc")
+    b = MatchedSymbolTimingEstimator(sps=5.0, pulse="rrc")
+    a.estimate(x[:1501])
+    blob = a.get_state()
+    assert len(blob) == a.state_bytes()
+    b.estimate(x[:777])
+    b.set_state(blob)
+    ea, eb = a.estimate(x[1501:]), b.estimate(x[1501:])
+    assert tuple(ea) == tuple(eb)
+    # a plain estimator's blob is another object's
+    with pytest.raises(ValueError):
+        b.set_state(SymbolTimingEstimator(sps=4.0).get_state())
+    first = MatchedSymbolTimingEstimator(sps=5.0, pulse="rrc").estimate(
+        x[:2001]
+    )
+    a.reset()
+    assert tuple(a.estimate(x[:2001])) == tuple(first)

@@ -219,13 +219,18 @@ Rayleigh mean computed from the filter's response, 0.0277 at 512 samples
 there, and measured 0.02776.
 
 A threshold on it at a stated false-alarm probability says "there is a
-timing here". It is bracketed, not derived: the Rayleigh threshold gives
-1.03 to 1.22 of the target, and the threshold that also averages over the
-spread of the block's power gives 0.68 to 1.0 of it, because `|c|` and
-the power rise and fall together. The second is the conservative one. At
-it, for a false-alarm probability of 0.01, the rectangle is detected 0.63
-of the time from 128 symbols at Es/N0 0 dB, 0.92 at 4 dB and over 0.99
-from 8 dB, which is the normal form from §4.1's constants within its
+timing here". The Rayleigh threshold alone gives 1.03 to 1.22 of the
+target. The threshold is derived one order past it: `c` and the block's
+power are both quadratic forms in the filtered noise, so their joint
+cumulants are traces of the noise's covariance and the clock's phasors,
+and those give the second moment of `quality` and the excess of its
+fourth, hence the tail `exp(-t) (1 + (excess / 2) (t^2 / 2 - t))`. For
+independent samples that is the known exact result to this order. It
+gives 0.98 to 1.12 of the target, furthest where its last term is
+largest (the root-raised cosine from 128 symbols, and a target of
+0.001). At it, for a false-alarm probability of 0.01, the rectangle is
+detected 0.66 of the time from 128 symbols at Es/N0 0 dB, 0.93 at 4 dB
+and over 0.99 from 8 dB, which is the normal form from §4.1's constants within its
 interval; a stream with no transitions has no line and is refused.
 
 ## 5. What it composes
@@ -253,15 +258,25 @@ Settled, each in the report's section 2:
 - **The cost of a Doppler rate** (§4.3).
 - **No transitions**: `quality` reads the noise's, and a threshold
     refuses the block (§4.4).
+- **The false-alarm threshold**: derived, to the size of its expansion's
+    last term (§4.4).
+- **The rectangle behind the converter's whole decimations** (to 4
+    samples a symbol from 8, 16, 32 and 64): the constants are §4.1's to
+    within a tenth, and the sampling-phase bias falls from 0.011 symbols
+    to 0.002 to 0.003, because the stages ahead of the bank band-limit
+    the rectangle.
 
 Open, both in
 [#3367](https://github.com/doppler-dsp/doppler/issues/3367):
 
-- **The rectangle through each planned cascade.** The report has one
-    front end, and §4.1 says the cascade's own response decides the
-    numbers at a whole `N`.
-- **The exact false-alarm threshold**, which needs the joint behavior of
-    `|c|` and the block's power.
+- **Behind a decimation that is not whole** (17.333 input samples a
+    symbol to 4) the estimate is measured and not predicted: the mean
+    error runs -0.012 to +0.012 symbols across starting offsets, as
+    large as with no cascade, and how much of that is the estimator's is
+    not separated from the truth's.
+- **Through `doppler_channel` the validator's prediction is good to 2%
+    in line energy and 1% in rate** on the rectangle at a whole `N`, and
+    why it is not better is not known.
 
 ## 7. What the characterization measures
 

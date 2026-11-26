@@ -23,9 +23,10 @@ Run:  python -m doppler.examples.async_dsss_receiver_spec_demo  [out.png]
 
 from __future__ import annotations
 
+# --8<-- [start:signal]
+import math
 import sys
 
-# --8<-- [start:signal]
 import numpy as np
 
 from doppler.examples._extra import require
@@ -186,7 +187,7 @@ ROW = np.dtype(
 
 
 # --8<-- [start:receiver]
-def receive(regime: tuple, seed: int) -> tuple[np.ndarray, np.ndarray]:
+def receive(regime: tuple, seed: int) -> tuple[np.ndarray, np.ndarray, int]:
     """Stream one capture through the receiver, one push at a time, and read
     the receiver after each push.
 
@@ -211,6 +212,9 @@ def receive(regime: tuple, seed: int) -> tuple[np.ndarray, np.ndarray]:
         Every symbol ``steps()`` emitted, in order.
     rows : NDArray
         One :data:`ROW` per push.
+    settle : int
+        The receiver's ``settle_time``: the symbols a track emits before
+        its demodulator's loops have settled.
     """
     fc, chip = regime[0], regime[1]
     rx = AsyncDsssReceiver(
@@ -244,7 +248,11 @@ def receive(regime: tuple, seed: int) -> tuple[np.ndarray, np.ndarray]:
     # The synth sends the payload once, then silence: had it run dry, the
     # end of the capture would be no signal at all.
     assert cap.last_power > 0.5, "the payload ran out before the run ended"
-    return np.concatenate(symbols).astype(np.complex64), np.array(rows, ROW)
+    return (
+        np.concatenate(symbols).astype(np.complex64),
+        np.array(rows, ROW),
+        math.ceil(rx.settle_time),
+    )
 
 
 # --8<-- [end:receiver]
@@ -256,10 +264,14 @@ def receive(regime: tuple, seed: int) -> tuple[np.ndarray, np.ndarray]:
 #: (docs/design/async-dsss-receiver-measurements.md). Symbol lock is a
 #: per-draw outcome on random noise, so one draw in four may miss.
 MIN_LOCK_FRACTION = 3 / 4
-#: "Decoded": the pooled BER over the locked windows. A carrier here measures
-#: at most a few errors in about 28,000 bits; the bound passes that with room
-#: and fails a stream that is not decoding (BER near 0.5).
+#: "Decoded": the pooled BER over the settled windows. The bound passes the
+#: few errors a carrier measures there with room, and fails a stream that is
+#: not decoding (BER near 0.5).
 MAX_BER = 1e-3
+#: The least a settled window holds: fewer than 1 / MAX_BER symbols and one
+#: error alone is over the bound. A draw that locked that late in its
+#: capture fails here.
+MIN_WINDOW_SYM = round(1 / MAX_BER)
 LAG_SPAN = 1000  # symbols the stream may start into the payload
 
 
@@ -274,14 +286,21 @@ def marker_at(lo: int) -> int:
     return t0
 
 
-def score(meter: BerMeter, symbols: np.ndarray, rows: np.ndarray) -> dict:
+def score(
+    meter: BerMeter, symbols: np.ndarray, rows: np.ndarray, settle: int
+) -> dict:
     """Score one draw, adding its errors to ``meter``.
 
-    The measurement window starts where the symbol lock is sustained
-    (:func:`~doppler.ber.ber_lock_symbol` over the per-symbol flag). The
-    receiver emits nothing while it searches and refines, so the stream starts
-    some way into the payload; the meter detects that offset from a marker,
-    :func:`marker_at`. BER and EVM are scored on the same window.
+    The measurement window starts where the hand-off that locked has
+    settled: ``settle`` symbols into its track, the receiver's own
+    ``settle_time``, or where its symbol lock is sustained
+    (:func:`~doppler.ber.ber_lock_symbol` over the per-symbol flag) if that
+    is later. The lock comes up while the
+    demodulator's timing is still pulling in, and the errors it makes doing
+    so are the pull-in's, not the decode's. The receiver emits nothing while
+    it searches and refines, so the stream starts some way into the payload;
+    the meter detects that offset from a marker, :func:`marker_at`. BER, EVM
+    and M2M4 are scored on the same window.
 
     Returns, for a draw that locked: how many hand-offs were released before
     the one that locked; that hand-off's pull-in, from the start of tracking to
@@ -293,24 +312,32 @@ def score(meter: BerMeter, symbols: np.ndarray, rows: np.ndarray) -> dict:
     lo = ber_lock_symbol(flags)
     if lo < 0:
         return {"locked": False}
-    assert meter.align(symbols, t0=marker_at(lo), lag_span=LAG_SPAN), (
-        "the payload marker was not detected in the locked stream"
-    )
-    meter.score(symbols, lo=lo, hi=len(symbols))
-
     # Pushes are the time base: the push that emitted symbol `lo`, the first
     # push with the lock up, and the start of the track it came up on.
-    sustained = np.searchsorted(np.cumsum(rows["symbols"]), lo, side="right")
+    emitted = np.cumsum(rows["symbols"])
+    sustained = np.searchsorted(emitted, lo, side="right")
     first_lock = int(np.argmax(rows["locked"]))
     tracking = rows["state"][: first_lock + 1] == "tracking"
     track_start = int(np.flatnonzero(~tracking)[-1]) + 1
+
+    # The settled window, counted from the first symbol of that track.
+    track_sym = int(emitted[track_start - 1])
+    start = max(track_sym + settle, lo)
+    assert len(symbols) - start >= MIN_WINDOW_SYM, (
+        f"{len(symbols) - start} settled symbols; the capture is too short"
+    )
+    assert meter.align(symbols, t0=marker_at(start), lag_span=LAG_SPAN), (
+        "the payload marker was not detected in the settled stream"
+    )
+    meter.score(symbols, lo=start, hi=len(symbols))
     return {
         "locked": True,
+        "start": start,
         "released": int(np.sum(tracking[:-1] & ~tracking[1:])),
         "pull_in_s": (first_lock - track_start) * PUSH / FS,
         "lock_s": ((sustained + 1) * PUSH - LEAD_IN) / FS,
-        "evm_db": float(ber_evm_db(symbols, lo, len(symbols), 2)),
-        "m2m4_db": float(snr_m2m4_db(symbols[lo:])),
+        "evm_db": float(ber_evm_db(symbols, start, len(symbols), 2)),
+        "m2m4_db": float(snr_m2m4_db(symbols[start:])),
     }
 
 
@@ -322,7 +349,8 @@ def check(draws: list[dict], meter: BerMeter) -> dict:
       the release rule cut none short.
     - Every draw locked before the Doppler's zero crossing, so the receiver
       holds the lock through it.
-    - The pooled BER is at most :data:`MAX_BER`: the frames decode.
+    - The pooled BER over the settled windows is at most :data:`MAX_BER`:
+      the frames decode.
     """
     locked = [d for d in draws if d["locked"]]
     fraction = len(locked) / len(draws)
@@ -364,8 +392,8 @@ def run_regime(regime: tuple):
     meter.set_truth(PAYLOAD)
     draws, first = [], None
     for seed in DRAWS:
-        symbols, rows = receive(regime, seed)
-        draws.append(score(meter, symbols, rows))
+        symbols, rows, settle = receive(regime, seed)
+        draws.append(score(meter, symbols, rows, settle))
         if first is None and draws[-1]["locked"]:
             first = (symbols, rows, draws[-1])
     return check(draws, meter), draws, first
@@ -429,10 +457,7 @@ def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:
     tracking = rows["state"] == "tracking"
 
     # The constellation over the measured window.
-    lo = ber_lock_symbol(
-        np.repeat(rows["locked"], rows["symbols"]).astype(np.uint8)
-    )
-    w = syms[lo:]
+    w = syms[shown["start"] :]
     a.scatter(w.real, w.imag, s=3, alpha=0.3, color="#1f77b4")
     lim = 1.3 * float(np.percentile(np.abs(w), 99))
     a.set_xlim(-lim, lim)
@@ -441,8 +466,7 @@ def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:
     a.axhline(0, color="k", lw=0.5)
     a.axvline(0, color="k", lw=0.5)
     a.set_title(
-        f"{name}: {len(w)} symbols after symbol lock\n"
-        f"EVM {shown['evm_db']:.1f} dB",
+        f"{name}: {len(w)} settled symbols\nEVM {shown['evm_db']:.1f} dB",
         fontsize=9,
     )
     a.set_xlabel("I")

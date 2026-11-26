@@ -64,6 +64,8 @@ size_t dp_cic_decimate_max_out(dp_cic_state_t *state);
 
 double dp_cic_dc_gain(const dp_cic_state_t *state);
 
+double dp_cic_get_group_delay(const dp_cic_state_t *state);
+
 #ifndef __cplusplus
 JM_FORCEINLINE JM_HOT size_t
 dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,

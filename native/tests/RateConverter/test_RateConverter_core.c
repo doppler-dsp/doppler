@@ -2097,60 +2097,124 @@ count_lag_measured (double rate, int compensate, int matched, size_t n,
   return worst;
 }
 
+/* The miss, in input samples, between where a tone at `f` cycles an input
+ * sample says the converter's content sits and the delay `D` it reports. A
+ * complex tone comes out as exp (j 2 pi f (k / rate - D)), so the output's
+ * own phase gives D modulo 1 / f, and a passband gain error cannot move it
+ * (a ramp's level would). The outputs are rotated back by the predicted
+ * phase and summed over the middle half, clear of both ends: the sum's
+ * angle is the mean miss, which is what a group delay is, and one output's
+ * own scatter about it (a CIC's quantizer, a bank's arm) is not in it. */
+static double
+group_delay_miss (dp_RateConverter_state_t *rc, double rate, double D,
+                  double f)
+{
+  const size_t    n   = (size_t)(12000.0 / rate);
+  const size_t    cap = (size_t)((double)n * rate) + 64;
+  float _Complex *x   = malloc (n * sizeof *x);
+  float _Complex *y   = malloc (cap * sizeof *y);
+  DP_REQUIRE (x != NULL && y != NULL);
+  for (size_t i = 0; i < n; i++)
+    x[i] = 0.25f * cexpf ((float)(2.0 * M_PI * fmod (f * (double)i, 1.0)) * I);
+  dp_RateConverter_reset (rc);
+  const size_t m      = dp_RateConverter_execute (rc, x, n, y, cap);
+  double _Complex acc = 0.0;
+  DP_CHECK (m > 1000);
+  for (size_t k = m / 4; k < 3 * m / 4; k++)
+    acc += (double _Complex)y[k]
+           * cexp (-2.0 * M_PI * fmod (f * ((double)k / rate - D), 1.0) * I);
+  free (x);
+  free (y);
+  DP_CHECK (cabs (acc) > 0.0);
+  return fabs (carg (acc) / (2.0 * M_PI) / f);
+}
+
 /* dp_RateConverter_get_group_delay() against the delay a tone actually
- * sees. A complex tone at f cycles per input sample comes out as
- * exp(j 2 pi f (k / rate - D)), so the output's own phase gives D, and a
- * passband gain error cannot move it (a ramp's level would). At the two
- * 415.1-B-1 front-end ratios -- 11 MSa/s from twice 4.0913 and twice
- * 3.2147 Mcps, both resampler-only plans -- and a decimating resampler; a
- * plan with a halfband stage refuses (NaN), as any plan but one resampler
- * stage does. Sabotage: the delay read in output samples (2.8-3.9 samples
- * off), or zero, misses; the refusal dropped reads a number at 0.25. */
+ * sees, on every kind of plan the planner builds: one resampler (the two
+ * 415.1-B-1 front-end ratios, 11 MSa/s from twice 4.0913 and twice 3.2147
+ * Mcps, and a decimating one), one and two halfbands, a CIC alone and with
+ * its droop compensator, a CIC then a resampler that interpolates and one
+ * that decimates, and matched plans of each shape for both pulses, with
+ * the compensator folded into the bank and without. Two tones a row, 0.002
+ * and 0.0025 cycles an OUTPUT sample: one fixes the delay modulo 500
+ * outputs and the other modulo 400, so a figure wrong by a whole number of
+ * either still misses. Held to 0.005 of an output sample. The tones are
+ * that slow because the figure is the delay at low frequency and a
+ * truncated root-raised cosine's arms are not symmetric, so their delay
+ * moves with frequency: at 0.005 cycles an output it is up to 0.008
+ * outputs from the figure, and the plain and rectangle rows do not move.
+ * Sabotages, each shown red on the rows named:
+ *   the halfband's delay as num_taps / 2           -> every halfband row;
+ *   the CIC's delay as 0                           -> every CIC row;
+ *   the compensator's center dropped               -> the plain comp rows;
+ *   a later stage not scaled by the rate before it -> every row of two or
+ *                                                     more stages;
+ *   the matched terminal read as the plain one
+ *   (dp_resamp_get_execute_delay)                  -> every matched row;
+ *   the matched terminal's one input dropped       -> every matched row;
+ *   the bank's delay read from arm 0 alone         -> the matched rows
+ *                                                     whose terminal rate
+ *                                                     is not 1 (five). */
 static int
 test_group_delay_is_the_signal_delay (void)
 {
-  const double rates[]
-      = { 11.0e6 / (2.0 * 4.0913e6), 11.0e6 / (2.0 * 3.2147e6), 0.83 };
-  const double    f = 0.005; /* cycles per input sample, deep in band */
-  const size_t    n = 40000;
-  float _Complex *x = malloc (n * sizeof *x);
-  float _Complex *y = malloc (3 * n * sizeof *y);
-  DP_REQUIRE (x != NULL && y != NULL);
-  for (size_t i = 0; i < n; i++)
-    x[i] = cexpf ((float)(2.0 * M_PI * f * (double)i) * I);
-  for (size_t r = 0; r < sizeof rates / sizeof *rates; r++)
+  static const struct
+  {
+    double rate;
+    int    compensate;
+    int    pulse; /* RC_PULSE_NONE: a plain plan */
+  } rows[] = {
+    { 11.0e6 / (2.0 * 4.0913e6), 0, RC_PULSE_NONE },
+    { 11.0e6 / (2.0 * 3.2147e6), 0, RC_PULSE_NONE },
+    { 0.83, 0, RC_PULSE_NONE },
+    { 0.5, 0, RC_PULSE_NONE },
+    { 0.25, 0, RC_PULSE_NONE },
+    { 0.125, 0, RC_PULSE_NONE },
+    { 0.125, 1, RC_PULSE_NONE },
+    { 1.0 / 12.0, 0, RC_PULSE_NONE },
+    { 1.0 / 12.0, 1, RC_PULSE_NONE },
+    { 0.0588235, 0, RC_PULSE_NONE },
+    { 0.028, 1, RC_PULSE_NONE },
+    { 0.0125, 0, RC_PULSE_NONE },
+    { 1.0, 0, RC_PULSE_RRC },
+    { 0.8, 0, RC_PULSE_RRC },
+    { 0.5, 0, RC_PULSE_RRC },
+    { 0.3, 0, RC_PULSE_RRC },
+    { 0.25, 0, RC_PULSE_RRC },
+    { 4.0 / 17.333, 1, RC_PULSE_RRC },
+    { 0.125, 1, RC_PULSE_RRC },
+    { 0.0625, 0, RC_PULSE_RRC },
+    { 0.0625, 1, RC_PULSE_RRC },
+    { 2.0 / 17.333, 1, RC_PULSE_RRC },
+    { 1.0, 1, RC_PULSE_IANDD },
+    { 0.5, 1, RC_PULSE_IANDD },
+    { 0.25, 1, RC_PULSE_IANDD },
+    { 4.0 / 17.333, 1, RC_PULSE_IANDD },
+    { 0.0625, 1, RC_PULSE_IANDD },
+    { 4.0 / 67.3, 1, RC_PULSE_IANDD },
+  };
+  for (size_t r = 0; r < sizeof rows / sizeof *rows; r++)
     {
-      dp_RateConverter_state_t *rc = dp_RateConverter_create (rates[r], 0);
+      const double              rate = rows[r].rate;
+      dp_RateConverter_state_t *rc
+          = rows[r].pulse == RC_PULSE_NONE
+                ? dp_RateConverter_create (rate, rows[r].compensate)
+                : dp_RateConverter_create_matched (rate, rows[r].compensate,
+                                                   rows[r].pulse, 0.35, 8, 4.0,
+                                                   1024);
       DP_REQUIRE (rc != NULL);
       const double D = dp_RateConverter_get_group_delay (rc);
       DP_CHECK (isfinite (D) && D > 0.0);
-      const size_t m     = dp_RateConverter_execute (rc, x, n, y, 3 * n);
-      double       worst = 0.0;
-      for (size_t k = m / 4; k < 3 * m / 4; k++)
-        {
-          /* The measured delay, unwrapped against the predicted one: the
-             tone's phase fixes it modulo 1/f = 200 samples. */
-          const double ph   = carg ((double _Complex)y[k]) / (2.0 * M_PI);
-          const double want = f * ((double)k / rates[r] - D);
-          double       d    = ph - want;
-          d -= round (d);
-          if (fabs (d / f) > worst)
-            worst = fabs (d / f);
-        }
-      printf ("  group delay at rate %.4f: %.3f input samples, worst "
-              "measured miss %.4f\n",
-              rates[r], D, worst);
-      DP_CHECK (worst < 0.01);
+      const double a = group_delay_miss (rc, rate, D, 0.002 * rate);
+      const double b = group_delay_miss (rc, rate, D, 0.0025 * rate);
+      printf ("  group delay at rate %.5f, comp %d, pulse %d, %d stage(s): "
+              "%.3f input samples, miss %.4f and %.4f outputs\n",
+              rate, rows[r].compensate, rows[r].pulse,
+              (int)dp_RateConverter_num_stages (rc), D, a * rate, b * rate);
+      DP_CHECK (a * rate < 0.005);
+      DP_CHECK (b * rate < 0.005);
       dp_RateConverter_destroy (rc);
     }
-  {
-    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.25, 0);
-    DP_REQUIRE (rc != NULL);
-    DP_CHECK (isnan (dp_RateConverter_get_group_delay (rc)));
-    dp_RateConverter_destroy (rc);
-  }
-  free (x);
-  free (y);
   return 0;
 }
 

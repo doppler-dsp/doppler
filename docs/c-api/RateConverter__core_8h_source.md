@@ -69,6 +69,7 @@ typedef struct
   double       bank_sps;     
   double       bank_e0;      
   double       agc_ref_db;   
+  double       bank_delay;   
   double       agc_bn_sym;   
   double       agc_alpha;    
   struct

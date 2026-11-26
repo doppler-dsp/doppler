@@ -22,6 +22,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -360,6 +361,52 @@ test_blob_carries_no_stale_pending (void)
   dp_hbdecim_destroy (fresh);
 }
 
+/* dp_hbdecim_get_group_delay() against the delay a tone sees, for both
+ * parities of num_taps: the two run different branches (the FIR on the even
+ * line or the odd one), and the converter's plans use only the odd. A tone
+ * at f cycles an input comes out as exp (j 2 pi f (2 m - D)); the outputs
+ * are rotated back by that and summed, and the sum's angle is the miss.
+ * The taps are a symmetric pair set, which is all the delay depends on.
+ * Sabotage: the delay as num_taps / 2 misses by 1.0 input (N 4) and 4.0
+ * (N 9); as num_taps, by 1.0 on both. */
+static int
+test_group_delay_both_parities (void)
+{
+  static const float h[9]
+      = { -0.02f, 0.05f, -0.1f, 0.31f, 0.31f, -0.1f, 0.05f, -0.02f, 0.0f };
+  static const float  h4[4] = { -0.06f, 0.3f, 0.3f, -0.06f };
+  static const size_t ns[2] = { 4, 9 };
+  const double        f     = 0.002;
+  enum
+  {
+    N_IN = 8000
+  };
+  static float _Complex x[N_IN], y[N_IN / 2];
+  for (size_t i = 0; i < N_IN; i++)
+    x[i] = cexpf ((float)(2.0 * M_PI * fmod (f * (double)i, 1.0)) * I);
+  for (size_t c = 0; c < 2; c++)
+    {
+      hbdecim_state_t *r = dp_hbdecim_create (ns[c], ns[c] == 4 ? h4 : h);
+      DP_REQUIRE (r != NULL);
+      const double D = dp_hbdecim_get_group_delay (r);
+      DP_CHECK (D == (double)ns[c] - 1.0);
+      const size_t m      = dp_hbdecim_execute (r, x, N_IN, y, N_IN / 2);
+      double _Complex acc = 0.0;
+      DP_CHECK (m == N_IN / 2);
+      for (size_t k = m / 4; k < 3 * m / 4; k++)
+        acc += (double _Complex)y[k]
+               * cexp (-2.0 * M_PI * fmod (f * (2.0 * (double)k - D), 1.0)
+                       * I);
+      const double miss = fabs (carg (acc) / (2.0 * M_PI) / f);
+      printf ("  group delay, %zu taps: %.1f inputs, miss %.4f\n", ns[c], D,
+              miss);
+      DP_CHECK (cabs (acc) > 0.0);
+      DP_CHECK (miss < 0.01);
+      dp_hbdecim_destroy (r);
+    }
+  return 0;
+}
+
 /* ================================================================== */
 /* main                                                                */
 /* ================================================================== */
@@ -437,6 +484,8 @@ main (void)
     DP_STATE_ACCEPT_TEST (dp_hbdecim, r, oh, &last, sizeof last);
     dp_hbdecim_destroy (r);
   }
+
+  DP_CHECK (test_group_delay_both_parities () == 0);
 
   DP_TEST_END ("test_hbdecim_core");
 }

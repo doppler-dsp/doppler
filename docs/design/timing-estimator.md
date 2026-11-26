@@ -270,7 +270,7 @@ same pulse uses. Three things follow from the converter being inside:
     false-alarm probability is a call on the object and not a validator's
     table.
 - **An estimate on the input's timeline.** `tau` is on the converter's
-    output; the converter's group delay, derived from its plan (#3119),
+    output; the converter's group delay (`dp_RateConverter_get_group_delay()`)
     carries it to the input, which is what lets a second cascade on the
     same input (`RateSync`'s) be seeded from it.
 
@@ -309,10 +309,8 @@ Open, the first two in
 - **Through `doppler_channel` the validator's prediction is good to 2%
     in line energy and 1% in rate** on the rectangle at a whole `N`, and
     why it is not better is not known.
-- **The matched flavor is not built.** It needs the converter's group
-    delay for plans with a halfband or a CIC, which the converter does
-    not report (#3119), and the threshold's noise autocorrelation from
-    the plan's response. Its case with no whole decimation is the first
+- **The matched flavor is not built.** It needs the threshold's noise
+    autocorrelation from the plan's response. Its case with no whole decimation is the first
     item above.
 
 ## 7. What the characterization measures

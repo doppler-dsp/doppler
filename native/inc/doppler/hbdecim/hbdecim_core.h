@@ -248,6 +248,31 @@ extern "C"
    */
   double dp_hbdecim_dc_gain (const hbdecim_state_t *r);
 
+  /**
+   * @brief The decimator's group delay, in its INPUT samples: where in the
+   *        input timeline an output sample's content sits.
+   *
+   * Output `m` of a fresh stream carries the input at index
+   * `2 * m - group_delay`. From the structure, not measured: output `m` is
+   * formed as inputs `2m` and `2m + 1` arrive, and the filter's center tap
+   * is the delay branch, which reads `num_taps - 1` inputs behind input
+   * `2m` for either parity of `num_taps` (input `2m + 1 - N` from the odd
+   * line when `N` is even, input `2m - (N - 1)` from the even line when it
+   * is odd). The FIR branch is symmetric about that tap, so the delay is
+   * the same at every frequency.
+   *
+   * @param r State. Must be non-NULL.
+   * @return `num_taps - 1`, in input samples.
+   *
+   * @code
+   * const float h[4] = { -0.06f, 0.3f, 0.3f, -0.06f };
+   * hbdecim_state_t *d = dp_hbdecim_create (4, h);
+   * printf ("%.1f\n", dp_hbdecim_get_group_delay (d));  // 3.0
+   * dp_hbdecim_destroy (d);
+   * @endcode
+   */
+  double dp_hbdecim_get_group_delay (const hbdecim_state_t *r);
+
 #ifdef __cplusplus
 }
 #endif

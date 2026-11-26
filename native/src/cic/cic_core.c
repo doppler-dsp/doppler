@@ -161,6 +161,14 @@ dp_cic_dc_gain (const dp_cic_state_t *state)
          / ldexp (1.0, (int)state->shift);
 }
 
+double
+dp_cic_get_group_delay (const dp_cic_state_t *state)
+{
+  /* CIC_N boxcars of R: the response's center is CIC_N * (R - 1) / 2 behind
+     the newest input, and output k is formed R - 1 inputs after k * R. */
+  return (double)(state->R - 1u) * (double)(CIC_N - 2) / 2.0;
+}
+
 size_t
 dp_cic_decimate_max_out (dp_cic_state_t *state)
 {

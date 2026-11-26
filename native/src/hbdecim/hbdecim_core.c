@@ -291,3 +291,12 @@ dp_hbdecim_execute (hbdecim_state_t *r, const float _Complex *in,
   r->consumed = xi;
   return oi;
 }
+
+double
+dp_hbdecim_get_group_delay (const hbdecim_state_t *r)
+{
+  /* The delay branch is the center tap: odd_dl[N/2] = x[2m + 1 - N] for N
+     even, even_dl[N/2] = x[2m - (N - 1)] for N odd. Either way N - 1 inputs
+     behind input 2m, which is where output m sits at the input rate. */
+  return (double)r->num_taps - 1.0;
+}

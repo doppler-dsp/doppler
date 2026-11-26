@@ -129,6 +129,13 @@ typedef struct
                                   (bank_sps) for the rectangle; the bank's
                                   own normaliser, and the AGC's reference */
   double       agc_ref_db;   /**< derived: 10*log10(bank_e0 / bank_sps)  */
+  double       bank_delay;   /**< where the matched bank's content sits
+                                  behind the newest sample in its delay
+                                  line, in terminal-stage inputs: the mean,
+                                  over the arms an unsteered stream at the
+                                  terminal rate visits, of each arm's
+                                  centroid plus its lag, from the taps as
+                                  built (config; 0 with no pulse)         */
   double       agc_bn_sym;   /**< requested bandwidth, cycles/SYMBOL     */
   double       agc_alpha;    /**< detector EMA coefficient               */
   struct
@@ -362,22 +369,40 @@ double dp_RateConverter_get_count_lag (const dp_RateConverter_state_t *s);
  * @brief The converter's group delay, in its INPUT samples: where in the
  *        input timeline an output sample's content sits.
  *
- * Output `k` of a fresh stream carries the input at index
- * `k / rate - group_delay`. The signal's delay, where get_count_lag() is
- * the output count's: a caller putting the output against the input's own
- * timeline -- a test that knows where a chip was transmitted and asks
- * where it was received -- subtracts this. Each stage's delay in its own
- * For a plan of one resampler stage -- what every rate from about 0.5 up
- * builds -- it is that stage's dp_resamp_get_execute_delay(). Any other
- * plan returns NaN rather than a number nothing has checked: the halfband
- * and CIC stages publish no delay of their own, and no rate builds two
- * resampler stages to check a cross-stage sum on (doppler#3119).
+ * Output `k` of a fresh stream that nothing steers carries the input at
+ * index `k / rate - group_delay`. The signal's delay, where get_count_lag()
+ * is the output count's: a caller putting the output against the input's
+ * own timeline -- a test that knows where a chip was transmitted and asks
+ * where it was received, or one converter's timing carried to another on
+ * the same input -- subtracts this.
+ *
+ * It is the sum of each stage's own delay, in that stage's input samples,
+ * divided by the rate the stages before it have applied:
+ *
+ *  - a halfband: dp_hbdecim_get_group_delay();
+ *  - a CIC: dp_cic_get_group_delay(), and with its droop compensator the
+ *    compensator's center, `(taps - 1) / 2` CIC outputs;
+ *  - a Resampler on a plain plan: dp_resamp_get_execute_delay();
+ *  - a matched plan's terminal stage: one input (an output is formed before
+ *    the sample offered with it loads) plus where the bank's content sits
+ *    behind the newest loaded sample. That is read from the bank's taps as
+ *    built -- each arm's centroid plus the arm's own lag, averaged over the
+ *    arms a stream at this rate visits -- so the pulse, a truncated tail,
+ *    the rectangle's interval-averaged edge taps and a folded droop
+ *    compensator are all in it without a case for each. The arms of a real
+ *    bank differ a little, so single outputs sit either side of the figure:
+ *    by 0.02 of a terminal-stage input for a root-raised cosine of span 8
+ *    at 4 samples a symbol.
+ *
+ * Every plan answers. On a matched plan the figure is execute()'s with no
+ * control applied; a loop steering the terminal stage moves the timing by
+ * what it has accumulated, which is that loop's to report.
  * @param s State. Must be non-NULL.
- * @return The group delay in input samples, or NaN for any plan but one
- *         resampler stage.
+ * @return The group delay in input samples.
  * @code
- * dp_RateConverter_state_t *rc = dp_RateConverter_create (1.344, 0);
- * printf ("%d\n", dp_RateConverter_get_group_delay (rc) > 0.0);  // 1
+ * dp_RateConverter_state_t *rc = dp_RateConverter_create (0.25, 0);
+ * // two halfbands of 19 taps: 18 + 18 / 0.5
+ * printf ("%.1f\n", dp_RateConverter_get_group_delay (rc));  // 54.0
  * dp_RateConverter_destroy (rc);
  * @endcode
  */

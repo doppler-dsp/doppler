@@ -1,6 +1,6 @@
 """Benchmark for PolynomialPhaseEstimator — the estimate BurstDemod drives.
 
-Run: pytest src/doppler/dsss/benchmarks/bench_ppe.py --benchmark-only
+Run: pytest src/doppler/estimation/benchmarks/bench_ppe.py --benchmark-only
 
 The same 64k stimulus as the rest of the burst chain
 (`_burst_stimulus.py`), so the estimator's share of `BurstDemod`'s number
@@ -24,12 +24,12 @@ chirp-searching cost is linear in the hypothesis count; see
 
 import pytest
 
-from doppler.dsss import PolynomialPhaseEstimator
 from doppler.dsss.benchmarks._burst_stimulus import (
     BLOCK_64K,
     burst_stimulus,
     rate,
 )
+from doppler.estimation import PolynomialPhaseEstimator
 
 
 @pytest.fixture(scope="module")

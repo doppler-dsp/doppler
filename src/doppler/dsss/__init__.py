@@ -1,4 +1,4 @@
-"""Direct-sequence spread-spectrum: despreading (Despreader, BurstDespreader), polynomial-phase estimation and end-to-end receivers (DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver). The receivers compose the acquisition engines of doppler.acquire.
+"""Direct-sequence spread-spectrum: despreading (Despreader, BurstDespreader) and end-to-end receivers (DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver). The receivers compose the acquisition engines of doppler.acquire.
 
 Examples
 --------
@@ -32,8 +32,6 @@ from .dsss import (  # noqa: E402
     Despreader,
     DsssBurstReceiver,
     DsssReceiver,
-    PolynomialPhaseEstimate,
-    PolynomialPhaseEstimator,
     PoolReceiverStatus,
     ReceiverStatus,
 )
@@ -41,13 +39,11 @@ from .orchestrator import Acquirer, CoarseChannel, Detection  # noqa: E402
 
 __all__ = [
     "BurstDespreader",
-    "PolynomialPhaseEstimator",
     "BurstDemod",
     "Despreader",
     "DsssReceiver",
     "AsyncDsssReceiver",
     "DsssBurstReceiver",
-    "PolynomialPhaseEstimate",
     "ReceiverStatus",
     "AsyncDsssPool",
     "PoolReceiverStatus",

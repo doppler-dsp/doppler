@@ -100,6 +100,7 @@
 | dir | [**dsss**](dir_c33ba84b8db3f8ead33f9dfeadf377c6.md) <br> |
 | dir | [**dsss\_burst\_receiver**](dir_630068a67b306c85c8348e5ba842eaef.md) <br> |
 | dir | [**dsss\_receiver**](dir_6f60e61f873068f58aa42ec05bfb1a20.md) <br> |
+| dir | [**estimation**](dir_0cc60ff8540ae0115cf3c129e27cae4e.md) <br> |
 | dir | [**f32\_buffer**](dir_81ff08c9d14656f475312d0561398a88.md) <br> |
 | dir | [**f32\_to\_i16**](dir_70d41be9b98525952faca7fac2a162b6.md) <br> |
 | dir | [**f32\_to\_i16u32**](dir_8ed3b501fdbf556e99afaad1b0fb95c8.md) <br> |

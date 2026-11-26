@@ -1,10 +1,10 @@
 /*
  * dsss_ext.c — Python extension module dsss
  *
- * Objects: Despreader, BurstDespreader, PolynomialPhaseEstimator, BurstDemod,
- * DsssReceiver, AsyncDsssReceiver, AsyncDsssPool, DsssBurstReceiver,
- * Ccsds415Receiver, Ccsds415Pool GENERATED — do not hand-edit. Patches belong
- * in the _ext_<obj>.c fragments.
+ * Objects: Despreader, BurstDespreader, BurstDemod, DsssReceiver,
+ * AsyncDsssReceiver, AsyncDsssPool, DsssBurstReceiver, Ccsds415Receiver,
+ * Ccsds415Pool GENERATED — do not hand-edit. Patches belong in the
+ * _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -198,7 +198,6 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 #include "dsss_ext_despreader.c"
 #include "dsss_ext_dsss_burst_receiver.c"
 #include "dsss_ext_dsss_receiver.c"
-#include "dsss_ext_ppe.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -206,23 +205,22 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 
 static PyModuleDef dsss_moduledef = {
   PyModuleDef_HEAD_INIT,
-  .m_name = "dsss",
-  .m_doc
-  = "Direct-sequence spread-spectrum: despreading (Despreader, "
-    "BurstDespreader), polynomial-phase estimation and end-to-end receivers "
-    "(DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver). The receivers "
-    "compose the acquisition engines of doppler.acquire.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.dsss import Despreader\n"
-    ">>> rng = np.random.default_rng(0)\n"
-    ">>> code = rng.integers(0, 2, 31).astype(np.uint8)\n"
-    ">>> csign = np.where(code & 1, -1.0, 1.0)\n"
-    ">>> tx = np.repeat(np.tile(csign, 20), 2).astype(np.complex64)\n"
-    ">>> bool(Despreader(code, sps=2).steps(tx).size >= 19)\n"
-    "True\n",
+  .m_name    = "dsss",
+  .m_doc     = "Direct-sequence spread-spectrum: despreading (Despreader, "
+               "BurstDespreader) and end-to-end receivers (DsssReceiver, "
+               "AsyncDsssReceiver, DsssBurstReceiver). The receivers compose the "
+               "acquisition engines of doppler.acquire.\n"
+               "\n"
+               "Examples\n"
+               "--------\n"
+               ">>> import numpy as np\n"
+               ">>> from doppler.dsss import Despreader\n"
+               ">>> rng = np.random.default_rng(0)\n"
+               ">>> code = rng.integers(0, 2, 31).astype(np.uint8)\n"
+               ">>> csign = np.where(code & 1, -1.0, 1.0)\n"
+               ">>> tx = np.repeat(np.tile(csign, 20), 2).astype(np.complex64)\n"
+               ">>> bool(Despreader(code, sps=2).steps(tx).size >= 19)\n"
+               "True\n",
   .m_size    = -1,
   .m_methods = NULL,
 };
@@ -235,15 +233,6 @@ PyInit_dsss (void)
     return NULL;
   if (PyType_Ready (&BurstDespreaderObjType) < 0)
     return NULL;
-  if (PyType_Ready (&PolynomialPhaseEstimatorObjType) < 0)
-    return NULL;
-  if (!PolynomialPhaseEstimatorObj_estimate_type)
-    {
-      PolynomialPhaseEstimatorObj_estimate_type = PyStructSequence_NewType (
-          &PolynomialPhaseEstimatorObj_estimate_desc);
-      if (!PolynomialPhaseEstimatorObj_estimate_type)
-        return NULL;
-    }
   if (PyType_Ready (&BurstDemodObjType) < 0)
     return NULL;
   if (PyType_Ready (&DsssReceiverObjType) < 0)
@@ -294,24 +283,6 @@ PyInit_dsss (void)
       < 0)
     {
       Py_DECREF (&BurstDespreaderObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&PolynomialPhaseEstimatorObjType);
-  if (PyModule_AddObject (m, "PolynomialPhaseEstimator",
-                          (PyObject *)&PolynomialPhaseEstimatorObjType)
-      < 0)
-    {
-      Py_DECREF (&PolynomialPhaseEstimatorObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  if (PyModule_AddObject (
-          m, "PolynomialPhaseEstimate",
-          (PyObject *)PolynomialPhaseEstimatorObj_estimate_type)
-      < 0)
-    {
-      Py_DECREF (PolynomialPhaseEstimatorObj_estimate_type);
       Py_DECREF (m);
       return NULL;
     }

@@ -223,7 +223,7 @@ Heap-allocated state, or NULL when `sps` is not finite, is 2 or less, or allocat
 
 Caller must call [**dp\_timing\_est\_destroy()**](timing__est__core_8h.md#function-dp_timing_est_destroy) when done. 
 ```C++
->>> from doppler.track import SymbolTimingEstimator
+>>> from doppler.estimation import SymbolTimingEstimator
 >>> te = SymbolTimingEstimator(sps=4.0)
 >>> te.sps
 4.0
@@ -284,7 +284,7 @@ Caller must call [**dp\_timing\_est\_destroy()**](timing__est__core_8h.md#functi
 
 ```C++
 >>> import numpy as np
->>> from doppler.track import MatchedSymbolTimingEstimator
+>>> from doppler.estimation import MatchedSymbolTimingEstimator
 >>> n = np.arange(4096)
 >>> # +1 -1 +1 ... through a root-raised cosine at 8 samples a symbol,
 >>> # with a symbol instant at sample 3 and every 8 after it
@@ -362,7 +362,7 @@ The block is the whole call: its length sets the estimate's variance and the tim
 The block's estimate. 
 ```C++
 >>> import numpy as np
->>> from doppler.track import SymbolTimingEstimator
+>>> from doppler.estimation import SymbolTimingEstimator
 >>> n = np.arange(4 * 256)
 >>> # power peaking a quarter symbol into each symbol, on any carrier
 >>> x = np.sqrt(1.0 + 0.5 * np.cos(2 * np.pi * (n / 4 - 0.25)))
@@ -471,7 +471,7 @@ The next estimate is then the first again: its `tau` is on a clock that starts a
 * `state` Must be non-NULL. 
 ```C++
 >>> import numpy as np
->>> from doppler.track import SymbolTimingEstimator
+>>> from doppler.estimation import SymbolTimingEstimator
 >>> n = np.arange(1024)
 >>> x = np.sqrt(1.0 + 0.5 * np.cos(2 * np.pi * n / 4)).astype(np.complex64)
 >>> te = SymbolTimingEstimator(sps=4.0)

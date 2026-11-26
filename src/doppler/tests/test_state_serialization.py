@@ -68,6 +68,10 @@ from doppler.dsss import (
     Ccsds415Receiver,
     Despreader,
 )
+from doppler.estimation import (
+    MatchedSymbolTimingEstimator,
+    SymbolTimingEstimator,
+)
 from doppler.filter import FIR, MovingAverage
 from doppler.impairment import DopplerChannel
 from doppler.ofdm import Ofdm
@@ -90,13 +94,11 @@ from doppler.track import (
     Dll,
     KalmanStateFilter,
     LoopFilter,
-    MatchedSymbolTimingEstimator,
     MpskReceiver,
     MpskReceiverR,
     RateSync,
     StateFilter,
     SymbolSync,
-    SymbolTimingEstimator,
 )
 from doppler.wfm import PN, Gold, _SynthEngine
 

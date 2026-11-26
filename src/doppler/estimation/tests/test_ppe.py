@@ -10,7 +10,7 @@ noisy, and edge cases — asserting the estimate tracks the injection.
 import numpy as np
 import pytest
 
-from doppler.dsss import PolynomialPhaseEstimator
+from doppler.estimation import PolynomialPhaseEstimator
 
 
 def _chirp(n, f, r, *, rng=None, sigma=0.0):

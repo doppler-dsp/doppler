@@ -49,9 +49,6 @@ from doppler.track.tests.validation.state_filter import (
 from doppler.track.tests.validation.state_filter_kalman import (
     validate as state_filter_kalman_validate,
 )
-from doppler.track.tests.validation.timing_est import (
-    validate as timing_est_validate,
-)
 
 OBJECTS = {
     "carrier_nda": carrier_nda_validate,
@@ -60,7 +57,6 @@ OBJECTS = {
     "ratesync": ratesync_validate,
     "state_filter": state_filter_validate,
     "state_filter_kalman": state_filter_kalman_validate,
-    "timing_est": timing_est_validate,
 }
 
 

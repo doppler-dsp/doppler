@@ -15,3 +15,4 @@ state_filter_ramp_demo.py: prints two steady phase errors and a bandwidth; the t
 state_filter_kalman_demo.py: prints a bandwidth and two settling counts; the guide section carries them
 ccsds415_receiver.py: shows two constructors equal to the full ones and prints their chip rates; it renders no signal, so there is nothing to plot
 symbol_timing_estimator_demo.py: prints two estimates and checks them; the estimator's figures (error against Es/N0, clock offset and Doppler) belong to its characterization
+polynomial_phase_estimator_demo.py: prints one estimate and the amplitude it recovers; the estimator's figures (error against SNR and rate) belong to its validation report

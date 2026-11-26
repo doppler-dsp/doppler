@@ -19,7 +19,8 @@ a demodulator that hid or silently repaired a transmitted bit error
 would be indistinguishable from a working one on every clean burst.
 
 The estimator is certified separately
-(`src/doppler/dsss/tests/validation/ppe/results.md`) and not re-derived here.
+(`src/doppler/estimation/tests/validation/ppe/results.md`) and not
+re-derived here.
 """
 
 from __future__ import annotations

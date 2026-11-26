@@ -90,6 +90,7 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  double | [**dp\_ratesync\_get\_lock\_stat**](#function-dp_ratesync_get_lock_stat) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Last block-averaged lock statistic (the eye-opening ratio)._  |
 |  int | [**dp\_ratesync\_get\_locked**](#function-dp_ratesync_get_locked) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Current lock decision (1 = locked), verify-counted._  |
 |  double | [**dp\_ratesync\_get\_rate**](#function-dp_ratesync_get_rate) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Smoothed tracked samples per symbol. Departs from the nominal_ `sps` _by exactly the sample-clock offset being tracked, so it is the estimator a rate-disciplining caller reads._ |
+|  double | [**dp\_ratesync\_get\_settle\_time**](#function-dp_ratesync_get_settle_time) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Symbols emitted before the timing has settled: where a steady-state measurement of the output may start._  |
 |  void | [**dp\_ratesync\_get\_state**](#function-dp_ratesync_get_state) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, void \* blob) <br>_Serialize the mutable state into_ `blob` _._ |
 |  double | [**dp\_ratesync\_get\_timing\_error**](#function-dp_ratesync_get_timing_error) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Last normalised TED error — the loop stress._  |
 |  void | [**dp\_ratesync\_loop\_bind\_cascade**](#function-dp_ratesync_loop_bind_cascade) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* rc) <br>_Read that geometry straight off a cascade._  |
@@ -102,6 +103,7 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  int | [**dp\_ratesync\_loop\_set\_filter\_telemetry**](#function-dp_ratesync_loop_set_filter_telemetry) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) the timing loop-filter set: "&lt;prefix&gt;.prop" (kp \* e) and "&lt;prefix&gt;.integ" (the filter's integrator), once a recovered symbol, beside the six probes._  |
 |  int | [**dp\_ratesync\_loop\_set\_state**](#function-dp_ratesync_loop_set_state) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, const void \* blob) <br>_Restore the loop's mutable state from_ `blob` _._ |
 |  int | [**dp\_ratesync\_loop\_set\_telemetry**](#function-dp_ratesync_loop_set_telemetry) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Register the six timing probes; see_ [_**dp\_ratesync\_set\_telemetry()**_](ratesync__core_8h.md#function-dp_ratesync_set_telemetry) _, which forwards here. NULL_`tlm` _detaches._ |
+|  double | [**dp\_ratesync\_loop\_settle\_time**](#function-dp_ratesync_loop_settle_time) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Symbols the loop emits before its timing has settled._  |
 |  size\_t | [**dp\_ratesync\_loop\_state\_bytes**](#function-dp_ratesync_loop_state_bytes) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Bytes_ [_**dp\_ratesync\_loop\_get\_state()**_](ratesync__core_8h.md#function-dp_ratesync_loop_get_state) _writes (envelope + payload + the loop filter's child blob)._ |
 |  void | [**dp\_ratesync\_loop\_tlm\_flush**](#function-dp_ratesync_loop_tlm_flush) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Emit the timing loop's telemetry for the symbol just recovered._  |
 |  int | [**dp\_ratesync\_m\_ok**](#function-dp_ratesync_m_ok) (size\_t m) <br>_The domain of_ `m` _, the terminal outputs per symbol: even, and_`2 <= m <= RATESYNC_MAX_M` _._ |
@@ -690,6 +692,58 @@ Samples per symbol, sps / (1 + loop integrator), clamped to 0.5 sps to 1.5 sps; 
 
 
 
+### function dp\_ratesync\_get\_settle\_time 
+
+_Symbols emitted before the timing has settled: where a steady-state measurement of the output may start._ 
+```C++
+double dp_ratesync_get_settle_time (
+    const dp_ratesync_state_t * state
+) 
+```
+
+
+
+The timing loop's own figure, [**dp\_ratesync\_loop\_settle\_time()**](ratesync__core_8h.md#function-dp_ratesync_loop_settle_time): the time the closed loop takes to bring a starting timing error under 2% of itself, from the bandwidth and damping in use, 2.59 / bn symbols at the default damping. It is known at construction and follows configure(). `locked` says a statistic crossed a threshold, which happens while the timing is still moving; this says when it has stopped.
+
+
+Example (Python): 
+> 
+> 
+> from doppler.track import RateSync rs = RateSync(sps=8.0, bn=0.01) round(rs.settle\_time) 
+
+
+259 
+> 
+> 
+> rs.bn = 0.005 round(rs.settle\_time) 
+
+
+519
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Symbols, from the first one emitted; infinity at `bn = 0`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_ratesync\_get\_state 
 
 _Serialize the mutable state into_ `blob` _._
@@ -1098,6 +1152,40 @@ int dp_ratesync_loop_set_telemetry (
 **Returns:**
 
 DP\_OK, or DP\_ERR\_INVALID if the prefix is too long or the probe table cannot take all six (nothing is attached). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_settle\_time 
+
+_Symbols the loop emits before its timing has settled._ 
+```C++
+double dp_ratesync_loop_settle_time (
+    const ratesync_loop_t * l
+) 
+```
+
+
+
+[**dp\_loop\_filter\_settle\_time()**](loop__filter__core_8h.md#function-dp_loop_filter_settle_time) of the loop's own `bn` and `zeta` at DP\_LOOP\_FILTER\_SETTLE\_EPS: the timing error left from the start is under 2% of it from that symbol on. An index into the symbols the loop emits, so the outputs dropped while the cascade fills are not in it. It follows [**dp\_ratesync\_loop\_configure()**](ratesync__core_8h.md#function-dp_ratesync_loop_configure). It is the linear loop's figure: the detector's slope at lock is taken as 1 (what `ted_scale` delivers for the bound pulse), and a clock offset's own transient is not counted. 
+
+**Parameters:**
+
+
+* `l` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Symbols; infinity at `bn = 0`, a loop that does not steer. 
 
 
 

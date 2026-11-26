@@ -893,6 +893,38 @@ extern "C"
    *         receiver has never declared lock since create/reset.
    */
   int64_t dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state);
+
+  /**
+   * @brief Symbols emitted before both loops have settled: where a
+   *        steady-state measurement of the output may start.
+   *
+   * The timing loop's dp_ratesync_loop_settle_time() plus the carrier
+   * loop's dp_loop_filter_settle_time() at DP_LOOP_FILTER_SETTLE_EPS, each
+   * from its own bandwidth and the shared damping. They add because the
+   * loops are in cascade: the carrier discriminator reads the on-time
+   * strobe, so the carrier settles after the timing has. At the default
+   * damping that is `2.59 / bn_timing + 2.59 / bn_carrier` symbols.
+   *
+   * A design figure, known at construction, where
+   * dp_mpsk_receiver_get_lock_time() is an observation: `locked` declares
+   * on a statistic that crossed a threshold, which it does while the loops
+   * are still moving, so the first declaration comes well before this.
+   * It is the linear loops' figure, for a start inside each detector's
+   * range; a carrier offset's own transient is not counted.
+   *
+   * Example (Python):
+   * >>> from doppler.track import MpskReceiver
+   * >>> rx = MpskReceiver(m=2, sps=8, m_out=4, bn_carrier=0.01,
+   * ...                   bn_timing=0.005)
+   * >>> round(rx.settle_time)
+   * 779
+   *
+   * @param state  Receiver state. Must be non-NULL.
+   * @return Symbols, from the first one emitted; infinity when either
+   *         bandwidth is 0.
+   */
+  double dp_mpsk_receiver_get_settle_time (
+      const dp_mpsk_receiver_state_t *state);
   /** @brief Carrier loop phase discriminator (rad) — the residual phase the
    * loop is trying to null; loop stress.
    * @param state  Receiver state. Must be non-NULL.

@@ -1329,6 +1329,18 @@ Ccsds415Receiver_getprop_code_locked (Ccsds415ReceiverObject *self,
   return PyLong_FromLong (
       (long)dp_async_dsss_receiver_get_code_locked (self->handle));
 }
+static PyObject *
+Ccsds415Receiver_getprop_settle_time (Ccsds415ReceiverObject *self,
+                                      void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_settle_time (self->handle));
+}
 
 static PyGetSetDef Ccsds415Receiver_getset[] = {
   { "refine_min_blocks", (getter)Ccsds415Receiver_getprop_refine_min_blocks,
@@ -1464,6 +1476,10 @@ static PyGetSetDef Ccsds415Receiver_getset[] = {
     "Binary code-lock flag from the live tracking Dll's own verify-counted "
     "(pfa-tuned) lock detector — the fundamental DSSS \"am I despreading\" "
     "lock, de-chattered by up/down hysteresis.\n",
+    NULL },
+  { "settle_time", (getter)Ccsds415Receiver_getprop_settle_time, NULL,
+    "Symbols a track emits before its demodulator has settled: where a "
+    "steady-state measurement of a track's symbols may start.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };

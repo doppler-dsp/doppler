@@ -20,6 +20,81 @@ dp_loop_filter_wn (double bn, double zeta)
   return 8.0 * zeta * bn / (4.0 * zeta * zeta + 1.0);
 }
 
+/* How close to 1 a damping counts as critical: inside this the two forms
+   either side divide by a difference that has lost its digits. */
+#define LF_CRITICAL_TOL 1e-6
+
+/* The error of a unit phase step at time t, for the continuous second-order
+   loop (the header's three forms). */
+static double
+lf_step_error (double t, double zeta, double wn)
+{
+  const double d = 1.0 - zeta * zeta;
+  if (fabs (d) < LF_CRITICAL_TOL)
+    return (1.0 - wn * t) * exp (-wn * t);
+  if (d > 0.0)
+    {
+      const double wd = wn * sqrt (d);
+      return exp (-zeta * wn * t) * cos (wd * t + asin (zeta)) / sqrt (d);
+    }
+  const double r  = wn * sqrt (-d);
+  const double p1 = zeta * wn + r, p2 = zeta * wn - r;
+  return (p1 * exp (-p1 * t) - p2 * exp (-p2 * t)) / (p1 - p2);
+}
+
+double
+dp_loop_filter_settle_time (double bn, double zeta, double eps)
+{
+  if (!(bn > 0.0) || !(zeta > 0.0) || !(eps > 0.0) || !isfinite (bn)
+      || !isfinite (zeta))
+    return INFINITY;
+  if (eps >= 1.0)
+    return 0.0;
+  const double wn = dp_loop_filter_wn (bn, zeta);
+  const double d  = 1.0 - zeta * zeta;
+
+  /* Bracket the last crossing: the error is over eps at lo and stays at or
+     under it from hi on. */
+  double lo = 0.0, hi;
+  if (d >= LF_CRITICAL_TOL)
+    {
+      /* Under-damped: the error's extrema are at (k*pi - 2*asin(zeta)) / wd
+         and their size is exp(-zeta*wn*t) there, so the first extremum at
+         or under eps ends the search. */
+      const double wd = wn * sqrt (d), pi = acos (-1.0);
+      for (double k = 1.0;; k += 1.0)
+        {
+          hi = (k * pi - 2.0 * asin (zeta)) / wd;
+          if (exp (-zeta * wn * hi) <= eps)
+            break;
+          lo = hi;
+        }
+    }
+  else
+    {
+      /* Critical and over: one extremum, the undershoot, at twice the zero
+         crossing; past it the error only decays. */
+      const double r = wn * sqrt (d < 0.0 ? -d : 0.0);
+      hi = d > -LF_CRITICAL_TOL
+               ? 2.0 / wn
+               : 2.0 * log ((zeta * wn + r) / (zeta * wn - r)) / (2.0 * r);
+      while (fabs (lf_step_error (hi, zeta, wn)) > eps)
+        {
+          lo = hi;
+          hi *= 2.0;
+        }
+    }
+  for (int i = 0; i < 64; i++)
+    {
+      const double mid = 0.5 * (lo + hi);
+      if (fabs (lf_step_error (mid, zeta, wn)) > eps)
+        lo = mid;
+      else
+        hi = mid;
+    }
+  return hi;
+}
+
 /* One compiled body for the gains, out of line. Under -ffast-math a static
  * helper inlined into one caller and called from another compiles to two
  * copies with different bits (clang-cl did), so a gain computed by create

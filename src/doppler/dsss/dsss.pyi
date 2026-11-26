@@ -3388,6 +3388,12 @@ class AsyncDsssReceiver:
         despreading" lock, de-chattered by up/down hysteresis.
         """
 
+    @property
+    def settle_time(self) -> float:
+        """Symbols a track emits before its demodulator has settled: where a
+        steady-state measurement of a track's symbols may start.
+        """
+
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
@@ -4499,6 +4505,12 @@ class Ccsds415Receiver:
         """Binary code-lock flag from the live tracking Dll's own
         verify-counted (pfa-tuned) lock detector — the fundamental DSSS "am I
         despreading" lock, de-chattered by up/down hysteresis.
+        """
+
+    @property
+    def settle_time(self) -> float:
+        """Symbols a track emits before its demodulator has settled: where a
+        steady-state measurement of a track's symbols may start.
         """
 
     def destroy(self) -> None:

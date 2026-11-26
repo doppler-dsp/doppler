@@ -1479,6 +1479,34 @@ test_lock_time_hysteresis (void)
   dp_ratesync_destroy (s);
 }
 
+/* settle_time is the loop filter's figure at the loop's own bn and zeta,
+   and follows a retune. Sabotage, each red here: the getter reading a
+   literal damping, and one reading a literal bandwidth. */
+static void
+test_settle_time (void)
+{
+  dp_ratesync_state_t *s
+      = dp_ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                            0.01, 0.707, RATESYNC_TED_GARDNER);
+  DP_CHECK (s != NULL);
+  if (!s)
+    return;
+  DP_CHECK (
+      dp_ratesync_get_settle_time (s)
+      == dp_loop_filter_settle_time (0.01, 0.707, DP_LOOP_FILTER_SETTLE_EPS));
+  DP_CHECK_NEAR (dp_ratesync_get_settle_time (s), 259.49, 0.01);
+  DP_CHECK (dp_ratesync_configure (s, 0.004, 1.0) == DP_OK);
+  DP_CHECK (
+      dp_ratesync_get_settle_time (s)
+      == dp_loop_filter_settle_time (0.004, 1.0, DP_LOOP_FILTER_SETTLE_EPS));
+  DP_CHECK (dp_ratesync_get_settle_time (s)
+            == dp_ratesync_loop_settle_time (&s->loop));
+  /* A loop that does not steer never settles. */
+  DP_CHECK (dp_ratesync_set_bn (s, 0.0) == DP_OK);
+  DP_CHECK (isinf (dp_ratesync_get_settle_time (s)));
+  dp_ratesync_destroy (s);
+}
+
 int
 main (void)
 {
@@ -1504,6 +1532,7 @@ main (void)
   test_sps_equals_m_boundary ();
   test_amplitude_law ();
   test_lock_time_hysteresis ();
+  test_settle_time ();
 
   DP_TEST_END ("test_ratesync_core");
 }

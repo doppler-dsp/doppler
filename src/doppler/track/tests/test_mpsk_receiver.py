@@ -506,3 +506,19 @@ def test_8psk_at_sps_2_returns_every_bit():
     bits = rx.bits(x)
     assert nsym > n // 3
     assert len(bits) == 3 * nsym > n
+
+
+def test_settle_time_adds_the_two_loops():
+    # The two loops' figures added, each from its own bandwidth: 2.59 / bn
+    # at damping 0.707 (test_mpsk_receiver_core.c holds the sum in C). A
+    # design figure, so it is there before a sample is fed, where
+    # lock_time is still -1.
+    rx = MpskReceiver(
+        m=2, sps=8, m_out=4, bn_carrier=0.01, bn_timing=0.005, zeta=0.707
+    )
+    assert rx.settle_time == pytest.approx(518.98 + 259.49, abs=0.02)
+    assert rx.lock_time == -1
+    wide = MpskReceiver(
+        m=2, sps=8, m_out=4, bn_carrier=0.02, bn_timing=0.005, zeta=0.707
+    )
+    assert wide.settle_time == pytest.approx(518.98 + 129.75, abs=0.02)

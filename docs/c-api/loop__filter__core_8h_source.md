@@ -35,6 +35,10 @@ extern "C"
 
   double dp_loop_filter_wn(double bn, double zeta);
 
+#define DP_LOOP_FILTER_SETTLE_EPS 0.02
+
+  double dp_loop_filter_settle_time (double bn, double zeta, double eps);
+
   int dp_loop_filter_params_ok(double bn, double zeta, double t);
 
   int dp_loop_filter_fll_bn_ok(double bn_fll);

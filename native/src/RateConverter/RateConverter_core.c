@@ -1509,6 +1509,55 @@ dp_RateConverter_get_group_delay (const dp_RateConverter_state_t *s)
   return d;
 }
 
+double
+dp_RateConverter_get_memory (const dp_RateConverter_state_t *s)
+{
+  /* Each stage's memory in ITS input samples, scaled to the converter's
+     input by the rate the stages before it have applied: a stage's input
+     is clean only once the stages ahead of it are, so the terms add. */
+  double m = 0.0, rate_in = 1.0;
+  for (int i = 0; i < s->n_stages; i++)
+    switch (s->stage_types[i])
+      {
+      case RC_STAGE_HB:
+        /* Two lines of N; the FIR reaches input 2m - 2 (N - 1). */
+        m += (2.0
+                  * (double)dp_hbdecim_get_num_taps (
+                      (const hbdecim_state_t *)s->stage_ptrs[i])
+              - 1.0)
+             / rate_in;
+        rate_in *= 0.5;
+        break;
+      case RC_STAGE_CIC:
+        {
+          const rc_cic_stage_t *cs = (const rc_cic_stage_t *)s->stage_ptrs[i];
+          const double          R  = (double)cs->R;
+          /* CIC_N boxcars of R in a row: CIC_N (R - 1) + 1 inputs. */
+          double mc = (double)CIC_N * (R - 1.0) + 1.0;
+          if (cs->fir)
+            mc += ((double)dp_fir_get_num_taps (cs->fir) - 1.0) * R;
+          m += mc / rate_in;
+          rate_in /= R;
+        }
+        break;
+      case RC_STAGE_RESAMP:
+        {
+          const resamp_state_t *rs = (const resamp_state_t *)s->stage_ptrs[i];
+          const double          r  = dp_resamp_get_rate (rs);
+          double                mr = (double)dp_resamp_get_num_taps (rs) + 1.0;
+          /* The plain decimator is the transposed form: its registers run
+             at the OUTPUT rate. A matched plan's terminal stage runs the
+             push path, whose line is at the input rate, at every rate. */
+          if (r < 1.0 && s->pulse == RC_PULSE_NONE)
+            mr /= r;
+          m += mr / rate_in;
+          rate_in *= r;
+        }
+        break;
+      }
+  return m;
+}
+
 size_t
 dp_RateConverter_num_stages (const dp_RateConverter_state_t *s)
 {

@@ -2218,6 +2218,90 @@ test_group_delay_is_the_signal_delay (void)
   return 0;
 }
 
+/* dp_RateConverter_get_memory() against a converter fed two unit samples
+ * and then zeros (one on each of a halfband's two lines): every output
+ * from index ceil ((memory + 1) * rate) + 1 on, the memory past the second
+ * of them, is exactly zero (the impulse has left every delay line, and so has
+ * a CIC's startup burst, doppler#3365), and the last output that is not zero
+ * sits past 0.4 of the memory on the input's timeline, so the figure is the
+ * memory and not a loose ceiling over it. Each kind of plan the
+ * group-delay rows cover.
+ * Sabotages, each shown red on the rows named: the halfband as N - 1
+ * inputs -> the four rows with a halfband; the CIC's term as 1 -> three
+ * of the plain CIC rows; the compensator's taps dropped -> the three plain
+ * comp rows; the plain decimator's registers counted at the input rate ->
+ * the 0.51 row; a later stage not scaled -> seven rows of two or more
+ * stages; half the Resampler's taps -> thirteen rows. The CIC's term at
+ * half is NOT caught: the one output of slack is a whole ratio of inputs,
+ * so the row cannot tell CIC_N (R - 1) + 1 from half of it. */
+static int
+test_memory_is_when_the_start_has_left (void)
+{
+  static const struct
+  {
+    double rate;
+    int    compensate;
+    int    pulse;
+  } rows[] = {
+    { 1.7, 0, RC_PULSE_NONE },
+    { 0.83, 0, RC_PULSE_NONE },
+    { 0.51, 0, RC_PULSE_NONE },
+    { 0.5, 0, RC_PULSE_NONE },
+    { 0.25, 0, RC_PULSE_NONE },
+    { 0.125, 0, RC_PULSE_NONE },
+    { 0.125, 1, RC_PULSE_NONE },
+    { 1.0 / 12.0, 1, RC_PULSE_NONE },
+    { 0.0588235, 0, RC_PULSE_NONE },
+    { 0.028, 1, RC_PULSE_NONE },
+    { 1.0, 0, RC_PULSE_RRC },
+    { 0.8, 0, RC_PULSE_RRC },
+    { 0.25, 0, RC_PULSE_RRC },
+    { 4.0 / 17.333, 1, RC_PULSE_RRC },
+    { 0.0625, 1, RC_PULSE_RRC },
+    { 0.5, 1, RC_PULSE_IANDD },
+    { 4.0 / 17.333, 1, RC_PULSE_IANDD },
+    { 0.0625, 1, RC_PULSE_IANDD },
+    { 4.0 / 67.3, 1, RC_PULSE_IANDD },
+  };
+  for (size_t r = 0; r < sizeof rows / sizeof *rows; r++)
+    {
+      const double              rate = rows[r].rate;
+      dp_RateConverter_state_t *rc
+          = rows[r].pulse == RC_PULSE_NONE
+                ? dp_RateConverter_create (rate, rows[r].compensate)
+                : dp_RateConverter_create_matched (rate, rows[r].compensate,
+                                                   rows[r].pulse, 0.35, 8, 4.0,
+                                                   1024);
+      DP_REQUIRE (rc != NULL);
+      const double mem = dp_RateConverter_get_memory (rc);
+      DP_CHECK (isfinite (mem) && mem > 0.0);
+      /* the last input that is not zero is index 1 */
+      const size_t    clean = (size_t)ceil ((mem + 1.0) * rate) + 1;
+      const size_t    n     = (size_t)(3.0 * mem) + 64;
+      const size_t    cap   = (size_t)((double)n * rate) + 64;
+      float _Complex *x     = calloc (n, sizeof *x);
+      float _Complex *y     = malloc (cap * sizeof *y);
+      DP_REQUIRE (x != NULL && y != NULL);
+      x[0]              = 1.0f; /* one on each of a halfband's two lines */
+      x[1]              = 1.0f;
+      const size_t m    = dp_RateConverter_execute (rc, x, n, y, cap);
+      size_t       last = 0;
+      for (size_t k = 0; k < m; k++)
+        if (y[k] != 0.0f)
+          last = k;
+      printf ("  memory at rate %.5f, comp %d, pulse %d: %.1f inputs, clean "
+              "from output %zu, last nonzero %zu of %zu\n",
+              rate, rows[r].compensate, rows[r].pulse, mem, clean, last, m);
+      DP_CHECK (m > clean);
+      DP_CHECK (last < clean);
+      DP_CHECK ((double)(last + 1) / rate > 0.4 * mem);
+      free (x);
+      free (y);
+      dp_RateConverter_destroy (rc);
+    }
+  return 0;
+}
+
 /* dp_RateConverter_get_count_lag() against the count, at every call size:
  * fed one sample a call, the worst of `m * rate - outputs` over every m,
  * in outputs, must be at most the computed lag (times the rate) and within
@@ -2283,6 +2367,7 @@ main (void)
   test_huge_block_refused ();
   DP_CHECK (test_count_lag_matches_the_count () == 0);
   DP_CHECK (test_group_delay_is_the_signal_delay () == 0);
+  DP_CHECK (test_memory_is_when_the_start_has_left () == 0);
   test_set_rate_refusal_changes_nothing ();
   test_set_rate_rollback_on_a_failed_build ();
   test_bank_shape_value_without_a_bank ();

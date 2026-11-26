@@ -259,12 +259,6 @@ wrap_half (double d)
   return d - floor (d + 0.5);
 }
 
-static double
-sinc (double x)
-{
-  return fabs (x) < 1e-12 ? 1.0 : sin (M_PI * x) / (M_PI * x);
-}
-
 /* integral_{-1/2}^{1/2} exp (j pi q u^2) du, Simpson's rule. */
 static double _Complex fresnel (double q)
 {
@@ -1127,7 +1121,7 @@ noise_row (int rrc, int u, int d, int l, double esn0_db, long trials,
   claim (WITHIN (c2, r.p.c2, g_z * c2se),
          with_controls ? WITHIN (c2,
                                  r.p.c2
-                                     - (1.0 - sinc (0.25) * sinc (0.25))
+                                     - (1.0 - dp_sinc (0.25) * dp_sinc (0.25))
                                            * r.p.m_abs * r.p.m_abs,
                                  g_z * c2se)
                        : NO_CONTROL,
@@ -1189,7 +1183,7 @@ axis_noise (void)
            filter, which is slow: fewer trials there */
         long mm = (p && g_sps[i][0] != 64) ? m / 4 : m;
         if (noise_row (p, g_sps[i][0], g_sps[i][1], 128, 4.0, mm, s++, 0,
-                       !(g_sps[i][0] == 64
+                       !(p == P_RECT && g_sps[i][0] == 64
                          && (g_sps[i][1] == 16 || g_sps[i][1] == 20)))
             != 0)
           return -1;
@@ -1225,7 +1219,7 @@ clock_row (int rrc, int u, int d, int l, double esn0_db, double x, long trials,
   row_t r;
   if (row_run (&cf, &r) != 0)
     return -1;
-  double sx   = sinc (x);
+  double sx   = dp_sinc (x);
   double rate = acc_mean (&r.rate), rse = acc_se (&r.rate);
   double rate_true = -dil;
   double rvar = acc_var (&r.rate), rvse = acc_var_se (&r.rate);

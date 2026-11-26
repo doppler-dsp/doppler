@@ -77,6 +77,10 @@ validate_capture_dwell_pd               2.7  # prices the CFAR reference (dopple
 validate_acq_rate_pd                   24.0  # MEASURED: 23.97 s in CI's sweep job 127004305376 (#2843 at ce814c01d), the rate search on the one delay-Doppler map (#2831); 93.07 s before it, in job 116442895466 (#2347 at 1469638d2)
 validate_acq_rate_pd_pfa               12.9  # MEASURED: 12.92 s in CI's sweep job 127004305376 (#2843 at ce814c01d), on the one map (#2831); 51.87 s before it, in job 116442895466 (#2347)
 validate_ratesync_scurve                22.1
+validate_timing_loop_noise              10.3  # NEW (#3364): CI's sweep job on 41387e34f (run 45750016474, job 139675326280): 10.3 s
+validate_timing_est_noise                8.2  # NEW (#3364): CI's sweep job on 41387e34f (run 45750016474, job 139675326280): 8.2 s
+validate_ratesync_loop_model             0.1  # NEW (#3364): CI's sweep job on 41387e34f (run 45750016474, job 139675326280): 0.0 s, recorded at the 0.1 s floor
+validate_ratesync_pulse_model            0.1  # NEW (#3364): CI's sweep job on 41387e34f (run 45750016474, job 139675326280): 0.0 s, recorded at the 0.1 s floor
 validate_tracker_through_window         10.1
 validate_acq_block_coherent             21.4  # its Pfa row went 100 -> 400 blocks (doppler#2218 review): +2.8 s here x the 2.35 CI factor, so it DETECTS the native pricing instead of pinning one draw
 validate_costas_pullin                  11.9

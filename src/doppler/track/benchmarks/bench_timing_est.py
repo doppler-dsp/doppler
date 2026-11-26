@@ -35,6 +35,9 @@ def test_bench_estimate_64k(benchmark, block):
     e = benchmark(te.estimate, block)
     assert abs(e.tau - TAU) < 1e-3
     assert e.symbols == BLOCK_64K / SPS
-    benchmark.extra_info["MSa/s"] = round(
-        BLOCK_64K / benchmark.stats["mean"] / 1e6, 1
-    )
+    # No stats when the suite runs with benchmarks disabled (one untimed
+    # call): the estimate above is still asserted, only the rate is skipped.
+    if benchmark.stats:
+        benchmark.extra_info["MSa/s"] = round(
+            BLOCK_64K / benchmark.stats["mean"] / 1e6, 1
+        )

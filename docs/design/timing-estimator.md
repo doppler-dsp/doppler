@@ -12,6 +12,9 @@ what the object's report measured beside it; the numbers and the rows
 behind them are in
 `src/doppler/track/tests/validation/timing_est/results.md`, and §6 lists
 what that report settled and what it left.
+What was predicted before the first run, and which of it was wrong, is
+kept on [the measurement record](timing-estimator-measurements.md) under
+the same section numbers.
 
 ______________________________________________________________________
 

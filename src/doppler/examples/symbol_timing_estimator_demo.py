@@ -16,6 +16,7 @@ answer three ways, and exits non-zero if any fails:
 - a second block gives the transmitter's clock offset.
 """
 
+# --8<-- [start:signal]
 import numpy as np
 
 from doppler.resample import MatchedRateConverter, Resampler
@@ -33,7 +34,6 @@ ES_N0_DB = 10.0
 CLOCK_PPM = 300.0  # how fast the transmitter's symbol clock runs
 
 
-# --8<-- [start:signal]
 def transmit(nsym, carrier, es_n0_db=ES_N0_DB, seed=1):
     """``nsym`` BPSK symbols on a carrier of ``carrier`` cycles a sample.
 

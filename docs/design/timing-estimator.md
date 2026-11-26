@@ -5,11 +5,13 @@ description: "the feedforward symbol-timing estimate: timing, rate and a quality
 # The feedforward symbol-timing estimator
 
 **Scope:** why `SymbolTimingEstimator` (`timing_est_core.h`) exists, what
-it computes, what it is predicted to do, and what is not known yet. It is
-the acquisition half of symbol timing: the tracking half is a loop
-([RateSync's timing](ratesync-timing.md)). §4's numbers are predictions
-until the object's own report measures them, and §6 lists what that report
-has to settle.
+it computes, what it does, and what is not known yet. It is the
+acquisition half of symbol timing: the tracking half is a loop
+([RateSync's timing](ratesync-timing.md)). §4 gives each prediction with
+what the object's report measured beside it; the numbers and the rows
+behind them are in
+`src/doppler/track/tests/validation/timing_est/results.md`, and §6 lists
+what that report settled and what it left.
 
 ______________________________________________________________________
 
@@ -74,6 +76,38 @@ estimate:
 eps_hat = (tau_hat_2 - tau_hat_1, wrapped) / L       symbols per symbol
 ```
 
+As blocks, with what is the caller's on the left and what the object
+keeps across calls drawn round:
+
+```mermaid
+flowchart LR
+    RX["received samples"] --> MF["matched filter<br/>(the caller's)"]
+    MF -- "x[n], N a symbol" --> SQ["|x|^2"]
+
+    CLK(["symbol clock<br/>32-bit phase word<br/>+ NCO increment for 1/N<br/>kept across blocks"])
+    CLK -- "exp(-j 2 pi phi[n])" --> MIX(("x"))
+    SQ --> MIX
+    MIX --> SUM["sum over the block"]
+    SQ --> PWR["sum over the block"]
+
+    SUM -- "c" --> ARG["-arg(c) / 2 pi"]
+    SUM -- "|c|" --> DIV(("/"))
+    PWR -- "sum |x|^2" --> DIV
+
+    ARG --> TAU["tau<br/>eye center on the clock"]
+    DIV --> Q["quality<br/>0 to 1, not thresholded"]
+    PWR --> P["power"]
+
+    PREV(["previous block's tau<br/>and middle"])
+    ARG --> DIFF["wrapped difference<br/>over the symbols between<br/>the blocks' middles"]
+    PREV --> DIFF
+    ARG -. "kept for the next block" .-> PREV
+    DIFF --> RATE["rate<br/>from the second block on"]
+```
+
+Nothing feeds back: the clock is never steered by the estimate, which is
+what makes the time an estimate takes the block's own length.
+
 It is by-value: a block in, one estimate out, and no state that outlives
 a block except the accumulator's phase, which is what makes consecutive
 estimates comparable.
@@ -98,12 +132,26 @@ var(tau_hat) = (1 / L) * ( k_ss + k_sn / gamma + k_nn / gamma^2 )
 
 The three constants depend on the pulse after the matched filter and on
 `N`. They are computed, not fitted: the object's validator evaluates them
-from the pulse, and the measurement is held to them.
+from the pulse (a lone symbol through the chain, and the matched filter's
+impulse response), and the measurement is held to them.
 
-One point exists already, from the model of RateSync's bank with a
-rectangular pulse and `K = 4` at Es/N0 4 dB: an error of 0.030 to 0.036
-symbols rms from 64 symbols and 0.020 to 0.027 from 128, which is 1.1 to
-1.5 times `sqrt(F / L)` for the tracking detector's figure `F`.
+Measured, with a carrier offset on every row: the variance is the
+computed one within its standard error wherever the form's own
+second-order term is under a quarter of the first, which is every row but
+the short blocks at low Es/N0. For the rectangle at `N = 4`, averaged
+over each sample's interval, `k_ss` is under 0.001, `k_sn` 0.095 and
+`k_nn` 0.148: 0.019 to 0.026 symbols rms from 128 symbols at Es/N0 4 dB,
+by where the samples fall in the symbol. The model of RateSync's bank
+gave 0.020 to 0.027. The root-raised cosine of roll-off 0.35 has `k_sn`
+and `k_nn` of 0.31 to 0.36 and needs about four times the symbols for the
+same error, because its line is a third the size.
+
+**The mean is not always the eye center.** For a rectangle at a whole
+`N` the power's higher harmonics fold onto the line, and its phase then
+depends on where the samples fall in the symbol: a bias of up to 0.011
+symbols at `N = 4`, of period one sample. A band-limited pulse has none,
+and an `N` that is not whole runs through every sampling phase inside the
+block and averages it out.
 
 ### 4.2 Clock offset
 
@@ -115,9 +163,20 @@ middle of the block, and the rate estimate reads `eps` as long as
 bin.
 
 So `L` is bounded above by the largest clock offset to be acquired, and
-below by the noise. Whether one bin is enough for the consumers, or a
-small set of rate hypotheses is needed (the two-dimensional search the
-polynomial-phase estimator runs for frequency), is an unknown of §6.
+below by the noise.
+
+Measured: the rate is read out to 0.4 of a cycle a block, which is
+`0.4 / L`, or 3125 ppm at 128 symbols, 781 ppm at 512 and 195 ppm at
+2048; at the half cycle the two signs cannot be told apart, and past it
+the rate reads `(eps L - round(eps L)) / L`, with the wrong sign. The
+`sinc` loss holds for the band-limited pulse. For the rectangle at a
+whole `N` the line's size also depends on the sampling phase (0.117 to
+0.159 of the power at `N = 4`), an offset sweeps that phase, and the loss
+against the line at the block's own phase is anything from none to twice
+the `sinc`'s. A set of rate hypotheses (the two-dimensional search the
+polynomial-phase estimator runs for frequency) is needed only where a
+block of thousands of symbols and an offset of hundreds of ppm are wanted
+together.
 
 ### 4.3 Doppler
 
@@ -131,15 +190,40 @@ Doppler reaches this object two ways, and they are separate.
     fraction as the carrier, so a Doppler of `f_d` on a carrier `f_c` is a
     clock offset of `eps = f_d / f_c`, and a Doppler rate is a clock
     offset that changes across the block. §4.2 covers the first. The
-    second is a chirp of the power line, and what it costs is not derived.
+    second is a chirp of the power line: with `q` the change in clock
+    offset across the block times `L`, the line's amplitude falls as
+    `|integral over u from -1/2 to 1/2 of exp(j pi q u^2)|` and the
+    timing moves by that integral's argument over `2 pi`. At `q = 2`
+    that is 0.80 of the line's power and 0.082 symbols; at 0.01 it is
+    nothing, and a physical Doppler rate is orders of magnitude under
+    that.
+
+Measured through `doppler_channel`, which applies both from one figure:
+a carrier a tenth of the symbol rate off changes no statistic beyond what
+the pulse through the matched filter gives at that carrier, and the
+dilation reads as rate. On the rectangle at a whole `N` a drift much
+smaller than a sample over the block is read through the slope of the
+sampling-phase bias of §4.1, so 20 ppm over 512 symbols reads as 13 to
+26 ppm; the root-raised cosine reads 20.
 
 ### 4.4 The quality figure
 
-With no signal, `c` is a sum of independent terms and `quality` has a
-known distribution that narrows as `1 / sqrt(N * L)`. A threshold on it
-at a stated false-alarm probability says "there is a timing here", and
-its detection probability at the design Es/N0 follows from §4.1's
-constants. Both are to be derived and then measured.
+With no signal, `c` is circular Gaussian and `quality` narrows as
+`1 / sqrt(N * L)`. Its terms are not independent: the matched filter
+correlates them, and for the rectangle's filter at `N = 4` `E |c|^2` is
+half what independent samples would give. The mean quality is the
+Rayleigh mean computed from the filter's response, 0.0277 at 512 samples
+there, and measured 0.02776.
+
+A threshold on it at a stated false-alarm probability says "there is a
+timing here". It is bracketed, not derived: the Rayleigh threshold gives
+1.03 to 1.22 of the target, and the threshold that also averages over the
+spread of the block's power gives 0.68 to 1.0 of it, because `|c|` and
+the power rise and fall together. The second is the conservative one. At
+it, for a false-alarm probability of 0.01, the rectangle is detected 0.63
+of the time from 128 symbols at Es/N0 0 dB, 0.92 at 4 dB and over 0.99
+from 8 dB, which is the normal form from §4.1's constants within its
+interval; a stream with no transitions has no line and is refused.
 
 ## 5. What it composes
 
@@ -150,23 +234,31 @@ It does not filter, resample, or decide symbols. Whoever calls it owns the
 matched filter, which is why the pulse appears here only through the three
 constants.
 
-## 6. Unknowns
+## 6. What the report settled, and what is open
 
-- **`k_ss`, `k_sn`, `k_nn`** for the rectangle through each planned
-    cascade and for the root-raised cosine, at `N` of 3 to 8.
-- **How small `N` may be.** The power line needs the symbol rate inside
-    the band of the squared stream. For a pulse of excess bandwidth
-    `alpha` that is `N > 2 (1 + alpha)`; whether 3 holds for the
-    band-limited rectangle is to be measured.
-- **The bias**, if any, from a pulse that is not symmetric after the
-    cascade, and from a non-integer `N` over a short block.
-- **One rate bin or several.** The consumers' largest clock offset times
-    the `L` their noise needs.
-- **The cost of a Doppler rate** across the block.
-- **The quality figure's distributions**, with and without signal.
-- **Its behavior through a stretch with no transitions**, where the power
-    has no line: what `quality` reads, and that the estimate is refused
-    and not wrong.
+Settled, each in the report's section 2:
+
+- **`k_ss`, `k_sn`, `k_nn`** for the rectangle averaged over each
+    sample's interval and for the root-raised cosine, at `N` of 3 to 8,
+    whole and not.
+- **How small `N` may be.** 3 holds for both pulses; the rectangle's
+    line is as large there as at 4, and its bias larger (0.028 symbols).
+- **The bias**: the sampling-phase bias of §4.1, and the leak of the
+    power's mean into the bin when a block is not a whole number of
+    symbols (0.006 to 0.009 symbols at `N = 3.2`, 128 symbols).
+- **One rate bin or several**: one, out to `0.4 / L` (§4.2).
+- **The cost of a Doppler rate** (§4.3).
+- **No transitions**: `quality` reads the noise's, and a threshold
+    refuses the block (§4.4).
+
+Open, both in
+[#3367](https://github.com/doppler-dsp/doppler/issues/3367):
+
+- **The rectangle through each planned cascade.** The report has one
+    front end, and §4.1 says the cascade's own response decides the
+    numbers at a whole `N`.
+- **The exact false-alarm threshold**, which needs the joint behavior of
+    `|c|` and the block's power.
 
 ## 7. What the characterization measures
 

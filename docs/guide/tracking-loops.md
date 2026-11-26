@@ -324,9 +324,26 @@ real number above 2.
 - The block's length sets the accuracy. The estimator filters nothing:
     the matched filter ahead of it is yours.
 
+What to size it by, measured in its report
+(`src/doppler/track/tests/validation/timing_est/results.md`):
+
+- **Block length.** A rectangular pulse at 4 samples a symbol gives 0.019
+    to 0.026 symbols rms from 128 symbols at Es/N0 4 dB. The root-raised
+    cosine above needs about four times the symbols for the same error.
+- **Clock offset.** `rate` is right while the timing moves under 0.4 of
+    a symbol across one block: 3125 ppm at 128 symbols, 781 ppm at 512.
+    Past half a symbol it reads the wrong sign.
+- **A whole number of samples a symbol, with a rectangle.** The estimate
+    then depends on where the samples fall in the symbol, by up to 0.011
+    symbols at 4. A rate that is not whole (3.2, say) does not have it.
+- **Is there a signal?** With noise alone `quality` averages 0.028 from
+    512 samples of that rectangle's matched filter; a threshold of 0.069
+    passes noise under 1% of the time, a signal at Es/N0 4 dB 92% of the
+    time, and a stream with no transitions never in 9000 blocks.
+
 From C, `native/examples/symbol_timing_estimator_demo.c` does the same
 with a rectangular pulse and checks the eye center it finds. Why the
-object has this shape, and what is not yet measured about it, is on
+object has this shape, and what is still open about it, is on
 [its design page](../design/timing-estimator.md).
 
 ## MpskReceiver — pulse-shaped M-PSK modem

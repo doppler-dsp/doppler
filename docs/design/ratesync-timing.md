@@ -570,73 +570,93 @@ DTTL keep `m` even.
 
 ### 9.3 Acquisition, then tracking
 
-`RateSync` runs one state machine. Acquisition is a feedforward estimate
-whose length is fixed at construction, and the loop closes on its result,
-so the time to a valid symbol is bounded by counts and not by a pull-in.
+The loop has two states. Acquisition is a feedforward estimate whose
+length is fixed at construction, and the loop closes on its result, so
+the time to a closed loop is a count and not a pull-in.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PRIMING
-    PRIMING --> ACQUIRING: cascade primed
+    [*] --> ACQUIRING
     ACQUIRING --> ACQUIRING: quality below threshold
-    ACQUIRING --> SETTLING: quality passes
-    SETTLING --> TRACKING: lock passes n_up decisions
-    SETTLING --> ACQUIRING: lock fails n_down decisions
-    TRACKING --> COASTING: lock fails n_down decisions
-    COASTING --> TRACKING: lock passes n_up decisions
-    COASTING --> ACQUIRING: power gone, or budget spent
+    ACQUIRING --> TRACKING: quality passes, loop seeded
+    TRACKING --> ACQUIRING: n_down lock decisions missed in a row
 ```
 
-A seed call enters `SETTLING` from any state, and a reset enters
-`PRIMING`.
+| state       | what runs                                                  | `valid`                  | bounded by                                   |
+| ----------- | ---------------------------------------------------------- | ------------------------ | -------------------------------------------- |
+| `ACQUIRING` | the estimator, on its own matched filter; the loop is open | 0                        | its lead-in, then `L` symbols an attempt     |
+| `TRACKING`  | the loop, closed                                           | the lock detector's flag | nothing while the lock decisions keep coming |
 
-| state       | what runs                                                       | `valid` | bounded by                                 |
-| ----------- | --------------------------------------------------------------- | ------- | ------------------------------------------ |
-| `PRIMING`   | the cascade fills; the loop is open                             | none    | the terminal bank's length, in its outputs |
-| `ACQUIRING` | the estimator, on its own matched filter; the loop is open      | 0       | its lead-in, then `L` symbols an attempt   |
-| `SETTLING`  | the loop, closed from the estimate; the lock quantity gathers   | 0       | the lock decision's own count              |
-| `TRACKING`  | the loop, closed; lock declared                                 | 1       | nothing: the steady state                  |
-| `COASTING`  | the proportional path off, the rate state held; the power check | 1       | the coast budget, in symbols               |
+A seed call enters `TRACKING` from either state and resets the lock
+detector, so `valid` is 0 until lock is declared again. A reset enters
+`ACQUIRING`. A loop with no estimator beside it starts in `TRACKING`,
+which is the loop as it is today.
 
-**Every state after `PRIMING` emits one symbol a symbol period.** The
-count never changes with the state and nothing is dropped; `valid` is a
-flag beside the symbol, and the state is readable by name for a consumer
-that wants `TRACKING` alone. `PRIMING` emits nothing, as it does today.
+**One symbol a symbol period, in both states.** The count does not
+change with the state and nothing is dropped; `valid` is a flag beside
+the symbol and the state is readable by name. Nothing is emitted while
+the cascade's delay lines fill: that is the countdown the loop has today
+(`prime_left`), not a state, and it is over long before the first
+estimate, whose block is longer than the bank.
 
-Four choices shape it:
+What the two states leave to what already exists:
 
-- **`SETTLING` is a state.** The estimate hands the loop a timing with
-    the block's own error on it, and its quality threshold is a presence
-    test (at Es/N0 0 dB it passes a rectangle 0.66 of the time from 128
-    symbols), so the lock detector makes a second, independent decision
-    before a symbol is called valid.
-- **Coasting tells a quiet stretch from a lost signal.** A run with no
-    transitions gives the detector nothing and leaves the power up: the
-    loop coasts on its rate state for the whole budget. With the power
-    gone it returns to `ACQUIRING` at the next power decision, without
-    waiting the budget out.
-- **Acquisition estimates timing only.** One block of `L` symbols; the
-    loop's rate state starts at zero and the loop pulls the rate in. One
-    block reads the timing with a clock offset out to `0.4 / L` symbols a
-    symbol (3125 ppm at 128 symbols, 781 ppm at 512), which is wider than
-    an oscillator's offset. A second block, and the rate it gives, is an
-    argument for a caller with a larger offset; the seed call takes a rate
-    too.
-- **`valid` is `TRACKING` and `COASTING`.** One failed lock decision
-    inside data does not drop symbols a held timing is still reading
-    correctly; `valid` falls when the coast ends.
+- **A second decision before `valid`.** The estimate's quality threshold
+    is a presence test (at Es/N0 0 dB it passes a rectangle 0.66 of the
+    time from 128 symbols), and the estimate carries the block's own
+    error. `valid` is the lock detector's flag, so a symbol is called
+    valid only after `n_up` lock decisions on the closed loop.
+- **One missed decision does not drop `valid`.** The lock detector drops
+    after `n_down` misses in a row (6 decisions of 133 symbols by
+    default, about 800 symbols). That count, already sized from the
+    per-decision budget, is how long the loop holds through a bad
+    stretch.
+- **A stretch with no transitions.** It gives the detector nothing, and
+    a run shorter than `n_down` decisions never leaves `TRACKING`.
+    Gardner's error is zero in the mean through one. The derivative
+    detector's is not, and that is the detector's to fix (the error is
+    taken on a transition), since it acts long before a state could
+    change.
+
+`TRACKING` leaves on `n_down` missed decisions in a row whether or not
+lock was ever declared. The lock detector counts misses only once it has
+declared, so the loop keeps the count of consecutive misses itself.
+
+Acquisition estimates timing only. One block of `L` symbols; the loop's
+rate state starts at zero and the loop pulls the rate in. A second
+block, and the rate it gives, is an argument for a caller with a large
+clock offset, and the seed call takes a rate too.
 
 What bounds each state, and what each bound is derived from:
 
-| quantity          | from                                                                                                       |
-| ----------------- | ---------------------------------------------------------------------------------------------------------- |
-| prime length      | the terminal bank's taps, plus one                                                                         |
-| lead-in           | the estimator's own converter filling, and a CIC plan's output for silence (#3365)                         |
-| `L`               | the design Es/N0 and the detector's linear range: the estimate's error is about `sqrt(figure / L)` (§2)    |
-| quality threshold | a stated false-alarm probability on noise alone, from the noise's autocorrelation at the estimator's bank  |
-| `n_up`, `n_down`  | the per-decision budget, as today (2 and 6)                                                                |
-| power threshold   | the power the acquisition's own block measured, against the noise the quality threshold assumed            |
-| coast budget      | how long the held rate keeps the timing inside the detector's linear range, from the rate state's variance |
+| quantity          | from                                                                                                      |
+| ----------------- | --------------------------------------------------------------------------------------------------------- |
+| prime length      | the terminal bank's taps, plus one (as today)                                                             |
+| lead-in           | the estimator's own converter's memory (`dp_RateConverter_get_memory()`), a CIC's startup burst in it     |
+| `L`               | the design Es/N0 and the detector's monotone range, from the estimate's tail and not its rms (open)       |
+| quality threshold | a stated false-alarm probability on noise alone, from the noise's autocorrelation at the estimator's bank |
+| `n_up`, `n_down`  | the per-decision budget, as today (2 and 6)                                                               |
+
+Open, and settled before the seed is built:
+
+- **`L` from the tail.** The hand-over fails when the estimate's error
+    is past the detector's monotone range, which is a tail event: the
+    worst error over the report's rows is several times the rms. `L` is
+    sized from the probability of that given the quality passed.
+- **The capture envelope with no rate seed.** One block reads the timing
+    with a clock offset out to `0.4 / L` symbols a symbol (3125 ppm at
+    128 symbols). That is the estimator's bin, not what the loop then
+    captures: the timing drifts for half a block and the hand-over's
+    latency, and the loop's rate state starts from zero. The offset the
+    default hand-over holds is smaller and is not derived yet.
+- **Four samples a symbol with nothing ahead of the bank.** The
+    derivative detector's error has extra zeros there (§2); that geometry
+    is refused or its zeros are mapped.
+- **A false alarm costs `n_down` decisions.** An estimate that passes on
+    noise closes the loop on nothing, and the loop returns to
+    `ACQUIRING` only after `n_down` missed decisions, about 800 symbols.
+    Running the estimator beside the closed loop as a monitor would
+    shorten that, and would see a slip; it is not in this design.
 
 **The estimator brings its own matched filter.** The matched flavor of
 [`SymbolTimingEstimator`](timing-estimator.md#the-matched-flavor) owns a
@@ -647,14 +667,18 @@ Acquisition therefore does not depend on `m`, on the detector, or on
 where the loop has pushed the tracking bank: it is the same at `m = 1`,
 2 and 4. It runs only in `ACQUIRING`.
 
-**The estimate reaches the loop through the seed call.** The estimate is
-on the estimator's converter's timeline and the loop steers another
-converter, so the two group delays, each the sum of its plan's stage
-delays (`dp_RateConverter_get_group_delay()`), carry the eye center from one to the other. What
-arrives is a timing on the tracking bank's outputs: the on-time output
-is the nearest one, which is a count, and what is left is under half an
-output period and goes to the terminal stage as one symbol of control,
-the path the loop's proportional term takes. Built-in acquisition is
+**The estimate reaches the loop through the seed call.** The estimate's
+`eye` is a sample index into the samples both converters are handed: the
+estimator has already taken its own converter's delay and lead-in out.
+The tracking converter's group delay
+(`dp_RateConverter_get_group_delay()`) then says which of its outputs
+carries that sample. The on-time output is the nearest one, which is a
+count, and what is left is under half an output period and goes to the
+terminal stage as one symbol of control, the path the loop's
+proportional term takes. The count can move by one output at the
+hand-over; the seed resets the lock detector, so that never lands on a
+symbol called valid. The sign of the remainder is pinned per plan by
+seeding a fifth of a symbol either side. Built-in acquisition is
 `RateSync` making the seed call a caller could make.
 
 **The machine is the loop's; the estimator is its owner's.** The states,
@@ -663,8 +687,8 @@ outputs arrive, so a receiver that composes the loop gets the same
 machine. The estimator needs the samples ahead of the cascade, which the
 loop never sees, so it sits beside the loop in whatever owns the cascade:
 `RateSync` here, and each receiver when it is re-certified (§9.6 step
-10). A loop with no estimator beside it goes from `PRIMING` to `SETTLING`
-and pulls in as it does today.
+10). A loop with no estimator beside it starts in `TRACKING` and pulls in as
+it does today.
 
 ### 9.4 What a caller sizes from
 

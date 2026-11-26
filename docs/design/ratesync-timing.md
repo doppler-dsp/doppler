@@ -570,31 +570,102 @@ DTTL keep `m` even.
 
 ### 9.3 Acquisition, then tracking
 
-```text
-ACQUIRE   sum |y|^2 at K hypotheses a symbol over L symbols
-          tau_hat = tau0 - (S / 2 pi) arg sum |y_i|^2 exp(-j 2 pi i / K)
-          a second block gives the rate: (tau_hat_2 - tau_hat_1) / L
-TRACK     the loop closes at tau_hat with its rate state seeded
+`RateSync` runs one state machine. Acquisition is a feedforward estimate
+whose length is fixed at construction, and the loop closes on its result,
+so the time to a valid symbol is bounded by counts and not by a pull-in.
+
+```mermaid
+stateDiagram-v2
+    [*] --> PRIMING
+    PRIMING --> ACQUIRING: cascade primed
+    ACQUIRING --> ACQUIRING: quality below threshold
+    ACQUIRING --> SETTLING: quality passes
+    SETTLING --> TRACKING: lock passes n_up decisions
+    SETTLING --> ACQUIRING: lock fails n_down decisions
+    TRACKING --> COASTING: lock fails n_down decisions
+    COASTING --> TRACKING: lock passes n_up decisions
+    COASTING --> ACQUIRING: power gone, or budget spent
 ```
 
-`L` is derived at construction from the design Es/N0 and the detector's
-linear range (the estimate's error is about `sqrt(figure / L)`, §2), and
-`K = 4`.
+A seed call enters `SETTLING` from any state, and a reset enters
+`PRIMING`.
 
-**The estimator is its own object**, which `RateSync` composes: it takes
-power at `K` timing hypotheses per symbol and returns the timing, the
-rate between two blocks and the estimate's quality, `|c| / sum |y|^2`. It
-knows nothing of a bank or a loop, so anything that can form `|y|^2`
-against a timing hypothesis can use it (the DSSS Dll's symbol aid forms
-the same statistic from its partial sums). It gets its own design page,
-manifest, tests and report.
+| state       | what runs                                                       | `valid` | bounded by                                 |
+| ----------- | --------------------------------------------------------------- | ------- | ------------------------------------------ |
+| `PRIMING`   | the cascade fills; the loop is open                             | none    | the terminal bank's length, in its outputs |
+| `ACQUIRING` | the estimator, on `K` powers a symbol; the loop is open         | 0       | `L` symbols an attempt                     |
+| `SETTLING`  | the loop, closed from the estimate; the lock quantity gathers   | 0       | the lock decision's own count              |
+| `TRACKING`  | the loop, closed; lock declared                                 | 1       | nothing: the steady state                  |
+| `COASTING`  | the proportional path off, the rate state held; the power check | 1       | the coast budget, in symbols               |
 
-A seed call puts `RateSync` straight into tracking at a caller's timing
-and rate, for a consumer that already has them.
+**Every state after `PRIMING` emits one symbol a symbol period.** The
+count never changes with the state and nothing is dropped; `valid` is a
+flag beside the symbol, and the state is readable by name for a consumer
+that wants `TRACKING` alone. `PRIMING` emits nothing, as it does today.
 
-**The state machine is not designed yet.** Which states exist, what each
-emits, what moves between them and what bounds each one is settled before
-any of §9.6 is built.
+Four choices shape it:
+
+- **`SETTLING` is a state.** The estimate hands the loop a timing with
+    the block's own error on it, and its quality threshold is a presence
+    test (at Es/N0 0 dB it passes a rectangle 0.66 of the time from 128
+    symbols), so the lock detector makes a second, independent decision
+    before a symbol is called valid.
+- **Coasting tells a quiet stretch from a lost signal.** A run with no
+    transitions gives the detector nothing and leaves the power up: the
+    loop coasts on its rate state for the whole budget. With the power
+    gone it returns to `ACQUIRING` at the next power decision, without
+    waiting the budget out.
+- **Acquisition estimates timing only.** One block of `L` symbols; the
+    loop's rate state starts at zero and the loop pulls the rate in. One
+    block reads the timing with a clock offset out to `0.4 / L` symbols a
+    symbol (3125 ppm at 128 symbols, 781 ppm at 512), which is wider than
+    an oscillator's offset. A second block, and the rate it gives, is an
+    argument for a caller with a larger offset; the seed call takes a rate
+    too.
+- **`valid` is `TRACKING` and `COASTING`.** One failed lock decision
+    inside data does not drop symbols a held timing is still reading
+    correctly; `valid` falls when the coast ends.
+
+What bounds each state, and what each bound is derived from:
+
+| quantity          | from                                                                                                        |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| prime length      | the terminal bank's taps, plus one                                                                          |
+| `K`               | the terminal outputs a symbol, `m`; the estimator's line needs more than 2, so acquisition runs at `m >= 4` |
+| `L`               | the design Es/N0 and the detector's linear range: the estimate's error is about `sqrt(figure / L)` (§2)     |
+| quality threshold | a stated false-alarm probability on noise alone, from the noise's autocorrelation at the bank's output      |
+| `n_up`, `n_down`  | the per-decision budget, as today (2 and 6)                                                                 |
+| power threshold   | the power the acquisition's own block measured, against the noise the quality threshold assumed             |
+| coast budget      | how long the held rate keeps the timing inside the detector's linear range, from the rate state's variance  |
+
+The estimate becomes the loop's starting point in two parts. The on-time
+output is the one of the `m` nearest the estimate, which is a count and
+costs nothing; what is left is under `1 / (2 m)` of a symbol and goes to
+the terminal stage as one symbol of control, the same path the loop's
+proportional term takes.
+
+**With `m = 2` there is no acquisition.** Two powers a symbol put the
+symbol-rate line at the Nyquist rate, where it has one component and no
+phase. `PRIMING` then goes to `SETTLING` and the loop pulls in as it does
+today. The derivative detector's `m = 1` case has the same need, and the
+Resampler's paired output (§9.6 step 3) is where `K = 4` at any `m` is
+answered.
+
+**The machine is the loop's.** It lives in `ratesync_loop_t`, where the
+terminal outputs arrive, so a receiver that composes the loop gets the
+same states. Acquisition is switched on there by its owner: `RateSync`
+turns it on, and each receiver turns it on when it is re-certified on it
+(§9.6 step 10).
+
+**The estimator is its own object**, which the loop composes:
+[`SymbolTimingEstimator`](timing-estimator.md) takes the power at each
+terminal output and returns the timing and the estimate's quality,
+`|c| / sum |y|^2`. It knows nothing of a bank or a loop. Its report
+measures it behind this converter's whole decimations, where its
+sampling-phase bias is 0.002 to 0.003 symbols; a CIC plan's output for
+silence lasts up to 128 outputs (#3365), which the prime length does not
+cover and the quality threshold has to. The root-raised cosine at
+roll-off 0.35 needs about four times the rectangle's `L`.
 
 ### 9.4 What a caller sizes from
 
@@ -613,15 +684,15 @@ designed for.
 
 ### 9.5 The surface that changes
 
-|               | today                                                                        | finalized                                                                                                                               |
-| ------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| create        | `sps, pulse, beta, span, m, num_phases, bn, zeta, ted`                       | the same arguments; `ted` gains `DERIVATIVE` and it is the default of the least-input constructor; `m >= 1`                             |
-| new           |                                                                              | a seed call (timing, rate); the state, readable by name; the figure at a stated Es/N0; the `bn` for a stated loop SNR at a stated Es/N0 |
-| new object    |                                                                              | the feedforward timing estimator, composed here                                                                                         |
-| symbol out    | the arm's output, 0.88 to 0.96 of the symbol on a band-limited input (#3366) | `a_u * y`: the symbol                                                                                                                   |
-| Resampler     | one bank                                                                     | an optional second bank and a paired output                                                                                             |
-| RateConverter | `rc_build_bank` samples or integrates the pulse                              | builds `h`, `dh`, `a` from the plan's derived response                                                                                  |
-| blob          | version N                                                                    | version N + 1: the acquisition's sums and state                                                                                         |
+|               | today                                                                        | finalized                                                                                                                                                           |
+| ------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| create        | `sps, pulse, beta, span, m, num_phases, bn, zeta, ted`                       | the same arguments; `ted` gains `DERIVATIVE` and it is the default of the least-input constructor; `m >= 1`                                                         |
+| new           |                                                                              | a seed call (timing, rate); the state, readable by name; `valid` beside each symbol; the figure at a stated Es/N0; the `bn` for a stated loop SNR at a stated Es/N0 |
+| new object    |                                                                              | the feedforward timing estimator, composed here                                                                                                                     |
+| symbol out    | the arm's output, 0.88 to 0.96 of the symbol on a band-limited input (#3366) | `a_u * y`: the symbol                                                                                                                                               |
+| Resampler     | one bank                                                                     | an optional second bank and a paired output                                                                                                                         |
+| RateConverter | `rc_build_bank` samples or integrates the pulse                              | builds `h`, `dh`, `a` from the plan's derived response                                                                                                              |
+| blob          | version N                                                                    | version N + 1: the acquisition's sums and state                                                                                                                     |
 
 ### 9.6 The order of work
 
@@ -632,8 +703,8 @@ designed for.
 1. The Resampler's second bank and paired output.
 1. The derivative detector in `ratesync_loop_t`, its slope from the
     tables, `m = 1`.
-1. The feedforward estimator as its own object, then the state machine
-    and the seed in `RateSync`.
+1. The state machine and the seed in the loop, on the feedforward
+    estimator (its own object, built and certified first).
 1. The header rewritten claim by claim, the manifest, the bindings.
 1. The C pins with their sabotage; the state round trip; the probes.
 1. The six measurement lanes against §2's predictions, and the report.

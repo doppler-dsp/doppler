@@ -1756,3 +1756,15 @@ name = "Costas carrier loop, third order, from Python"
 unit = "sample"
 definition = "Costas.steps on 65,536 samples of a BPSK carrier with the loop switched to third order (set_order), per input sample."
 samples = 1
+
+["c:timing_est::estimate"]
+name = "Feedforward symbol-timing estimate"
+unit = "sample"
+definition = "One SymbolTimingEstimator estimate over a 65,536-sample block at 4 samples per symbol: each sample's power rotated onto the symbol clock and summed; per input sample."
+samples = 1
+
+["py:timing_est::test_bench_estimate_64k"]
+name = "Feedforward symbol-timing estimate, from Python"
+unit = "sample"
+definition = "SymbolTimingEstimator.estimate on a 65,536-sample block at 4 samples per symbol, per input sample."
+samples = 1

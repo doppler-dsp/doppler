@@ -185,6 +185,22 @@ dp_gnu_compile_options(validate_ratesync_scurve PRIVATE -O3 -funroll-loops
 add_test(NAME validate_ratesync_scurve
          COMMAND validate_ratesync_scurve --check)
 
+# The open-loop Gardner S-curve the async DSSS receiver's timing loop sees:
+# code-period partials interpolated to 8 sps into the rectangle bank, for
+# the bank as built and the sampled bank it replaced. Same flags as
+# ratesync_scurve: the statistics are sums of products.
+add_executable(validate_ratesync_partial_scurve
+               ${CMAKE_CURRENT_SOURCE_DIR}/ratesync_partial_scurve.c)
+target_include_directories(validate_ratesync_partial_scurve
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_ratesync_partial_scurve PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_ratesync_partial_scurve PRIVATE -O3
+                                                         -fno-fast-math
+                                                         -ffp-contract=off)
+add_test(NAME validate_ratesync_partial_scurve
+         COMMAND validate_ratesync_partial_scurve --check)
+
 # The timing detector's noise spectrum and the closed loop's timing error,
 # against docs/design/symsync.md section 5. Same flags as ratesync_scurve:
 # the statistics are sums of products, and a fused multiply-add would move

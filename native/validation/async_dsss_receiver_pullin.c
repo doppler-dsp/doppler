@@ -151,10 +151,26 @@
  * count and, printed, at one fewer; `# carrier_lock_segments`: the
  * count at every segment count tried, with its delay.
  *
+ * `--windows W` prints, a draw, the symbol errors in each of the first
+ * PI_WINDOWS_N windows of W symbols from the hand-over (`# windows`): the
+ * first symbol of the tracking generation the draw ends on, read at the
+ * end of its first block, so up to one block (about 1.1 symbols) late.
+ * They are scored under the alignment the scoring found. The pooled error
+ * rate starts at the alignment marker past the declared lock (all five
+ * flags sustained), hundreds of symbols after the hand-over, so a
+ * demodulator still pulling in its timing over its first few hundred
+ * symbols is outside it; this is where that transient is read. The row
+ * also gives the declared lock's symbol (`lock_sym`) and the hand-over's
+ * (`h0`). It is how the corrected rectangle bank's longer timing pull-in
+ * was found and measured (doppler#3364): at 2.2 GHz, 10 dB, the errors
+ * per 25 symbols from the lock fall to zero after about 200 symbols on
+ * the coverage-weighted arms and after about 50 on the sampled ones (the
+ * sampled arms are main's rc_tap_w before #3362, a one-line swap).
+ *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
  *             [--draws N] [--secs S] [--shard i/n] [--spc N]
  *             [--bn-carrier BN|rule]
- *             [--design]
+ *             [--design] [--windows W]
  *             [--fc GHZ] [--esn0 DB] [--rate HZ_S]   (a slice of the grid)
  *             [--no-emitter | --expect-broken [--carrier-null]]
  *                                                  (the C12 controls)
@@ -434,8 +450,12 @@ static double pi_bn_car = NAN;
    sustains;
    --expect-broken asserts a draw does not work (the carrier loop opened
    through --bn-carrier). Each prints its verdict to stderr. */
-static int pi_no_emitter    = 0;
-static int pi_expect_broken = 0;
+static int pi_no_emitter = 0;
+/* --windows W: the errors per W symbols from the declared lock, a draw (the
+   header's `--windows`); 0 is off. */
+#define PI_WINDOWS_N 20u
+static size_t pi_windows       = 0;
+static int    pi_expect_broken = 0;
 /* --carrier-null (async-dsss-receiver-measurements.md §4.11, proposal ii): at
    the entry to tracking, the first carrier loop's NCO is moved K / T off the
    hand-over (K the Dll's partials a code period, T the code period), where
@@ -1767,8 +1787,32 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
               dp_ber_t     acc;
               dp_ber_init (&acc, 2, ULONG_MAX);
               dp_ber_score (&acc, syms, lo, ns, truth, n_truth, &mk, &sy);
-              d->errors  = acc.errors;
-              d->scored  = acc.symbols;
+              d->errors = acc.errors;
+              d->scored = acc.symbols;
+              if (pi_windows)
+                {
+                  size_t h0 = SIZE_MAX;
+                  for (size_t b = 0; b < n_blk && h0 == SIZE_MAX; b++)
+                    if (s_gen[b] == gen && s_end[b] != SIZE_MAX)
+                      h0 = s_end[b];
+                  printf ("# windows fc %.1f esn0 %g rate %g seed %u "
+                          "lock_sym %zu h0 %zu w %zu:",
+                          fc / 1e9, esn0, rate_mag, (unsigned)seed, lock_sym,
+                          h0, pi_windows);
+                  for (size_t k = 0; h0 != SIZE_MAX && k < PI_WINDOWS_N; k++)
+                    {
+                      const size_t a = h0 + k * pi_windows;
+                      if (a + pi_windows > ns)
+                        break;
+                      dp_ber_t w;
+                      dp_ber_init (&w, 2, ULONG_MAX);
+                      dp_ber_score (&w, syms, a, a + pi_windows, truth,
+                                    n_truth, &mk, &sy);
+                      printf (" %lu", (unsigned long)w.errors);
+                      dp_ber_free (&w);
+                    }
+                  printf ("\n");
+                }
               d->evm_db  = dp_test_evm_db_hard (syms + lo, ns - lo);
               d->m2m4_db = dp_test_m2m4_snr_db (syms + lo, ns - lo);
               dp_ber_free (&acc);
@@ -2586,6 +2630,8 @@ main (int argc, char **argv)
         pi_carrier_null = 1;
       else if (strcmp (argv[i], "--fine-k1") == 0)
         pi_fine_k1 = 1;
+      else if (strcmp (argv[i], "--windows") == 0 && i + 1 < argc)
+        pi_windows = (size_t)strtoul (argv[++i], NULL, 10);
       else if (strcmp (argv[i], "--design") == 0)
         design = 1;
       else if (strcmp (argv[i], "--shard") == 0 && i + 1 < argc)

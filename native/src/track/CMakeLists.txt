@@ -10,7 +10,7 @@ add_library(track_core OBJECT track_core.c)
 target_include_directories(track_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# track Python module — aggregates: LoopFilter, StateFilter, KalmanStateFilter, Costas, Dll, SymbolSync, RateSync, CarrierMpsk, CarrierNda, MpskReceiver, BpskReceiver, MpskReceiverR
+# track Python module — aggregates: LoopFilter, StateFilter, KalmanStateFilter, Costas, Dll, SymbolSync, RateSync, CarrierMpsk, CarrierNda, MpskReceiver, SymbolTimingEstimator, BpskReceiver, MpskReceiverR
 Python3_add_library(track MODULE WITH_SOABI track_ext.c)
 target_link_libraries(track PRIVATE
     track_core
@@ -24,6 +24,7 @@ target_link_libraries(track PRIVATE
     carrier_mpsk_core
     carrier_nda_core
     mpsk_receiver_core
+    timing_est_core
     lo_core
     lockdet_core
     dp_tlm_core

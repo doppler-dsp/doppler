@@ -4,12 +4,12 @@ description: "the feedforward symbol-timing estimate: timing, rate and a quality
 
 # The feedforward symbol-timing estimator
 
-**Scope:** why this object exists, what it computes, what it is predicted
-to do, and what is not known yet. It is the acquisition half of symbol
-timing: the tracking half is a loop
-([RateSync's timing](ratesync-timing.md)). Nothing here is built; this page
-is the object's first phase, and its numbers are predictions until its own
-report measures them.
+**Scope:** why `SymbolTimingEstimator` (`timing_est_core.h`) exists, what
+it computes, what it is predicted to do, and what is not known yet. It is
+the acquisition half of symbol timing: the tracking half is a loop
+([RateSync's timing](ratesync-timing.md)). §4's numbers are predictions
+until the object's own report measures them, and §6 lists what that report
+has to settle.
 
 ______________________________________________________________________
 

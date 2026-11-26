@@ -2,9 +2,9 @@
  * track_ext.c — Python extension module track
  *
  * Objects: LoopFilter, StateFilter, KalmanStateFilter, Costas, Dll,
- * SymbolSync, RateSync, CarrierMpsk, CarrierNda, MpskReceiver, BpskReceiver,
- * MpskReceiverR GENERATED — do not hand-edit. Patches belong in the
- * _ext_<obj>.c fragments.
+ * SymbolSync, RateSync, CarrierMpsk, CarrierNda, MpskReceiver,
+ * SymbolTimingEstimator, BpskReceiver, MpskReceiverR GENERATED — do not
+ * hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -201,6 +201,7 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 #include "track_ext_state_filter.c"
 #include "track_ext_state_filter_kalman.c"
 #include "track_ext_symsync.c"
+#include "track_ext_timing_est.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -248,6 +249,15 @@ PyInit_track (void)
     return NULL;
   if (PyType_Ready (&MpskReceiverObjType) < 0)
     return NULL;
+  if (PyType_Ready (&SymbolTimingEstimatorObjType) < 0)
+    return NULL;
+  if (!SymbolTimingEstimatorObj_estimate_type)
+    {
+      SymbolTimingEstimatorObj_estimate_type
+          = PyStructSequence_NewType (&SymbolTimingEstimatorObj_estimate_desc);
+      if (!SymbolTimingEstimatorObj_estimate_type)
+        return NULL;
+    }
   if (PyType_Ready (&BpskReceiverObjType) < 0)
     return NULL;
   if (PyType_Ready (&MpskReceiverRObjType) < 0)
@@ -327,6 +337,23 @@ PyInit_track (void)
       < 0)
     {
       Py_DECREF (&MpskReceiverObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&SymbolTimingEstimatorObjType);
+  if (PyModule_AddObject (m, "SymbolTimingEstimator",
+                          (PyObject *)&SymbolTimingEstimatorObjType)
+      < 0)
+    {
+      Py_DECREF (&SymbolTimingEstimatorObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  if (PyModule_AddObject (m, "TimingEstimate",
+                          (PyObject *)SymbolTimingEstimatorObj_estimate_type)
+      < 0)
+    {
+      Py_DECREF (SymbolTimingEstimatorObj_estimate_type);
       Py_DECREF (m);
       return NULL;
     }

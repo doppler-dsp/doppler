@@ -296,6 +296,39 @@ f_est  = c.norm_freq         # tracked carrier (cycles/sample)
 locked = c.lock              # M-th-power lock metric (normalised: ~1.0 at lock)
 ```
 
+## SymbolTimingEstimator — timing from one block, with no loop
+
+A timing loop walks its error out, and how long that takes depends on
+where it started. `SymbolTimingEstimator` reads the timing off one block
+of matched-filtered samples instead: a block in, one `TimingEstimate`
+out, in the block's own length whatever the timing was. Use it to put a
+loop on the eye before the loop closes, or alone where a burst is over
+before a loop would settle.
+
+It uses only the stream's power, so it runs before the carrier is
+recovered and gives the same answer on any carrier offset. `sps` is any
+real number above 2.
+
+```python
+--8<-- "src/doppler/examples/symbol_timing_estimator_demo.py:signal"
+```
+
+- `tau` is where the eye center sits on the estimator's own symbol clock,
+    which counts samples from the first one it was given.
+- `quality` is the share of the block's power that is the symbol-rate
+    line. It is small for a pulse with little excess bandwidth (0.03 for
+    the root-raised cosine of roll-off 0.35 above) and near zero with no
+    signal or no transitions. Nothing is thresholded for you.
+- `rate` appears from the second block: the clock is kept across calls,
+    so how far the timing moved is the transmitter's clock offset.
+- The block's length sets the accuracy. The estimator filters nothing:
+    the matched filter ahead of it is yours.
+
+From C, `native/examples/symbol_timing_estimator_demo.c` does the same
+with a rectangular pulse and checks the eye center it finds. Why the
+object has this shape, and what is not yet measured about it, is on
+[its design page](../design/timing-estimator.md).
+
 ## MpskReceiver — pulse-shaped M-PSK modem
 
 `MpskReceiver` is a complete M-PSK demodulator that owns no filter, no NCO and no

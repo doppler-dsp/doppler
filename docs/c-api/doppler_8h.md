@@ -92,6 +92,7 @@
 * `#include "doppler/carrier_mpsk/carrier_mpsk_core.h"`
 * `#include "doppler/carrier_nda/carrier_nda_core.h"`
 * `#include "doppler/mpsk_receiver/mpsk_receiver_core.h"`
+* `#include "doppler/timing_est/timing_est_core.h"`
 * `#include "doppler/pn/pn_core.h"`
 * `#include "doppler/wfm_synth/wfm_synth_core.h"`
 * `#include "doppler/gold/gold_core.h"`

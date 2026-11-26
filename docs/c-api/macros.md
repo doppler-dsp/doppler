@@ -510,6 +510,12 @@
 * **SYMSYNC\_STATE\_VERSION** ([**symsync\_core.h**](symsync__core_8h.md))
 
 
+## t
+
+* **TIMING\_EST\_STATE\_MAGIC** ([**timing\_est\_core.h**](timing__est__core_8h.md))
+* **TIMING\_EST\_STATE\_VERSION** ([**timing\_est\_core.h**](timing__est__core_8h.md))
+
+
 ## v
 
 * **VITERBI\_STATE\_MAGIC** ([**viterbi\_core.h**](viterbi__core_8h.md))

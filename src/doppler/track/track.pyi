@@ -6,6 +6,65 @@ import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
+class TimingEstimate(tuple[float, float, float, float, float, int]):
+    """One feedforward symbol-timing estimate: the eye center's place on the
+    estimator's symbol clock, the symbol rate's error against the previous
+    block, and how strong the symbol-rate line was.
+
+    Attributes
+    ----------
+    tau : float
+        Where the eye center sits on the estimator's symbol clock, in symbols, in (-1/2, 1/2]: the clock's phase at the instants the stream's power peaks. With a symbol-rate error it is the value at the middle of the block. 0 when the block has no power.
+    rate : float
+        How far the eye center moves on the clock each symbol of the clock, in symbols: for symbols that last `sps * (1 + eps)` samples it is `eps / (1 + eps)`. From how far `tau` moved since the previous block, so 0 until `has_rate` is 1, and right only while the timing moves under half a symbol between the two blocks' middles.
+    quality : float
+        `|c| / sum |x|^2`, in [0, 1]: how much of the block's power is the symbol-rate line. Near 0 with no signal, with no transitions, or with a clock error that turns the line through a full cycle inside the block. 0 when the block has no power.
+    power : float
+        Mean `|x|^2` over the block.
+    symbols : float
+        The block's length in symbols of the clock: samples / sps.
+    has_rate : int
+        1 when a previous block exists to take `rate` against, else 0.
+    """
+
+    @property
+    def tau(self) -> float:
+        """Where the eye center sits on the estimator's symbol clock, in
+        symbols, in (-1/2, 1/2]: the clock's phase at the instants the stream's
+        power peaks. With a symbol-rate error it is the value at the middle of
+        the block. 0 when the block has no power.
+        """
+
+    @property
+    def rate(self) -> float:
+        """How far the eye center moves on the clock each symbol of the clock,
+        in symbols: for symbols that last `sps * (1 + eps)` samples it is `eps
+        / (1 + eps)`. From how far `tau` moved since the previous block, so 0
+        until `has_rate` is 1, and right only while the timing moves under half
+        a symbol between the two blocks' middles.
+        """
+
+    @property
+    def quality(self) -> float:
+        """`|c| / sum |x|^2`, in [0, 1]: how much of the block's power is the
+        symbol-rate line. Near 0 with no signal, with no transitions, or with a
+        clock error that turns the line through a full cycle inside the block.
+        0 when the block has no power.
+        """
+
+    @property
+    def power(self) -> float:
+        """Mean `|x|^2` over the block."""
+
+    @property
+    def symbols(self) -> float:
+        """The block's length in symbols of the clock: samples / sps."""
+
+    @property
+    def has_rate(self) -> int:
+        """1 when a previous block exists to take `rate` against, else 0."""
+
+@final
 class LoopFilter:
     """A second-order loop filter whose closed loop has noise bandwidth `bn`,
     for a loop whose rest has unit gain.
@@ -6399,6 +6458,203 @@ class MpskReceiverR:
         /,
     ) -> None:
         """Exit a context manager, releasing the MpskReceiverR.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class SymbolTimingEstimator:
+    """Create an estimator whose symbol clock runs at sps samples a symbol.
+
+    Parameters
+    ----------
+    sps : float, default 4.0
+        Samples per symbol of the stream handed to it; finite and above 2
+        (default: 4.0).
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is
+        ``SymbolTimingEstimator: invalid parameter (need a finite sps above
+        2)``.
+
+    Examples
+    --------
+    >>> from doppler.track import SymbolTimingEstimator
+    >>> te = SymbolTimingEstimator(sps=4.0)
+    >>> te.sps
+    4.0
+
+    """
+
+    def __init__(self, sps: float = 4.0) -> None: ...
+    def estimate(self, x: complex, /) -> TimingEstimate:
+        """Estimate the symbol timing from one block of matched-filtered
+        samples; returns a TimingEstimate. The block is the whole call, so its
+        length sets the estimate's variance; consecutive calls stay on one
+        symbol clock, and from the second call on the result also carries the
+        symbol rate's error.
+
+        The block is the whole call: its length sets the estimate's variance
+        and the time the estimate takes. Consecutive calls stay on one symbol
+        clock, and from the second call that had power the result carries the
+        symbol rate's error.
+
+        Parameters
+        ----------
+        x : complex
+            Matched-filtered samples, `sps` a symbol.
+
+        Returns
+        -------
+        TimingEstimate
+            The block's estimate.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import SymbolTimingEstimator
+        >>> n = np.arange(4 * 256)
+        >>> # power peaking a quarter symbol into each symbol, on any carrier
+        >>> x = np.sqrt(1.0 + 0.5 * np.cos(2 * np.pi * (n / 4 - 0.25)))
+        >>> x = (x * np.exp(1j * 0.3 * n)).astype(np.complex64)
+        >>> e = SymbolTimingEstimator(sps=4.0).estimate(x)
+        >>> round(e.tau, 3), round(e.quality, 3), e.symbols, e.has_rate
+        (0.25, 0.25, 256.0, 0)
+
+        """
+
+    def reset(self) -> None:
+        """Return the symbol clock to zero and forget the previous block and
+        any block in progress; keep `sps`.
+
+        The next estimate is then the first again: its `tau` is on a clock that
+        starts at the next sample, and it carries no `rate`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import SymbolTimingEstimator
+        >>> n = np.arange(1024)
+        >>> x = np.sqrt(1.0 + 0.5 * np.cos(2 * np.pi * n / 4)).astype(np.complex64)
+        >>> te = SymbolTimingEstimator(sps=4.0)
+        >>> te.estimate(x).has_rate, te.estimate(x).has_rate
+        (0, 1)
+        >>> te.reset()
+        >>> te.estimate(x).has_rate
+        0
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the SymbolTimingEstimator has already been
+        destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the SymbolTimingEstimator has already been
+        destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes, /) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the SymbolTimingEstimator has already been
+        destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def sps(self) -> float:
+        """Samples per symbol the estimator's symbol clock runs at."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+    def __enter__(self) -> "SymbolTimingEstimator":
+        """Enter a context manager, returning this object.
+
+        Lets a SymbolTimingEstimator be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
+
+        Returns
+        -------
+        SymbolTimingEstimator
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+        /,
+    ) -> None:
+        """Exit a context manager, releasing the SymbolTimingEstimator.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

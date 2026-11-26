@@ -262,6 +262,8 @@ Here is a list of all files with brief descriptions:
                 * **file** [**telemetry\_core.h**](telemetry__core_8h.md) _Telemetry module — public C API._ 
             * **dir** [**timing**](dir_f312c7d1315f2596c2b71ef05d5d7b2b.md)     
                 * **file** [**timing\_core.h**](timing__core_8h.md) _Sample-clock pacing + timestamping._     
+            * **dir** [**timing\_est**](dir_ef0d777ccea6407e2e2ec8e704716d8f.md)     
+                * **file** [**timing\_est\_core.h**](timing__est__core_8h.md) _Feedforward symbol-timing estimator: a block of matched-filtered samples in, one estimate of the symbol timing out, with no loop._     
             * **dir** [**tonemeas**](dir_e0665d68cb2c2ff7feb28506d37a8bd1.md)     
                 * **file** [**tonemeas\_core.h**](tonemeas__core_8h.md) _ToneMeasure — single-tone ADC/converter spectral measurement._     
             * **dir** [**track**](dir_f98cb3fb09d38460dfcf46a77aa842c0.md)     

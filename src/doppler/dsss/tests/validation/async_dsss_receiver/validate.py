@@ -27,8 +27,11 @@ full sweeps are committed and rendered: `data/sweep.txt` -- twenty
 settled dropout draws a carrier at 10 and 4 dB -- in section 2.5,
 `data/ber_sweep.txt` -- the error rate at both carriers, 4 to 7 dB, 200
 errors a point --
-in section 2.6, and
-`data/loss_sweep.txt` -- the loss by stage at 5 and 8 dB -- in section 2.7.
+in section 2.6,
+`data/loss_sweep.txt` -- the loss by stage at 5 and 8 dB -- in section 2.7,
+and `data/pullin_windows.txt` -- the errors in the demodulator's timing
+pull-in after each hand-over, on the corrected rectangle bank and on the
+arms before it (doppler#3364) -- in section 2.8.
 The loss harness asserts its own gates in ctest (`--check`); this report
 renders its sweep and asserts nothing on it. The findings and the executive
 summary quote them, computed from those files, never typed.
@@ -63,6 +66,8 @@ DATA = HERE / "data"
 SWEEP = DATA / "sweep.txt"
 BER_SWEEP = DATA / "ber_sweep.txt"
 LOSS_SWEEP = DATA / "loss_sweep.txt"
+PULLIN_WINDOWS = DATA / "pullin_windows.txt"
+PARTIAL_SCURVE = DATA / "partial_scurve.txt"
 ROOT = repo_root(__file__)
 HARNESS = exe(
     build_dir(__file__) / "native/validation/validate_async_dsss_receiver_lock"
@@ -280,6 +285,147 @@ def section_loss(lsw: Blocks) -> None:
             + [f"{float(at(es, 'S1', k)['loss_db']):.2f} dB" for es in es_pts]
             for k in ks
         ],
+    )
+    R.md()
+
+
+def _pullin_windows() -> dict[str, dict[str, list[list[int]]]]:
+    """The `# windows` rows of `data/pullin_windows.txt`, by bank and carrier.
+
+    The file is two runs of `validate_async_dsss_receiver_pullin --windows`,
+    each opened by a `# bank <name>: <how it was built>` line; every row
+    after it is one draw: `# windows fc <GHz> ... w <W>: e0 e1 ...`, the
+    symbol errors in consecutive windows of W symbols from the hand-over.
+    Returns ``{bank: {carrier: [draw's window counts, ...]}}``.
+    """
+    if not PULLIN_WINDOWS.exists():
+        raise SystemExit(
+            "async_dsss_receiver: data/pullin_windows.txt is missing -- "
+            "see section 2.8 for the command that writes it"
+        )
+    out: dict[str, dict[str, list[list[int]]]] = {}
+    bank = ""
+    for line in PULLIN_WINDOWS.read_text(encoding="utf-8").splitlines():
+        if line.startswith("# bank "):
+            bank = line[len("# bank ") :].split(":", 1)[0]
+            out[bank] = {}
+        elif line.startswith("# windows "):
+            head, counts = line.split(":", 1)
+            fc = head.split()[3]
+            out[bank].setdefault(fc, []).append(
+                [int(c) for c in counts.split()]
+            )
+    return out
+
+
+def _partial_scurve() -> dict[tuple[str, str], dict[str, float]]:
+    """The rows of `data/partial_scurve.txt`, by (case, bank).
+
+    The file is `validate_ratesync_partial_scurve`'s output: a header line
+    beginning `case` names the columns, and each row after it is one case
+    (`ideal8sps`, `2.2GHz`, `2.8GHz`) on one bank (`corrected`, `sampled`).
+    Returns ``{(case, bank): {column: value}}`` for the numeric columns.
+    """
+    if not PARTIAL_SCURVE.exists():
+        raise SystemExit(
+            "async_dsss_receiver: data/partial_scurve.txt is missing -- run "
+            "validate_ratesync_partial_scurve into it"
+        )
+    cols: list[str] = []
+    out: dict[tuple[str, str], dict[str, float]] = {}
+    for line in PARTIAL_SCURVE.read_text(encoding="utf-8").splitlines():
+        f = line.split()
+        if f[:2] == ["case", "bank"]:
+            cols = f
+        elif cols and len(f) == len(cols):
+            out[(f[0], f[1])] = {c: float(v) for c, v in zip(cols[2:], f[2:])}
+    return out
+
+
+def section_pullin(
+    pw: dict[str, dict[str, list[list[int]]]],
+    sc: dict[tuple[str, str], dict[str, float]],
+) -> None:
+    W = 25  # the run's --windows
+    R.md(
+        "### 2.8 Errors while the timing pulls in (`data/pullin_windows.txt`)"
+    )
+    R.md()
+    R.md(
+        "`native/validation/async_dsss_receiver_pullin.c --windows 25` at "
+        "10 dB, static, 16 draws of 3 s a carrier: the demodulator's symbol "
+        f"errors in each window of {W} symbols from the hand-over, summed "
+        "over the draws that aligned. Sections 2.5 and 2.6 score from the "
+        "settled point, hundreds of symbols later, so these errors are in "
+        "neither. The two banks are the matched rectangle arms weighted by "
+        "the share of each input interval inside the symbol (doppler#3362, "
+        "the bank as built) and the arms before it, sampled, run from the "
+        "same harness with that one line changed (doppler#3364)."
+    )
+    R.md()
+    rows = []
+    for bank, by_fc in pw.items():
+        for fc, draws in sorted(by_fc.items()):
+            n = max(len(d) for d in draws)
+            tot = [sum(d[k] for d in draws if k < len(d)) for k in range(n)]
+            last = max((k for k in range(n) if tot[k]), default=-1)
+            rows.append(
+                [
+                    bank,
+                    f"{fc} GHz",
+                    f"{len(draws)}",
+                    " ".join(str(t) for t in tot[: last + 2]),
+                    f"{sum(tot)}",
+                    f"{(last + 1) * W}",
+                ]
+            )
+    R.table(
+        [
+            "bank",
+            "carrier",
+            "draws",
+            f"errors a {W}-symbol window, summed",
+            "errors",
+            "last error by symbol",
+        ],
+        rows,
+    )
+    R.md()
+    tot = {(r[0], r[1]): int(r[4]) for r in rows}  # (bank, carrier) -> errors
+    ratio = [
+        tot[("coverage", c)] / tot[("sampled", c)]
+        for c in ("2.2 GHz", "2.8 GHz")
+        if ("coverage", c) in tot and tot[("sampled", c)]
+    ]
+    R.md(
+        "The demodulator pulls its timing in after every hand-over on both "
+        "banks, over a few hundred symbols, and the errors it makes doing so "
+        "are not in the pooled rate. The span is about the same on both; "
+        "the corrected bank makes "
+        + " and ".join(f"{q:.1f}" for q in ratio)
+        + " times as many errors in it, at 2.2 and 2.8 GHz. Why is "
+        "measured by `native/validation/ratesync_partial_scurve.c` "
+        "(`data/partial_scurve.txt`), the open-loop S-curve on this "
+        "stream: the corrected bank's slope over 1/32 of a symbol about "
+        "the stable zero is "
+        + " and ".join(
+            f"{sc[(c, 'corrected')]['@1/32']:.2f}"
+            for c in ("2.2GHz", "2.8GHz")
+        )
+        + " of the gain `bn` is designed for (the partials' composite is "
+        "not the ideal triangle `ted_scale` assumes), while the sampled "
+        "arms' staircase gives "
+        + " and ".join(
+            f"{sc[(c, 'sampled')]['@1/32']:.2f}" for c in ("2.2GHz", "2.8GHz")
+        )
+        + " times it over 1/32 and "
+        + " and ".join(
+            f"{sc[(c, 'sampled')]['@.01']:.1f}" for c in ("2.2GHz", "2.8GHz")
+        )
+        + " over 0.01, so the old loop snapped in over the last stretch. "
+        "A feedforward "
+        "timing estimate at the hand-over is the design meant to remove "
+        "the transient (`docs/design/ratesync-timing.md` section 9.3)."
     )
     R.md()
 
@@ -917,6 +1063,7 @@ def build(write: bool = True) -> Report:
         _plot_ber(bsw["ber"])
     characterise(d, sw, bsw)
     section_loss(lsw)
+    section_pullin(_pullin_windows(), _partial_scurve())
     review(sw, bsw)
     limits(d, sw)
     R.executive("AsyncDsssReceiver", _takeaways(sw, bsw))
@@ -932,7 +1079,12 @@ def build(write: bool = True) -> Report:
         "-- the three harnesses' full sweeps; `data/window_comparison.txt` "
         "-- the error-rate harness's `--window-comparison`, both carrier "
         "windows paired at the 4 dB floor, the measurement the owner's "
-        "ruling on the code-period window rests on"
+        "ruling on the code-period window rests on; "
+        "`data/pullin_windows.txt` -- the pull-in harness's `--windows 25`, "
+        "on the corrected rectangle bank and on the sampled arms before it; "
+        "`data/partial_scurve.txt` -- `validate_ratesync_partial_scurve`, "
+        "the open-loop S-curve the demodulator's timing loop sees on the "
+        "partials, both banks"
     )
     R.emit(HERE / "results.md")
     return R

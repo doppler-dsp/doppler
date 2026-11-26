@@ -56,7 +56,7 @@ A draw settled in tracking with symbol lock held at the 415.1-B-1 point, then cu
 
 | carrier | Es/N0 | lock falls, gone for good | longest dropout held | back after 50 ms out | back after 200 ms out |
 |---|---|---|---|---|---|
-| 2.8 GHz | 10 dB | 24.4 ms | 14.8 ms | 13.1 ms | 36.6 ms |
+| 2.8 GHz | 10 dB | 44.5 ms | 43.0 ms | 64.1 ms | 13.2 ms |
 
 
 ### 2.4 False lock: waits on the lock budget
@@ -121,6 +121,20 @@ The cut alone, against K: ideal sums at known timing, the same bursts. A partial
 | 32 | 0.07 dB | -0.05 dB |
 
 
+### 2.8 Errors while the timing pulls in (`data/pullin_windows.txt`)
+
+`native/validation/async_dsss_receiver_pullin.c --windows 25` at 10 dB, static, 16 draws of 3 s a carrier: the demodulator's symbol errors in each window of 25 symbols from the hand-over, summed over the draws that aligned. Sections 2.5 and 2.6 score from the settled point, hundreds of symbols later, so these errors are in neither. The two banks are the matched rectangle arms weighted by the share of each input interval inside the symbol (doppler#3362, the bank as built) and the arms before it, sampled, run from the same harness with that one line changed (doppler#3364).
+
+| bank | carrier | draws | errors a 25-symbol window, summed | errors | last error by symbol |
+|---|---|---|---|---|---|
+| coverage | 2.2 GHz | 16 | 52 23 16 12 13 10 10 13 13 14 18 19 11 6 0 2 0 | 232 | 400 |
+| coverage | 2.8 GHz | 16 | 34 14 14 14 17 11 16 30 24 13 16 15 9 7 5 7 2 5 2 16 | 271 | 500 |
+| sampled | 2.2 GHz | 16 | 46 12 8 8 1 6 2 4 4 6 3 3 6 6 3 2 0 1 0 | 121 | 450 |
+| sampled | 2.8 GHz | 15 | 21 9 11 6 6 9 5 10 7 11 8 9 8 4 8 6 5 1 2 3 | 149 | 500 |
+
+
+The demodulator pulls its timing in after every hand-over on both banks, over a few hundred symbols, and the errors it makes doing so are not in the pooled rate. The span is about the same on both; the corrected bank makes 1.9 and 1.8 times as many errors in it, at 2.2 and 2.8 GHz. Why is measured by `native/validation/ratesync_partial_scurve.c` (`data/partial_scurve.txt`), the open-loop S-curve on this stream: the corrected bank's slope over 1/32 of a symbol about the stable zero is 0.78 and 0.89 of the gain `bn` is designed for (the partials' composite is not the ideal triangle `ted_scale` assumes), while the sampled arms' staircase gives 1.54 and 1.77 times it over 1/32 and 4.8 and 5.5 over 0.01, so the old loop snapped in over the last stretch. A feedforward timing estimate at the hand-over is the design meant to remove the transient (`docs/design/ratesync-timing.md` section 9.3).
+
 ## 3. Review — findings, with verdicts
 
 - **F1 · GAP** — `steps_max_out()` returns 0, which is not a bound: a call that completes a carried code period emits that whole period's symbols, so at more than one symbol per period an `out` sized to the call's `x_len` drops symbols silently. At the specification's operating point (0.9 symbols a period) it never binds. Tracked as #2469.
@@ -142,14 +156,14 @@ The 3.069 Mcps point's arrival, EVM, dropout and false-lock limits retired with 
 
 | verdict | claim |
 |---|---|
-| PASS | [2.8 GHz 7 dB] the error rate is a result: settled, aligned, 213 errors, and its EVM, M2M4 and theory cross-checks agree |
-| PASS | [2.8 GHz 7 dB] the error rate is not below the BPSK bound (its interval's upper limit, 2.58e-03, reaches 7.73e-04) |
+| PASS | [2.8 GHz 7 dB] the error rate is a result: settled, aligned, 210 errors, and its EVM, M2M4 and theory cross-checks agree |
+| PASS | [2.8 GHz 7 dB] the error rate is not below the BPSK bound (its interval's upper limit, 1.93e-03, reaches 7.73e-04) |
 | PASS | [2.8 GHz 7 dB] no burst slipped: each ends aligned as it started (a link works only with no slip and its end in sync, the owner's rule) |
-| PASS | [2.8 GHz 7 dB] no burst handed over inside the carrier loop's reliable pull-in, 160 Hz, fails to settle |
+| PASS | [2.8 GHz 7 dB] no burst handed over inside the carrier loop's reliable pull-in, 30 Hz, fails to settle |
 
 
 ## 5. Summary
 
 - **6 findings**, 4 of them gaps or confirmed defects: F1, F2, F3, F4
 - **4/4 limits** hold
-- Raw run: `data/dropout.csv`, `data/ramp.csv`, `data/code_lock.csv` and `data/code_lock_terms.csv` (the lock harness; the last two are the code lock's statistic against the detection model and its signal and noise terms, #3134), `data/ber.csv`, `data/burst.csv` and `data/spec.csv` (the error-rate harness) -- the two harnesses' `--check --emit` blocks; `data/sweep.txt`, `data/ber_sweep.txt` and `data/loss_sweep.txt` -- the three harnesses' full sweeps; `data/window_comparison.txt` -- the error-rate harness's `--window-comparison`, both carrier windows paired at the 4 dB floor, the measurement the owner's ruling on the code-period window rests on
+- Raw run: `data/dropout.csv`, `data/ramp.csv`, `data/code_lock.csv` and `data/code_lock_terms.csv` (the lock harness; the last two are the code lock's statistic against the detection model and its signal and noise terms, #3134), `data/ber.csv`, `data/burst.csv` and `data/spec.csv` (the error-rate harness) -- the two harnesses' `--check --emit` blocks; `data/sweep.txt`, `data/ber_sweep.txt` and `data/loss_sweep.txt` -- the three harnesses' full sweeps; `data/window_comparison.txt` -- the error-rate harness's `--window-comparison`, both carrier windows paired at the 4 dB floor, the measurement the owner's ruling on the code-period window rests on; `data/pullin_windows.txt` -- the pull-in harness's `--windows 25`, on the corrected rectangle bank and on the sampled arms before it; `data/partial_scurve.txt` -- `validate_ratesync_partial_scurve`, the open-loop S-curve the demodulator's timing loop sees on the partials, both banks

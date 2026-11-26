@@ -10,7 +10,7 @@ acquisition half of symbol timing: the tracking half is a loop
 ([RateSync's timing](ratesync-timing.md)). §4 gives each prediction with
 what the object's report measured beside it; the numbers and the rows
 behind them are in
-`src/doppler/track/tests/validation/timing_est/results.md`, and §6 lists
+`src/doppler/estimation/tests/validation/timing_est/results.md`, and §6 lists
 what that report settled and what it left.
 What was predicted before the first run, and which of it was wrong, is
 kept on [the measurement record](timing-estimator-measurements.md) under

@@ -1,7 +1,7 @@
 """Symbol timing from one block, with no loop.
 
 A timing loop walks its error out, and how long that takes depends on where
-it started. :class:`doppler.track.SymbolTimingEstimator` does not walk: it
+it started. :class:`doppler.estimation.SymbolTimingEstimator` does not walk: it
 reads the timing off one block of matched-filtered samples, in the block's
 own length, whatever the timing was. It uses only the stream's power, so it
 works before the carrier is recovered.
@@ -14,7 +14,7 @@ answer three ways, and exits non-zero if any fails:
   away (the eye is where it says);
 - the same stream on a different carrier gives the same timing;
 - a second block gives the transmitter's clock offset;
-- :class:`doppler.track.MatchedSymbolTimingEstimator`, which carries the
+- :class:`doppler.estimation.MatchedSymbolTimingEstimator`, which carries the
   matched filter itself, names the eye on the timeline of the unfiltered
   samples: the same stream one sample later moves its answer by one sample.
 """
@@ -22,8 +22,11 @@ answer three ways, and exits non-zero if any fails:
 # --8<-- [start:signal]
 import numpy as np
 
+from doppler.estimation import (
+    MatchedSymbolTimingEstimator,
+    SymbolTimingEstimator,
+)
 from doppler.resample import MatchedRateConverter, Resampler
-from doppler.track import MatchedSymbolTimingEstimator, SymbolTimingEstimator
 from doppler.wfm import Synth
 
 SPS = 4.0  # samples per symbol, at the matched filter's output

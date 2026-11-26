@@ -3,7 +3,7 @@
 Run directly to regenerate `results.md`:
 
     uv run python \
-        src/doppler/track/tests/validation/timing_est/validate.py
+        src/doppler/estimation/tests/validation/timing_est/validate.py
 
 `--check` re-renders in memory and diffs against the committed bytes;
 `make validate` writes, `make validate-check` checks. Every limit this
@@ -24,7 +24,7 @@ as `data/*.csv`.
 Regenerate the record with::
 
     build/native/validation/validate_timing_est_noise \\
-        --csv src/doppler/track/tests/validation/timing_est/data
+        --csv src/doppler/estimation/tests/validation/timing_est/data
 """
 
 from __future__ import annotations

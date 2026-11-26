@@ -42,7 +42,7 @@ nogil = true
 single = true
 record_name = "PolynomialPhaseEstimate"
 record_doc = "Polynomial-phase estimate: carrier frequency, chirp rate, and a rough SNR confidence."
-record_module = "doppler.dsss"
+record_module = "doppler.estimation"
 result_fields = [
     { name = "freq_norm", type = "double" },
     { name = "rate_norm", type = "double" },

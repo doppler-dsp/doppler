@@ -325,7 +325,7 @@ real number above 2.
     the matched filter ahead of it is yours.
 
 What to size it by, measured in its report
-(`src/doppler/track/tests/validation/timing_est/results.md`):
+(`src/doppler/estimation/tests/validation/timing_est/results.md`):
 
 - **Block length.** A rectangular pulse at 4 samples a symbol gives 0.019
     to 0.026 symbols rms from 128 symbols at Es/N0 4 dB. The root-raised

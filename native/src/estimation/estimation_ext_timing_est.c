@@ -1,11 +1,12 @@
-/* jm:generated track_ext_timing_est.c */
+/* jm:generated estimation_ext_timing_est.c */
 /*
- * track_ext_timing_est.c — SymbolTimingEstimator type for the track module.
+ * estimation_ext_timing_est.c — SymbolTimingEstimator type for the estimation
+ * module.
  *
- * Included by track_ext.c (the module aggregator).
+ * Included by estimation_ext.c (the module aggregator).
  * jm regenerates this file on every apply; do not edit it.
- * Hand-written code belongs in track_ext_timing_est_extra.c.
- * Do NOT compile this file directly — only track_ext.c is compiled.
+ * Hand-written code belongs in estimation_ext_timing_est_extra.c.
+ * Do NOT compile this file directly — only estimation_ext.c is compiled.
  */
 /* ======================================================== */
 /* SymbolTimingEstimatorObject — wraps dp_timing_est_state_t *       */
@@ -96,7 +97,7 @@ static PyStructSequence_Field SymbolTimingEstimatorObj_estimate_fields[] = {
   { NULL, NULL },
 };
 static PyStructSequence_Desc SymbolTimingEstimatorObj_estimate_desc
-    = { "doppler.track.TimingEstimate",
+    = { "doppler.estimation.TimingEstimate",
         "One feedforward symbol-timing estimate: the eye center's place on "
         "the estimator's symbol clock, the symbol rate's error against the "
         "previous block, and how strong the symbol-rate line was.",
@@ -334,7 +335,7 @@ static PyMethodDef SymbolTimingEstimatorObj_methods[] = {
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
-    ">>> from doppler.track import SymbolTimingEstimator\n"
+    ">>> from doppler.estimation import SymbolTimingEstimator\n"
     ">>> n = np.arange(4 * 256)\n"
     ">>> # power peaking a quarter symbol into each symbol, on any carrier\n"
     ">>> x = np.sqrt(1.0 + 0.5 * np.cos(2 * np.pi * (n / 4 - 0.25)))\n"
@@ -354,7 +355,7 @@ static PyMethodDef SymbolTimingEstimatorObj_methods[] = {
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
-    ">>> from doppler.track import SymbolTimingEstimator\n"
+    ">>> from doppler.estimation import SymbolTimingEstimator\n"
     ">>> n = np.arange(1024)\n"
     ">>> x = np.sqrt(1.0 + 0.5 * np.cos(2 * np.pi * n / "
     "4)).astype(np.complex64)\n"
@@ -461,7 +462,7 @@ static PyMethodDef SymbolTimingEstimatorObj_methods[] = {
 
 static PyTypeObject SymbolTimingEstimatorObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name
-  = "doppler.track.SymbolTimingEstimator",
+  = "doppler.estimation.SymbolTimingEstimator",
   .tp_basicsize = sizeof (SymbolTimingEstimatorObject),
   .tp_dealloc   = (destructor)SymbolTimingEstimatorObj_dealloc,
   .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -483,7 +484,7 @@ static PyTypeObject SymbolTimingEstimatorObjType = {
     "\n"
     "Examples\n"
     "--------\n"
-    ">>> from doppler.track import SymbolTimingEstimator\n"
+    ">>> from doppler.estimation import SymbolTimingEstimator\n"
     ">>> te = SymbolTimingEstimator(sps=4.0)\n"
     ">>> te.sps\n"
     "4.0\n",

@@ -97,7 +97,7 @@ extern "C"
    *
    * @param state  Estimator handle (unused).
    * @code
-   * >>> from doppler.dsss import PolynomialPhaseEstimator
+   * >>> from doppler.estimation import PolynomialPhaseEstimator
    * >>> p = PolynomialPhaseEstimator(max_len=512, max_rate=0.0)
    * >>> p.reset()   # no-op: an estimate depends only on the next
    * >>> #           segment
@@ -128,7 +128,7 @@ extern "C"
    * @return The estimate; all fields are zeroed if @p n_in is out of range.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import PolynomialPhaseEstimator
+   * >>> from doppler.estimation import PolynomialPhaseEstimator
    * >>> m = np.arange(512)
    * >>> f, r = 0.05, 1e-5               # true Doppler + chirp rate
    * >>> x = np.exp(2j*np.pi*(f*m + 0.5*r*m*m)).astype(np.complex64)

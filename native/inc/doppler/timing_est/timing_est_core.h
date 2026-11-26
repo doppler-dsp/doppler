@@ -184,7 +184,7 @@ typedef struct {
  *         less, or allocation fails.
  * @note Caller must call dp_timing_est_destroy() when done.
  * @code
- * >>> from doppler.track import SymbolTimingEstimator
+ * >>> from doppler.estimation import SymbolTimingEstimator
  * >>> te = SymbolTimingEstimator(sps=4.0)
  * >>> te.sps
  * 4.0
@@ -221,7 +221,7 @@ dp_timing_est_state_t *dp_timing_est_create(double sps);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.track import MatchedSymbolTimingEstimator
+ * >>> from doppler.estimation import MatchedSymbolTimingEstimator
  * >>> n = np.arange(4096)
  * >>> # +1 -1 +1 ... through a root-raised cosine at 8 samples a symbol,
  * >>> # with a symbol instant at sample 3 and every 8 after it
@@ -250,7 +250,7 @@ void dp_timing_est_destroy(dp_timing_est_state_t *state);
  * @param state  Must be non-NULL.
  * @code
  * >>> import numpy as np
- * >>> from doppler.track import SymbolTimingEstimator
+ * >>> from doppler.estimation import SymbolTimingEstimator
  * >>> n = np.arange(1024)
  * >>> x = np.sqrt(1.0 + 0.5 * np.cos(2 * np.pi * n / 4)).astype(np.complex64)
  * >>> te = SymbolTimingEstimator(sps=4.0)
@@ -340,7 +340,7 @@ int dp_timing_est_set_state(dp_timing_est_state_t *state, const void *blob);
  * @return The block's estimate.
  * @code
  * >>> import numpy as np
- * >>> from doppler.track import SymbolTimingEstimator
+ * >>> from doppler.estimation import SymbolTimingEstimator
  * >>> n = np.arange(4 * 256)
  * >>> # power peaking a quarter symbol into each symbol, on any carrier
  * >>> x = np.sqrt(1.0 + 0.5 * np.cos(2 * np.pi * (n / 4 - 0.25)))

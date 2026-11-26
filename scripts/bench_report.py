@@ -609,6 +609,10 @@ MODULE_FAMILY = {
     "detection": "track",
     "acquire": "acq",
     "dsss": "acq",
+    # The feedforward estimators: the phase estimator's rows were dsss's
+    # before it left that module, and they stay on that tab; the timing
+    # estimate is the acquisition half of symbol timing.
+    "estimation": "acq",
     "wfm": "wfm",
     "wfm_compose": "wfm",
     "wfm_plan": "wfm",

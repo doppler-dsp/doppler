@@ -77,7 +77,7 @@ result_fields = [
 single = true
 record_name = "TimingEstimate"
 record_doc = "One feedforward symbol-timing estimate: the eye center's place on the estimator's symbol clock, the symbol rate's error against the previous block, and how strong the symbol-rate line was."
-record_module = "doppler.track"
+record_module = "doppler.estimation"
 
 [[timing_est.methods]]
 name = "reset"

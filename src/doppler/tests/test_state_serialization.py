@@ -95,6 +95,7 @@ from doppler.track import (
     RateSync,
     StateFilter,
     SymbolSync,
+    SymbolTimingEstimator,
 )
 from doppler.wfm import PN, Gold, _SynthEngine
 
@@ -613,6 +614,22 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "KalmanStateFilter": (
         lambda: KalmanStateFilter(sigma_e=1.0, sigma_a=2e-3),
         lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),
+    ),
+    # Feedforward symbol timing. Each segment is one block; the estimate
+    # itself is the output, and the second segment's carries a rate only if
+    # the symbol clock and the previous block came across in the blob.
+    "SymbolTimingEstimator": (
+        lambda: SymbolTimingEstimator(sps=4.3),
+        lambda o, seg: np.array(
+            [
+                (e := o.estimate(seg)).tau,
+                e.rate,
+                e.quality,
+                e.power,
+                e.symbols,
+                float(e.has_rate),
+            ]
+        ),
     ),
     # Lock detector — a real metric stream wobbling across the hysteresis
     # band exercises both state-machine sides and the in-flight verify run.

@@ -180,6 +180,7 @@ enum
   BLK_DOPPLER,
   BLK_CHIRP,
   BLK_H0,
+  BLK_H0D,
   BLK_H1,
   BLK_OFFSET,
   BLK_OFFSUM,
@@ -812,6 +813,106 @@ h0_threshold (const pred_t *h0, double pfa, int spread)
         hi = mid;
     }
   return 0.5 * (lo + hi);
+}
+
+/* The quality figure with noise alone, to the order past Rayleigh.
+
+   The filtered noise w is circular Gaussian with covariance S (its
+   autocorrelation r, a banded Toeplitz matrix), and both sums are
+   quadratic forms in it: c = w' E w with E the diagonal of the clock's
+   phasors, and the block's power D = w' w. Joint cumulants of such forms
+   are traces: for forms with matrices M_1 .. M_k, the sum over the
+   (k - 1)! cyclic orders of tr (S M_a S M_b ...). With A = S E:
+
+       V   = E|c|^2             = tr (A A*)
+       k3  = cum (c, c*, D)     = 2 Re tr (A A* S)
+       var = var D              = tr (S S)
+       k4  = cum (c, c*, c, c*) = 2 tr (A A* A A*) + 4 tr (A A A* A*)
+
+   and with q = c / D, D = Dbar (1 + delta), expanded to second order in
+   delta (a = k3 / (V Dbar), v = var / Dbar^2, k = k4 / (2 V^2)):
+
+       E|q|^2 = (V / Dbar^2) (1 - 2 a + 3 v)
+       E|q|^4 = 2 (E|q|^2)^2 (1 + eps),     eps = k - 4 a + 4 v
+
+   For independent samples that is E|q|^2 = (1 - 1/n) / n and eps = -1/n,
+   which is the Dirichlet's exact 1 / (n + 1) to this order. A circular
+   variable with that excess has the tail
+
+       P(|q|^2 > t E|q|^2) = exp (-t) (1 + (eps / 2) (t^2 / 2 - t))
+
+   (the exponential's first Laguerre correction), and the threshold is
+   where that equals the false-alarm probability. */
+typedef struct
+{
+  double eq2; /* E|q|^2            */
+  double eps; /* the tail's excess */
+} h0_exact_t;
+
+static void
+h0_exact (const pulse_t *pl, int u, int d, long nb, h0_exact_t *o)
+{
+  long             b  = pl->nh - 1; /* S and A reach b off the diagonal */
+  long             w  = 2 * b;      /* their products reach 2 b         */
+  long             bw = 2 * w + 1;
+  double _Complex *g
+      = (double _Complex *)dp_xnn (calloc ((size_t)(nb * bw), sizeof *g));
+  double _Complex *h
+      = (double _Complex *)dp_xnn (calloc ((size_t)(nb * bw), sizeof *h));
+  double _Complex *e
+      = (double _Complex *)dp_xnn (malloc ((size_t)nb * sizeof *e));
+  for (long i = 0; i < nb; i++)
+    e[i] = cexp (-I * TWO_PI * (double)i * d / u);
+  /* G = A A* and H = A A, with A_ij = r_ij e_j */
+  for (long i = 0; i < nb; i++)
+    for (long j = i - b < 0 ? 0 : i - b; j <= i + b && j < nb; j++)
+      for (long k = j - b < 0 ? 0 : j - b; k <= j + b && k < nb; k++)
+        {
+          double rr = pl->r[labs (i - j)] * pl->r[labs (j - k)];
+          g[i * bw + (k - i + w)] += rr * e[j] * conj (e[k]);
+          h[i * bw + (k - i + w)] += rr * e[j] * e[k];
+        }
+  double v = 0.0, k3 = 0.0, var = 0.0, k4 = 0.0;
+  for (long i = 0; i < nb; i++)
+    {
+      v += creal (g[i * bw + w]);
+      for (long k = i - w < 0 ? 0 : i - w; k <= i + w && k < nb; k++)
+        {
+          double _Complex gik = g[i * bw + (k - i + w)];
+          double _Complex gki = g[k * bw + (i - k + w)];
+          double _Complex hik = h[i * bw + (k - i + w)];
+          double _Complex hki = h[k * bw + (i - k + w)];
+          if (labs (i - k) <= b)
+            k3 += 2.0 * creal (gik) * pl->r[labs (i - k)];
+          k4 += 2.0 * creal (gik * gki) + 4.0 * creal (hik * conj (hki));
+        }
+      for (long j = i - b < 0 ? 0 : i - b; j <= i + b && j < nb; j++)
+        var += pl->r[labs (i - j)] * pl->r[labs (i - j)];
+    }
+  double dbar = (double)nb * pl->r[0];
+  double a = k3 / (v * dbar), vv = var / (dbar * dbar);
+  o->eq2 = v / (dbar * dbar) * (1.0 - 2.0 * a + 3.0 * vv);
+  o->eps = k4 / (2.0 * v * v) - 4.0 * a + 4.0 * vv;
+  free (g);
+  free (h);
+  free (e);
+}
+
+/* The quality threshold that tail puts at `pfa`. */
+static double
+h0_exact_threshold (const h0_exact_t *x, double pfa)
+{
+  double lo = 0.0, hi = 60.0;
+  for (int it = 0; it < 80; it++)
+    {
+      double t = 0.5 * (lo + hi);
+      double p = exp (-t) * (1.0 + 0.5 * x->eps * (0.5 * t * t - t));
+      if (p > pfa)
+        lo = t;
+      else
+        hi = t;
+    }
+  return sqrt (0.5 * (lo + hi) * x->eq2);
 }
 
 /* Detection probability at threshold `eta`: |c| is |m| + i + V_q / (2 |m|)
@@ -1595,8 +1696,11 @@ h0_row (int rrc, int u, int d, int l, double pfa, long trials, uint32_t seed,
     T_RAYLEIGH,
     T_WHITE,
     T_TENFOLD,
+    T_DERIVED, /* the threshold derived in h0_exact() */
     T_N
   };
+  h0_exact_t ex;
+  h0_exact (&pl, u, d, nb, &ex);
   pred_t white = h0;
   white.c2     = (double)nb * (h0.dtot / nb) * (h0.dtot / nb);
   double eta[T_N];
@@ -1604,14 +1708,15 @@ h0_row (int rrc, int u, int d, int l, double pfa, long trials, uint32_t seed,
   eta[T_RAYLEIGH] = h0_threshold (&h0, pfa, 0);
   eta[T_WHITE]    = h0_threshold (&white, pfa, 0);
   eta[T_TENFOLD]  = h0_threshold (&h0, 10.0 * pfa, 1);
+  eta[T_DERIVED]  = h0_exact_threshold (&ex, pfa);
   pulse_free (&pl);
 
   rig_t r;
   if (rig_open (&r, &c) != 0)
     return -1;
   long  hits[T_N] = { 0 };
-  acc_t q         = { 0 };
-  long  n0        = (long)ceil (LEAD * n);
+  acc_t q = { 0 }, q2 = { 0 };
+  long  n0 = (long)ceil (LEAD * n);
   for (long t = 0; t < trials; t++)
     {
       size_t ny = run_noise (&r, (size_t)(n0 + nb), 1.0f,
@@ -1625,6 +1730,7 @@ h0_row (int rrc, int u, int d, int l, double pfa, long trials, uint32_t seed,
       dp_timing_estimate_t e
           = dp_timing_est_estimate (r.te, g_y + n0, (size_t)nb);
       acc_add (&q, e.quality);
+      acc_add (&q2, e.quality * e.quality);
       for (int j = 0; j < T_N; j++)
         hits[j] += e.quality > eta[j];
     }
@@ -1649,6 +1755,33 @@ h0_row (int rrc, int u, int d, int l, double pfa, long trials, uint32_t seed,
          eta[T_RAYLEIGH], hits[T_RAYLEIGH], (double)hits[T_RAYLEIGH] / trials,
          lo[T_RAYLEIGH], hi[T_RAYLEIGH], eta[T_WHITE], hits[T_WHITE],
          lo[T_WHITE], hi[T_WHITE], acc_mean (&q), acc_se (&q), q_pred);
+  say ("       derived: threshold %7.5f  %7.5f [%7.5f, %7.5f] | E q^2 %.4e "
+       "+- %.1e, derived %.4e (Rayleigh %.4e), excess %+.4f\n",
+       eta[T_DERIVED], (double)hits[T_DERIVED] / trials, lo[T_DERIVED],
+       hi[T_DERIVED], acc_mean (&q2), acc_se (&q2), ex.eq2,
+       h0.c2 / (h0.dtot * h0.dtot), ex.eps);
+  emitf (BLK_H0D,
+         "%s,%.6f,%d,%.0e,%ld,%.6f,%ld,%.6f,%.6f,%.6f,%.6e,%.6e,%.6e,"
+         "%.6e,%.6f\n",
+         pulse_name (rrc), n, l, pfa, trials, eta[T_DERIVED], hits[T_DERIVED],
+         (double)hits[T_DERIVED] / trials, lo[T_DERIVED], hi[T_DERIVED],
+         acc_mean (&q2), acc_se (&q2), ex.eq2, h0.c2 / (h0.dtot * h0.dtot),
+         ex.eps);
+  /* The wrong cases: the threshold samples taken as independent call for;
+     the Rayleigh second moment of such samples. */
+  claim (lo[T_DERIVED] <= pfa && pfa <= hi[T_DERIVED],
+         controls ? (lo[T_WHITE] <= pfa && pfa <= hi[T_WHITE]) : NO_CONTROL,
+         "quality %s N %.3f L %d: at the derived threshold, false alarms "
+         "%.5f [%.5f, %.5f] do not hold the target %.0e",
+         pulse_name (rrc), n, l, (double)hits[T_DERIVED] / trials,
+         lo[T_DERIVED], hi[T_DERIVED], pfa);
+  claim (WITHIN (acc_mean (&q2), ex.eq2, g_z * acc_se (&q2)),
+         controls ? WITHIN (acc_mean (&q2), white.c2 / (h0.dtot * h0.dtot),
+                            g_z * acc_se (&q2))
+                  : NO_CONTROL,
+         "quality %s N %.3f L %d: noise-alone E q^2 %.4e is not the "
+         "derived %.4e within %.1e",
+         pulse_name (rrc), n, l, acc_mean (&q2), ex.eq2, g_z * acc_se (&q2));
   claim (lo[T_SPREAD] <= pfa, controls ? lo[T_TENFOLD] <= pfa : NO_CONTROL,
          "quality %s N %.3f L %d: at the threshold that allows for the "
          "power's spread, false alarms %.5f [%.5f, %.5f] are over the "
@@ -1966,10 +2099,16 @@ main (int argc, char **argv)
            || axis_doppler () || axis_quality () || axis_offset ();
   DP_CHECK_MSG (rc == 0, "a row could not be run");
 
-  static const char *const name[BLK_N]
-      = { "constants",  "noise",        "clock",
-          "doppler",    "doppler_rate", "quality_h0",
-          "quality_h1", "offset",       "offset_summary" };
+  static const char *const name[BLK_N] = { "constants",
+                                           "noise",
+                                           "clock",
+                                           "doppler",
+                                           "doppler_rate",
+                                           "quality_h0",
+                                           "quality_h0_derived",
+                                           "quality_h1",
+                                           "offset",
+                                           "offset_summary" };
   static const char *const head[BLK_N] = {
     "pulse,sps,L,carrier,offset,k_ss,k_sn,k_nn,line,bias",
     "pulse,sps,L,esn0_db,carrier,offset,trials,err_mean,err_se,"
@@ -1988,6 +2127,8 @@ main (int argc, char **argv)
     "pulse,sps,L,pfa,trials,threshold,hits,p,lo,hi,ray_threshold,"
     "ray_hits,ray_p,ray_lo,ray_hi,white_threshold,white_hits,"
     "white_lo,white_hi,q_mean,q_se,q_pred",
+    "pulse,sps,L,pfa,trials,threshold,hits,p,lo,hi,q2_mean,q2_se,"
+    "q2_derived,q2_rayleigh,excess",
     "pulse,L,esn0_db,symbols,pfa,threshold,trials,hits,pd,lo,hi,"
     "pd_pred,quality",
     "pulse,sps,offset,eye,err_mean,err_se,bias_pred,var,var_pred,"

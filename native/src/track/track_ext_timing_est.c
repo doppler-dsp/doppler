@@ -66,7 +66,11 @@ static PyStructSequence_Field SymbolTimingEstimatorObj_estimate_fields[] = {
   { "tau", "Where the eye center sits on the estimator's symbol clock, in "
            "symbols, in (-1/2, 1/2]: the clock's phase at the instants the "
            "stream's power peaks. With a symbol-rate error it is the value at "
-           "the middle of the block. 0 when the block has no power." },
+           "the middle of the block. For a pulse that is not band limited, "
+           "read at a whole number of samples a symbol, it is off the eye "
+           "center by where the samples fall in the symbol: up to 0.011 "
+           "symbols for a rectangle at 4 (the validation report's finding "
+           "`whole_n_rect_sampling_phase`). 0 when the block has no power." },
   { "rate",
     "How far the eye center moves on the clock each symbol of the clock, in "
     "symbols: for symbols that last `sps * (1 + eps)` samples it is `eps / (1 "

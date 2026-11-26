@@ -15,13 +15,19 @@ the loop from it.
 
 ## 1. Who uses it
 
-| consumer                          | pulse                     | detector        | outputs a symbol   | bn (a symbol) |
-| --------------------------------- | ------------------------- | --------------- | ------------------ | ------------- |
-| `SymbolSync`                      | the caller's              | Gardner or DTTL | the caller's `sps` | the caller's  |
-| `RateSync`                        | RRC or integrate-and-dump | Gardner or DTTL | `m`                | the caller's  |
-| `MpskReceiver`                    | RRC or integrate-and-dump | Gardner         | 8                  | the caller's  |
-| `AsyncDsssReceiver`'s demodulator | integrate-and-dump        | Gardner         | 8                  | 0.005         |
-| `DsssReceiver`'s demodulator      | integrate-and-dump        | Gardner         | 8                  | 0.005         |
+| consumer                          | pulse                     | detector                                                                      | outputs a symbol   | bn (a symbol) |
+| --------------------------------- | ------------------------- | ----------------------------------------------------------------------------- | ------------------ | ------------- |
+| `SymbolSync`                      | the caller's              | Gardner or DTTL                                                               | the caller's `sps` | the caller's  |
+| `RateSync`                        | RRC or integrate-and-dump | Gardner or DTTL as built; the derivative-bank detector is the decided default | `m`                | the caller's  |
+| `MpskReceiver`                    | RRC or integrate-and-dump | Gardner                                                                       | 8                  | the caller's  |
+| `AsyncDsssReceiver`'s demodulator | integrate-and-dump        | Gardner                                                                       | 8                  | 0.005         |
+| `DsssReceiver`'s demodulator      | integrate-and-dump        | Gardner                                                                       | 8                  | 0.005         |
+
+`RateSync`'s row is in two tenses on purpose. Its header has Gardner and
+DTTL today. The detector that goes with its matched bank, and the
+feedforward estimate that starts its loop
+([`SymbolTimingEstimator`](timing-estimator.md)), are decided and not yet
+built into it: [RateSync's timing, §9](ratesync-timing.md#9-the-design-the-models-lead-to).
 
 The DSSS receivers are the demanding case. Their symbol clock is not tied
 to the code, so after despreading the timing is recovered from data

@@ -1993,7 +1993,8 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 jm-pin \
                 issue-link-check bootstrap-cmd-check \
                 validate validate-py validate-c validate-check \
-                validate-async-receiver-sweep validate-spellings-check \
+                validate-async-receiver-sweep validate-mpsk-receiver-pullin \
+                validate-spellings-check \
                 test-sweep validation-time-baseline \
                 characterize characterization-check \
                 doxygen-warn-gate \
@@ -3947,6 +3948,13 @@ validate-py: ## Regenerate the Python validation reports only (VALIDATORS=<valid
 # sweeps are the C harnesses'.
 validate-async-receiver-sweep: ## Re-run the AsyncDsssReceiver certification's full sweeps into its data/, then its report
 	$(UV) run python src/doppler/dsss/tests/validation/async_dsss_receiver/validate.py --sweep
+
+# The MpskReceiver certification renders its pull-in transient (section 2.11)
+# from data/pullin.csv, the C harness's `--pullin` sweep on both rectangle
+# banks (about a minute). This re-runs it on purpose, then the report. It
+# needs `make build` first.
+validate-mpsk-receiver-pullin: ## Re-run the MpskReceiver pull-in sweep into its data/, then its report
+	$(UV) run python src/doppler/track/tests/validation/mpsk_receiver/validate.py --pullin
 
 # Runs the real `validate-py` and `validate` with stub validators, so it runs
 # no real validator and no harness; see the script for how each case is

@@ -26,6 +26,7 @@ from .track import (  # noqa: E402
     Dll,
     KalmanStateFilter,
     LoopFilter,
+    MatchedSymbolTimingEstimator,
     MpskReceiver,
     MpskReceiverR,
     RateSync,
@@ -50,4 +51,5 @@ __all__ = [
     "KalmanStateFilter",
     "SymbolTimingEstimator",
     "TimingEstimate",
+    "MatchedSymbolTimingEstimator",
 ]

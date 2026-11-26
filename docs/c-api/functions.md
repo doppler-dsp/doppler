@@ -1781,6 +1781,7 @@
 * **dp\_sample\_clock\_track** ([**timing\_core.h**](timing__core_8h.md))
 * **dp\_timing\_est\_accumulate** ([**timing\_est\_core.h**](timing__est__core_8h.md))
 * **dp\_timing\_est\_create** ([**timing\_est\_core.h**](timing__est__core_8h.md))
+* **dp\_timing\_est\_create\_matched** ([**timing\_est\_core.h**](timing__est__core_8h.md))
 * **dp\_timing\_est\_destroy** ([**timing\_est\_core.h**](timing__est__core_8h.md))
 * **dp\_timing\_est\_estimate** ([**timing\_est\_core.h**](timing__est__core_8h.md))
 * **dp\_timing\_est\_finish** ([**timing\_est\_core.h**](timing__est__core_8h.md))

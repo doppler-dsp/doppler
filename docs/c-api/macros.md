@@ -512,6 +512,8 @@
 
 ## t
 
+* **TIMING\_EST\_MATCHED\_PHASES** ([**timing\_est\_core.h**](timing__est__core_8h.md))
+* **TIMING\_EST\_MATCHED\_SPS** ([**timing\_est\_core.h**](timing__est__core_8h.md))
 * **TIMING\_EST\_STATE\_MAGIC** ([**timing\_est\_core.h**](timing__est__core_8h.md))
 * **TIMING\_EST\_STATE\_VERSION** ([**timing\_est\_core.h**](timing__est__core_8h.md))
 

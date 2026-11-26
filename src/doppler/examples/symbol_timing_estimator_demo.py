@@ -13,14 +13,17 @@ answer three ways, and exits non-zero if any fails:
 - sampling at the estimate gives more power than sampling half a symbol
   away (the eye is where it says);
 - the same stream on a different carrier gives the same timing;
-- a second block gives the transmitter's clock offset.
+- a second block gives the transmitter's clock offset;
+- :class:`doppler.track.MatchedSymbolTimingEstimator`, which carries the
+  matched filter itself, names the eye on the timeline of the unfiltered
+  samples: the same stream one sample later moves its answer by one sample.
 """
 
 # --8<-- [start:signal]
 import numpy as np
 
 from doppler.resample import MatchedRateConverter, Resampler
-from doppler.track import SymbolTimingEstimator
+from doppler.track import MatchedSymbolTimingEstimator, SymbolTimingEstimator
 from doppler.wfm import Synth
 
 SPS = 4.0  # samples per symbol, at the matched filter's output
@@ -119,4 +122,29 @@ assert abs(clean[0] - clean[1]) < 5e-3, "the timing moved with the carrier"
 assert second.has_rate == 1
 sent = -CLOCK_PPM * 1e-6
 assert abs(second.rate - sent) < 1e-4, "the rate is not the clock offset"
+
+
+# 4. With a matched filter of its own. The matched class takes the samples
+#    as they arrive and says where the eye is among THEM: `eye` is a sample
+#    index into what it was handed, with its filter's delay taken out. The
+#    same stream handed over one sample later has to answer one sample
+#    later.
+# --8<-- [start:matched]
+def own_filter(x):
+    te = MatchedSymbolTimingEstimator(
+        sps=SPS, pulse="rrc", beta=BETA, span=SPAN
+    )
+    return te.estimate(x)
+
+
+x = transmit(NSYM, carrier=0.02)
+on_time = own_filter(x)
+late = own_filter(np.concatenate([np.zeros(1, np.complex64), x]))
+# --8<-- [end:matched]
+moved = (late.eye - on_time.eye + SPS / 2) % SPS - SPS / 2
+print(
+    f"own filter: eye at sample {on_time.eye:.2f} (and every {SPS:.0f} "
+    f"from it); one sample late moves it {moved:+.3f}"
+)
+assert abs(moved - 1.0) < 0.05, "the eye is not on the input's timeline"
 print("PASS")

@@ -93,6 +93,43 @@ asserted as a bracket and the exact one is open
 The detection probability was predicted "near 0.6" for the rectangle at
 Es/N0 0 dB from 128 symbols, and measured 0.633.
 
+## 4.4 The derived threshold: predicted before its run, held to its last term
+
+The derivation on the design page was committed before it was run
+(commit `5b22bbff7`), with the prediction that the measured false-alarm
+probability's interval would hold the target on every row. On 200000
+trials a row it gave 0.99 to 1.02 of the target on three rows, 1.04 on a
+fourth, 1.12 on the 0.001 target (inside its wider interval), and 1.06
+and 1.10 on two (the rectangle at 3.2 samples a symbol and the
+root-raised cosine from 128 symbols), outside their intervals.
+The derived second and fourth moments matched the measured ones on all
+seven, so what misses is the tail's expansion past its first term, which
+is 0.095 of the tail on the worst row. The rows are held to the target
+within that term.
+
+## 6 The cascade: what the first runs showed
+
+Predicted before the first run (commit `fa597df1b`): behind the
+converter's cascade the statistics are the pulse's as with no cascade,
+and the sampling-phase bias is smaller.
+
+The first run refused: a CIC plan's output for silence is not zero
+(#3365), of order 1 where the test level was 0.1, and it lasts 16
+outputs for the rectangle and up to 128 for the root-raised cosine. The
+pulse and the converter's impulse response are now taken against that
+output, and every row's lead-in went from 24 to 40 symbols. With that
+the prediction held on every whole decimation and the bias measured
+0.0018 to 0.0030 symbols.
+
+Lengthening the lead-in moved every row. Two then missed and stayed
+missed at four times the trials: line energy 1.9% over its prediction
+at 20 ppm of Doppler, and a rate 0.8% off at a Doppler rate of q 0.5,
+both on the rectangle at 4 samples a symbol through `doppler_channel`.
+Probing the pulse a second time, one symbol later, changes the
+prediction by a tenth of that, so neither the eye center nor the
+pulse's shape is the cause. It is not found; those rows are held within
+3% and 1%, stated as such.
+
 ## 7 What the gate was shown to catch
 
 Seven one-line breaks of `timing_est_core`, each built and run against

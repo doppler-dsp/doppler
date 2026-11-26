@@ -337,8 +337,8 @@ What to size it by, measured in its report
     then depends on where the samples fall in the symbol, by up to 0.011
     symbols at 4. A rate that is not whole (3.2, say) does not have it.
 - **Is there a signal?** With noise alone `quality` averages 0.028 from
-    512 samples of that rectangle's matched filter; a threshold of 0.069
-    passes noise under 1% of the time, a signal at Es/N0 4 dB 92% of the
+    512 samples of that rectangle's matched filter; a threshold of 0.067
+    passes noise 1% of the time, a signal at Es/N0 4 dB 93% of the
     time, and a stream with no transitions never in 9000 blocks.
 
 From C, `native/examples/symbol_timing_estimator_demo.c` does the same

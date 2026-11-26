@@ -166,7 +166,7 @@
    matched filter's, and the channel's delay. */
 #define LEAD 24
 #define HI_CAP ((size_t)1 << 17)
-#define LO_CAP ((size_t)1 << 15)
+#define LO_CAP ((size_t)1 << 17)
 #define NH_MAX 512
 
 /* ── output: tables to `g_say`, CSV blocks kept until the end ─────────── */
@@ -184,6 +184,11 @@ enum
   BLK_H1,
   BLK_OFFSET,
   BLK_OFFSUM,
+  BLK_CASC,    /* axis 6: the noise rows behind a decimating converter */
+  BLK_CASCK,   /* their constants                                      */
+  BLK_CASCO,   /* their starting offsets, each                         */
+  BLK_CASCOFF, /* and the sweeps' summaries                            */
+  BLK_CASCM,   /* a decimation that is not whole: measured only        */
   BLK_N
 };
 #define BLK_CAP ((size_t)1 << 17)
@@ -287,7 +292,14 @@ typedef struct
                         up to it (a front end that averages over its own
                         interval); 0: it is that one sample */
   double f;          /* the generator's carrier, cycles a symbol             */
-  int    chan;       /* 1: through doppler_channel at the generator's rate,
+  int    din;        /* generator samples an INPUT sample of the matched
+                      converter. Equal to d, the converter runs at rate 1 and
+                      is the matched filter alone; a divisor of d, it
+                      decimates by d / din through its planned cascade
+                      (halfbands, a CIC) ahead of the matched bank          */
+  float scale;       /* the level the converter is handed: a CIC bounds its
+                        input, so a cascade row runs a tenth of full scale    */
+  int chan;          /* 1: through doppler_channel at the generator's rate,
                         one symbol a second, so fs = u Hz             */
   double carrier_hz; /* the channel's carrier, in symbol rates        */
   double ppm, ppm_s; /* its Doppler and Doppler rate                  */
@@ -328,7 +340,8 @@ rig_open (rig_t *r, const chain_t *c)
   r->c  = *c;
   r->n  = (double)c->u / (double)c->d;
   r->mf = dp_RateConverter_create_matched (
-      1.0, 1, c->rrc ? RC_PULSE_RRC : RC_PULSE_IANDD, BETA, SPAN, r->n, 1024);
+      (double)c->din / (double)c->d, 1, c->rrc ? RC_PULSE_RRC : RC_PULSE_IANDD,
+      BETA, SPAN, r->n, 1024);
   r->nz = dp_awgn_create (1u, 0.0f);
   r->te = dp_timing_est_create (r->n);
   if (c->chan)
@@ -405,17 +418,20 @@ run_chain (rig_t *r, int o, size_t nsym, float amp, uint64_t nseed)
   if (c->avg)
     {
       dp_boxcar_state_t bx;
-      dp_boxcar_init (&bx, (size_t)c->d, 1.0);
+      dp_boxcar_init (&bx, (size_t)c->din, 1.0);
       for (size_t j = 0; j < nh && nl < LO_CAP; j++)
         {
           float _Complex v = dp_boxcar_step (&bx, src[j]);
-          if (j >= (size_t)o && (j - (size_t)o) % (size_t)c->d == 0)
+          if (j >= (size_t)o && (j - (size_t)o) % (size_t)c->din == 0)
             g_lo[nl++] = v;
         }
     }
   else
-    for (size_t j = (size_t)o; j < nh && nl < LO_CAP; j += (size_t)c->d)
+    for (size_t j = (size_t)o; j < nh && nl < LO_CAP; j += (size_t)c->din)
       g_lo[nl++] = src[j];
+  if (c->scale != 1.0f)
+    for (size_t i = 0; i < nl; i++)
+      g_lo[i] *= c->scale;
   if (amp > 0.0f)
     {
       dp_awgn_set_amplitude (r->nz, amp);
@@ -442,18 +458,25 @@ typedef struct
 {
   double _Complex *g; /* g[j], j a generator-sample index          */
   long             len;
-  long             ja, jb;    /* its support                               */
-  double           jc;        /* its energy centroid                       */
-  double           h[NH_MAX]; /* the matched filter's impulse response  */
-  double           r[NH_MAX]; /* its autocorrelation, r[0..nh)          */
-  int              nh;
+  long             ja, jb; /* its support                               */
+  double           jc;     /* its energy centroid                       */
+  double          *hc;     /* the converter's impulse response, at its INPUT
+                            rate                                         */
+  long nhc;
+  int  rate;        /* its decimation, input samples an output; 0
+                       when that is not whole, and then there is no
+                       noise response and no prediction            */
+  double r[NH_MAX]; /* its autocorrelation, r[0..nh)          */
+  int    nh;
 } pulse_t;
 
 static void
 pulse_free (pulse_t *p)
 {
   free (p->g);
-  p->g = NULL;
+  free (p->hc);
+  p->g  = NULL;
+  p->hc = NULL;
 }
 
 /* A lone symbol at index `kp`, at each of the `d` decimation phases. */
@@ -521,28 +544,49 @@ pulse_measure (const chain_t *c, long kp, pulse_t *p)
   if (p->jb < p->len - 2)
     p->jb++;
 
-  /* The matched filter's impulse response, and that it is one filter: an
-     impulse one sample later gives the same response one sample later. */
+  /* The converter's impulse response at its input rate: an impulse at
+     each of the `rate` input positions of one output interval. It is one
+     filter if an impulse a whole output later gives the same response one
+     output later. The noise at its output then has the autocorrelation
+     r[m] = sum_j hc[j] hc[j + m rate]. */
+  p->rate = c->d % c->din == 0 ? c->d / c->din : 0;
+  if (!p->rate)
+    {
+      rig_close (&r);
+      return 0;
+    }
   enum
   {
     AT = 64,
-    NI = 2048
+    NO = 2048
   };
-  static float _Complex ya[NI + 64];
-  for (int pass = 0; pass < 2; pass++)
+  static float _Complex ya[NO + 64];
+  long   rt = p->rate, cap = (long)NH_MAX * rt;
+  size_t ni = (size_t)NO * (size_t)rt;
+  p->hc     = (double *)dp_xnn (calloc ((size_t)cap, sizeof *p->hc));
+  for (long pass = 0; pass <= rt; pass++)
     {
-      memset (g_lo, 0, NI * sizeof *g_lo);
-      g_lo[AT + pass] = 1.0f;
-      size_t ny       = matched (&r, NI);
-      if (ny < NI - 64)
+      memset (g_lo, 0, ni * sizeof *g_lo);
+      g_lo[AT * rt + pass] = 1.0f;
+      size_t ny            = matched (&r, ni);
+      if (ny < NO - 64)
         {
           rig_close (&r);
           return -1;
         }
       if (pass == 0)
-        memcpy (ya, g_y, (ny < NI ? ny : NI) * sizeof *ya);
+        memcpy (ya, g_y, (ny < NO ? ny : NO) * sizeof *ya);
+      if (pass < rt)
+        /* hc[(n - AT + 2) rate - pass]: two outputs of slack, in case the
+           converter emits an output before its last input */
+        for (long n = AT - 2; n < (long)ny && n < NO; n++)
+          {
+            long j = (n - AT + 2) * rt - pass;
+            if (j >= 0 && j < cap)
+              p->hc[j] = (double)crealf (g_y[n]);
+          }
       else
-        for (size_t t = 1; t + 64 < ny; t++)
+        for (size_t t = 1; t + 64 < ny && t < NO; t++)
           if (cabsf (g_y[t] - ya[t - 1]) > 1e-6f)
             {
               rig_close (&r);
@@ -550,17 +594,15 @@ pulse_measure (const chain_t *c, long kp, pulse_t *p)
             }
     }
   double hm = 0.0;
-  for (int t = 0; t < NH_MAX; t++)
-    {
-      p->h[t] = (double)crealf (ya[AT + t]);
-      if (fabs (p->h[t]) > hm)
-        hm = fabs (p->h[t]);
-    }
-  p->nh = 1;
-  for (int t = 0; t < NH_MAX; t++)
-    if (fabs (p->h[t]) > 1e-9 * hm)
-      p->nh = t + 1;
-  if (p->nh >= NH_MAX)
+  for (long t = 0; t < cap; t++)
+    if (fabs (p->hc[t]) > hm)
+      hm = fabs (p->hc[t]);
+  p->nhc = 1;
+  for (long t = 0; t < cap; t++)
+    if (fabs (p->hc[t]) > 1e-9 * hm)
+      p->nhc = t + 1;
+  p->nh = (int)((p->nhc - 1) / rt) + 1;
+  if (p->nh >= NH_MAX - 1)
     {
       rig_close (&r);
       return -3; /* the response has not ended inside the window */
@@ -568,8 +610,8 @@ pulse_measure (const chain_t *c, long kp, pulse_t *p)
   for (int m = 0; m < p->nh; m++)
     {
       double a = 0.0;
-      for (int t = 0; t + m < p->nh; t++)
-        a += p->h[t] * p->h[t + m];
+      for (long t = 0; t + m * rt < p->nhc; t++)
+        a += p->hc[t] * p->hc[t + m * rt];
       p->r[m] = a;
     }
   rig_close (&r);
@@ -714,7 +756,8 @@ predict (const pulse_t *pl, int u, int d, double f, double tau, long nb,
   /* signal * noise: each pulse's weighted samples through the filter */
   if (sig && amp > 0.0)
     {
-      long             cap = (long)((wl + wr) / d) + 4 + pl->nh;
+      long             rt  = pl->rate;
+      long             cap = ((long)((wl + wr) / d) + 4) * rt + pl->nhc;
       double _Complex *y
           = (double _Complex *)dp_xnn (malloc ((size_t)cap * 3 * sizeof *y));
       for (long k = kmin; k <= kmax; k++)
@@ -722,14 +765,17 @@ predict (const pulse_t *pl, int u, int d, double f, double tau, long nb,
           long ia = I_LO (k), ib = I_HI (k);
           if (ib < ia)
             continue;
-          long nx = ib - ia + 1, nyy = nx + pl->nh - 1;
+          long nx = ib - ia + 1, nyy = (nx - 1) * rt + pl->nhc;
           memset (y, 0, (size_t)nyy * 3 * sizeof *y);
           for (long x = 0; x < nx; x++)
             {
               double _Complex gv = G_AT (k, ia + x);
-              for (int t = 0; t < pl->nh; t++)
+              /* z[j] = sum_i x_i hc[i rate - j], the block's weighted
+   samples seen from the converter's input */
+              for (long t = 0; t < pl->nhc; t++)
                 for (int j = 0; j < 3; j++)
-                  y[3 * (x + t) + j] += pl->h[t] * gv * w[3 * (ia + x) + j];
+                  y[3 * (x * rt + (pl->nhc - 1 - t)) + j]
+                      += pl->hc[t] * gv * w[3 * (ia + x) + j];
             }
           for (long t = 0; t < nyy; t++)
             for (int j = 0; j < 3; j++)
@@ -998,7 +1044,7 @@ row_run (const rowcfg_t *cf, row_t *o)
   o->nb  = lround (cf->l * o->n);
   o->lc  = (double)o->nb / o->n;
   o->n0  = (long)ceil (LEAD * o->n);
-  o->amp = amp_for (cf->esn0_db, o->n);
+  o->amp = c.scale * amp_for (cf->esn0_db, (double)c.u / (double)c.din);
 
   /* the channel's dilation at block 1's mean sample and between middles */
   double t_mid
@@ -1030,8 +1076,9 @@ row_run (const rowcfg_t *cf, row_t *o)
   pulse_t pp    = pt;
   double  f_pp  = c.f + cf->f_chan;
   double  gamma = pow (10.0, cf->esn0_db / 10.0);
-  predict (&pp, c.u, c.d, f_pp, o->eye, o->nb, (double)o->amp, 1, gamma,
-           o->d_mid, ds, &o->p);
+  if (pp.rate)
+    predict (&pp, c.u, c.d, f_pp, o->eye, o->nb, (double)o->amp, 1, gamma,
+             o->d_mid, ds, &o->p);
   if (c.chan)
     predict (&pp, c.u, c.d, f_pp, o->eye, o->nb, (double)o->amp, 1, gamma, 0.0,
              0.0, &o->pf);
@@ -1141,6 +1188,13 @@ pulse_name (int pulse)
   return pulse == P_RRC ? "rrc" : pulse == P_POINT ? "rect_point" : "rect";
 }
 
+/* Axis 6 sets these: the generator samples an input sample of the
+   converter (0: the converter runs at rate 1), and the blocks its rows go
+   to. */
+static int g_din;
+static int g_blk_noise = BLK_NOISE, g_blk_offsum = BLK_OFFSUM;
+static int g_blk_const = BLK_CONST, g_blk_off = BLK_OFFSET;
+
 static chain_t
 chain_for (int pulse, int u, int d)
 {
@@ -1149,6 +1203,8 @@ chain_for (int pulse, int u, int d)
   c.u       = u;
   c.d       = d;
   c.avg     = pulse == P_RECT;
+  c.din     = g_din ? g_din : d;
+  c.scale   = g_din ? 0.1f : 1.0f;
   return c;
 }
 
@@ -1181,16 +1237,16 @@ noise_row (int rrc, int u, int d, int l, double esn0_db, long trials,
        sqrt (var), vse / (2.0 * sqrt (var)), sqrt (r.p.var1),
        sqrt (r.p.var2 > 0.0 ? r.p.var2 : 0.0), r.p.corr, held ? " " : "*",
        c2 / r.p.c2, acc_mean (&r.q));
-  emitf (BLK_NOISE,
-         "%s,%.6f,%d,%.1f,%.6f,%d,%ld,%.8f,%.8f,%.8f,%.6e,%.6e,%.6e,%.6e,"
+  emitf (g_blk_noise,
+         "%.4f,%s,%.6f,%d,%.1f,%.6f,%d,%ld,%.8f,%.8f,%.8f,%.6e,%.6e,%.6e,%.6e,"
          "%.6f,%d,%.6e,%.6e,%.6e,%.6f,%.6f,%.6f,%.6f\n",
-         pulse_name (rrc), r.n, l, esn0_db, r.f, r.o, trials, mean, se,
-         r.p.bias, var, vse, r.p.var1, r.p.var2, r.p.corr, held, c2, c2se,
-         r.p.c2, pw, pwse, pw_pred, acc_mean (&r.q));
+         (double)u / (double)cf.c.din, pulse_name (rrc), r.n, l, esn0_db, r.f,
+         r.o, trials, mean, se, r.p.bias, var, vse, r.p.var1, r.p.var2,
+         r.p.corr, held, c2, c2se, r.p.c2, pw, pwse, pw_pred, acc_mean (&r.q));
   if (constants)
-    emitf (BLK_CONST, "%s,%.6f,%d,%.6f,%d,%.6e,%.6e,%.6e,%.6f,%.6e\n",
-           pulse_name (rrc), r.n, l, r.f, r.o, r.p.k[0], r.p.k[1], r.p.k[2],
-           r.p.m_abs / r.p.dtot, r.p.bias);
+    emitf (g_blk_const, "%.4f,%s,%.6f,%d,%.6f,%d,%.6e,%.6e,%.6e,%.6f,%.6e\n",
+           (double)u / (double)cf.c.din, pulse_name (rrc), r.n, l, r.f, r.o,
+           r.p.k[0], r.p.k[1], r.p.k[2], r.p.m_abs / r.p.dtot, r.p.bias);
 
   /* The wrong cases: the eye center one generator sample away; the same
      row predicted with 1 dB more Es/N0 than was sent; the line a clock
@@ -1204,7 +1260,9 @@ noise_row (int rrc, int u, int d, int l, double esn0_db, long trials,
       if (pulse_measure (&c, LEAD, &pl) != 0)
         return -1;
       predict (&pl, u, d, r.f, r.eye, r.nb,
-               (double)amp_for (esn0_db + 1.0, r.n), 1, 1.0, 0.0, 0.0, &wrong);
+               (double)(c.scale
+                        * amp_for (esn0_db + 1.0, (double)u / (double)c.din)),
+               1, 1.0, 0.0, 0.0, &wrong);
       pulse_free (&pl);
     }
   claim (WITHIN (mean, r.p.bias, g_z * se),
@@ -1715,7 +1773,7 @@ h0_row (int rrc, int u, int d, int l, double pfa, long trials, uint32_t seed,
   if (rig_open (&r, &c) != 0)
     return -1;
   long  hits[T_N] = { 0 };
-  acc_t q = { 0 }, q2 = { 0 };
+  acc_t q = { 0 }, q2 = { 0 }, q4 = { 0 };
   long  n0 = (long)ceil (LEAD * n);
   for (long t = 0; t < trials; t++)
     {
@@ -1731,6 +1789,7 @@ h0_row (int rrc, int u, int d, int l, double pfa, long trials, uint32_t seed,
           = dp_timing_est_estimate (r.te, g_y + n0, (size_t)nb);
       acc_add (&q, e.quality);
       acc_add (&q2, e.quality * e.quality);
+      acc_add (&q4, e.quality * e.quality * e.quality * e.quality);
       for (int j = 0; j < T_N; j++)
         hits[j] += e.quality > eta[j];
     }
@@ -1756,25 +1815,48 @@ h0_row (int rrc, int u, int d, int l, double pfa, long trials, uint32_t seed,
          lo[T_RAYLEIGH], hi[T_RAYLEIGH], eta[T_WHITE], hits[T_WHITE],
          lo[T_WHITE], hi[T_WHITE], acc_mean (&q), acc_se (&q), q_pred);
   say ("       derived: threshold %7.5f  %7.5f [%7.5f, %7.5f] | E q^2 %.4e "
-       "+- %.1e, derived %.4e (Rayleigh %.4e), excess %+.4f\n",
+       "+- %.1e, derived %.4e (Rayleigh %.4e), excess %+.4f, measured "
+       "%+.4f +- %.4f\n",
        eta[T_DERIVED], (double)hits[T_DERIVED] / trials, lo[T_DERIVED],
        hi[T_DERIVED], acc_mean (&q2), acc_se (&q2), ex.eq2,
-       h0.c2 / (h0.dtot * h0.dtot), ex.eps);
+       h0.c2 / (h0.dtot * h0.dtot), ex.eps,
+       acc_mean (&q4) / (2.0 * acc_mean (&q2) * acc_mean (&q2)) - 1.0,
+       acc_se (&q4) / (2.0 * acc_mean (&q2) * acc_mean (&q2)));
   emitf (BLK_H0D,
          "%s,%.6f,%d,%.0e,%ld,%.6f,%ld,%.6f,%.6f,%.6f,%.6e,%.6e,%.6e,"
-         "%.6e,%.6f\n",
+         "%.6e,%.6f,%.6f,%.6f,%.6f\n",
          pulse_name (rrc), n, l, pfa, trials, eta[T_DERIVED], hits[T_DERIVED],
          (double)hits[T_DERIVED] / trials, lo[T_DERIVED], hi[T_DERIVED],
          acc_mean (&q2), acc_se (&q2), ex.eq2, h0.c2 / (h0.dtot * h0.dtot),
-         ex.eps);
-  /* The wrong cases: the threshold samples taken as independent call for;
-     the Rayleigh second moment of such samples. */
-  claim (lo[T_DERIVED] <= pfa && pfa <= hi[T_DERIVED],
-         controls ? (lo[T_WHITE] <= pfa && pfa <= hi[T_WHITE]) : NO_CONTROL,
+         ex.eps,
+         acc_mean (&q4) / (2.0 * acc_mean (&q2) * acc_mean (&q2)) - 1.0,
+         acc_se (&q4) / (2.0 * acc_mean (&q2) * acc_mean (&q2)),
+         fabs (0.5 * ex.eps
+               * (0.5 * (eta[T_DERIVED] * eta[T_DERIVED] / ex.eq2)
+                      * (eta[T_DERIVED] * eta[T_DERIVED] / ex.eq2)
+                  - eta[T_DERIVED] * eta[T_DERIVED] / ex.eq2)));
+  /* The tail is an expansion, trusted to the size of its last term: the
+   interval has to reach within that of the target. The interval is the
+   family's: 95% over the sweep's seven rows together is the 99.64%
+   quantile a row (Bonferroni), and 95% for the gate's one. The wrong
+   cases: the threshold samples taken as independent call for; the
+   Rayleigh second moment of such samples. */
+  double tt   = eta[T_DERIVED] * eta[T_DERIVED] / ex.eq2;
+  double last = fabs (0.5 * ex.eps * (0.5 * tt * tt - tt));
+  double dlo, dhi, wlo, whi, zq = g_check ? 1.959964 : 2.69;
+  dp_wilson_z ((double)hits[T_DERIVED], (double)trials, zq, &dlo, &dhi);
+  dp_wilson_z ((double)hits[T_WHITE], (double)trials, zq, &wlo, &whi);
+  say ("       its last term is %.3f of the tail; the family's interval is "
+       "[%7.5f, %7.5f]\n",
+       last, dlo, dhi);
+  claim (dlo <= pfa * (1.0 + last) && dhi >= pfa * (1.0 - last),
+         controls ? (wlo <= pfa * (1.0 + last) && whi >= pfa * (1.0 - last))
+                  : NO_CONTROL,
          "quality %s N %.3f L %d: at the derived threshold, false alarms "
-         "%.5f [%.5f, %.5f] do not hold the target %.0e",
-         pulse_name (rrc), n, l, (double)hits[T_DERIVED] / trials,
-         lo[T_DERIVED], hi[T_DERIVED], pfa);
+         "%.5f [%.5f, %.5f] are not the target %.0e within the expansion's "
+         "last term, %.3f",
+         pulse_name (rrc), n, l, (double)hits[T_DERIVED] / trials, dlo, dhi,
+         pfa, last);
   claim (WITHIN (acc_mean (&q2), ex.eq2, g_z * acc_se (&q2)),
          controls ? WITHIN (acc_mean (&q2), white.c2 / (h0.dtot * h0.dtot),
                             g_z * acc_se (&q2))
@@ -1802,9 +1884,9 @@ h0_row (int rrc, int u, int d, int l, double pfa, long trials, uint32_t seed,
          "predicted %.5f",
          pulse_name (rrc), n, l, acc_mean (&q), q_pred);
   if (eta_out)
-    *eta_out = eta[T_SPREAD];
+    *eta_out = eta[T_DERIVED];
   if (hi_out)
-    *hi_out = hi[T_SPREAD];
+    *hi_out = hi[T_DERIVED];
   return 0;
 }
 
@@ -1992,20 +2074,23 @@ offset_sweep (int rrc, int d, int l, double esn0_db, long trials,
       b_hi        = fmax (b_hi, r.p.bias);
       l_lo        = fmin (l_lo, line);
       l_hi        = fmax (l_hi, line);
-      emitf (BLK_OFFSET,
-             "%s,%.6f,%d,%.6f,%.8f,%.8f,%.8f,%.6e,%.6e,%.6f,%.6f\n",
-             pulse_name (rrc), r.n, o, r.eye, mean, se, r.p.bias,
-             acc_var (&r.err), r.p.var2, line, acc_mean (&r.q));
+      emitf (g_blk_off,
+             "%.4f,%s,%.6f,%d,%.6f,%.8f,%.8f,%.8f,%.6e,%.6e,%.6f,%.6f\n",
+             (double)U / (double)cf.c.din, pulse_name (rrc), r.n, o, r.eye,
+             mean, se, r.p.bias, acc_var (&r.err), r.p.var2, line,
+             acc_mean (&r.q));
     }
   double bound = 1.0 + g_z * sqrt (2.0 / U);
   say ("  %-10s %6.3f %4d %5.1f %5ld | %5.2f | %5.3f  %5.3f | %9.1f | "
        "%5.3f | %+8.5f to %+8.5f | %6.4f to %6.4f\n",
        pulse_name (rrc), (double)U / d, l, esn0_db, trials, zmax, chi, bound,
        chi_fixed, vr, b_lo, b_hi, l_lo, l_hi);
-  emitf (BLK_OFFSUM,
-         "%s,%.6f,%d,%.1f,%ld,%.4f,%.4f,%.4f,%.4f,%.4f,%.8f,%.8f,%.6f,%.6f\n",
-         pulse_name (rrc), (double)U / d, l, esn0_db, trials, zmax, chi, bound,
-         chi_fixed, vr, b_lo, b_hi, l_lo, l_hi);
+  emitf (g_blk_offsum,
+         "%.4f,%s,%.6f,%d,%.1f,%ld,%.4f,%.4f,%.4f,%.4f,%.4f,%.8f,%.8f,%.6f,"
+         "%.6f\n",
+         (double)U / (double)(g_din ? g_din : d), pulse_name (rrc),
+         (double)U / d, l, esn0_db, trials, zmax, chi, bound, chi_fixed, vr,
+         b_lo, b_hi, l_lo, l_hi);
   claim (zmax <= g_z && chi <= bound, controls ? chi_fixed <= bound : -1,
          "offset %s N %.3f: over 64 starting offsets the largest "
          "normalized mean error is %.2f and their mean square %.3f "
@@ -2035,6 +2120,92 @@ axis_offset (void)
   if (offset_sweep (P_POINT, 16, 128, 10.0, 500, 504u, 0) != 0)
     return -1;
   return 0;
+}
+
+/* ── axis 6: behind the converter's decimating cascade ────────────────── */
+/* A decimation that is not whole (17.333 input samples a symbol down to
+   4): the converter is then not one filter a whole output apart, the
+   prediction does not apply, and the row is what was measured. */
+static int
+cascade_measured (int pulse, int u, int d, int din, int l, double esn0_db,
+                  long trials, uint32_t seed)
+{
+  g_din     = din;
+  double lo = 1.0, hi = -1.0, se = 0.0, var = 0.0;
+  for (int o = 0; o < u; o++)
+    {
+      rowcfg_t cf  = { 0 };
+      cf.c         = chain_for (pulse, u, d);
+      uint32_t rng = seed_mix (seed, 77u);
+      double   mag = 0.01 + 0.04 * dp_uni (&rng);
+      cf.c.f       = dp_uni (&rng) < 0.5 ? -mag : mag;
+      cf.o         = o;
+      cf.l         = l;
+      cf.nblk      = 1;
+      cf.esn0_db   = esn0_db;
+      cf.trials    = trials;
+      cf.seed      = seed_mix (seed, (uint32_t)o + 100u);
+      row_t r;
+      if (row_run (&cf, &r) != 0)
+        return -1;
+      lo = fmin (lo, acc_mean (&r.err));
+      hi = fmax (hi, acc_mean (&r.err));
+      se = fmax (se, acc_se (&r.err));
+      var += acc_var (&r.err) / u;
+    }
+  say ("  %-4s %7.3f %6.3f %4d %5.1f %5ld | mean error %+8.5f to %+8.5f "
+       "(se %.5f) | rms %.5f   (measured only)\n",
+       pulse_name (pulse), (double)u / din, (double)u / d, l, esn0_db, trials,
+       lo, hi, se, sqrt (var));
+  emitf (BLK_CASCM, "%.4f,%s,%.6f,%d,%.1f,%ld,%.8f,%.8f,%.8f,%.8f\n",
+         (double)u / din, pulse_name (pulse), (double)u / d, l, esn0_db,
+         trials, lo, hi, se, sqrt (var));
+  DP_CHECK_MSG (hi - lo < 0.25,
+                "cascade, decimation not whole: the mean error moves a "
+                "quarter symbol across starting offsets");
+  return 0;
+}
+
+static int
+axis_cascade (void)
+{
+  say ("\nAxis 6. Behind the matched converter's cascade: the same rows "
+       "with the converter decimating to 4 samples a symbol from `in`\n"
+       "  input samples a symbol (8 and 16: halfbands; 32 and 64: a CIC), "
+       "noise added at the input. Columns as axes 1 and 5.\n");
+  g_blk_noise  = BLK_CASC;
+  g_blk_const  = BLK_CASCK;
+  g_blk_off    = BLK_CASCO;
+  g_blk_offsum = BLK_CASCOFF;
+  long m       = g_check ? 2000 : 4000;
+  int  rc      = 0;
+  g_din        = 2; /* 32 input samples a symbol: the CIC plan */
+  rc           = rc || noise_row (P_RECT, 64, 16, 128, 4.0, m, 601u, 1, 1);
+  rc = rc
+       || offset_sweep (P_RECT, 16, 128, 10.0, g_check ? 100 : 500, 602u, 1);
+  if (!g_check && !rc)
+    {
+      static const int dins[4] = { 8, 4, 2, 1 };
+      uint32_t         s       = 610u;
+      for (int i = 0; i < 4 && !rc; i++)
+        {
+          g_din = dins[i];
+          if (dins[i] != 2)
+            {
+              rc = rc || noise_row (P_RECT, 64, 16, 128, 4.0, m, s++, 0, 1);
+              rc = rc || offset_sweep (P_RECT, 16, 128, 10.0, 500, s++, 0);
+            }
+          rc = rc || noise_row (P_RECT, 64, 16, 128, 10.0, m, s++, 0, 0);
+          rc = rc || noise_row (P_RRC, 64, 16, 512, 10.0, m / 4, s++, 0, 1);
+        }
+      rc = rc || cascade_measured (P_RECT, 52, 13, 3, 128, 10.0, 500, 640u);
+    }
+  g_din        = 0;
+  g_blk_noise  = BLK_NOISE;
+  g_blk_const  = BLK_CONST;
+  g_blk_off    = BLK_OFFSET;
+  g_blk_offsum = BLK_OFFSUM;
+  return rc ? -1 : 0;
 }
 
 /* The chain's level: the generator's stream has unit power for both
@@ -2096,7 +2267,8 @@ main (int argc, char **argv)
        "errors of its own trials.\n",
        g_check ? "the --check rows" : "the full sweep", g_z);
   int rc = level_check (0) || level_check (1) || axis_noise () || axis_clock ()
-           || axis_doppler () || axis_quality () || axis_offset ();
+           || axis_doppler () || axis_quality () || axis_offset ()
+           || axis_cascade ();
   DP_CHECK_MSG (rc == 0, "a row could not be run");
 
   static const char *const name[BLK_N] = { "constants",
@@ -2108,10 +2280,15 @@ main (int argc, char **argv)
                                            "quality_h0_derived",
                                            "quality_h1",
                                            "offset",
-                                           "offset_summary" };
+                                           "offset_summary",
+                                           "cascade",
+                                           "cascade_constants",
+                                           "cascade_offset",
+                                           "cascade_offset_summary",
+                                           "cascade_measured" };
   static const char *const head[BLK_N] = {
-    "pulse,sps,L,carrier,offset,k_ss,k_sn,k_nn,line,bias",
-    "pulse,sps,L,esn0_db,carrier,offset,trials,err_mean,err_se,"
+    "in_sps,pulse,sps,L,carrier,offset,k_ss,k_sn,k_nn,line,bias",
+    "in_sps,pulse,sps,L,esn0_db,carrier,offset,trials,err_mean,err_se,"
     "bias_pred,var,var_se,var1,var2,corr,held,c2,c2_se,c2_pred,"
     "power,power_se,power_pred,quality",
     "pulse,sps,L,esn0_db,x,trials,rate,rate_se,rate_pred,"
@@ -2128,13 +2305,22 @@ main (int argc, char **argv)
     "ray_hits,ray_p,ray_lo,ray_hi,white_threshold,white_hits,"
     "white_lo,white_hi,q_mean,q_se,q_pred",
     "pulse,sps,L,pfa,trials,threshold,hits,p,lo,hi,q2_mean,q2_se,"
-    "q2_derived,q2_rayleigh,excess",
+    "q2_derived,q2_rayleigh,excess,excess_meas,excess_se,last_term",
     "pulse,L,esn0_db,symbols,pfa,threshold,trials,hits,pd,lo,hi,"
     "pd_pred,quality",
-    "pulse,sps,offset,eye,err_mean,err_se,bias_pred,var,var_pred,"
+    "in_sps,pulse,sps,offset,eye,err_mean,err_se,bias_pred,var,var_pred,"
     "line_pred,quality",
-    "pulse,sps,L,esn0_db,trials,z_max,chi2,bound,chi2_fixed,"
+    "in_sps,pulse,sps,L,esn0_db,trials,z_max,chi2,bound,chi2_fixed,"
     "var_ratio,bias_lo,bias_hi,line_lo,line_hi",
+    "in_sps,pulse,sps,L,esn0_db,carrier,offset,trials,err_mean,err_se,"
+    "bias_pred,var,var_se,var1,var2,corr,held,c2,c2_se,c2_pred,"
+    "power,power_se,power_pred,quality",
+    "in_sps,pulse,sps,L,carrier,offset,k_ss,k_sn,k_nn,line,bias",
+    "in_sps,pulse,sps,offset,eye,err_mean,err_se,bias_pred,var,var_pred,"
+    "line_pred,quality",
+    "in_sps,pulse,sps,L,esn0_db,trials,z_max,chi2,bound,chi2_fixed,"
+    "var_ratio,bias_lo,bias_hi,line_lo,line_hi",
+    "in_sps,pulse,sps,L,esn0_db,trials,err_lo,err_hi,err_se,rms",
   };
   /* `--csv DIR`: the same blocks, one file each, which is how the full
      sweep is kept as the report's record. */

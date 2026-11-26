@@ -147,6 +147,13 @@ def section_object() -> None:
                 "—",
             ],
             [
+                "`tau` on a pulse that is not band limited, read at a "
+                "whole number of samples a symbol, is off the eye center "
+                "by where the samples fall in the symbol",
+                "§8",
+                "§2.7",
+            ],
+            [
                 "nothing is decided: `quality` is reported and the caller "
                 "judges it",
                 "§2",

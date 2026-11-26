@@ -582,15 +582,18 @@ stateDiagram-v2
     TRACKING --> ACQUIRING: n_down lock decisions missed in a row
 ```
 
+The diagram shows what the loop does unprompted. Two calls move it as
+well: a seed enters `TRACKING` from either state and resets the lock
+detector, so `valid` is 0 until lock is declared again, and a reset
+enters `ACQUIRING`.
+
 | state       | what runs                                                  | `valid`                  | bounded by                                   |
 | ----------- | ---------------------------------------------------------- | ------------------------ | -------------------------------------------- |
 | `ACQUIRING` | the estimator, on its own matched filter; the loop is open | 0                        | its lead-in, then `L` symbols an attempt     |
 | `TRACKING`  | the loop, closed                                           | the lock detector's flag | nothing while the lock decisions keep coming |
 
-A seed call enters `TRACKING` from either state and resets the lock
-detector, so `valid` is 0 until lock is declared again. A reset enters
-`ACQUIRING`. A loop with no estimator beside it starts in `TRACKING`,
-which is the loop as it is today.
+A loop with no estimator beside it starts in `TRACKING`, which is the
+loop as it is today.
 
 **One symbol a symbol period, in both states.** The count does not
 change with the state and nothing is dropped; `valid` is a flag beside
@@ -602,9 +605,11 @@ estimate, whose block is longer than the bank.
 What the two states leave to what already exists:
 
 - **A second decision before `valid`.** The estimate's quality threshold
-    is a presence test (at Es/N0 0 dB it passes a rectangle 0.66 of the
-    time from 128 symbols), and the estimate carries the block's own
-    error. `valid` is the lock detector's flag, so a symbol is called
+    is a presence test: set for a false-alarm probability of 0.01, it
+    passes a rectangle 0.66 of the time from 128 symbols at Es/N0 0 dB
+    (the estimator's report, §2.6, in
+    `src/doppler/estimation/tests/validation/timing_est/results.md`). The
+    estimate also carries the block's own error. `valid` is the lock detector's flag, so a symbol is called
     valid only after `n_up` lock decisions on the closed loop.
 - **One missed decision does not drop `valid`.** The lock detector drops
     after `n_down` misses in a row (6 decisions of 133 symbols by

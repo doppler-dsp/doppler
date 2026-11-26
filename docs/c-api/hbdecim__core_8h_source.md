@@ -70,6 +70,8 @@ extern "C"
 
   double dp_hbdecim_dc_gain (const hbdecim_state_t *r);
 
+  double dp_hbdecim_get_group_delay (const hbdecim_state_t *r);
+
 #ifdef __cplusplus
 }
 #endif

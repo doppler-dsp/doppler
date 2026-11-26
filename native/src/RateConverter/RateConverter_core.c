@@ -434,6 +434,48 @@ rc_build_bank (int pulse, double beta, double sps, size_t span,
   return bank;
 }
 
+/* Where a bank's content sits behind the newest sample in its delay line,
+   in input samples, for a stream nothing steers.  Tap t multiplies
+   x[n - t], so an arm's low-frequency delay is its centroid,
+   sum (t w) / sum (w).  Output k is formed with the instant
+   u_k = frac (k / rate) of an input AHEAD of the newest loaded sample, on
+   the arm built for that lag, so its content sits centroid + u_k behind the
+   instant.  For an ideal bank that is one number at every arm.  A real
+   bank's arms differ a little (each truncates the pulse's tails at a
+   different place: 0.02 of an input across the arms of a root-raised
+   cosine of span 8 at 4 samples a symbol), so the figure is the mean over
+   the arms an unsteered stream at `rate' visits: arm 0 alone at rate 1,
+   four arms at 0.8, all of them at a rate that is not a small fraction.
+   Read from the taps rather than from the pulse's nominal center, so the
+   rectangle's interval-averaged edge taps and a folded droop compensator
+   need no case of their own.  An arm with no DC response (none is built
+   here) is left out. */
+static double
+rc_bank_delay (const float *bank, size_t num_phases, size_t nt, double rate)
+{
+  double sum  = 0.0;
+  size_t arms = 0;
+  for (size_t k = 0; k < num_phases; k++)
+    {
+      double u = (double)k / rate;
+      u -= floor (u);
+      size_t p = (size_t)(u * (double)num_phases);
+      if (p >= num_phases)
+        p = num_phases - 1u;
+      double w = 0.0, tw = 0.0;
+      for (size_t t = 0; t < nt; t++)
+        {
+          w += (double)bank[p * nt + t];
+          tw += (double)t * (double)bank[p * nt + t];
+        }
+      if (w == 0.0)
+        continue;
+      sum += tw / w + u;
+      arms++;
+    }
+  return arms ? sum / (double)arms : 0.0;
+}
+
 /* ------------------------------------------------------------------ */
 /* Stage dispatch helpers                                              */
 /* ------------------------------------------------------------------ */
@@ -675,6 +717,8 @@ rc_build_stages (dp_RateConverter_state_t *s, const rc_plan_entry_t *plan,
           /* Everything the pre-terminal AGC needs to place itself, recorded
              whether or not one is ever enabled: they describe the bank. */
           s->bank_sps   = bank_sps;
+          s->bank_delay = rc_bank_delay (bank, s->num_phases, ntaps,
+                                         plan[i].resamp_rate);
           s->bank_e0    = e0;
           s->agc_ref_db = (e0 > 0.0 && bank_sps > 0.0)
                               ? 10.0 * log10 (e0 / bank_sps)
@@ -1420,14 +1464,49 @@ dp_RateConverter_get_count_lag (const dp_RateConverter_state_t *s)
 double
 dp_RateConverter_get_group_delay (const dp_RateConverter_state_t *s)
 {
-  /* One resampler stage, the plan every rate from about 0.5 up builds:
-     the only one whose delay has been checked. HB and CIC publish no delay,
-     and no rate builds two resampler stages, so a cross-stage sum would be
-     a number nothing has checked: both refuse. */
-  if (s->n_stages != 1 || s->stage_types[0] != RC_STAGE_RESAMP)
-    return NAN;
-  return dp_resamp_get_execute_delay (
-      (const resamp_state_t *)s->stage_ptrs[0]);
+  /* Each stage's delay in ITS input samples, scaled to the converter's
+     input by the rate the stages before it have applied (doppler#3119).
+     Output k of stage 2 carries its input k / r2 - D2, which carries the
+     converter's input (k / r2 - D2) / r1 - D1. */
+  double d = 0.0, rate_in = 1.0;
+  for (int i = 0; i < s->n_stages; i++)
+    switch (s->stage_types[i])
+      {
+      case RC_STAGE_HB:
+        d += dp_hbdecim_get_group_delay (
+                 (const hbdecim_state_t *)s->stage_ptrs[i])
+             / rate_in;
+        rate_in *= 0.5;
+        break;
+      case RC_STAGE_CIC:
+        {
+          const rc_cic_stage_t *cs = (const rc_cic_stage_t *)s->stage_ptrs[i];
+          const double          R  = (double)cs->R;
+          double                dc = dp_cic_get_group_delay (cs->cic);
+          /* The droop compensator is a symmetric FIR at the CIC's output
+             rate (ciccompmf), an output aligned with its newest input: its
+             center is (taps - 1) / 2 CIC outputs back. */
+          if (cs->fir)
+            dc += 0.5 * ((double)dp_fir_get_num_taps (cs->fir) - 1.0) * R;
+          d += dc / rate_in;
+          rate_in /= R;
+        }
+        break;
+      case RC_STAGE_RESAMP:
+        {
+          const resamp_state_t *rs = (const resamp_state_t *)s->stage_ptrs[i];
+          /* A matched plan's terminal stage runs the push path at every
+             rate: it emits before it loads, one input, and the bank's own
+             content sits bank_delay behind the newest loaded sample. */
+          d += (s->pulse != RC_PULSE_NONE && i == s->n_stages - 1
+                    ? s->bank_delay + 1.0
+                    : dp_resamp_get_execute_delay (rs))
+               / rate_in;
+          rate_in *= dp_resamp_get_rate (rs);
+        }
+        break;
+      }
+  return d;
 }
 
 size_t

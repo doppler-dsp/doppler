@@ -57,6 +57,7 @@
 * **both\_down\_samples** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **blocks** ([**async\_dsss\_receiver\_fine\_t**](structasync__dsss__receiver__fine__t.md))
 * **block\_bits** ([**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md))
+* **bank\_delay** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md))
 * **bank\_e0** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md))
 * **bank\_sps** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md))
 * **beta** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md), [**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md), [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md), [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md), [**dp\_specan\_state\_t**](structdp__specan__state__t.md), [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md), [**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))

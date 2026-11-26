@@ -285,6 +285,30 @@ size_t dp_cic_decimate_max_out(dp_cic_state_t *state);
 double dp_cic_dc_gain(const dp_cic_state_t *state);
 
 /**
+ * @brief The decimator's group delay, in its INPUT samples: where in the
+ *        input timeline an output sample's content sits.
+ *
+ * Output `k` of a fresh stream carries the input at index
+ * `k * R - group_delay`. From the structure, not measured: the response is
+ * CIC_N boxcars of `R` inputs in a row, `CIC_N * (R - 1) + 1` inputs long
+ * and symmetric, so its center is `CIC_N * (R - 1) / 2` behind the newest
+ * input; and output `k` is formed as input `k * R + R - 1` arrives, which
+ * is `R - 1` after the instant `k * R`. The difference is the delay, the
+ * same at every frequency.
+ *
+ * @param state State. Must be non-NULL.
+ * @return `(R - 1) * (CIC_N - 2) / 2`, in input samples: `R - 1` at
+ *         CIC_N 4.
+ *
+ * @code
+ * dp_cic_state_t *c = dp_cic_create (8);
+ * printf ("%.1f\n", dp_cic_get_group_delay (c));   // 7.0
+ * dp_cic_destroy (c);
+ * @endcode
+ */
+double dp_cic_get_group_delay(const dp_cic_state_t *state);
+
+/**
  * @brief Decimate a block of CF32 samples through the CIC pipeline.
  * Each sample is converted to offset-binary UQ16, pushed through
  * CIC_N integrators (unsigned wrapping), and when the phase counter

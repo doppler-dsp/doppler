@@ -649,8 +649,8 @@ where the loop has pushed the tracking bank: it is the same at `m = 1`,
 
 **The estimate reaches the loop through the seed call.** The estimate is
 on the estimator's converter's timeline and the loop steers another
-converter, so the two group delays, each derived from its plan at
-construction (#3119), carry the eye center from one to the other. What
+converter, so the two group delays, each the sum of its plan's stage
+delays (`dp_RateConverter_get_group_delay()`), carry the eye center from one to the other. What
 arrives is a timing on the tracking bank's outputs: the on-time output
 is the nearest one, which is a count, and what is left is under half an
 output period and goes to the terminal stage as one symbol of control,
@@ -702,8 +702,8 @@ designed for.
 1. The Resampler's second bank and paired output.
 1. The derivative detector in `ratesync_loop_t`, its slope from the
     tables, `m = 1`.
-1. The estimator's matched flavor; the converter's group delay for
-    every plan (#3119); then the state machine and the seed in the loop.
+1. The converter's group delay on every plan; the estimator's matched
+    flavor; then the state machine and the seed in the loop.
 1. The header rewritten claim by claim, the manifest, the bindings.
 1. The C pins with their sabotage; the state round trip; the probes.
 1. The six measurement lanes against §2's predictions, and the report.

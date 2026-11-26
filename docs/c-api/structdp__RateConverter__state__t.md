@@ -41,6 +41,7 @@ _Cascade state_  _owns all sub-stage C objects._[More...](#detailed-description)
 |  double | [**agc\_bn\_sym**](#variable-agc_bn_sym)  <br> |
 |  double | [**agc\_ref\_db**](#variable-agc_ref_db)  <br> |
 |  struct [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) | [**agc\_tlm\_req**](#variable-agc_tlm_req)  <br> |
+|  double | [**bank\_delay**](#variable-bank_delay)  <br> |
 |  double | [**bank\_e0**](#variable-bank_e0)  <br> |
 |  double | [**bank\_sps**](#variable-bank_sps)  <br> |
 |  double | [**beta**](#variable-beta)  <br> |
@@ -196,6 +197,24 @@ struct dp_RateConverter_state_t dp_RateConverter_state_t::agc_tlm_req;
 
 
 The telemetry attachment as REQUESTED, not as currently applied. Held here rather than only on the AGC because the AGC is destroyed and rebuilt whenever the plan changes (rc\_agc\_build), and may not exist yet when the attach arrives; keeping the request lets every rebuild re-apply it. Never packed into a state blob — telemetry is observation. See [**dp\_RateConverter\_set\_telemetry()**](RateConverter__core_8h.md#function-dp_rateconverter_set_telemetry). 
+
+
+        
+
+<hr>
+
+
+
+### variable bank\_delay 
+
+```C++
+double dp_RateConverter_state_t::bank_delay;
+```
+
+
+
+where the matched bank's content sits behind the newest sample in its delay line, in terminal-stage inputs: the mean, over the arms an unsteered stream at the terminal rate visits, of each arm's centroid plus its lag, from the taps as built (config; 0 with no pulse) 
+ 
 
 
         

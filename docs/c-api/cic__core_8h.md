@@ -64,6 +64,7 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**dp\_cic\_decimate**](#function-dp_cic_decimate) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
 |  size\_t | [**dp\_cic\_decimate\_max\_out**](#function-dp_cic_decimate_max_out) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
 |  void | [**dp\_cic\_destroy**](#function-dp_cic_destroy) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Free the filter state._  |
+|  double | [**dp\_cic\_get\_group\_delay**](#function-dp_cic_get_group_delay) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_The decimator's group delay, in its INPUT samples: where in the input timeline an output sample's content sits._  |
 |  void | [**dp\_cic\_get\_state**](#function-dp_cic_get_state) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, void \* blob) <br>_Serialize R, the integrator/comb/phase state and_ `clipped` _into_`blob` _. shift is not written: it is derived from R._ |
 |  void | [**dp\_cic\_reconfigure**](#function-dp_cic_reconfigure) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 2048]` _(_`CIC_R_MAX` _) — the state is left unchanged in that case._ |
 |  void | [**dp\_cic\_reset**](#function-dp_cic_reset) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state. Also clears the sticky_ `clipped` _flag._ |
@@ -354,6 +355,49 @@ void dp_cic_destroy (
 * `state` State from [**dp\_cic\_create()**](cic__core_8h.md#function-dp_cic_create); NULL is a no-op. 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_cic\_get\_group\_delay 
+
+_The decimator's group delay, in its INPUT samples: where in the input timeline an output sample's content sits._ 
+```C++
+double dp_cic_get_group_delay (
+    const dp_cic_state_t * state
+) 
+```
+
+
+
+Output `k` of a fresh stream carries the input at index `k * R - group_delay`. From the structure, not measured: the response is CIC\_N boxcars of `R` inputs in a row, `CIC_N * (R - 1) + 1` inputs long and symmetric, so its center is `CIC_N * (R - 1) / 2` behind the newest input; and output `k` is formed as input `k * R + R - 1` arrives, which is `R - 1` after the instant `k * R`. The difference is the delay, the same at every frequency.
+
+
+
+
+**Parameters:**
+
+
+* `state` State. Must be non-NULL. 
+
+
+
+**Returns:**
+
+`(R - 1) * (CIC_N - 2) / 2`, in input samples: `R - 1` at CIC\_N 4.
+
+
+
+```C++
+dp_cic_state_t *c = dp_cic_create (8);
+printf ("%.1f\n", dp_cic_get_group_delay (c));   // 7.0
+dp_cic_destroy (c);
+```
+ 
 
 
         

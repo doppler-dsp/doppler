@@ -505,6 +505,7 @@ dp_cic_dc_gain function
 dp_cic_decimate function
 dp_cic_decimate_max_out function
 dp_cic_destroy function
+dp_cic_get_group_delay function
 dp_cic_get_state function
 dp_cic_reconfigure function
 dp_cic_reset function
@@ -1073,6 +1074,7 @@ dp_hbdecim_create function
 dp_hbdecim_dc_gain function
 dp_hbdecim_destroy function
 dp_hbdecim_execute function
+dp_hbdecim_get_group_delay function
 dp_hbdecim_get_num_taps function
 dp_hbdecim_get_rate function
 dp_hbdecim_get_state function

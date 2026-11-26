@@ -33,6 +33,17 @@
  * filter. The reasoning, the predicted variance and what is not yet known
  * are in docs/design/timing-estimator.md.
  *
+ * **With a matched filter of its own.** dp_timing_est_create_matched()
+ * takes the pulse and the input's samples a symbol and puts a matched
+ * `RateConverter` ahead of the clock: its decimating cascade, then its
+ * matched terminal stage at a fixed rate to 4 samples a symbol, which
+ * nothing steers. dp_timing_est_estimate() then takes the samples as they
+ * arrive, for any real number of them a symbol from 4 up. It skips the
+ * converter's own start (dp_RateConverter_get_memory()) before the first
+ * block counts, and every estimate says where the eye center sits on the
+ * INPUT's timeline (`eye`), which is what lets a second converter on the
+ * same samples be set to it.
+ *
  * Lifecycle: create -> (estimate | accumulate.. finish | reset)* -> destroy
  *
  * Example:
@@ -47,10 +58,16 @@
 #ifndef DP_TIMING_EST_CORE_H
 #define DP_TIMING_EST_CORE_H
 
+#include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
 #include "doppler/jm_perf.h"
 #include "doppler/nco/nco_core.h"
+#include "doppler/resamp/resamp_core.h"
+#include "doppler/hbdecim/hbdecim_core.h"
+#include "doppler/cic/cic_core.h"
+#include "doppler/fir/fir_core.h"
+#include "doppler/resample/resample_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,7 +75,14 @@ extern "C" {
 /** @brief State-blob identity (see dp_state.h). */
 #define TIMING_EST_STATE_MAGIC DP_FOURCC ('T', 'M', 'G', 'E')
 /** @brief State-blob layout version. */
-#define TIMING_EST_STATE_VERSION 1u
+#define TIMING_EST_STATE_VERSION 2u /* v2: the lead-in left, and a matched
+                                      instance's converter */
+/** @brief Samples a symbol the matched flavor's converter delivers, and
+ *         its symbol clock runs at. */
+#define TIMING_EST_MATCHED_SPS 4.0
+/** @brief Arms in the matched flavor's terminal bank: the fixed-rate
+ *         stage's timing resolution, 1 / 1024 of an output. */
+#define TIMING_EST_MATCHED_PHASES 1024u
 
 /**
  * @brief One feedforward symbol-timing estimate.
@@ -93,18 +117,33 @@ typedef struct {
                          samples / sps.                                     */
     int has_rate;   /**< 1 when a previous block exists to take `rate`
                          against, else 0.                                   */
+    double eye;     /**< Where an eye center sits on the INPUT's timeline:
+                         the sample index, counted from create or reset
+                         and not whole, of the eye center nearest the
+                         block's middle. Other eye centers are whole
+                         symbols (`sps` samples) either side. On a matched
+                         instance the converter's group delay and the
+                         lead-in it skipped are taken out, so the index is
+                         into the samples the estimate was handed. 0 when
+                         the block has no power.                            */
 } dp_timing_estimate_t;
 
 /**
  * @brief SymbolTimingEstimator state.
  *
- * Allocate with dp_timing_est_create(). `sps` and `inc` are config; the
- * rest is running state and is in the blob.
+ * Allocate with dp_timing_est_create() or dp_timing_est_create_matched().
+ * `sps`, `clock_sps`, `inc`, `lead`, `delay` and the converter's plan are
+ * config; the rest is running state and is in the blob.
  */
 typedef struct {
-    double   sps;       /**< Samples per symbol the clock runs at.          */
+    double   sps;       /**< Samples per symbol of the stream handed to
+                             dp_timing_est_estimate().                      */
+    double   clock_sps; /**< Samples per symbol the clock runs at: `sps`,
+                             or TIMING_EST_MATCHED_SPS on a matched
+                             instance, whose clock runs on its converter's
+                             output.                                        */
     uint32_t inc;       /**< The clock's step a sample: the NCO's increment
-                             for `1 / sps` cycles a sample.                 */
+                             for `1 / clock_sps` cycles a sample.           */
     uint32_t phase;     /**< The symbol clock: a 32-bit fraction of one
                              symbol, at the next sample.                    */
     uint64_t count;     /**< Samples taken since create or reset.           */
@@ -119,6 +158,15 @@ typedef struct {
     double   prev_tau;  /**< That block's `tau`.                            */
     double   prev_mid;  /**< That block's middle, in symbols of the clock
                              since create or reset.                        */
+    /* the matched flavor */
+    dp_RateConverter_state_t *mf; /**< The matched converter, owned; NULL
+                             on a plain instance.                           */
+    uint64_t lead;      /**< Converter outputs skipped after create or
+                             reset: `ceil (memory * rate) + 1`, the
+                             converter's own start. 0 on a plain instance. */
+    uint64_t lead_left; /**< How many of those are still to skip.           */
+    double   delay;     /**< The converter's group delay, in input
+                             samples. 0 on a plain instance.                */
 } dp_timing_est_state_t;
 
 /**
@@ -144,6 +192,47 @@ typedef struct {
  * @endcode
  */
 dp_timing_est_state_t *dp_timing_est_create(double sps);
+
+/**
+ * @brief Create an estimator with a matched filter of its own, for a
+ *        stream of @p sps samples a symbol that nothing has filtered.
+ *
+ * Builds one matched `RateConverter` for the rate
+ * `TIMING_EST_MATCHED_SPS / sps`, droop compensation on, and runs the
+ * symbol clock on its output at TIMING_EST_MATCHED_SPS samples a symbol.
+ * The converter's terminal stage is the matched filter and runs at that
+ * fixed rate: nothing steers it. dp_timing_est_estimate() then takes the
+ * unfiltered samples, and its record's `symbols` counts the converter
+ * outputs the block gave, so a block that ends inside the lead-in reports
+ * fewer symbols than it was handed (none, while the lead-in lasts).
+ *
+ * @param sps    Samples per symbol of the input; finite, and
+ *               TIMING_EST_MATCHED_SPS or more (the terminal stage does
+ *               not interpolate).
+ * @param pulse  RC_PULSE_IANDD (rectangle) or RC_PULSE_RRC.
+ * @param beta   Root-raised-cosine roll-off, 0 to 1; ignored for the
+ *               rectangle.
+ * @param span   One-sided root-raised-cosine span in symbols, 1 or more;
+ *               ignored for the rectangle.
+ * @return Heap-allocated state, or NULL when @p sps is not finite or is
+ *         below TIMING_EST_MATCHED_SPS, the pulse is neither, @p beta or
+ *         @p span is out of range, or allocation fails.
+ * @note Caller must call dp_timing_est_destroy() when done.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import MatchedSymbolTimingEstimator
+ * >>> n = np.arange(4096)
+ * >>> # +1 -1 +1 ... through a root-raised cosine at 8 samples a symbol,
+ * >>> # with a symbol instant at sample 3 and every 8 after it
+ * >>> x = (0.25 * np.cos(np.pi * (n - 3.0) / 8.0)).astype(np.complex64)
+ * >>> te = MatchedSymbolTimingEstimator(sps=8.0, pulse="rrc")
+ * >>> e = te.estimate(x)
+ * >>> bool(abs(e.eye % 8.0 - 3.0) < 0.1), e.symbols
+ * (True, 490.25)
+ * @endcode
+ */
+dp_timing_est_state_t *dp_timing_est_create_matched(double sps, int pulse, double beta, size_t span);
 
 /**
  * @brief Destroy a timing_est instance and release all memory.

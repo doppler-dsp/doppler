@@ -25,6 +25,15 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "SymbolTimingEstimator"
+depends_on = [
+  { name = "RateConverter", link = true },
+  { name = "resamp", link = true },
+  { name = "hbdecim", link = true },
+  { name = "cic", link = true },
+  { name = "fir", link = true },
+  { name = "resample", link = true },
+  { name = "nco", link = true },
+]
 serializable = "true"
 fragment = "generated"
 create_error = "ValueError"
@@ -35,9 +44,24 @@ name = "sps"
 type = "double"
 default = "4.0"
 
+# The matched flavor: the same estimator with a matched filter of its own,
+# for samples nothing has filtered. A second constructor over the one core
+# (dp_timing_est_create_matched): a matched RateConverter to 4 samples a
+# symbol, its terminal stage at a fixed rate, then the same clock.
+[[timing_est.views]]
+class_name = "MatchedSymbolTimingEstimator"
+create_fn = "dp_timing_est_create_matched"
+create_error_message = "MatchedSymbolTimingEstimator: invalid parameter (need a finite sps of 4 or more, pulse iandd or rrc, 0 <= beta <= 1, span >= 1)"
+init_params = [
+  { name = "sps", type = "double", default = "8.0", doc = "Samples per symbol of the input, any real number of 4 or more." },
+  { name = "pulse", type = "string_enum:iandd,rrc", default = "rrc", doc = "The pulse the matched filter is built for." },
+  { name = "beta", type = "double", default = "0.35" },
+  { name = "span", type = "size_t", default = "8" },
+]
+
 [[timing_est.methods]]
 name = "estimate"
-doc = "Estimate the symbol timing from one block of matched-filtered samples; returns a TimingEstimate. The block is the whole call, so its length sets the estimate's variance; consecutive calls stay on one symbol clock, and from the second call on the result also carries the symbol rate's error."
+doc = "Estimate the symbol timing from one block of samples (matched-filtered for SymbolTimingEstimator, as they arrive for MatchedSymbolTimingEstimator); returns a TimingEstimate. The block is the whole call, so its length sets the estimate's variance; consecutive calls stay on one symbol clock, and from the second call on the result also carries the symbol rate's error."
 arg_type = "float _Complex"
 return_type = "dp_timing_estimate_t"
 nogil = true
@@ -48,6 +72,7 @@ result_fields = [
     {name = "power", type = "double"},
     {name = "symbols", type = "double"},
     {name = "has_rate", type = "int"},
+    {name = "eye", type = "double"},
 ]
 single = true
 record_name = "TimingEstimate"
@@ -63,4 +88,4 @@ return_type = "void"
 name = "sps"
 type = "double"
 field = true
-doc = "Samples per symbol the estimator's symbol clock runs at."
+doc = "Samples per symbol of the stream handed to estimate."

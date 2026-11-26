@@ -36,6 +36,7 @@ _One feedforward symbol-timing estimate._
 
 | Type | Name |
 | ---: | :--- |
+|  double | [**eye**](#variable-eye)  <br> |
 |  int | [**has\_rate**](#variable-has_rate)  <br> |
 |  double | [**power**](#variable-power)  <br> |
 |  double | [**quality**](#variable-quality)  <br> |
@@ -88,6 +89,24 @@ _One feedforward symbol-timing estimate._
 
 ## Public Attributes Documentation
 
+
+
+
+### variable eye 
+
+```C++
+double dp_timing_estimate_t::eye;
+```
+
+
+
+Where an eye center sits on the INPUT's timeline: the sample index, counted from create or reset and not whole, of the eye center nearest the block's middle. Other eye centers are whole symbols (`sps` samples) either side. On a matched instance the converter's group delay and the lead-in it skipped are taken out, so the index is into the samples the estimate was handed. 0 when the block has no power. 
+ 
+
+
+        
+
+<hr>
 
 
 

@@ -1674,6 +1674,7 @@ dp_syncword_max_errors_for function
 dp_syncword_pfa function
 dp_timing_est_accumulate function
 dp_timing_est_create function
+dp_timing_est_create_matched function
 dp_timing_est_destroy function
 dp_timing_est_estimate function
 dp_timing_est_finish function

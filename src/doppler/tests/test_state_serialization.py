@@ -90,6 +90,7 @@ from doppler.track import (
     Dll,
     KalmanStateFilter,
     LoopFilter,
+    MatchedSymbolTimingEstimator,
     MpskReceiver,
     MpskReceiverR,
     RateSync,
@@ -628,6 +629,23 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
                 e.power,
                 e.symbols,
                 float(e.has_rate),
+                e.eye,
+            ]
+        ),
+    ),
+    # The matched flavor: the same record, behind its own converter, whose
+    # delay lines and terminal phase have to come across with the clock.
+    "MatchedSymbolTimingEstimator": (
+        lambda: MatchedSymbolTimingEstimator(sps=5.0, pulse="rrc"),
+        lambda o, seg: np.array(
+            [
+                (e := o.estimate(seg)).tau,
+                e.rate,
+                e.quality,
+                e.power,
+                e.symbols,
+                float(e.has_rate),
+                e.eye,
             ]
         ),
     ),

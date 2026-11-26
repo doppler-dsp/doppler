@@ -12,16 +12,25 @@
 #ifndef DP_TIMING_EST_CORE_H
 #define DP_TIMING_EST_CORE_H
 
+#include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
 #include "doppler/jm_perf.h"
 #include "doppler/nco/nco_core.h"
+#include "doppler/resamp/resamp_core.h"
+#include "doppler/hbdecim/hbdecim_core.h"
+#include "doppler/cic/cic_core.h"
+#include "doppler/fir/fir_core.h"
+#include "doppler/resample/resample_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define TIMING_EST_STATE_MAGIC DP_FOURCC ('T', 'M', 'G', 'E')
-#define TIMING_EST_STATE_VERSION 1u
+#define TIMING_EST_STATE_VERSION 2u /* v2: the lead-in left, and a matched
+                                      instance's converter */
+#define TIMING_EST_MATCHED_SPS 4.0
+#define TIMING_EST_MATCHED_PHASES 1024u
 
 typedef struct {
     double tau;     
@@ -30,10 +39,12 @@ typedef struct {
     double power;   
     double symbols; 
     int has_rate;   
+    double eye;     
 } dp_timing_estimate_t;
 
 typedef struct {
     double   sps;       
+    double   clock_sps; 
     uint32_t inc;       
     uint32_t phase;     
     uint64_t count;     
@@ -47,9 +58,16 @@ typedef struct {
     int      have_prev; 
     double   prev_tau;  
     double   prev_mid;  
+    /* the matched flavor */
+    dp_RateConverter_state_t *mf; 
+    uint64_t lead;      
+    uint64_t lead_left; 
+    double   delay;     
 } dp_timing_est_state_t;
 
 dp_timing_est_state_t *dp_timing_est_create(double sps);
+
+dp_timing_est_state_t *dp_timing_est_create_matched(double sps, int pulse, double beta, size_t span);
 
 void dp_timing_est_destroy(dp_timing_est_state_t *state);
 

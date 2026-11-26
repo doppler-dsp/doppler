@@ -57,29 +57,51 @@ made every theory figure the bound at the wrong operating point (finding
 `ser_theory_figure_report_bound`).
 
 Run:  make validate
+
+**One section renders a committed C sweep rather than measuring live.**
+§2.11's pull-in transient is ``validate_mpsk_receiver_ber --pullin``
+(about a minute, 72 cases x 128 draws, both rectangle banks), committed as
+``data/pullin.csv`` and refreshed on purpose after the receiver, the bank
+or the harness changes::
+
+    make build
+    make validate-mpsk-receiver-pullin
+
+which is this file run with ``--pullin``: it re-runs the harness into
+``data/pullin.csv`` and then renders the report as usual.
 """
 
 from __future__ import annotations
 
+import math
+import subprocess
 import sys
+import warnings
 from pathlib import Path
 
 import numpy as np
 
 from doppler.ber import (
     BerMeter,
+    ber_esn0_db_for_ser,
     ber_evm_db,
     ber_settle_syms,
     ber_theory_ser,
 )
 from doppler.mpsk import mpsk_map
 from doppler.snr import snr_m2m4_db
+from doppler.tests._repo import build_dir, exe, repo_root
 from doppler.tests._validation_common import Report, clamp_evm_db, cli
 from doppler.track import MpskReceiver
 from doppler.track.tests._mpsk_rx_harness import freq_offset_inside_bw
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
+#: §2.11's committed sweep and the harness that writes it (``--pullin``).
+PULLIN = DATA / "pullin.csv"
+PULLIN_HARNESS = exe(
+    build_dir(__file__) / "native/validation/validate_mpsk_receiver_ber"
+)
 
 #: Amplitude is 0.5, not 1.0, and the reason is the same one
 #: ``test_mpsk_receiver_core.c``'s header gives: a cascade that plans a CIC
@@ -1157,7 +1179,7 @@ def characterise(R, write):
     )
     R.md()
 
-    rows, mo_sweep = [], []
+    rows, mo_sweep, mo_lock = [], [], {}
     lo = ber_settle_syms(0.01, 0.01)
     for m in (2, 4, 8):
         cells = {}
@@ -1187,6 +1209,7 @@ def characterise(R, write):
             ]
         )
         mo_sweep.append([m, cells[8][0], cells[4][0], cost])
+        mo_lock[m] = (cells[8][1], cells[4][1])
     d["m_out"] = mo_sweep
     R.table(
         [
@@ -1227,16 +1250,19 @@ def characterise(R, write):
         "decision margin — +-pi/8 at 8PSK against +-pi/2 at BPSK. So this "
         "sweep measures the M-independent half cleanly and cannot see the "
         "M-dependent half at all.\n\n"
-        "What that costs the report: the header's headline conclusion is "
-        "carried by the SER-anchored figures, and reaching a `1e-3` anchor "
-        "per M is the same record-length problem §2.1 runs into from the "
-        f"other side ({R.ref('some_es_n0_cells_cannot')}, "
-        "[#781](https://github.com/doppler-dsp/doppler/"
-        "issues/781)). §4 therefore asserts what this geometry establishes "
-        "— that halving `m_out` costs at least 2 dB at every M, so it is "
-        "never free — and not the ordering across M. The LOCK column is "
-        "the corroborating hint: it falls with `m_out` and it falls "
-        "hardest at M = 8 (0.802 to 0.687, against BPSK's 0.989 to 0.986), "
+        "The header's headline conclusion is carried by the SER-anchored "
+        "figures, which a record of this length cannot reach "
+        f"({R.ref('some_es_n0_cells_cannot')}, "
+        "[#781](https://github.com/doppler-dsp/doppler/issues/781)); "
+        "§2.12 measures them on a longer record. §4 asserts what this "
+        "geometry establishes — that halving `m_out` is never free — and "
+        "not the ordering across M. The LOCK column is the corroborating "
+        "hint: halving `m_out` lowers it by "
+        + ", ".join(
+            f"{mo_lock[m][0] - mo_lock[m][1]:.3f} at M = {m}"
+            for m in (2, 4, 8)
+        )
+        + f" ({mo_lock[8][0]:.3f} to {mo_lock[8][1]:.3f} at 8PSK), "
         "which is the folding mechanism showing up in the one statistic "
         "built on `z^M` even where the EVM cannot see it — the lock "
         "statistic moving before the error metric, the same way it does "
@@ -1484,7 +1510,486 @@ def characterise(R, write):
     )
     R.md()
 
+    # 2.11 --------------------------------------------------------------
+    d["pullin"] = _pullin_section(R)
+
+    # 2.12 --------------------------------------------------------------
+    d["m_out2"], d["m_out_ser"] = _m_out_acquisition_section(R)
+
     return d
+
+
+# ── §2.11: the pull-in transient, from the committed C sweep ────────────
+
+#: Per-window false-alarm level for "this window is still in the
+#: transient": a window is in it when its pooled error count exceeds the
+#: steady rate's Poisson upper quantile at this level. ~40 windows are
+#: tested per case before the settling point, so 1e-3 keeps a spurious
+#: extension of one row's transient near a 4% chance.
+PULLIN_ALPHA = 1e-3
+
+#: Output symbols per window in the committed sweep (the harness's
+#: PULLIN_W); read back from the file's window starts and checked.
+PULLIN_W = 50
+
+
+def _poisson_hi(lam, alpha=PULLIN_ALPHA):
+    """Smallest k with P(X > k) < alpha for X ~ Poisson(lam).
+
+    Summed directly: the means here are a few hundred at most, where the
+    terms neither overflow nor underflow.
+    """
+    if lam <= 0.0:
+        return 0
+    k, logp = 0, -lam
+    cdf = math.exp(logp)
+    while 1.0 - cdf >= alpha:
+        k += 1
+        logp += math.log(lam) - math.log(k)
+        cdf += math.exp(logp)
+    return k
+
+
+def _pullin_load():
+    """Parse ``data/pullin.csv`` into per-case windows and per-draw rows.
+
+    Two record kinds share the file, told apart by the first field: ``W``
+    (one window, pooled over the draws) and ``D`` (one draw: its head and
+    tail errors and where the carrier lock declared). The case key is
+    ``(bank, pulse, m, m_out, esn0_db)``.
+    """
+    if not PULLIN.exists():
+        raise SystemExit(
+            "mpsk_receiver: data/pullin.csv is missing -- run "
+            "`make validate-mpsk-receiver-pullin`"
+        )
+    wins, draws, meta = {}, {}, ""
+    for line in PULLIN.read_text(encoding="utf-8").splitlines():
+        if line.startswith("# pullin"):
+            meta = line[len("# pullin: ") :]
+        if not line or line.startswith("#"):
+            continue
+        f = line.split(",")
+        key = (f[1], f[2], int(f[3]), int(f[4]), float(f[5]))
+        if f[0] == "W":
+            wins.setdefault(key, []).append(
+                {
+                    "draws": int(f[6]),
+                    "refused": int(f[7]),
+                    "clipped": int(f[8]),
+                    "bank_sps": float(f[11]),
+                    "start": int(f[12]),
+                    "errors": int(f[13]),
+                    "symbols": int(f[14]),
+                }
+            )
+        elif f[0] == "D":
+            draws.setdefault(key, []).append(
+                {
+                    "aligned": int(f[7]),
+                    "lock": int(f[8]),
+                    "he": int(f[9]),
+                    "hs": int(f[10]),
+                    "te": int(f[11]),
+                    "ts": int(f[12]),
+                }
+            )
+    return wins, draws, meta
+
+
+def _pullin_case(win, drw, settle):
+    """One case's figures: steady rate, head errors, transient length.
+
+    The steady rate is the TAIL's (past the marker), so it is the rate the
+    report scores. The transient ends at the first window from which every
+    window up to the settling point is within that rate's Poisson upper
+    quantile; its length is that window's start, in symbols from the
+    receiver's first output.
+    """
+    ok = [r for r in drw if r["aligned"]]
+    te = sum(r["te"] for r in ok)
+    ts = sum(r["ts"] for r in ok)
+    p = te / ts if ts else 0.0
+    head = [w for w in win if w["start"] + PULLIN_W <= settle]
+    end = 0
+    for i, w in enumerate(head):
+        if w["errors"] > _poisson_hi(w["symbols"] * p):
+            end = head[i + 1]["start"] if i + 1 < len(head) else settle
+    n = len(ok)
+    he = [r["he"] for r in ok]
+    excess = [r["he"] - r["hs"] * p for r in ok]
+    locks = [r["lock"] for r in ok if r["lock"] >= 0]
+    return {
+        "n": n,
+        "refused": win[0]["refused"],
+        "clipped": win[0]["clipped"],
+        "p": p,
+        "head": sum(he) / n if n else float("nan"),
+        "he": he,
+        "excess": sum(excess) / n if n else float("nan"),
+        "length": end,
+        "lock": sum(locks) / len(locks) if locks else float("nan"),
+        "locked": len(locks),
+    }
+
+
+def _pullin_section(R):
+    """§2.11: the errors the settled window leaves out, on both banks."""
+    settle = int(ber_settle_syms(0.01, 0.01))
+    wins, draws, meta = _pullin_load()
+    R.md("### 2.11 The pull-in transient the scored window leaves out")
+    R.md()
+    R.md(
+        "Every rate in this report is scored from a settled point: "
+        f"`ber_settle_syms(0.01, 0.01)` = {settle} symbols, then a "
+        "256-symbol marker. The errors the receiver makes while its loops "
+        "pull in are therefore never counted, by design. That matters "
+        "now because the matched bank's rectangle arms changed under the "
+        "timing loop ([#3362](https://github.com/doppler-dsp/doppler/"
+        "issues/3362)): sampled taps became coverage-weighted taps "
+        "(`rc_tap_w`), which removes a dead zone and also the sampled "
+        "arms' staircase, and on the async DSSS receiver the change shows "
+        "up only in the timing pull-in after its hand-over. This section "
+        "counts the transient here.\n\n"
+        "From `data/pullin.csv`, written by `validate_mpsk_receiver_ber "
+        f"--pullin` ({meta}). Each draw is a fresh symbol stream, noise, "
+        "carrier phase and a uniform fractional timing offset, with the "
+        "carrier offset §2.1 uses; every case runs the SAME draws, so the "
+        "bank comparison is paired. `sampled` is the pre-#3364 bank, "
+        "written over the terminal stage in place after the harness has "
+        "rebuilt the as-built bank from `rc_tap_w`'s formula and matched "
+        "it to float rounding. The root-raised cosine is unchanged by "
+        "#3364 and runs on the as-built bank only, as the control. The "
+        "alignment is the meter's own, from a marker at the settling "
+        "point, and every output from the receiver's first is scored "
+        "under it.\n\n"
+        f"`head` is symbol errors per draw in outputs `[0, {settle})`; "
+        "`excess` is that less what the steady rate would make there; "
+        f"`length` is where the transient ends: the first window of "
+        f"{PULLIN_W} symbols from which every window to the settling "
+        "point sits within the steady rate's Poisson upper quantile "
+        f"(level {PULLIN_ALPHA:g}); `lock` is the mean output symbol at "
+        "which the carrier lock declared."
+    )
+    R.md()
+    cases = {k: _pullin_case(wins[k], draws[k], settle) for k in wins}
+    rows = []
+    for k in sorted(cases, key=lambda k: (k[2], k[3], k[4], k[1], k[0])):
+        c = cases[k]
+        rows.append(
+            [
+                f"{k[2]}",
+                f"{k[3]}",
+                f"{k[4]:.2f}",
+                f"{k[1]} / {k[0]}",
+                f"{c['lock']:.0f}",
+                f"{c['head']:.1f}",
+                f"{c['excess']:.1f}",
+                f"{c['length']}",
+                f"{c['p']:.2e}",
+                f"{c['refused']}",
+            ]
+        )
+    R.table(
+        [
+            "M",
+            "m_out",
+            "Es/N0 dB",
+            "pulse / bank",
+            "lock",
+            "head",
+            "excess",
+            "length",
+            "steady SER",
+            "refused",
+        ],
+        rows,
+    )
+    R.md()
+
+    # The paired A/B on the rectangle: per draw, corrected minus sampled.
+    ab, ab_rows = [], []
+    for k in sorted(cases):
+        if k[0] != "corrected" or k[1] != "iandd":
+            continue
+        c, s = cases[k], cases[("sampled", *k[1:])]
+        dif = [a - b for a, b in zip(c["he"], s["he"])]
+        n = len(dif)
+        mu = sum(dif) / n
+        sd = math.sqrt(sum((x - mu) ** 2 for x in dif) / (n - 1))
+        half = 1.96 * sd / math.sqrt(n)
+        ratio = c["head"] / s["head"] if s["head"] else float("nan")
+        ab.append(
+            {
+                "m": k[2],
+                "m_out": k[3],
+                "esn0": k[4],
+                "ratio": ratio,
+                "diff": mu,
+                "half": half,
+                "len_c": c["length"],
+                "len_s": s["length"],
+            }
+        )
+        ab_rows.append(
+            [
+                f"{k[2]}",
+                f"{k[3]}",
+                f"{k[4]:.2f}",
+                f"{c['head']:.1f}",
+                f"{s['head']:.1f}",
+                f"{ratio:.2f}",
+                f"{mu:+.1f} ± {half:.1f}",
+                f"{c['length']} / {s['length']}",
+            ]
+        )
+    R.md(
+        "The rectangle's A/B, paired per draw: `difference` is the mean "
+        "of corrected-minus-sampled head errors with its 95% interval."
+    )
+    R.md()
+    R.table(
+        [
+            "M",
+            "m_out",
+            "Es/N0 dB",
+            "head, corrected",
+            "head, sampled",
+            "ratio",
+            "difference",
+            "length, corrected / sampled",
+        ],
+        ab_rows,
+    )
+    R.md()
+    worse = [a for a in ab if a["diff"] - a["half"] > 0.0]
+    better = [a for a in ab if a["diff"] + a["half"] < 0.0]
+    rr = [a["ratio"] for a in ab]
+    rrc = [cases[k]["head"] for k in cases if k[1] == "rrc"]
+    rect = [
+        cases[k]["head"]
+        for k in cases
+        if k[1] == "iandd" and k[0] == "corrected"
+    ]
+    better_mo = " and ".join(
+        f"`m_out = {mo}`" for mo in sorted({a["m_out"] for a in better})
+    )
+    R.md(
+        (
+            "**On this receiver the corrected bank costs no pull-in.** "
+            if not worse
+            else "**The corrected bank costs pull-in on some rows.** "
+        )
+        + f"Across the {len(ab)} rectangle rows the head-error ratio runs "
+        f"{min(rr):.2f} to {max(rr):.2f}; {len(worse)} row(s) are worse "
+        f"on the corrected bank at 95% and {len(better)} better"
+        + (f", all at {better_mo}. " if better else ". ")
+        + "The 1.8-1.9x the async DSSS receiver shows is a timing pull-in "
+        "with the carrier already handed over. Here the head is the JOINT "
+        "cold-start acquisition and the carrier half of it dominates: the "
+        "root-raised cosine, which #3364 did not touch, makes "
+        f"{min(rrc):.1f} to {max(rrc):.1f} head errors a draw against the "
+        f"corrected rectangle's {min(rect):.1f} to {max(rect):.1f}."
+    )
+    R.md()
+    return {"cases": cases, "ab": ab, "settle": settle}
+
+
+# ── §2.12: m_out = 2 with the rectangle, and the SER-anchored m_out cost ─
+
+#: Seeds per cell for the `m_out = 2` acquisition count. The claim being
+#: re-measured was "4/8 seeds lock at 14 dB", so 8 would repeat it; 32
+#: makes a rate of one half distinguishable from one at 3 standard errors.
+ACQ_SEEDS = 32
+
+#: Symbols per SER-anchored cell: at SER = 1e-3 this is ~120 errors in the
+#: window `_score` reads, past the meter's own 100-error target.
+ANCHOR_NSYM = 140000
+
+
+def _m_out_acquisition_section(R):
+    """§2.12: #3363's two `m_out` claims, measured on this bank."""
+    R.md(
+        "### 2.12 `m_out = 2` with the rectangle, and `m_out`'s cost "
+        "at SER = 1e-3"
+    )
+    R.md()
+    R.md(
+        "Two header claims were measured while the bank had its dead zone "
+        "([#3363](https://github.com/doppler-dsp/doppler/issues/3363)). "
+        "C13: *never pair `m_out = 2` with I&D — acquisition fails about "
+        "half the time*, from 4 of 8 seeds locking on QPSK at 14 dB "
+        "Es/N0 at `sps = 8`. C12: halving `m_out` from 8 to 4 costs 1.7 / "
+        "1.6 / 3.0 dB at M = 2 / 4 / 8, each at its own SER = 1e-3 "
+        "anchor. Both are re-measured here with this report's own "
+        "stimulus and meter.\n\n"
+        f"**Acquisition**: QPSK at `sps = 8`, {ACQ_SEEDS} seeds a cell, "
+        "the §2.1 carrier offset and loop bandwidths. `aligned` counts "
+        "the records the meter can align past the settling point under "
+        "its false-alarm gate (a record that never acquired cannot be); "
+        "`locked` counts `rx.locked` at the end; `excess` is the median "
+        "EVM excess over the matched-filter bound; `warns` is whether "
+        "construction raised the `narrow_pulse` UserWarning."
+    )
+    R.md()
+    lo = ber_settle_syms(0.01, 0.01)
+    acq, rows = [], []
+    for esn0 in (14.0, 18.0):
+        for mo in (2, 4, 8):
+            n_al = n_lk = 0
+            ex, sers = [], []
+            warned = False
+            for sd in range(ACQ_SEEDS):
+                x, lab = _signal(
+                    4,
+                    esn0,
+                    freq_offset=freq_offset_inside_bw(0.01, 4, 1.0),
+                    seed=500 + sd,
+                    nsym=8000,
+                )
+                with warnings.catch_warnings(record=True) as w:
+                    warnings.simplefilter("always")
+                    rx = MpskReceiver(
+                        m=4,
+                        sps=SPS,
+                        m_out=mo,
+                        bn_carrier=0.01,
+                        bn_timing=0.01,
+                    )
+                warned |= any(issubclass(i.category, UserWarning) for i in w)
+                out = rx.steps(x)
+                ser, _mtr = _score(out, lab, 4, lo)
+                n_al += ser is not None
+                n_lk += bool(rx.locked)
+                if ser is not None:
+                    sers.append(ser)
+                ex.append(
+                    clamp_evm_db(
+                        float(
+                            ber_evm_db(
+                                np.ascontiguousarray(out),
+                                lo=lo,
+                                hi=out.size,
+                                m=4,
+                            )
+                        )
+                    )
+                    + esn0
+                )
+            med = float(np.median(ex))
+            acq.append([esn0, mo, n_al, n_lk, ACQ_SEEDS, med, int(warned)])
+            rows.append(
+                [
+                    f"{esn0:.0f}",
+                    f"{mo}",
+                    f"{n_al}/{ACQ_SEEDS}",
+                    f"{n_lk}/{ACQ_SEEDS}",
+                    f"{med:+.2f}",
+                    f"{max(sers):.2e}" if sers else "—",
+                    "yes" if warned else "no",
+                ]
+            )
+    R.table(
+        [
+            "Es/N0 dB",
+            "m_out",
+            "aligned",
+            "locked",
+            "excess dB (median)",
+            "worst SER",
+            "warns",
+        ],
+        rows,
+    )
+    R.md()
+    a2 = [r for r in acq if r[1] == 2]
+    R.md(
+        f"**`m_out = 2` acquires on every seed**: aligned "
+        f"{', '.join(f'{r[2]}/{r[4]} at {r[0]:.0f} dB' for r in a2)}, "
+        "where the claim was 4 of 8. What remains is the filter's "
+        "resolution, as a cost rather than a failure: a median "
+        f"{', '.join(f'{r[5]:+.2f} dB at {r[0]:.0f}' for r in a2)} over "
+        "the bound, against "
+        f"{', '.join(f'{r[5]:+.2f}' for r in acq if r[1] == 8)} at "
+        "`m_out = 8`."
+        if all(r[2] == r[4] for r in a2)
+        else "**`m_out = 2` still fails to acquire on some seeds**: "
+        f"{', '.join(f'{r[2]}/{r[4]} at {r[0]:.0f} dB' for r in a2)}."
+    )
+    R.md()
+
+    R.md(
+        "**C12, at each M's own SER = 1e-3 anchor** (`ber_esn0_db_for_ser`"
+        f"), {ANCHOR_NSYM} symbols a cell, loss read by inverting the bound "
+        "as §2.1 does."
+    )
+    R.md()
+    ser_rows, ser_cells = [], []
+    for m in (2, 4, 8):
+        esn0 = float(ber_esn0_db_for_ser(m, 1e-3))
+        cell = {}
+        for mo in (8, 4):
+            x, lab = _signal(
+                m,
+                esn0,
+                freq_offset=freq_offset_inside_bw(0.01, m, 1.0),
+                seed=900 + m,
+                nsym=ANCHOR_NSYM,
+            )
+            rx = MpskReceiver(
+                m=m, sps=SPS, m_out=mo, bn_carrier=0.01, bn_timing=0.01
+            )
+            out = rx.steps(x)
+            ser, mtr = _score(out, lab, m, lo)
+            iv = mtr.ser() if (mtr is not None and mtr.symbols) else None
+            cell[mo] = (
+                ser,
+                _loss_db(m, esn0, ser),
+                int(iv.errors) if iv is not None else 0,
+            )
+        l8, l4 = cell[8][1], cell[4][1]
+        cost = (l4 - l8) if (l8 is not None and l4 is not None) else None
+        ser_cells.append([m, esn0, l8, l4, cost, cell[8][2], cell[4][2]])
+        ser_rows.append(
+            [
+                f"{m}",
+                f"{esn0:.2f}",
+                f"{l8:+.2f} ({cell[8][2]})" if l8 is not None else "refused",
+                f"{l4:+.2f} ({cell[4][2]})" if l4 is not None else "refused",
+                f"{cost:+.2f}" if cost is not None else "—",
+            ]
+        )
+    R.table(
+        [
+            "M",
+            "Es/N0 dB",
+            "loss dB, m_out = 8 (errors)",
+            "loss dB, m_out = 4 (errors)",
+            "cost dB",
+        ],
+        ser_rows,
+    )
+    R.md()
+    cs = [r[4] for r in ser_cells if r[4] is not None]
+    if len(cs) < len(ser_cells):
+        R.md("C12 could not be measured: a cell refused.")
+    else:
+        R.md(
+            (
+                "**C12's figures were the dead zone's.** "
+                if max(cs) < 1.0
+                else "**C12's magnitude still holds in part.** "
+            )
+            + "Halving `m_out` costs "
+            + " / ".join(f"{c:+.2f}" for c in cs)
+            + " dB at M = 2 / 4 / 8 on the corrected bank, against the "
+            "header's 1.7 / 1.6 / 3.0. Each cell is one record, so its "
+            "loss carries the error count's own spread (the counts are in "
+            "brackets): the cost's sign is established at every M, its "
+            "ordering across M only as far as those counts allow."
+        )
+    R.md()
+    return acq, ser_cells
 
 
 # ── phase 2: review ──────────────────────────────────────────────────────
@@ -2000,6 +2505,49 @@ def limits(R, d):
         f"derivation lands on a configuration that costs nothing",
     )
 
+    # §2.11: the report's own scoring premise, and the bank A/B.
+    pi = d["pullin"]
+    built = {k: c for k, c in pi["cases"].items() if k[0] == "corrected"}
+    longest = max(built, key=lambda k: built[k]["length"])
+    R.limit(
+        all(c["length"] <= pi["settle"] for c in built.values()),
+        f"every as-built pull-in transient ends inside the {pi['settle']} "
+        f"symbols the scored window skips (longest "
+        f"{built[longest]['length']}: M={longest[2]}, m_out={longest[3]}, "
+        f"{longest[4]:.1f} dB, {longest[1]}), so no rate in this report "
+        f"scores the transient",
+    )
+    worse = [a for a in pi["ab"] if a["diff"] - a["half"] > 0.0]
+    R.limit(
+        not worse,
+        f"the corrected rectangle bank makes no more pull-in errors than "
+        f"the sampled one on any of {len(pi['ab'])} rows, paired over "
+        f"identical draws at 95% (worst ratio "
+        f"{max(a['ratio'] for a in pi['ab']):.2f})",
+    )
+
+    # §2.12: #3363's m_out claims, on the corrected bank.
+    for esn0, mo, n_al, _n_lk, n, med, _w in d["m_out2"]:
+        if mo != 2:
+            continue
+        R.limit(
+            n_al == n,
+            f"m_out = 2 with the rectangle acquires on {n_al}/{n} seeds at "
+            f"{esn0:.0f} dB Es/N0 (QPSK, sps = 8; excess {med:+.2f} dB) — "
+            f"C13's 'fails about half the time' was the dead zone",
+        )
+    for m, esn0, _l8, _l4, cost, _e8, _e4 in d["m_out_ser"]:
+        R.limit(
+            cost is not None and cost > 0.0,
+            f"M={m} at its SER = 1e-3 anchor ({esn0:.2f} dB): halving m_out "
+            + (
+                f"costs {cost:+.2f} dB of loss — never free, as C12 says, "
+                f"but not its 1.7 / 1.6 / 3.0"
+                if cost is not None
+                else "was REFUSED by the meter, so C12 is unestablished"
+            ),
+        )
+
     # The AGC's law is a slope and an offset, and the slope is the claim.
     offs = [r[2] for r in d["agc"]]
     R.limit(
@@ -2374,16 +2922,16 @@ def build(write: bool = True) -> Report:
             "C12",
             "`m_out = 8` is not optional at M = 8; halving it costs "
             "1.7 / 1.6 / **3.0** dB at M = 2 / 4 / 8",
-            "§2.8 — direction and magnitude confirmed, the M-ORDERING is "
-            f"not ({R.ref('some_es_n0_cells_cannot')})",
+            "§2.12 — measured at each M's own anchor on the corrected "
+            "bank, and the MAGNITUDE does not hold (§2.8 carries the "
+            "fixed-Es/N0 direction)",
         ],
         [
             "C13",
             "never pair `m_out = 2` with I&D — acquisition fails about "
             "half the time",
-            "C §14 NEW — pinned as the DEGENERACY (+11 dB of EVM against "
-            "`m_out = 8`) rather than as the failure RATE, which is a "
-            "distribution over seeds and not a unit test",
+            "§2.12 — the failure RATE, measured over seeds, does not hold "
+            "on the corrected bank; C §14 pins the EVM excess",
         ],
         [
             "C14",
@@ -2617,13 +3165,28 @@ def build(write: bool = True) -> Report:
             "steer gated on that indicator would read exactly 0.0. The "
             "handover this section used to certify is gone, on the "
             "measurement recorded in §2.6 (doppler#877).",
-            "**Halving `m_out` costs about 2.7 dB of EVM at every M** "
-            "(§2.8) — the derivation to 8 lands within a quarter of a dB "
-            "of the bound, and 4 costs nearly 3 dB. The header's "
-            "M-DEPENDENT figures (1.7 / 1.6 / 3.0 dB) are anchored at "
-            "each M's own SER, which this record length cannot reach, so "
-            "the ordering across M is unverified here "
-            f"({R.ref('some_es_n0_cells_cannot')}).",
+            "**Halving `m_out` costs about "
+            f"{sum(r[3] for r in d['m_out']) / len(d['m_out']):.1f} dB "
+            "of EVM at every M** (§2.8), and "
+            + " / ".join(
+                f"{r[4]:+.2f}" for r in d["m_out_ser"] if r[4] is not None
+            )
+            + " dB at M = 2 / 4 / 8 at each M's SER = 1e-3 anchor "
+            "(§2.12), against the header's 1.7 / 1.6 / 3.0, which were "
+            "measured on the sampled bank's dead zone (#3362). The "
+            "derivation to 8 lands within "
+            f"{max(abs(r[1]) for r in d['m_out']):.2f} dB of the bound.",
+            "**The pull-in transient the scored window leaves out is no "
+            "worse on the corrected bank** (§2.11): paired over "
+            "identical draws, the head-error ratio corrected/sampled runs "
+            f"{min(a['ratio'] for a in d['pullin']['ab']):.2f} to "
+            f"{max(a['ratio'] for a in d['pullin']['ab']):.2f}, and every "
+            "transient ends by output "
+            f"{max(c['length'] for c in d['pullin']['cases'].values())}, "
+            f"inside the {d['pullin']['settle']} symbols the report "
+            "skips. `m_out = 2` with the rectangle acquires on "
+            f"{min(r[2] for r in d['m_out2'] if r[1] == 2)} of "
+            f"{ACQ_SEEDS} seeds at worst.",
             "**`agc_gain_db` is an absolute level estimate, not just a "
             "trend**: `agc_gain_db + 20log10(amp)` is constant to under "
             "0.01 dB across a 32x amplitude span (§2.9), so a reading far "
@@ -2656,7 +3219,10 @@ def build(write: bool = True) -> Report:
         "\n- Raw sweeps: `data/ser_vs_esn0.csv`, `data/evm_vs_esn0.csv`, "
         "`data/m2m4_vs_esn0.csv`, `data/irrational_sps.csv`, "
         "`data/false_lock.csv`, `data/m_out_cost.csv`, "
-        "`data/agc_level.csv` — so any number above can be re-derived "
+        "`data/agc_level.csv`, and `data/pullin.csv` (§2.11, the C "
+        "harness's `--pullin` sweep, refreshed by "
+        "`make validate-mpsk-receiver-pullin`) — so any number above can "
+        "be re-derived "
         "rather than taken on the report's word"
         "\n- **Not covered**, and §1.1 is the full accounting rather than "
         "this line: `bits(differential)` resolving the M-fold ambiguity "
@@ -2684,5 +3250,35 @@ def build(write: bool = True) -> Report:
     return R
 
 
+def _refresh_pullin() -> None:
+    """Re-run the C pull-in sweep into ``data/pullin.csv``.
+
+    A missing binary or a failed run is a hard failure, never a skip: the
+    section renders this file and nothing else, so a half-written one
+    would be rendered as though it were the measurement.
+    """
+    if not PULLIN_HARNESS.exists():
+        raise SystemExit(
+            f"mpsk_receiver: {PULLIN_HARNESS.relative_to(repo_root())} is "
+            "not built -- run `make build` first"
+        )
+    run = subprocess.run(
+        [str(PULLIN_HARNESS), "--pullin"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if run.returncode != 0:
+        raise SystemExit(
+            f"mpsk_receiver: `{PULLIN_HARNESS.name} --pullin` failed (exit "
+            f"{run.returncode}):\n{run.stderr[-2000:]}"
+        )
+    DATA.mkdir(exist_ok=True)
+    PULLIN.write_text(run.stdout, encoding="utf-8")
+
+
 if __name__ == "__main__":
+    if "--pullin" in sys.argv:
+        sys.argv.remove("--pullin")
+        _refresh_pullin()
     sys.exit(cli(build, HERE))

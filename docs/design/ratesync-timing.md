@@ -570,16 +570,21 @@ DTTL keep `m` even.
 
 ### 9.3 Acquisition, then tracking
 
-The loop has two states. Acquisition is a feedforward estimate whose
+The loop has three states. Acquisition is a feedforward estimate whose
 length is fixed at construction, and the loop closes on its result, so
-the time to a closed loop is a count and not a pull-in.
+the time to a closed loop is a count and not a pull-in. Coasting is
+defined by three lock flags and no new statistic: the code lock and the
+carrier lock are up and the symbol lock is not.
 
 ```mermaid
 stateDiagram-v2
     [*] --> ACQUIRING
     ACQUIRING --> ACQUIRING: quality below threshold
     ACQUIRING --> TRACKING: quality passes, loop seeded
-    TRACKING --> ACQUIRING: n_down lock decisions missed in a row
+    TRACKING --> COASTING: symbol lock drops, code and carrier lock up
+    TRACKING --> ACQUIRING: n_down decisions missed in a row, otherwise
+    COASTING --> TRACKING: symbol lock declared
+    COASTING --> ACQUIRING: code or carrier lock drops
 ```
 
 The diagram shows what the loop does unprompted. Two calls move it as
@@ -591,18 +596,35 @@ enters `ACQUIRING`.
 | ----------- | ---------------------------------------------------------- | ------------------------ | -------------------------------------------- |
 | `ACQUIRING` | the estimator, on its own matched filter; the loop is open | 0                        | its lead-in, then `L` symbols an attempt     |
 | `TRACKING`  | the loop, closed                                           | the lock detector's flag | nothing while the lock decisions keep coming |
+| `COASTING`  | the loop, held at its rate; the lock detector              | 0                        | the code lock and the carrier lock (open)    |
 
 A loop with no estimator beside it starts in `TRACKING`, which is the
 loop as it is today.
 
-**One symbol a symbol period, in both states.** The count does not
+**Coasting is the signal present and the symbol clock not declared.**
+The state is `code_lock and carrier_lock and not symbol_lock`, entered
+from `TRACKING` when a symbol lock that had declared drops. The code and
+carrier locks say the signal is still there, so there is nothing to
+acquire again: the loop is held, as `dp_dll_set_coast()` holds the Dll,
+its filter takes no update and the symbol clock runs on at the rate it
+had. The lock detector keeps reading the held clock's outputs, and its
+declaring returns the loop to `TRACKING` with no seed and no step in the
+symbol count. Either of the other two locks dropping ends the coast in
+`ACQUIRING`. A symbol lock that drops without them, or `n_down` missed
+decisions on a loop that never declared, goes to `ACQUIRING` directly.
+
+The two flags are the owner's, not the loop's. The loop takes them as
+one presence input, which a loop with no code or carrier lock beside it
+never raises, and that loop has two states.
+
+**One symbol a symbol period, in every state.** The count does not
 change with the state and nothing is dropped; `valid` is a flag beside
 the symbol and the state is readable by name. Nothing is emitted while
 the cascade's delay lines fill: that is the countdown the loop has today
 (`prime_left`), not a state, and it is over long before the first
 estimate, whose block is longer than the bank.
 
-What the two states leave to what already exists:
+What the states leave to what already exists:
 
 - **A second decision before `valid`.** The estimate's quality threshold
     is a presence test: set for a false-alarm probability of 0.01, it
@@ -621,10 +643,12 @@ What the two states leave to what already exists:
     Gardner's error is zero in the mean through one. The derivative
     detector's is not, and that is the detector's to fix (the error is
     taken on a transition), since it acts long before a state could
-    change.
+    change. A longer one, with the code and the carrier still locked, is
+    a coast.
 
 `TRACKING` leaves on `n_down` missed decisions in a row whether or not
-lock was ever declared. The lock detector counts misses only once it has
+lock was ever declared; only a lock that had declared can leave it for
+`COASTING`. The lock detector counts misses only once it has
 declared, so the loop keeps the count of consecutive misses itself.
 
 Acquisition estimates timing only. One block of `L` symbols; the loop's
@@ -657,6 +681,16 @@ Open, and settled before the seed is built:
 - **Four samples a symbol with nothing ahead of the bank.** The
     derivative detector's error has extra zeros there (§2); that geometry
     is refused or its zeros are mapped.
+- **How long a coast may run.** The held rate carries the loop's rate
+    error at the moment it was held, and the symbol clock drifts on it. A
+    coast that has drifted past the detector's monotone range can no
+    longer declare on its own and has to end in `ACQUIRING`. That length
+    follows from the rate state's variance at `bn` and is not derived
+    yet.
+- **What `MpskReceiver` supplies.** It has a carrier lock and no code
+    lock, and its carrier lock is formed on the symbols the timing loop
+    emits, so it is not evidence apart from the symbol clock. Until that
+    is settled it raises no presence and does not coast.
 - **A false alarm costs `n_down` decisions.** An estimate that passes on
     noise closes the loop on nothing, and the loop returns to
     `ACQUIRING` only after `n_down` missed decisions, about 800 symbols.
@@ -689,7 +723,8 @@ seeding a fifth of a symbol either side. Built-in acquisition is
 **The machine is the loop's; the estimator is its owner's.** The states,
 `valid` and the transitions live in `ratesync_loop_t`, where the terminal
 outputs arrive, so a receiver that composes the loop gets the same
-machine. The estimator needs the samples ahead of the cascade, which the
+machine. The presence input is the owner's too: `AsyncDsssReceiver` sets
+it from its Dll's lock and its carrier lock. The estimator needs the samples ahead of the cascade, which the
 loop never sees, so it sits beside the loop in whatever owns the cascade:
 `RateSync` here, and each receiver when it is re-certified (§9.6 step
 10). A loop with no estimator beside it starts in `TRACKING` and pulls in as

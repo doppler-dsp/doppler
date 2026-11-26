@@ -1669,6 +1669,15 @@ dp_syncword_destroy function
 dp_syncword_find function
 dp_syncword_max_errors_for function
 dp_syncword_pfa function
+dp_timing_est_accumulate function
+dp_timing_est_create function
+dp_timing_est_destroy function
+dp_timing_est_estimate function
+dp_timing_est_finish function
+dp_timing_est_get_state function
+dp_timing_est_reset function
+dp_timing_est_set_state function
+dp_timing_est_state_bytes function
 dp_tlm_avail function
 dp_tlm_block_bound function
 dp_tlm_capacity function

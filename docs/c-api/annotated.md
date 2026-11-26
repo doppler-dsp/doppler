@@ -126,6 +126,8 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) _SymbolSync state._     
 * **struct** [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md) _Where a marker was found, and in which polarity._     
 * **struct** [**dp\_syncword\_state\_t**](structdp__syncword__state__t.md) _A searcher for one marker._     
+* **struct** [**dp\_timing\_est\_state\_t**](structdp__timing__est__state__t.md) _SymbolTimingEstimator state._     
+* **struct** [**dp\_timing\_estimate\_t**](structdp__timing__estimate__t.md) _One feedforward symbol-timing estimate._     
 * **struct** [**dp\_tlm**](structdp__tlm.md) _Telemetry context: probe registry + SPSC record ring._     
 * **struct** [**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md) _Per-probe registry entry: name, decimation and accounting._     
 * **struct** [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) _One telemetry sample: a probe's scalar value at sample index_ `n` _._    

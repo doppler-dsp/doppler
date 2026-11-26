@@ -67,7 +67,7 @@ listed the moment its folder exists. There is no list here to update.
 
 <!-- validation-log:start -->
 
-**40 objects certified** — 27 of the 90 `objects/*.toml` jm fragments, plus 13 with no object manifest at all (`buffer`, `ccsds_tm`, `conv`, `detection`, `ema`, `framer`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
+**41 objects certified** — 28 of the 90 `objects/*.toml` jm fragments, plus 13 with no object manifest at all (`buffer`, `ccsds_tm`, `conv`, `detection`, `ema`, `framer`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
 
 | object                                                                                                                                  | module        | limits | findings | still open                 |
 | --------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------ | -------- | -------------------------- |
@@ -96,6 +96,7 @@ listed the moment its folder exists. There is no list here to update.
 | [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md)                     | `track`       | 37/37  | 18       | 2 — F7, F17                |
 | [StateFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/state_filter/results.md)              | `track`       | 19/19  | 6        | 1 — F6                     |
 | [KalmanStateFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/state_filter_kalman/results.md) | `track`       | 23/23  | 6        | 1 — F5                     |
+| [SymbolTimingEstimator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/timing_est/results.md)      | `track`       | 18/18  | 6        | 2 — F5, F6                 |
 | [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)                                | `util`        | 15/15  | 6        | none                       |
 | [Gold](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/gold/results.md)                               | `wfm`         | 17/17  | 4        | 1 — F4                     |
 | [PN](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/pn/results.md)                                   | `wfm`         | 16/16  | 4        | none                       |

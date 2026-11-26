@@ -1,7 +1,7 @@
 [module.dsss]
 applied_reexports = ["orchestrator"]
 doc = """
-Direct-sequence spread-spectrum: despreading (Despreader, BurstDespreader), polynomial-phase estimation and end-to-end receivers (DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver). The receivers compose the acquisition engines of doppler.acquire.
+Direct-sequence spread-spectrum: despreading (Despreader, BurstDespreader) and end-to-end receivers (DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver). The receivers compose the acquisition engines of doppler.acquire.
 
 Examples
 --------
@@ -15,7 +15,7 @@ Examples
 True
 
 """
-objects = ["despreader", "burst_despreader", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver", "async_dsss_pool", "dsss_burst_receiver"]
+objects = ["despreader", "burst_despreader", "burst_demod", "dsss_receiver", "async_dsss_receiver", "async_dsss_pool", "dsss_burst_receiver"]
 
 # The coarse-Doppler bank (orchestrator.py) is public Python: a submodule's
 # __all__ is re-exported by its package (#3004 review).

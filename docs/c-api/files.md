@@ -140,6 +140,8 @@ Here is a list of all files with brief descriptions:
                 * **file** [**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md) _DsssBurstReceiver — the burst chain composed in C._     
             * **dir** [**dsss\_receiver**](dir_6f60e61f873068f58aa42ec05bfb1a20.md)     
                 * **file** [**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md) _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despread carrier wipeoff -&gt; Dll(segments) -&gt; RateConverter -&gt; MpskReceiver, one object._     
+            * **dir** [**estimation**](dir_0cc60ff8540ae0115cf3c129e27cae4e.md)     
+                * **file** [**estimation\_core.h**](estimation__core_8h.md) _Estimation module — public C API._ 
             * **dir** [**f32\_buffer**](dir_81ff08c9d14656f475312d0561398a88.md)     
                 * **file** [**f32\_buffer\_core.h**](f32__buffer__core_8h.md) _The complex64 ring as the component just-makeit binds._     
             * **dir** [**f32\_to\_i16**](dir_70d41be9b98525952faca7fac2a162b6.md)     

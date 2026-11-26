@@ -1,11 +1,12 @@
-/* jm:generated dsss_ext_ppe.c */
+/* jm:generated estimation_ext_ppe.c */
 /*
- * dsss_ext_ppe.c — PolynomialPhaseEstimator type for the dsss module.
+ * estimation_ext_ppe.c — PolynomialPhaseEstimator type for the estimation
+ * module.
  *
- * Included by dsss_ext.c (the module aggregator).
+ * Included by estimation_ext.c (the module aggregator).
  * jm regenerates this file on every apply; do not edit it.
- * Hand-written code belongs in dsss_ext_ppe_extra.c.
- * Do NOT compile this file directly — only dsss_ext.c is compiled.
+ * Hand-written code belongs in estimation_ext_ppe_extra.c.
+ * Do NOT compile this file directly — only estimation_ext.c is compiled.
  */
 /* ======================================================== */
 /* PolynomialPhaseEstimatorObject — wraps dp_ppe_state_t *       */
@@ -103,7 +104,7 @@ static PyStructSequence_Field PolynomialPhaseEstimatorObj_estimate_fields[] = {
   { NULL, NULL },
 };
 static PyStructSequence_Desc PolynomialPhaseEstimatorObj_estimate_desc
-    = { "doppler.dsss.PolynomialPhaseEstimate",
+    = { "doppler.estimation.PolynomialPhaseEstimate",
         "Polynomial-phase estimate: carrier frequency, chirp rate, and a "
         "rough SNR confidence.",
         PolynomialPhaseEstimatorObj_estimate_fields, 3 };
@@ -289,7 +290,7 @@ static PyMethodDef PolynomialPhaseEstimatorObj_methods[] = {
     "\n"
     "Examples\n"
     "--------\n"
-    ">>> from doppler.dsss import PolynomialPhaseEstimator\n"
+    ">>> from doppler.estimation import PolynomialPhaseEstimator\n"
     ">>> p = PolynomialPhaseEstimator(max_len=512, max_rate=0.0)\n"
     ">>> p.reset()   # no-op: an estimate depends only on the next\n"
     ">>> #           segment\n" },
@@ -328,7 +329,7 @@ static PyMethodDef PolynomialPhaseEstimatorObj_methods[] = {
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
-    ">>> from doppler.dsss import PolynomialPhaseEstimator\n"
+    ">>> from doppler.estimation import PolynomialPhaseEstimator\n"
     ">>> m = np.arange(512)\n"
     ">>> f, r = 0.05, 1e-5               # true Doppler + chirp rate\n"
     ">>> x = np.exp(2j*np.pi*(f*m + 0.5*r*m*m)).astype(np.complex64)\n"
@@ -377,7 +378,7 @@ static PyMethodDef PolynomialPhaseEstimatorObj_methods[] = {
 
 static PyTypeObject PolynomialPhaseEstimatorObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name
-  = "doppler.dsss.PolynomialPhaseEstimator",
+  = "doppler.estimation.PolynomialPhaseEstimator",
   .tp_basicsize = sizeof (PolynomialPhaseEstimatorObject),
   .tp_dealloc   = (destructor)PolynomialPhaseEstimatorObj_dealloc,
   .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -396,7 +397,7 @@ static PyTypeObject PolynomialPhaseEstimatorObjType = {
     "--------\n"
     "Create with defaults:\n"
     "\n"
-    ">>> from doppler.dsss import PolynomialPhaseEstimator\n"
+    ">>> from doppler.estimation import PolynomialPhaseEstimator\n"
     ">>> obj = PolynomialPhaseEstimator()\n",
   .tp_methods = PolynomialPhaseEstimatorObj_methods,
   .tp_getset  = PolynomialPhaseEstimator_getset,

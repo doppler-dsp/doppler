@@ -9,7 +9,7 @@ triplet and the context-manager lifecycle.
 import numpy as np
 import pytest
 
-from doppler.track import (
+from doppler.estimation import (
     MatchedSymbolTimingEstimator,
     SymbolTimingEstimator,
     TimingEstimate,

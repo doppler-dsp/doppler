@@ -219,7 +219,7 @@ Feed a segment whose modulation has already been stripped (data-aided by the kno
 The estimate; all fields are zeroed if `n_in` is out of range. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import PolynomialPhaseEstimator
+>>> from doppler.estimation import PolynomialPhaseEstimator
 >>> m = np.arange(512)
 >>> f, r = 0.05, 1e-5               # true Doppler + chirp rate
 >>> x = np.exp(2j*np.pi*(f*m + 0.5*r*m*m)).astype(np.complex64)
@@ -261,7 +261,7 @@ A feedforward analyzer computes each estimate purely from the segment it is hand
 
 * `state` Estimator handle (unused). 
 ```C++
->>> from doppler.dsss import PolynomialPhaseEstimator
+>>> from doppler.estimation import PolynomialPhaseEstimator
 >>> p = PolynomialPhaseEstimator(max_len=512, max_rate=0.0)
 >>> p.reset()   # no-op: an estimate depends only on the next
 >>> #           segment

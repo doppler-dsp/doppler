@@ -1,6 +1,6 @@
 """Certify `PolynomialPhaseEstimator` — the feedforward (freq, chirp) search.
 
-Run:  python -m doppler.dsss.tests.validation.ppe.validate
+Run:  python -m doppler.estimation.tests.validation.ppe.validate
       make validate          (regenerates every report)
       make validate-check    (fails if the committed report is stale)
 
@@ -29,7 +29,7 @@ from pathlib import Path
 
 import numpy as np
 
-from doppler.dsss import PolynomialPhaseEstimator
+from doppler.estimation import PolynomialPhaseEstimator
 from doppler.tests._validation_common import Report, cli
 
 HERE = Path(__file__).resolve().parent

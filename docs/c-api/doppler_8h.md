@@ -50,12 +50,13 @@
 * `#include "doppler/syncword/syncword_core.h"`
 * `#include "doppler/despreader/despreader_core.h"`
 * `#include "doppler/burst_despreader/burst_despreader_core.h"`
-* `#include "doppler/ppe/ppe_core.h"`
 * `#include "doppler/burst_demod/burst_demod_core.h"`
 * `#include "doppler/dsss_receiver/dsss_receiver_core.h"`
 * `#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"`
 * `#include "doppler/async_dsss_pool/async_dsss_pool_core.h"`
 * `#include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"`
+* `#include "doppler/timing_est/timing_est_core.h"`
+* `#include "doppler/ppe/ppe_core.h"`
 * `#include "doppler/fir/fir_core.h"`
 * `#include "doppler/boxcar/boxcar_core.h"`
 * `#include "doppler/doppler_channel/doppler_channel_core.h"`
@@ -92,7 +93,6 @@
 * `#include "doppler/carrier_mpsk/carrier_mpsk_core.h"`
 * `#include "doppler/carrier_nda/carrier_nda_core.h"`
 * `#include "doppler/mpsk_receiver/mpsk_receiver_core.h"`
-* `#include "doppler/timing_est/timing_est_core.h"`
 * `#include "doppler/pn/pn_core.h"`
 * `#include "doppler/wfm_synth/wfm_synth_core.h"`
 * `#include "doppler/gold/gold_core.h"`

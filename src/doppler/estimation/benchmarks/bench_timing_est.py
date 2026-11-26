@@ -1,6 +1,7 @@
 """Benchmark for SymbolTimingEstimator: one estimate over a 64k block.
 
-Run: pytest src/doppler/track/benchmarks/bench_timing_est.py --benchmark-only
+Run: pytest src/doppler/estimation/benchmarks/bench_timing_est.py
+     --benchmark-only
 
 One row. The object does one thing a sample (a power, and a rotation of it
 onto the symbol clock), so its cost is per input sample and there is no
@@ -16,7 +17,7 @@ symbol and the timed call has to say so.
 import numpy as np
 import pytest
 
-from doppler.track import SymbolTimingEstimator
+from doppler.estimation import SymbolTimingEstimator
 
 BLOCK_64K = 65_536
 SPS = 4.0

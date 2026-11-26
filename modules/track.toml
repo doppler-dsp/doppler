@@ -11,4 +11,4 @@ Examples
 True
 
 """
-objects = ["loop_filter", "state_filter", "state_filter_kalman", "costas", "dll", "symsync", "ratesync", "carrier_mpsk", "carrier_nda", "mpsk_receiver", "timing_est"]
+objects = ["loop_filter", "state_filter", "state_filter_kalman", "costas", "dll", "symsync", "ratesync", "carrier_mpsk", "carrier_nda", "mpsk_receiver"]

@@ -4,4 +4,5 @@
     any real number of samples per symbol above 2 and with a carrier
     offset present. Acquisition then takes the block's length whatever
     the starting timing. See
-    [the design page](docs/design/timing-estimator.md).
+    [the guide](docs/guide/tracking-loops.md#symboltimingestimator-timing-from-one-block-with-no-loop),
+    which has the numbers to size a block by.

@@ -225,6 +225,22 @@ dp_gnu_compile_options(validate_ratesync_loop_model PRIVATE -O3)
 add_test(NAME validate_ratesync_loop_model
          COMMAND validate_ratesync_loop_model --check)
 
+# SymbolTimingEstimator under noise, clock offset and Doppler, against
+# docs/design/timing-estimator.md sections 4 and 7. --check is one seeded
+# row an axis, each with its control; the sweep is run on purpose. The
+# statistics are sums of products, so no fused multiply-add: its last
+# digits would move between hosts.
+add_executable(validate_timing_est_noise
+               ${CMAKE_CURRENT_SOURCE_DIR}/timing_est_noise.c)
+target_include_directories(validate_timing_est_noise
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_timing_est_noise PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_timing_est_noise PRIVATE -O3 -fno-fast-math
+                                                         -ffp-contract=off)
+add_test(NAME validate_timing_est_noise
+         COMMAND validate_timing_est_noise --check)
+
 add_executable(validate_lockdet_verify
                ${CMAKE_CURRENT_SOURCE_DIR}/lockdet_verify.c)
 target_include_directories(validate_lockdet_verify

@@ -378,6 +378,98 @@ test_state (void)
   dp_timing_est_destroy (u);
 }
 
+/* ── §8 a whole sps folds the power's third harmonic onto the line ──────
+ *
+ * The header's caveat on `tau`: a pulse that is not band limited, read at a
+ * whole number of samples a symbol, is off the eye center by where the
+ * samples fall in the symbol. The mechanism needs no pulse: give the power
+ * a third harmonic,
+ *
+ *     |x[n]|^2 = A + B cos (2 pi (t - tau)) + C cos (2 pi 3 (t - tau))
+ *
+ * and at sps 4 its image at -3 lands on the bin, so
+ *
+ *     c = (n / 2) exp (-j 2 pi tau) (B + C exp (j 8 pi tau))
+ *     tau_hat = tau - arg (B + C exp (j 8 pi tau)) / (2 pi)
+ *
+ * a bias of period a quarter symbol (one sample) and size asin (C / B) /
+ * (2 pi). C / B is 0.0707 here, which is 0.0113 symbols: what the
+ * validation report's finding `whole_n_rect_sampling_phase` measured for
+ * the rectangle. At sps 4.3 nothing folds and the bias is gone. */
+#define C_THIRD (0.0707 * B_LINE)
+
+static void
+make3 (float _Complex *x, size_t n, double period, double tau)
+{
+  for (size_t i = 0; i < n; i++)
+    {
+      double t = (double)i / period;
+      double p = A_DC + B_LINE * cos (2.0 * M_PI * (t - tau))
+                 + C_THIRD * cos (6.0 * M_PI * (t - tau));
+      x[i]     = CMPLXF ((float)sqrt (p), 0.0f);
+    }
+}
+
+static void
+test_whole_sps_fold (void)
+{
+  enum
+  {
+    NSYM = 256,
+    NTAU = 8 /* the timings where the fold peaks, both signs */
+  };
+  static const double spss[2]  = { 4.0, 4.3 };
+  double              worst[2] = { 0.0, 0.0 }; /* largest |tau_hat - tau| */
+  for (int a = 0; a < 2; a++)
+    for (int b = 0; b < NTAU; b++)
+      {
+        double                 tau = -0.5 + ((double)b + 0.5) / NTAU;
+        size_t                 n   = (size_t)(NSYM * spss[a]);
+        float _Complex        *x   = malloc (n * sizeof *x);
+        dp_timing_est_state_t *s   = dp_timing_est_create (spss[a]);
+        DP_CHECK (x && s);
+        if (!x || !s)
+          {
+            free (x);
+            dp_timing_est_destroy (s);
+            continue;
+          }
+        make3 (x, n, spss[a], tau);
+        dp_timing_estimate_t e = dp_timing_est_estimate (s, x, n);
+        /* what does not fold still leaks: the third harmonic's images sit
+           2 / sps and 4 / sps from the bin, each bounded by its own
+           geometric sum (at sps 4 the second IS the fold, predicted below
+           and not a leak) */
+        double sig = 0.5 * B_LINE * (double)n;
+        double g   = 1.0 / fabs (sin (2.0 * M_PI / spss[a]));
+        if (a == 1)
+          g += 1.0 / fabs (sin (4.0 * M_PI / spss[a]));
+        double tol
+            = leak (spss[a], n) + 0.5 * C_THIRD * g / sig / (2.0 * M_PI);
+        double fold = a == 0
+                          ? -atan2 (C_THIRD * sin (8.0 * M_PI * tau),
+                                    B_LINE + C_THIRD * cos (8.0 * M_PI * tau))
+                                / (2.0 * M_PI)
+                          : 0.0;
+        double off  = wrap (e.tau - tau);
+        DP_CHECK (fabs (off - fold) < tol);
+        if (!(fabs (off - fold) < tol))
+          DP_TEST_ERR ("  sps %g tau %g: off %g, fold %g, tol %g\n", spss[a],
+                       tau, off, fold, tol);
+        if (fabs (off) > worst[a])
+          worst[a] = fabs (off);
+        /* the tolerance is far under the effect, so the check can fail */
+        DP_CHECK (tol < 0.002);
+        dp_timing_est_destroy (s);
+        free (x);
+      }
+  /* The bias is there at the whole rate and not at the other: asin (C / B)
+     / (2 pi) is 0.0113, reached to within the sampling of tau. The control
+     is the pair: the same stream, one rate apart, on the same bound. */
+  DP_CHECK (worst[0] > 0.010);
+  DP_CHECK (worst[1] < 0.002);
+}
+
 int
 main (void)
 {
@@ -388,5 +480,6 @@ main (void)
   test_forms ();
   test_reset ();
   test_state ();
+  test_whole_sps_fold ();
   DP_TEST_END ("test_timing_est_core");
 }

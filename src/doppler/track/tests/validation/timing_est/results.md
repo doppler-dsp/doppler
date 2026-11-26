@@ -33,6 +33,7 @@ The header's claims, the section of `native/tests/timing_est/test_timing_est_cor
 | estimate is accumulate then finish; a block with no power is not kept | §5 | — |
 | reset returns the object to its post-create state | §6 | — |
 | the state resumes bit for bit and a forged blob is refused | §7 | — |
+| `tau` on a pulse that is not band limited, read at a whole number of samples a symbol, is off the eye center by where the samples fall in the symbol | §8 | §2.7 |
 | nothing is decided: `quality` is reported and the caller judges it | §2 | §2.5, §2.6 (what a threshold on it delivers) |
 
 Every number below comes from the C harness, on one chain: the library's generator (`wfm_synth`, symbols from its 31-bit PRBS), `doppler_channel` where the time base is dilated, the samples the estimator's rate keeps, noise from `awgn`, the shipped matched filter (`RateConverter`, matched, rate 1), then the estimator. The rectangle reaches the matched filter as the mean over each kept sample's own interval, which is the design condition `RateSync`'s bank was given; the root-raised cosine (roll-off 0.35) is sampled. **A carrier offset is on every row**, drawn between 0.01 and 0.05 of the symbol rate unless the row sets it, with a starting phase drawn each trial.

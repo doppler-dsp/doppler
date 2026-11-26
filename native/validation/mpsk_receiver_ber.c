@@ -254,9 +254,10 @@ pullin_stimulus (int pulse, int m, const uint8_t *truth, size_t nsym, double d,
             }
         }
       s *= MPSK_BER_AMP * cexp (I * (2.0 * MPSK_PI * foff * (double)i + ph0));
-      double nr = dp_gauss (st), ni = dp_gauss (st);
-      x[i] = (float)(creal (s) + sigma * nr)
-             + (float)(cimag (s) + sigma * ni) * I;
+      double nr = dp_gauss (st);
+      double ni = dp_gauss (st);
+      x[i]      = (float)(creal (s) + sigma * nr)
+                  + (float)(cimag (s) + sigma * ni) * I;
     }
 }
 

@@ -1722,6 +1722,19 @@ _test_lost_after_switch_off (void)
       DP_CHECK (rx != NULL);
       if (!rx)
         continue;
+      /* settle_time is the demodulator's, at the bandwidths this receiver
+         builds it with: the header's 778.5 symbols. Sabotaged by returning
+         half of it. */
+      DP_CHECK (
+          dp_async_dsss_receiver_get_settle_time (rx)
+          == dp_loop_filter_settle_time (ASYNC_DSSS_RX_DEMOD_BN_TIMING,
+                                         ASYNC_DSSS_RX_DEMOD_ZETA,
+                                         DP_LOOP_FILTER_SETTLE_EPS)
+                 + dp_loop_filter_settle_time (ASYNC_DSSS_RX_DEMOD_BN_CARRIER,
+                                               ASYNC_DSSS_RX_DEMOD_ZETA,
+                                               DP_LOOP_FILTER_SETTLE_EPS));
+      DP_CHECK_NEAR (dp_async_dsss_receiver_get_settle_time (rx), 778.47,
+                     0.01);
       DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
       float _Complex *syms;
       size_t          n_syms

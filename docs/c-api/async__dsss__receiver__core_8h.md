@@ -130,6 +130,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_get\_rank**](#function-dp_async_dsss_receiver_get_rank) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Which surviving peak of a dwell the search takes; 0 = the strongest. Set with_ [_**dp\_async\_dsss\_receiver\_set\_rank()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_rank) _._ |
 |  int | [**dp\_async\_dsss\_receiver\_get\_refining**](#function-dp_async_dsss_receiver_get_refining) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_1 while refining: the CarrierAcquisition dwell; 0 in every other state._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_get\_segments**](#function-dp_async_dsss_receiver_get_segments) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The live-tracking Dll's partial correlations per code period._  |
+|  double | [**dp\_async\_dsss\_receiver\_get\_settle\_time**](#function-dp_async_dsss_receiver_get_settle_time) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Symbols a track emits before its demodulator has settled: where a steady-state measurement of a track's symbols may start._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_get\_sps**](#function-dp_async_dsss_receiver_get_sps) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_MpskReceiver's samples per symbol._  |
 |  void | [**dp\_async\_dsss\_receiver\_get\_state**](#function-dp_async_dsss_receiver_get_state) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, void \* blob) <br>_Serialize the receiver: its own fields, then each child, then the carrier carry (live samples, zero-padded to tsamps)._  |
 |  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule**](#function-dp_async_dsss_receiver_get_sym_lock_rule) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The rules behind the receiver's five lock decisions, each its levels and verify counts (_ [_**dp\_lockdet\_rule\_t**_](structdp__lockdet__rule__t.md) _), for a caller that draws a lock statistic beside the line it is decided against._ |
@@ -1807,6 +1808,40 @@ size_t dp_async_dsss_receiver_get_segments (
 **Returns:**
 
 Segments; set at create or by configure\_chain\_raw(). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_get\_settle\_time 
+
+_Symbols a track emits before its demodulator has settled: where a steady-state measurement of a track's symbols may start._ 
+```C++
+double dp_async_dsss_receiver_get_settle_time (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+The demodulator's own figure, [**dp\_mpsk\_receiver\_get\_settle\_time()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_get_settle_time), at the bandwidths this receiver builds it with (ASYNC\_DSSS\_RX\_DEMOD\_BN\_TIMING, ASYNC\_DSSS\_RX\_DEMOD\_BN\_CARRIER and ASYNC\_DSSS\_RX\_DEMOD\_ZETA): 778.5 symbols. Counted from the first symbol a track emits, which is the hand-over, since nothing is emitted while the receiver searches and refines; a track taken up after a release starts the count again. The symbol lock (`locked`) declares inside this span, while the demodulator's timing is still pulling in, so a decode scored from the flag counts the pull-in's errors. 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Symbols, from the first one of a track. 
 
 
 

@@ -76,6 +76,67 @@ check_wn (double bn, double zeta, double t)
   DP_CHECK_NEAR (dp_loop_filter_wn (bn, zeta) * t / 2.0, theta, 1e-12);
 }
 
+/**
+ * @brief dp_loop_filter_settle_time() against the loop itself.
+ *
+ * The filter closed around a unit-gain integrator, given a phase step of 1:
+ * the last update whose error is over eps, counted, beside the closed form.
+ * The simulation shares nothing with the function but the filter's gains,
+ * so a wrong form in any damping regime (under, critical, over) moves the
+ * two apart. bn*t is 0.002, where the discrete loop is the continuous one
+ * to a part in a thousand; the tolerance is 1% plus two updates.
+ * Sabotage, each red here: the under-damped phase dropped (asin(zeta) -> 0),
+ * the envelope's rate halved, the critical form's (1 - wn*t) -> 1, the
+ * over-damped slow pole swapped for the fast one, and the under-damped
+ * bracket closed at three times eps.
+ */
+static void
+test_settle_time (void)
+{
+  const double zs[]   = { 0.3, 0.5, 0.707, 0.95, 1.0, 1.5, 2.0 };
+  const double es[]   = { 0.1, 0.02, 0.001 };
+  const double sim_bn = 0.002;
+  for (size_t i = 0; i < sizeof zs / sizeof zs[0]; i++)
+    for (size_t j = 0; j < sizeof es / sizeof es[0]; j++)
+      {
+        dp_loop_filter_state_t lf;
+        dp_loop_filter_init (&lf, sim_bn, zs[i], 1.0);
+        double th = 0.0, last = 0.0;
+        for (int n = 0; n < 40000; n++)
+          {
+            const double e = 1.0 - th;
+            if (fabs (e) > es[j])
+              last = (double)n + 1.0;
+            th += dp_loop_filter_step (&lf, e);
+          }
+        const double st = dp_loop_filter_settle_time (sim_bn, zs[i], es[j]);
+        if (fabs (st - last) > 0.01 * last + 2.0)
+          printf ("settle zeta %.3f eps %.3f: %.1f, the loop took %.1f\n",
+                  zs[i], es[j], st, last);
+        DP_CHECK (fabs (st - last) <= 0.01 * last + 2.0);
+      }
+
+  /* The numbers the header quotes, and the 1/bn law they are quoted in. */
+  DP_CHECK_NEAR (dp_loop_filter_settle_time (1.0, 0.707, 0.02), 2.59, 0.005);
+  DP_CHECK_NEAR (dp_loop_filter_settle_time (1.0, 0.707, 0.001), 4.91, 0.005);
+  DP_CHECK_NEAR (dp_loop_filter_settle_time (0.005, 0.707, 0.02),
+                 200.0 * dp_loop_filter_settle_time (1.0, 0.707, 0.02), 1e-6);
+
+  /* Continuous through critical damping: the three forms meet. */
+  DP_CHECK_NEAR (dp_loop_filter_settle_time (1.0, 1.0 - 1e-5, 0.02),
+                 dp_loop_filter_settle_time (1.0, 1.0, 0.02), 1e-3);
+  DP_CHECK_NEAR (dp_loop_filter_settle_time (1.0, 1.0 + 1e-5, 0.02),
+                 dp_loop_filter_settle_time (1.0, 1.0, 0.02), 1e-3);
+
+  /* The edges: settled at once, and never. */
+  DP_CHECK (dp_loop_filter_settle_time (0.01, 0.707, 1.0) == 0.0);
+  DP_CHECK (isinf (dp_loop_filter_settle_time (0.0, 0.707, 0.02)));
+  DP_CHECK (isinf (dp_loop_filter_settle_time (0.01, 0.0, 0.02)));
+  DP_CHECK (isinf (dp_loop_filter_settle_time (0.01, 0.707, 0.0)));
+  DP_CHECK (isinf (dp_loop_filter_settle_time (NAN, 0.707, 0.02)));
+  DP_CHECK (isinf (dp_loop_filter_settle_time (0.01, 0.707, NAN)));
+}
+
 int
 main (void)
 {
@@ -556,6 +617,8 @@ main (void)
     s.ki = 0.0; /* gains that do not match this bn, zeta, t */
     DP_CHECK (!dp_loop_filter_embedded_ok (&s));
   }
+
+  test_settle_time ();
 
   DP_TEST_END ("test_loop_filter_core");
 }

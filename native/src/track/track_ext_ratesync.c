@@ -594,6 +594,16 @@ RateSyncObj_set_state (RateSyncObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
+RateSync_getprop_settle_time (RateSyncObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dp_ratesync_get_settle_time (self->handle));
+}
+static PyObject *
 RateSync_getprop_bn (RateSyncObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -693,6 +703,10 @@ RateSync_getprop_clipped (RateSyncObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef RateSync_getset[] = {
+  { "settle_time", (getter)RateSync_getprop_settle_time, NULL,
+    "Symbols emitted before the timing has settled: where a steady-state "
+    "measurement of the output may start.\n",
+    NULL },
   { "bn", (getter)RateSync_getprop_bn, (setter)RateSync_setprop_bn,
     "Timing-loop noise bandwidth, normalised to the symbol rate. Writing\n"
     "it re-derives the loop gains at the damping already in use, exactly as\n"

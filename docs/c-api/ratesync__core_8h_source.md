@@ -129,6 +129,8 @@ extern "C"
 
   void dp_ratesync_loop_reset (ratesync_loop_t *l);
 
+  double dp_ratesync_loop_settle_time (const ratesync_loop_t *l);
+
   int dp_ratesync_loop_configure (ratesync_loop_t *l, double bn, double zeta);
 
   void dp_ratesync_loop_configure_lock_raw (ratesync_loop_t *l, size_t avgs,
@@ -349,6 +351,7 @@ extern "C"
 
   int    dp_ratesync_configure (dp_ratesync_state_t *state, double bn, double zeta);
   double dp_ratesync_get_bn (const dp_ratesync_state_t *state);
+  double dp_ratesync_get_settle_time (const dp_ratesync_state_t *state);
   int    dp_ratesync_set_bn (dp_ratesync_state_t *state, double val);
 
   double dp_ratesync_get_timing_error (const dp_ratesync_state_t *state);

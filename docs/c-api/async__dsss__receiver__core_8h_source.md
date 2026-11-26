@@ -479,6 +479,8 @@ typedef enum
       const dp_async_dsss_receiver_state_t *state);
   int dp_async_dsss_receiver_get_code_locked (
       const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_settle_time (
+      const dp_async_dsss_receiver_state_t *state);
   double dp_async_dsss_receiver_get_car_last_error (
       const dp_async_dsss_receiver_state_t *state);
   double dp_async_dsss_receiver_get_car_nco_freq (

@@ -3511,6 +3511,12 @@ class RateSync:
         """
 
     @property
+    def settle_time(self) -> float:
+        """Symbols emitted before the timing has settled: where a steady-state
+        measurement of the output may start.
+        """
+
+    @property
     def bn(self) -> float:
         """Timing-loop noise bandwidth, normalised to the symbol rate. Writing
         it re-derives the loop gains at the damping already in use, exactly as
@@ -5114,6 +5120,12 @@ class MpskReceiver:
         """
 
     @property
+    def settle_time(self) -> float:
+        """Symbols emitted before both loops have settled: where a steady-state
+        measurement of the output may start.
+        """
+
+    @property
     def timing_rate(self) -> float:
         """Smoothed tracked samples per symbol — departs from the nominal `sps`
         by exactly the sample-clock offset the timing loop is tracking.
@@ -5696,6 +5708,12 @@ class BpskReceiver:
         a drop and re-acquire does not restamp it, because the question this
         answers is 'how long did this receiver take to lock', not 'when did it
         last hold'. `reset()` clears it to -1.
+        """
+
+    @property
+    def settle_time(self) -> float:
+        """Symbols emitted before both loops have settled: where a steady-state
+        measurement of the output may start.
         """
 
     @property
@@ -6336,6 +6354,12 @@ class MpskReceiverR:
         a drop and re-acquire does not restamp it, because the question this
         answers is 'how long did this receiver take to lock', not 'when did it
         last hold'. `reset()` clears it to -1.
+        """
+
+    @property
+    def settle_time(self) -> float:
+        """Symbols emitted before both loops have settled: where a steady-state
+        measurement of the output may start.
         """
 
     @property

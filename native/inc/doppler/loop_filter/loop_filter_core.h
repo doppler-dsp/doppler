@@ -129,6 +129,60 @@ extern "C"
    */
   double dp_loop_filter_wn(double bn, double zeta);
 
+  /** The residual a loop is called settled at: the 2% settling-time
+   *  convention of second-order systems. What the library's objects pass to
+   *  dp_loop_filter_settle_time() for their own `settle_time`. */
+#define DP_LOOP_FILTER_SETTLE_EPS 0.02
+
+  /**
+   * @brief How long the loop takes to settle from a step: the last time the
+   *        error of a unit phase step is larger than @p eps.
+   *
+   * The loop this filter closes is second order, and its error after a
+   * phase step of 1 is known in closed form. With `wn` from
+   * dp_loop_filter_wn(), below critical damping it is
+   * `exp(-zeta*wn*t) * cos(wd*t + asin(zeta)) / sqrt(1 - zeta^2)`,
+   * `wd = wn*sqrt(1 - zeta^2)`; at `zeta = 1` it is
+   * `(1 - wn*t) * exp(-wn*t)`; above, it is the difference of two decaying
+   * exponentials. This returns the last time that error's magnitude equals
+   * @p eps: from then on it stays under. It is exact for the continuous
+   * loop, so it holds for the filter where `bn*t` is small (the same
+   * condition the bandwidth itself holds under, at the top of this file).
+   *
+   * The answer scales as `1/bn`. At `zeta = 0.707` and `eps = 0.02` it is
+   * `2.59/bn`, and at `eps = 0.001` it is `4.91/bn`, which is where the
+   * `5/bn` rule of thumb sits. Read in the reciprocal of @p bn's units: a
+   * `bn` normalized to the symbol rate gives symbols.
+   *
+   * What it does not know: it is the loop's linear response, so the start
+   * must be inside the detector's monotone range, and a detector whose
+   * slope is `K` and not 1 runs the loop at `K` times this decay rate. A
+   * frequency offset at the start adds its own transient, which this does
+   * not count.
+   *
+   * @code
+   * #include <doppler/loop_filter/loop_filter_core.h>
+   * #include <stdio.h>
+   *
+   * int
+   * main (void)
+   * {
+   *   printf ("%.1f\n", dp_loop_filter_settle_time (0.005, 0.707, 0.02));
+   *   printf ("%.1f\n", dp_loop_filter_settle_time (0.005, 1.0, 0.02));
+   *   return 0;
+   * }
+   * @endcode
+   *
+   * @param bn    Loop noise bandwidth, normalized.
+   * @param zeta  Damping factor.
+   * @param eps   The error called settled, as a fraction of the step;
+   *              DP_LOOP_FILTER_SETTLE_EPS is the library's.
+   * @return      The settling time, in the reciprocal of @p bn's units; 0
+   *              for `eps >= 1`; infinity for a loop that never settles
+   *              (`bn <= 0`, `zeta <= 0`, `eps <= 0`, or a NaN).
+   */
+  double dp_loop_filter_settle_time (double bn, double zeta, double eps);
+
   /**
    * @brief The domain the loop's gains are defined on: `bn >= 0`,
    *        `zeta > 0`, `t > 0`, all three finite, and gains that come out

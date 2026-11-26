@@ -134,6 +134,9 @@ extern "C"
   int dp_mpsk_receiver_get_locked (const dp_mpsk_receiver_state_t *state);
 
   int64_t dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state);
+
+  double dp_mpsk_receiver_get_settle_time (
+      const dp_mpsk_receiver_state_t *state);
   double dp_mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state);
 
   int dp_mpsk_receiver_set_telemetry (dp_mpsk_receiver_state_t *state, dp_tlm_t *tlm,

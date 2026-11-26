@@ -2145,6 +2145,22 @@ typedef enum
    * @return 1 while code lock is declared, else 0. */
   int dp_async_dsss_receiver_get_code_locked (
       const dp_async_dsss_receiver_state_t *state);
+  /** @brief Symbols a track emits before its demodulator has settled:
+   * where a steady-state measurement of a track's symbols may start.
+   *
+   * The demodulator's own figure, dp_mpsk_receiver_get_settle_time(), at
+   * the bandwidths this receiver builds it with
+   * (ASYNC_DSSS_RX_DEMOD_BN_TIMING, ASYNC_DSSS_RX_DEMOD_BN_CARRIER and
+   * ASYNC_DSSS_RX_DEMOD_ZETA): 778.5 symbols. Counted from the first symbol
+   * a track emits, which is the hand-over, since nothing is emitted while
+   * the receiver searches and refines; a track taken up after a release
+   * starts the count again. The symbol lock (`locked`) declares inside
+   * this span, while the demodulator's timing is still pulling in, so a
+   * decode scored from the flag counts the pull-in's errors.
+   * @param state  Must be non-NULL.
+   * @return Symbols, from the first one of a track. */
+  double dp_async_dsss_receiver_get_settle_time (
+      const dp_async_dsss_receiver_state_t *state);
   /** @brief The pre-despread carrier loop's last phase error (rad): the
    * residual carrier phase LOOP 1 (which de-rotates before the Dll) is not
    * nulling, as its loop filter takes it -- carrier_nda's discriminator

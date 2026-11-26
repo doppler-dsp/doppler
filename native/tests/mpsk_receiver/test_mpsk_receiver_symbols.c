@@ -42,6 +42,7 @@ const jm_any_fn jm_bound_symbols_mpsk_receiver[] = {
     (jm_any_fn)dp_mpsk_receiver_get_lock,
     (jm_any_fn)dp_mpsk_receiver_get_locked,
     (jm_any_fn)dp_mpsk_receiver_get_lock_time,
+    (jm_any_fn)dp_mpsk_receiver_get_settle_time,
     (jm_any_fn)dp_mpsk_receiver_set_telemetry,
     (jm_any_fn)dp_mpsk_receiver_get_timing_rate,
     (jm_any_fn)dp_mpsk_receiver_get_m,

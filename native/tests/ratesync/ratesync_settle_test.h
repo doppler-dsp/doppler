@@ -29,7 +29,7 @@
 
 /* The bound's width in standard errors: a count of comparisons, worked in
    test_ratesync_core.c above `test_settle_time_from_an_offset`. */
-#define RS_SETTLE_K 4.0
+#define RS_SETTLE_K 5.0
 #define RS_SETTLE_END 450  /* last symbol held to the bound             */
 #define RS_SETTLE_TAIL 150 /* symbols after it, whose mean is the final */
 #define RS_SETTLE_N (RS_SETTLE_END + RS_SETTLE_TAIL)

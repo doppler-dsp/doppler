@@ -504,8 +504,13 @@ test_marker_placement_survives_the_noise (void)
  * sigmas, about 17) leaves 3.3 dB, still over the detector's 3 dB gate;
  * the runner's own noise term (sqrt (n s2 ln 401), about 12) takes it
  * under. So: the noiseless question accepts the stretch, the guard on the
- * received symbols refuses it. Sabotage: drop the runner's noise term ->
- * accepted, red. */
+ * received symbols refuses it. That shows the term binds, not that this
+ * link is lost: the rx here sits at lag 37, whose search never reaches
+ * offset 300 (its sync reads the runner 12.8 dB down), and even at a lag
+ * of 100 or more the noise adds in random phase, so the expected runner
+ * stays near 3.9 dB. The noise term and the quantile bound the runner at
+ * the sync's own Pfa, not at its mean: conservative by construction.
+ * Sabotage: drop the runner's noise term -> accepted, red. */
 static void
 test_marker_runner_bears_the_noise (void)
 {

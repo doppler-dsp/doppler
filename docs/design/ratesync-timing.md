@@ -682,6 +682,11 @@ Open, and settled before the seed is built:
     captures: the timing drifts for half a block and the hand-over's
     latency, and the loop's rate state starts from zero. The offset the
     default hand-over holds is smaller and is not derived yet.
+- **`m = 1` on a power-of-two `sps`.** The planner decimates to `m`
+    samples a symbol ahead of the terminal stage, so the bank has one
+    sample a symbol there and is not a matched filter: the seed lands
+    and the eye reads 0.72 to 0.90 (`validate_ratesync_seed`, the rows it
+    prints and does not hold; #3370).
 - **Four samples a symbol with nothing ahead of the bank.** The
     derivative detector's error has extra zeros there (§2); that geometry
     is refused or its zeros are mapped.
@@ -709,13 +714,24 @@ where the loop has pushed the tracking bank: it is the same at `m = 1`,
 estimator has already taken its own converter's delay and lead-in out.
 The tracking converter's group delay
 (`dp_RateConverter_get_group_delay()`) then says which of its outputs
-carries that sample. The on-time output is the nearest one, which is a
-count, and what is left is under half an output period and goes to the
-terminal stage as one symbol of control, the path the loop's
-proportional term takes. The count can move by one output at the
-hand-over; the seed resets the lock detector, so that never lands on a
-symbol called valid. The sign of the remainder is pinned per plan by
-seeding a fifth of a symbol either side. Built-in acquisition is
+carries that sample: `j_on = (eye + group_delay) * rate`, not whole. The
+on-time outputs are `floor (j_on)` and every `m`-th after it, which is a
+count, and the remainder `r`, under one output period and never negative, goes to the
+terminal stage as one symbol of control. The terminal stage sets the
+interval to its next output as each output is emitted, `1 / (R + ctrl)`
+of its inputs at its own rate `R`, so `ctrl = -R r / (m + r)` held while
+`m` outputs are emitted moves the symbol by `r` outputs exactly. The
+seed is always a stretch: a control that shortened an interval below one
+terminal input would put two outputs in one call. The seed resets the
+lock detector, so the stretched symbol is never called valid.
+
+`validate_ratesync_seed` does this from outside, on the public calls, and
+reads where the on-time outputs land with a probe tone through a second
+cascade: within 0.002 symbols of where the estimate pointed on the
+rectangle and 0.010 on the root-raised cosine, over 88 rows (`sps` 4 to
+67.3, `m` 1, 2 and 4, four offsets), with the eye open on each. The
+root-raised cosine's bound is how far an arm's delay sits from its
+pulse's center (#3368). Built-in acquisition is
 `RateSync` making the seed call a caller could make.
 
 **The machine is the loop's; the estimator is its owner's.** The states,

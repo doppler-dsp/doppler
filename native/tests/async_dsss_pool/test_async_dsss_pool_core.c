@@ -1625,12 +1625,19 @@ _test_reset_and_restore_edges (void)
   DP_CHECK_MSG (dp_async_dsss_pool_symbols_max_out (p) == 0,
                 "no symbols before the first push");
 
-  /* status() past the pool: every byte but the state is zero. */
+  /* status() past the pool: every field but the state is zero. Field by
+     field, not memcmp: the record has padding after `state`, whose bytes
+     are unspecified. */
   {
-    const async_dsss_receiver_status_t none = dp_async_dsss_pool_status (p, 3);
-    async_dsss_receiver_status_t       want = { 0 };
-    want.state                              = ASYNC_DSSS_POOL_NO_RECEIVER;
-    DP_CHECK_MSG (memcmp (&none, &want, sizeof none) == 0,
+    const async_dsss_receiver_status_t z = dp_async_dsss_pool_status (p, 3);
+    DP_CHECK_MSG (z.state == ASYNC_DSSS_POOL_NO_RECEIVER && z.doppler_hz == 0.0
+                      && z.chip_phase == 0.0 && z.code_rate == 0.0
+                      && z.cn0_dbhz_est == 0.0 && z.code_locked == 0
+                      && z.locked == 0 && z.lock_metric == 0.0
+                      && z.lock_threshold == 0.0 && z.car_last_error == 0.0
+                      && z.mpsk_last_error == 0.0 && z.state_samples == 0
+                      && z.both_down_samples == 0 && z.refused_hits == 0
+                      && z.carrier_lock_n_noncoh == 0,
                   "status past the pool is a zeroed record");
   }
 

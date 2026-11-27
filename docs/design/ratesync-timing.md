@@ -795,9 +795,9 @@ loop emits before its timing error is under 2% of where it started,
 `2.59 / bn` at damping 0.707
 ([`dp_loop_filter_settle_time()`](loop-filter.md#14-closed-forms-a-caller-sizes-from)).
 The lock flag declares before that, on a statistic that crossed a
-threshold, so a window opened at the flag holds the pull-in. `MpskReceiver`
-and `AsyncDsssReceiver` report the timing and carrier loops' figures
-added. With `RateSync`'s acquisition on, one attempt is added ahead of
+threshold, so a window opened at the flag holds the pull-in. `MpskReceiver`,
+`AsyncDsssReceiver` and `DsssReceiver` report the timing and carrier loops'
+figures added. With `RateSync`'s acquisition on, one attempt is added ahead of
 the loop: the estimator's lead-in, the block, and the seed's two symbols.
 
 ### 9.5 The surface that changes

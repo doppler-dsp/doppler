@@ -360,3 +360,9 @@ def test_configure_chain_raw_takes_the_receivers_own_n(cls, sps):
     n = rx.n
     rx.configure_chain_raw(rx.segments, sps, n)
     assert rx.n == n
+
+
+def test_settle_time_is_the_demodulators():
+    # The demodulator's figure at the bandwidths the receiver builds it
+    # with (test_dsss_receiver_core.c), known before a sample is fed.
+    assert _new_receiver().settle_time == pytest.approx(778.47, abs=0.01)

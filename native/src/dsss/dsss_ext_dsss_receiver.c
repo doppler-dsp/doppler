@@ -749,6 +749,17 @@ DsssReceiver_getprop_norm_freq (DsssReceiverObject *self,
     }
   return PyFloat_FromDouble (dp_dsss_receiver_get_norm_freq (self->handle));
 }
+static PyObject *
+DsssReceiver_getprop_settle_time (DsssReceiverObject *self,
+                                  void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dp_dsss_receiver_get_settle_time (self->handle));
+}
 
 static PyGetSetDef DsssReceiver_getset[] = {
   { "tracking", (getter)DsssReceiver_getprop_tracking, NULL,
@@ -771,6 +782,10 @@ static PyGetSetDef DsssReceiver_getset[] = {
     "MpskReceiver's carrier lock EMA; 0.0 while searching.\n", NULL },
   { "norm_freq", (getter)DsssReceiver_getprop_norm_freq, NULL,
     "MpskReceiver's tracked carrier frequency; 0.0 while searching.\n", NULL },
+  { "settle_time", (getter)DsssReceiver_getprop_settle_time, NULL,
+    "Symbols a track emits before its demodulator has settled: where a "
+    "steady-state measurement of a track's symbols may start.\n",
+    NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 

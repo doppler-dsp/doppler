@@ -181,6 +181,14 @@ extern "C"
   /** @brief Pre-despread carrier loop's FLL-assist bandwidth, normalized to
    *  its once-per-code-period update rate. */
 #define DSSS_RX_BN_FLL 0.03
+  /** @brief The demodulator's carrier loop noise bandwidth, cycles per
+   *  symbol, as this receiver builds its MpskReceiver. */
+#define DSSS_RX_DEMOD_BN_CARRIER 0.01
+  /** @brief The demodulator's timing loop noise bandwidth, cycles per
+   *  symbol, as this receiver builds its MpskReceiver. */
+#define DSSS_RX_DEMOD_BN_TIMING 0.005
+  /** @brief The damping of both the demodulator's loops. */
+#define DSSS_RX_DEMOD_ZETA 0.707
 
   /**
    * @brief Create a DSSS receiver in the searching state.
@@ -196,7 +204,8 @@ extern "C"
    * stable loop bandwidth for a one-update-per-code-epoch geometry, not
    * `dp_dll_create()`'s own default of 0.01, which this story found unstable
    * here) and `zeta=0.707`, `spacing=0.5`; `MpskReceiver` always uses
-   * `pulse=iandd`, `bn_carrier=bn_timing=0.01`, `zeta=0.707` and
+   * `pulse=iandd`, DSSS_RX_DEMOD_BN_CARRIER, DSSS_RX_DEMOD_BN_TIMING,
+   * DSSS_RX_DEMOD_ZETA and
    * `lock_thresh=0.3` — this story's own validated values throughout. It
    * also passed `acq_to_track=1` and `warmup_syms=30` until those were
    * deleted (doppler#877, `1f417e97`); the composed receiver now runs its
@@ -576,6 +585,33 @@ extern "C"
    *          the residual left after the pre-despread carrier loop, not
    *          the full Doppler. */
   double dp_dsss_receiver_get_norm_freq (const dp_dsss_receiver_state_t *state);
+  /** @brief Symbols a track emits before its demodulator has settled:
+   *  where a steady-state measurement of a track's symbols may start.
+   *
+   *  The demodulator's own figure, dp_mpsk_receiver_get_settle_time(), at
+   *  the bandwidths this receiver builds it with (DSSS_RX_DEMOD_BN_TIMING,
+   *  DSSS_RX_DEMOD_BN_CARRIER and DSSS_RX_DEMOD_ZETA): 778.5 symbols.
+   *  Counted from the first symbol a track emits, since nothing is emitted
+   *  while the receiver searches; reset() starts the search, and so the
+   *  count, again. It is a design figure of the demodulator's two linear
+   *  loops: the code loop and the pre-despread carrier loop, which run
+   *  ahead of it and pull in over the same span, are not counted.
+   *
+   *  @param state  Must be non-NULL.
+   *  @return Symbols, from the first one of a track.
+   *  @code
+   *  uint8_t code[7] = { 1, 1, 1, 0, 0, 1, 0 };
+   *  dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
+   *      code, 7, 1.0e6, 35714.29, 4.0e6, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+   *  if (!rx)
+   *    return 1;
+   *  // known before a sample is fed: prints 778.5
+   *  printf ("%.1f\n", dp_dsss_receiver_get_settle_time (rx));
+   *  dp_dsss_receiver_destroy (rx);
+   *  @endcode
+   */
+  double
+  dp_dsss_receiver_get_settle_time (const dp_dsss_receiver_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car + dll + rc + rx, always all five (a fixed

@@ -130,9 +130,9 @@ dsss_rx_build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
      configure_chain_raw() refuses outside it, so this create is never
      refused on `n` (doppler#2426). */
   dp_mpsk_receiver_state_t *rx = dp_xnn (dp_mpsk_receiver_create (
-      m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
-      0.005, 0.3, 0.0, differential, MPSK_RX_NUM_PHASES, 1,
-      MPSK_RX_AGC_BW_RATIO));
+      m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8,
+      DSSS_RX_DEMOD_BN_CARRIER, DSSS_RX_DEMOD_ZETA, DSSS_RX_DEMOD_BN_TIMING,
+      0.3, 0.0, differential, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO));
 
   /* Pre-despread carrier loop: seeded in cycles/sample at the FRONT-END
    * rate (chip_rate*spc) -- the stage that actually owns removing the
@@ -616,6 +616,12 @@ double
 dp_dsss_receiver_get_norm_freq (const dp_dsss_receiver_state_t *state)
 {
   return dp_mpsk_receiver_get_norm_freq (state->rx);
+}
+
+double
+dp_dsss_receiver_get_settle_time (const dp_dsss_receiver_state_t *state)
+{
+  return dp_mpsk_receiver_get_settle_time (state->rx);
 }
 
 size_t

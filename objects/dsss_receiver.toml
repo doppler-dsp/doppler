@@ -209,3 +209,7 @@ type = "double"
 [[dsss_receiver.properties]]
 name = "norm_freq"
 type = "double"
+
+[[dsss_receiver.properties]]
+name = "settle_time"
+type = "double"

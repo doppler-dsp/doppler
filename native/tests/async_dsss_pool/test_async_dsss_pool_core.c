@@ -1253,6 +1253,56 @@ _test_search_restarts_and_names_survive (void)
   return 0;
 }
 
+/* With `reacquire`, a receiver whose emitter leaves releases itself: it
+   goes back to idle with the controller's lost count at 0, where without
+   it the controller releases it (#3267, P11). Two pools on the stream
+   where B leaves, the same arguments but `reacquire`; status() reads lost
+   in neither (P21), so what tells the two apart is who released the
+   receiver. Sabotage: let a reacquire receiver enter lost (its release
+   clock's reacquire branch) -> the controller releases it and the count
+   reads 1. */
+static int
+_test_reacquire_releases_itself (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t          n;
+  float _Complex *x = _two_emitters_off (code, CI_B_OFF, &n);
+  DP_REQUIRE (x != NULL);
+  for (int reacquire = 0; reacquire < 2; reacquire++)
+    {
+      dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
+          code, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0,
+          1e-3, 0.9, 500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
+          CI_CONFIRM_S, reacquire, 0.0, 0.0, 1, true);
+      DP_REQUIRE (p != NULL);
+      int    tracked[2] = { 0, 0 }, went_idle = 0;
+      size_t lost_read = 0;
+      for (size_t pos = 0; pos + POOL_GROUP <= n; pos += POOL_GROUP)
+        {
+          (void)dp_async_dsss_pool_push (p, x + pos, POOL_GROUP);
+          for (size_t i = 0; i < 2; i++)
+            {
+              const int st = dp_async_dsss_pool_status (p, i).state;
+              lost_read += st == ASYNC_DSSS_RX_LOST;
+              went_idle |= tracked[i] && st == ASYNC_DSSS_RX_IDLE;
+              tracked[i] |= st == ASYNC_DSSS_RX_TRACKING;
+            }
+        }
+      DP_REQUIRE_MSG (went_idle, "a holder went back to idle after B left");
+      DP_CHECK (lost_read == 0);
+      if (reacquire)
+        DP_CHECK_MSG (p->released_lost == 0,
+                      "a reacquire receiver releases itself");
+      else
+        DP_CHECK_MSG (p->released_lost >= 1,
+                      "without reacquire the controller releases it");
+      dp_async_dsss_pool_destroy (p);
+    }
+  free (x);
+  return 0;
+}
+
 /* The thread count changes nothing but the cost: one worker and three
    give the same state, byte for byte, and the same symbols. The search
    spans +-5 kHz, several Doppler tiles, so on three workers it fans its
@@ -2369,6 +2419,7 @@ main (void)
   DP_CHECK (_test_telemetry_one_producer () == 0);
   DP_CHECK (_test_lost_is_released () == 0);
   DP_CHECK (_test_search_restarts_and_names_survive () == 0);
+  DP_CHECK (_test_reacquire_releases_itself () == 0);
   DP_CHECK (_test_two_emitters_two_holders () == 0);
   DP_CHECK (_test_seeds_go_strongest_first_in_index_order () == 0);
   DP_CHECK (_test_fractional_period_phase (1.1) == 0);

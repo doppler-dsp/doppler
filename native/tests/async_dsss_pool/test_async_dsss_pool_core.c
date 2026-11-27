@@ -1923,9 +1923,13 @@ _g415_pool (const uint8_t *code, double lost_s, bool refine)
   return dp_s415_pool_refine (code, G415_FC, 2, lost_s, 1, refine);
 }
 
+/* The ghost's seed C/N0 is A's plus ghost_db; NAN seeds it at the
+   sidelobe's own level, as the search would (every scene but the order
+   test's, which seeds it stronger than A). */
 static int
-_g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
-             double lost_s, double tmax_s, bool refine, _g415_t *out)
+_g415_scene_seeded (const uint8_t *code, uint32_t seed, double cn0, int k,
+                    double lost_s, double tmax_s, bool refine, double ghost_db,
+                    _g415_t *out)
 {
   const double f0 = 700.0;
   const long   r  = _autocorr (code, G415_SIDE);
@@ -1973,7 +1977,8 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
               DP_REQUIRE (dp_async_dsss_receiver_seed (
                               p->rx[1],
                               fmod (s0.chip_phase + (double)side, 1023.0),
-                              f0 + k * lattice, cn0 + level)
+                              f0 + k * lattice,
+                              cn0 + (isnan (ghost_db) ? level : ghost_db))
                           == DP_OK);
               t_seed = t;
             }
@@ -1995,6 +2000,44 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
   free (ns);
   dp_air_free (&air);
   out->p = p;
+  return 0;
+}
+
+static int
+_g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
+             double lost_s, double tmax_s, bool refine, _g415_t *out)
+{
+  return _g415_scene_seeded (code, seed, cn0, k, lost_s, tmax_s, refine, NAN,
+                             out);
+}
+
+/* The ghost rule's parent is the STRONGER holder by seed C/N0 (#3267, P14):
+   ghost_of() is order-blind, so only the controller's order says which of
+   a pair goes. The k = 2 scene of _test_ghost_is_released, the loss release
+   and the refine off, so only the ghost rule can release, with the ghost
+   seeded 10 dB OVER A instead of at its sidelobe's level: no holder is
+   stronger than it, so the ghost rule takes nothing, and it holds to the
+   scene's end. A itself is no ghost (its code lock is up), so it stays
+   too. The release at the sidelobe's level is _test_ghost_is_released.
+   Sabotage: drop the controller's strength comparison -> the ghost is
+   released anyway. */
+static int
+_test_ghost_parent_is_the_stronger (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  _g415_t z;
+  DP_REQUIRE (_g415_scene_seeded (code, 2, 60.0, 2, 0.0, 4.0, false, 10.0, &z)
+              == 0);
+  dp_async_dsss_pool_state_t *p = z.p;
+  DP_REQUIRE_MSG (z.tracked, "the ghost reached tracking");
+  DP_REQUIRE_MSG (z.code_up < z.n / 2,
+                  "its code lock is low: by its own test it is a ghost");
+  DP_CHECK_MSG (p->released_ghost == 0,
+                "a ghost stronger than every holder is no one's ghost");
+  DP_CHECK (dp_async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_TRACKING);
+  DP_CHECK (dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_TRACKING);
+  dp_async_dsss_pool_destroy (p);
   return 0;
 }
 
@@ -2408,6 +2451,7 @@ main (void)
   DP_CHECK (_test_refine_passes_through () == 0);
   DP_CHECK (_test_ghost_test_edges () == 0);
   DP_CHECK (_test_ghost_is_released () == 0);
+  DP_CHECK (_test_ghost_parent_is_the_stronger () == 0);
   DP_CHECK (_test_shipped_pool_frees_a_dropped_ghost () == 0);
   DP_CHECK (_test_ghost_needs_both_tests () == 0);
   DP_CHECK (_test_search_runs_once () == 0);

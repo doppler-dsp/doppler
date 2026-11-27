@@ -83,7 +83,7 @@ validate_timing_est_noise                8.2  # NEW (#3364): CI's sweep job on 4
 validate_ratesync_loop_model             0.1  # NEW (#3364): CI's sweep job on 41387e34f (run 45750016474, job 139675326280): 0.0 s, recorded at the 0.1 s floor
 validate_ratesync_pulse_model            0.1  # NEW (#3364): CI's sweep job on 41387e34f (run 45750016474, job 139675326280): 0.0 s, recorded at the 0.1 s floor
 validate_ratesync_seed                   1.2  # NEW (#3364): CI's sweep job on 4d25c60c7 (run 45920797010, job 140251036381): 1.2 s
-validate_ratesync_settle                   0.1  # NEW (#3378): CI's sweep job on 472b96dbf (run 46027652621, job 140603419875): 0.0 s, recorded at the 0.1 s floor
+validate_ratesync_settle                 0.1  # NEW (#3378): CI's sweep job on 472b96dbf (run 46027652621, job 140603419875): 0.0 s, recorded at the 0.1 s floor
 validate_tracker_through_window         10.1
 validate_acq_block_coherent             21.4  # its Pfa row went 100 -> 400 blocks (doppler#2218 review): +2.8 s here x the 2.35 CI factor, so it DETECTS the native pricing instead of pinning one draw
 validate_costas_pullin                  11.9

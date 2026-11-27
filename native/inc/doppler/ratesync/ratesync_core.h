@@ -1085,12 +1085,15 @@ extern "C"
    *
    *  It is a linear loop's figure, so it holds for a starting error inside
    *  the detector's near-linear range: on the RRC with Gardner, 0.25 symbol
-   *  or less, where the mean error over data patterns is under 2% of the
-   *  start (plus five standard errors of that mean) from this symbol on
-   *  (test_ratesync_core.c, `test_settle_time_from_an_offset`; the rows
-   *  below are printed by native/validation/ratesync_settle.c). Further out the S-curve, a sinusoid, has less
-   *  gain and the loop takes longer: at this symbol 4.5% of a 0.37 symbol
-   *  start is left, and 9.1% of 0.44. On the rectangle the Gardner loop
+   *  or less (measured at 4 samples a symbol, bn 0.01, damping 0.707),
+   *  where the mean error over data patterns is under 2% of the start
+   *  (plus five standard errors of that mean) from this symbol on
+   *  (test_ratesync_core.c, `test_settle_time_from_an_offset`; the
+   *  figures that follow are printed by
+   *  native/validation/ratesync_settle.c). Further out the S-curve, a
+   *  sinusoid, has less gain and the loop takes longer: from this symbol
+   *  on, up to 4.5% of a 0.37 symbol start is left, and up to 9.1% of
+   *  0.44. On the rectangle the Gardner loop
    *  settles more slowly than this figure, and is what the derivative
    *  detector replaces (docs/design/ratesync-timing.md section 9.2;
    *  doppler#3377 is the baseline). One run does not show any of this:

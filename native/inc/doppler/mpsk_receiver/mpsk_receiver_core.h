@@ -1098,7 +1098,8 @@ extern "C"
   size_t dp_mpsk_receiver_get_num_phases (const dp_mpsk_receiver_state_t *state);
 
   /** @brief Has the cascade's CIC stage clipped its input since the last
-   *  reset? A CIC bounds its input to +-1.0 and clips silently past that,
+   *  reset? A CIC bounds its input to its full scale (4.0 as built) and
+   *  clips silently at and past that,
    *  which costs ~25 dB of EVM behind a perfectly healthy lock.
    * @param state  Receiver state. Must be non-NULL.
    *  @return 1 if the front end reports a clip since create/reset, else 0

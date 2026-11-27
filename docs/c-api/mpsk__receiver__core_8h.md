@@ -90,7 +90,7 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 |  void | [**dp\_mpsk\_receiver\_destroy**](#function-dp_mpsk_receiver_destroy) ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Destroy an M-PSK receiver and release all memory._  |
 |  double | [**dp\_mpsk\_receiver\_get\_agc\_gain\_db**](#function-dp_mpsk_receiver_get_agc_gain_db) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Gain the front end's AGC is applying, in dB; 0.0 when_ `agc` _= 0._ |
 |  double | [**dp\_mpsk\_receiver\_get\_bn\_agc\_ratio**](#function-dp_mpsk_receiver_get_bn_agc_ratio) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_AGC bandwidth ratio in use — derived unless pinned (§8.1)._  |
-|  int | [**dp\_mpsk\_receiver\_get\_clipped**](#function-dp_mpsk_receiver_get_clipped) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to +-1.0 and clips silently past that, which costs ~25 dB of EVM behind a perfectly healthy lock._  |
+|  int | [**dp\_mpsk\_receiver\_get\_clipped**](#function-dp_mpsk_receiver_get_clipped) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to its full scale (4.0 as built) and clips silently at and past that, which costs ~25 dB of EVM behind a perfectly healthy lock._  |
 |  double | [**dp\_mpsk\_receiver\_get\_last\_error**](#function-dp_mpsk_receiver_get_last_error) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Carrier loop phase discriminator (rad) — the residual phase the loop is trying to null; loop stress._  |
 |  double | [**dp\_mpsk\_receiver\_get\_lock**](#function-dp_mpsk_receiver_get_lock) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_The raw carrier lock statistic: the EMA of the M-th-power NDA lock signal, near 1 when locked and near 0 on noise. It chatters at the threshold;_ `locked` _is the de-chattered decision made on it._ |
 |  double | [**dp\_mpsk\_receiver\_get\_lock\_drop\_thresh**](#function-dp_mpsk_receiver_get_lock_drop_thresh) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Carrier DROP threshold in use —_ `MPSK_RX_LOCK_DOWN` _x the declare threshold, the level hysteresis the pair is stated with._ |
@@ -841,7 +841,7 @@ bn\_agc\_ratio in (0, 1), as validated at create; reported even when the receive
 
 ### function dp\_mpsk\_receiver\_get\_clipped 
 
-_Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to +-1.0 and clips silently past that, which costs ~25 dB of EVM behind a perfectly healthy lock._ 
+_Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to its full scale (4.0 as built) and clips silently at and past that, which costs ~25 dB of EVM behind a perfectly healthy lock._ 
 ```C++
 int dp_mpsk_receiver_get_clipped (
     const dp_mpsk_receiver_state_t * state

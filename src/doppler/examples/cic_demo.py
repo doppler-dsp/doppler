@@ -9,8 +9,12 @@ Shows:
 
 A CIC filter is a cascade of N=4 integrators and N=4 comb sections
 (M=1 differential delay) separated by R:1 downsampling.  The pipeline
-is a fixed-point UQ16 integer path with no multiplications, making it
-ideal as the first decimation stage at very high sample rates (R ≤ 4096).
+is an integer path with no multiplications, making it ideal as the
+first decimation stage at very high sample rates (R ≤ 2048). Its input
+word is as wide as the 64-bit registers allow after the pipeline's gain
+(``CIC.bits``), so at these ratios its step (``CIC.step``) sits far below
+a float's own resolution and the measurements below see the filter, not
+its quantiser.
 
 Run:
   python cic_demo.py
@@ -41,7 +45,7 @@ f_wanted = 15e3  # survives decimation
 f_jammer = 208e3  # alias zone -> folds to -48 kHz in output
 
 A_wanted = 0.6
-A_jammer = 0.3  # peak sum 0.9 < 1.0 -- no Q15 clipping
+A_jammer = 0.3  # peak sum 0.9, far under the CIC's full scale (4.0)
 
 N_IN = 8 * R * 48
 t = np.arange(N_IN)
@@ -72,20 +76,6 @@ def _rms_db(x: np.ndarray) -> float:
 
 def _decimate(cic: CIC, x: np.ndarray) -> np.ndarray:
     return np.array(cic.decimate(x), copy=True)
-
-
-def _uq16_roundtrip(x: np.ndarray) -> np.ndarray:
-    """Replicate the CIC UQ16 input: CF32 → offset-binary uint16 → CF32.
-
-    Bipolar → unipolar: −1.0 → 0, 0.0 → 32768, +1.0 → 65535.
-    """
-    q15 = np.clip(np.real(x) * 32768.0, -32768, 32767).astype(np.int16)
-    re_u16 = (q15.astype(np.int32) + 32768).astype(np.uint16)
-    q15 = np.clip(np.imag(x) * 32768.0, -32768, 32767).astype(np.int16)
-    im_u16 = (q15.astype(np.int32) + 32768).astype(np.uint16)
-    re_f = (re_u16.astype(np.int32) - 32768).astype(np.float32) / 32768.0
-    im_f = (im_u16.astype(np.int32) - 32768).astype(np.float32) / 32768.0
-    return re_f + 1j * im_f
 
 
 CIC_N = 4  # fixed stage count
@@ -168,8 +158,7 @@ def demo_basic() -> None:
     print(f"  DC input → settled output magnitude: {dc_rms:.6f} (expect 1.0)")
     print(f"  output samples: {len(y)}  (= {n_in} / {R})\n")
     # R:1 decimation must emit exactly n_in/R samples, and the shift
-    # normalisation must give unity DC gain (within the UQ16 input
-    # quantisation of the fixed-point path).
+    # normalisation must give unity DC gain.
     assert len(y) == n_in // R, f"expected {n_in // R} samples, got {len(y)}"
     assert abs(dc_rms - 1.0) < 0.01, f"DC gain {dc_rms:.6f} not unity"
 
@@ -211,9 +200,8 @@ def demo_alias_rejection() -> None:
     print(f"  alias rejection: {rejection:.1f} dB")
     print(f"  theoretical:     {sinc_atten:.1f} dB\n")
     # A passband tone passes at unity gain; an alias-zone tone must be
-    # crushed.  The sinc^N theory predicts ~102 dB here, but the UQ16
-    # input quantisation floors the measurement around 90 dB — 80 dB
-    # still proves all four stages are filtering.
+    # crushed: 80 dB proves all four stages are filtering. The sinc^N
+    # theory is printed beside the measurement.
     assert abs(pass_db) < 0.5, f"passband gain {pass_db:+.1f} dB not unity"
     assert rejection > 80.0, f"alias rejection only {rejection:.1f} dB"
 
@@ -325,8 +313,8 @@ def demo_spectral_plot(
       - Wanted tone annotated (survived)
       - Jammer aliased-and-attenuated position annotated
     """
-    fig, (ax_in, ax_q15, ax_out) = plt.subplots(
-        3, 1, figsize=(10, 10), constrained_layout=True
+    fig, (ax_in, ax_out) = plt.subplots(
+        2, 1, figsize=(10, 7), constrained_layout=True
     )
     fig.suptitle(
         f"CIC Decimation  R={R}, N={CIC_N}, M=1\n"
@@ -417,36 +405,6 @@ def demo_spectral_plot(
     for sp in ax_in.spines.values():
         sp.set_color("#374151")
 
-    # ── Q15 roundtrip: CIC integer input converted back to CF32 ─────────────
-    x_q15 = _uq16_roundtrip(x)
-    freq_q15, amp_q15 = _spectrum_db(x_q15, fs_in, full=True)
-    freq_q15_khz = freq_q15 / 1e3
-    ax_q15.plot(freq_q15_khz, amp_q15, color="#60a5fa", lw=0.8, zorder=2)
-
-    ax_q15.axvline(
-        f_wanted / 1e3, color="#4ade80", lw=1.0, linestyle="-.", alpha=0.8
-    )
-    ax_q15.axvline(
-        f_jammer / 1e3, color="#f87171", lw=1.0, linestyle="-.", alpha=0.8
-    )
-    ax_q15.axvline(nyq_out, color="#ffffff", lw=1.2, linestyle=":", zorder=4)
-    ax_q15.axvline(-nyq_out, color="#ffffff", lw=1.2, linestyle=":", zorder=4)
-
-    ax_q15.set_xlim(-fs_in / 2 / 1e3, fs_in / 2 / 1e3)
-    ax_q15.set_ylim(-120, 10)
-    ax_q15.set_xlabel("Frequency (kHz)")
-    ax_q15.set_ylabel("Amplitude (dBFS)")
-    ax_q15.set_title(
-        "Q15 quantized input (UQ16 → CF32 roundtrip)",
-        loc="right",
-        color="#f1f5f9",
-    )
-    ax_q15.grid(True, color="#374151", lw=0.4)
-    ax_q15.set_facecolor("#111827")
-    ax_q15.tick_params(colors="#d1d5db")
-    for sp in ax_q15.spines.values():
-        sp.set_color("#374151")
-
     # ── output spectrum (full complex: -fs_out/2 … +fs_out/2) ───────────────
     freq_out, amp_out = _spectrum_db(y_settled, fs_out, full=True)
     freq_out_khz = freq_out / 1e3
@@ -507,7 +465,7 @@ def demo_spectral_plot(
 
     # Dark figure background to match the panel style
     fig.patch.set_facecolor("#0f172a")
-    for ax in (ax_in, ax_q15, ax_out):
+    for ax in (ax_in, ax_out):
         ax.xaxis.label.set_color("#d1d5db")
         ax.yaxis.label.set_color("#d1d5db")
         ax.title.set_color("#f1f5f9")

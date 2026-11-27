@@ -435,7 +435,10 @@ CIC_setprop_headroom_bits (CICObject *self, PyObject *value,
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "CIC: headroom_bits is 0 to 14", (long long)_rc);
+                    "CIC: headroom_bits is outside what "
+                    "dp_cic_headroom_bits_ok() accepts (0 to "
+                    "CIC_HEADROOM_BITS_MAX)",
+                    (long long)_rc);
       return -1;
     }
   return 0;
@@ -511,14 +514,16 @@ static PyGetSetDef CIC_getset[] = {
     "2**headroom_bits. The rest of the word is precision, so each bit of "
     "headroom doubles `step`. Setting `precision` puts it back to that "
     "precision's own (1 at 16, 2 at 32 and 64). Setting it resets the filter. "
-    "Raises ValueError, changing nothing, outside 0 to 14.\n"
+    "Raises ValueError, changing nothing, outside 0 to "
+    "CIC_HEADROOM_BITS_MAX.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    On assignment, if ``dp_cic_set_headroom_bits`` refuses the value by\n"
     "    returning non-zero. The exception message is ``CIC: headroom_bits\n"
-    "    is 0 to 14``, with the return code appended.\n",
+    "    is outside what dp_cic_headroom_bits_ok() accepts (0 to\n"
+    "    CIC_HEADROOM_BITS_MAX)``, with the return code appended.\n",
     NULL },
   { "bits", (getter)CIC_getprop_bits, NULL,
     "The input word's width in bits, sign included: the precision, or 64 - "
@@ -617,19 +622,20 @@ static PyMethodDef CICObj_methods[] = {
     "decimate(x, out) -> ndarray\n"
     "\n"
     "Decimate a block of CF32 samples through the CIC pipeline. Each\n"
-    "sample is converted to 16-bit Q15, pushed through CIC_N integrators\n"
-    "(unsigned wrapping), and when the phase counter reaches R the\n"
-    "integrated value is passed through CIC_N one-sample combs and converted\n"
-    "back to CF32. State persists between calls. A fresh or reset filter\n"
-    "starts from silence: its first CIC_N - 1 outputs are the filter filling\n"
-    "with the input, and silence in gives exact zeros out from the first\n"
-    "one. Feeding blocks that are multiples of R gives predictable output\n"
-    "counts (exactly n_in/R samples per block).\n"
+    "sample is converted to the filter's integer word (dp_cic_get_bits()),\n"
+    "pushed through CIC_N integrators (unsigned wrapping), and when the\n"
+    "phase counter reaches R the integrated value is passed through CIC_N\n"
+    "one-sample combs and converted back to CF32. State persists between\n"
+    "calls. A fresh or reset filter starts from silence: its first CIC_N - 1\n"
+    "outputs are the filter filling with the input, and silence in gives\n"
+    "exact zeros out from the first one. Feeding blocks that are multiples\n"
+    "of R gives predictable output counts (exactly n_in/R samples per\n"
+    "block).\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.complex64]\n"
-    "    CF32 input block, |Re| and |Im| <= 2.0 (clipped otherwise).\n"
+    "    CF32 input block, inside the full scale (clipped otherwise).\n"
     "out : npt.NDArray[np.complex64] | None\n"
     "    Output buffer; must hold at least max_out elements.\n"
     "\n"
@@ -642,10 +648,11 @@ static PyMethodDef CICObj_methods[] = {
     "\n"
     "Notes\n"
     "-----\n"
-    "**Input amplitude is bounded: |Re| and |Im| <= 2.0.** A component\n"
-    "beyond +-2.0 is clipped at the boundary before filtering; the sample\n"
-    "stream gives no sign of it, so check the sticky clipped flag. Scale the\n"
-    "input into range first; see the file header.\n"
+    "**Input amplitude is bounded** by dp_cic_get_full_scale(), 4.0 as\n"
+    "built: a component scaled past the word's top, or below its bottom, is\n"
+    "clipped at the boundary before filtering; the sample stream gives no\n"
+    "sign of it, so check the sticky clipped flag. Scale the input into\n"
+    "range first; see the file header.\n"
     "\n"
     "Examples\n"
     "--------\n"

@@ -110,8 +110,8 @@ name = "cic_headroom_bits"
 type = "uint32_t"
 writable = true
 error = "ValueError"
-error_message = "RateConverter: cic_headroom_bits is 0 to 14"
-doc = "Bits of the CIC stages' input word above unit amplitude: `full_scale` is 2**cic_headroom_bits when the plan has a CIC, and `step` doubles with each bit. Setting `cic_precision` puts it back to that precision's own. Setting it resets the converter. Raises ValueError, changing nothing, outside 0 to 14."
+error_message = "RateConverter: cic_headroom_bits is outside what dp_cic_headroom_bits_ok() accepts (0 to CIC_HEADROOM_BITS_MAX)"
+doc = "Bits of the CIC stages' input word above unit amplitude: `full_scale` is 2**cic_headroom_bits when the plan has a CIC, and `step` doubles with each bit. Setting `cic_precision` puts it back to that precision's own. Setting it resets the converter. Raises ValueError, changing nothing, outside 0 to CIC_HEADROOM_BITS_MAX."
 
 [[RateConverter.properties]]
 name = "full_scale"

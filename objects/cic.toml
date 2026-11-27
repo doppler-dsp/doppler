@@ -51,8 +51,8 @@ name = "headroom_bits"
 type = "uint32_t"
 writable = true
 error = "ValueError"
-error_message = "CIC: headroom_bits is 0 to 14"
-doc = "Bits of the input word above unit amplitude: full scale is 2**headroom_bits. The rest of the word is precision, so each bit of headroom doubles `step`. Setting `precision` puts it back to that precision's own (1 at 16, 2 at 32 and 64). Setting it resets the filter. Raises ValueError, changing nothing, outside 0 to 14."
+error_message = "CIC: headroom_bits is outside what dp_cic_headroom_bits_ok() accepts (0 to CIC_HEADROOM_BITS_MAX)"
+doc = "Bits of the input word above unit amplitude: full scale is 2**headroom_bits. The rest of the word is precision, so each bit of headroom doubles `step`. Setting `precision` puts it back to that precision's own (1 at 16, 2 at 32 and 64). Setting it resets the filter. Raises ValueError, changing nothing, outside 0 to CIC_HEADROOM_BITS_MAX."
 
 [[cic.properties]]
 name = "bits"

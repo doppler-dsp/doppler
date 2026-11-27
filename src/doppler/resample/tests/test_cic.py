@@ -361,7 +361,7 @@ def test_a_precision_no_filter_has_is_refused(bad):
     with pytest.raises(ValueError, match="precision is 16, 32 or 64"):
         c.precision = bad
     assert c.precision == 64
-    with pytest.raises(ValueError, match="headroom_bits is 0 to 14"):
+    with pytest.raises(ValueError, match="headroom_bits is outside"):
         c.headroom_bits = 15
     assert c.headroom_bits == 2
 

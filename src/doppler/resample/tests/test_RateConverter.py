@@ -762,7 +762,7 @@ def test_the_cic_word_is_the_converters_to_set():
     assert rc.full_scale == 16.0 and rc.cic_precision == 16
     with pytest.raises(ValueError, match="cic_precision is 16, 32 or 64"):
         rc.cic_precision = 24
-    with pytest.raises(ValueError, match="cic_headroom_bits is 0 to 14"):
+    with pytest.raises(ValueError, match="cic_headroom_bits is outside"):
         rc.cic_headroom_bits = 15
 
     free = RateConverter(rate=0.5)

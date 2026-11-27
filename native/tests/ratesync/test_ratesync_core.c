@@ -1516,14 +1516,15 @@ test_settle_time (void)
 
    Why five standard errors. The bound is checked at every symbol from
    settle_time (260) to 449, 190 of them, on each of five rows: 950
-   comparisons. For a loop that meets the claim, a normal mean passes its
-   bound by k standard errors with probability at most erfc (k / sqrt (2))
-   at one comparison:
+   comparisons. For a loop that meets the claim, the mean passes its bound
+   by k standard errors at one comparison with the one-sided probability
+   of a t with 99 degrees of freedom, since the standard error is itself
+   estimated from the 100 patterns:
 
        k    per comparison    expected false fails in 950    at least one
-       3    2.7e-3            2.6                            92%
-       4    6.3e-5            0.060                          at most 6%
-       5    5.7e-7            5.4e-4                         at most 0.06%
+       3    1.7e-3            1.6                            80%
+       4    6.1e-5            0.058                          at most 6%
+       5    1.2e-6            1.2e-3                         at most 0.12%
 
    The last column at 3 takes the comparisons as independent; neighboring
    symbols are not, so it is an overestimate. The others are the union

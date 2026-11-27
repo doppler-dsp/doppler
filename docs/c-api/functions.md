@@ -181,6 +181,8 @@
 * **dp\_RateConverter\_num\_bank\_shape** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_num\_stages** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_reset** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **dp\_RateConverter\_response** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **dp\_RateConverter\_response\_len** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_set\_rate** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_set\_state** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_set\_telemetry** ([**RateConverter\_core.h**](RateConverter__core_8h.md))

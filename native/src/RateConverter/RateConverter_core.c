@@ -19,6 +19,7 @@
 #include "doppler/cic/cic_core.h"
 #include "doppler/fir/fir_core.h"
 #include "doppler/hbdecim/hbdecim_core.h"
+#include "doppler/nco/nco_core.h" /* the phase word, as the resampler makes it */
 #include "doppler/resamp/resamp_core.h"
 #include "doppler/resample/resample_core.h" /* ciccompmf */
 #include "doppler/wfm/wfm_dsp.h" /* wfm_rrc_h — the RRC formula's one home */
@@ -1556,6 +1557,186 @@ dp_RateConverter_get_memory (const dp_RateConverter_state_t *s)
         break;
       }
   return m;
+}
+
+/* ------------------------------------------------------------------ */
+/* The plan's response, from the stages' definitions                   */
+/* ------------------------------------------------------------------ */
+
+/* The stages ahead of the terminal one, as one filter at the converter's
+   input rate: output q of the last of them is sum_j g[j] x[a q + b - j].
+   Each stage is y[m] = sum_j t[j] x[sa m + sb - j] in its own input, and
+   composing it onto what came before is
+       g'[a j + i] += t[j] g[i],   a' = a sa,   b' = a sb + b.            */
+typedef struct
+{
+  double *g;
+  size_t  len;
+  int64_t a, b;
+} rc_pre_t;
+
+static void
+rc_pre_compose (rc_pre_t *p, const double *t, size_t nt, int64_t sa,
+                int64_t sb)
+{
+  size_t  len = (size_t)p->a * (nt - 1u) + p->len;
+  double *g   = dp_xcalloc (len, sizeof *g);
+  for (size_t j = 0; j < nt; j++)
+    if (t[j] != 0.0)
+      for (size_t i = 0; i < p->len; i++)
+        g[(size_t)p->a * j + i] += t[j] * p->g[i];
+  free (p->g);
+  p->g   = g;
+  p->len = len;
+  p->b   = p->a * sb + p->b;
+  p->a   = p->a * sa;
+}
+
+/* The halfband as one filter on its input, off compute_output(): output m
+   is formed as inputs 2m and 2m + 1 arrive, so its newest input is
+   2m + 1 and tap j reads input 2m + 1 - j. */
+static void
+rc_pre_hb (rc_pre_t *p, const hbdecim_state_t *r)
+{
+  const size_t N = r->num_taps, half = N / 2u;
+  const size_t nt = 2u * N;
+  double      *t  = dp_xcalloc (nt, sizeof *t);
+  if (r->fir_on_even)
+    {
+      /* the even line holds x[2m - 2k]; the delay tap is odd_dl[centre] */
+      for (size_t k = 0; k < half; k++)
+        {
+          t[1u + 2u * k] += (double)r->h[k];
+          t[1u + 2u * (N - 1u - k)] += (double)r->h[k];
+        }
+      t[2u * r->centre] += 0.5;
+    }
+  else
+    {
+      /* the odd line holds x[2m + 1 - 2k], read from k + 1; the delay tap
+         is even_dl[centre] = x[2m - 2 centre] */
+      for (size_t k = 0; k < half; k++)
+        {
+          t[2u * (k + 1u)] += (double)r->h[k];
+          t[2u * (N - 1u - k)] += (double)r->h[k];
+        }
+      t[1u + 2u * r->centre] += 0.5;
+    }
+  rc_pre_compose (p, t, nt, 2, 1);
+  free (t);
+}
+
+/* The CIC: CIC_N boxcars of R inputs in a row at unit gain, output k
+   formed as input k R + R - 1 arrives. Then its droop compensator, when
+   the plan appends one: a FIR at the CIC's output rate, aligned with its
+   newest input. */
+static void
+rc_pre_cic (rc_pre_t *p, const rc_cic_stage_t *cs)
+{
+  const size_t R   = (size_t)cs->R;
+  size_t       len = 1;
+  const size_t cap = (size_t)CIC_N * (R - 1u) + 1u;
+  double      *t   = dp_xcalloc (cap, sizeof *t);
+  t[0]             = 1.0;
+  for (int o = 0; o < CIC_N; o++)
+    {
+      /* in place, newest tap first: t <- t * boxcar (R) / R */
+      for (size_t j = len + R - 1u; j-- > 0;)
+        {
+          double a = 0.0;
+          for (size_t i = 0; i < R && i <= j; i++)
+            if (j - i < len)
+              a += t[j - i];
+          t[j] = a / (double)R;
+        }
+      len += R - 1u;
+    }
+  rc_pre_compose (p, t, len, (int64_t)R, (int64_t)R - 1);
+  free (t);
+  if (cs->fir)
+    {
+      double f[7];
+      dp_ciccompmf (f, 4, (uint32_t)cs->R, 7);
+      rc_pre_compose (p, f, 7, 1, 0);
+    }
+}
+
+static int
+rc_pre_build (const dp_RateConverter_state_t *s, rc_pre_t *p)
+{
+  const int last = s->n_stages - 1;
+  if (last < 0 || s->pulse == RC_PULSE_NONE
+      || s->stage_types[last] != RC_STAGE_RESAMP)
+    return 0;
+  p->g    = dp_xcalloc (1, sizeof *p->g);
+  p->g[0] = 1.0;
+  p->len  = 1;
+  p->a    = 1;
+  p->b    = 0;
+  for (int i = 0; i < last; i++)
+    if (s->stage_types[i] == RC_STAGE_HB)
+      rc_pre_hb (p, (const hbdecim_state_t *)s->stage_ptrs[i]);
+    else if (s->stage_types[i] == RC_STAGE_CIC)
+      rc_pre_cic (p, (const rc_cic_stage_t *)s->stage_ptrs[i]);
+  return 1;
+}
+
+size_t
+dp_RateConverter_response_len (const dp_RateConverter_state_t *s)
+{
+  rc_pre_t p;
+  if (!rc_pre_build (s, &p))
+    return 0;
+  const resamp_state_t *rs
+      = (const resamp_state_t *)s->stage_ptrs[s->n_stages - 1];
+  size_t len = (size_t)p.a * (rs->num_taps - 1u) + p.len;
+  free (p.g);
+  return len;
+}
+
+int
+dp_RateConverter_response (const dp_RateConverter_state_t *s, uint64_t k0,
+                           size_t n, double *h, int64_t *newest)
+{
+  rc_pre_t p;
+  if (!rc_pre_build (s, &p))
+    return DP_ERR_INVALID;
+  const resamp_state_t *rs
+      = (const resamp_state_t *)s->stage_ptrs[s->n_stages - 1];
+  const size_t len = (size_t)p.a * (rs->num_taps - 1u) + p.len;
+
+  /* The terminal stage's accumulator, unsteered, as ctrl_push_impl runs
+     it: an output is emitted with `loaded` inputs in the delay line and
+     the arm the phase word selects, then the word steps by one output
+     interval, whose whole inputs are loaded before the next. */
+  const double   t_in   = 1.0 / rs->rate;
+  const uint32_t frac   = nco_norm_phase_to_word (t_in);
+  const uint64_t whole  = (uint64_t)floor (t_in);
+  uint32_t       phase  = 0;
+  uint64_t       loaded = 0;
+  for (uint64_t k = 0; k < k0 + n; k++)
+    {
+      if (k >= k0)
+        {
+          const size_t arm = rs->log2_phases
+                                 ? (size_t)(phase >> (32u - rs->log2_phases))
+                                 : 0u;
+          const float *row = rs->bank + arm * rs->num_taps;
+          double      *hk  = h + (size_t)(k - k0) * len;
+          memset (hk, 0, len * sizeof *hk);
+          /* tap t reads the terminal input `loaded - 1 - t` */
+          for (size_t t = 0; t < rs->num_taps; t++)
+            if (row[t] != 0.0f)
+              for (size_t i = 0; i < p.len; i++)
+                hk[(size_t)p.a * t + i] += (double)row[t] * p.g[i];
+          newest[k - k0] = p.a * ((int64_t)loaded - 1) + p.b;
+        }
+      const uint32_t next = phase + frac;
+      loaded += whole + (next < phase ? 1u : 0u);
+      phase = next;
+    }
+  free (p.g);
+  return DP_OK;
 }
 
 size_t

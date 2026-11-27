@@ -129,6 +129,19 @@ dp_ddc_execute_max_out (dp_ddc_state_t *s, size_t x_len)
   return x_len;
 }
 
+/* The carrier mix multiplies every sample by the same scalar code in every
+   path (block, control port, one-sample push), so the paths agree to the
+   last bit on every compiler: ddc_extra.cmake turns contraction off for this
+   file, and clang, which fuses a vectorised complex multiply into FCMLA on
+   ARMv8.3+ whatever the contraction setting, is kept from vectorising these
+   loops. */
+#if defined(__clang__)
+#define DDC_SCALAR_MIX                                                        \
+  _Pragma ("clang loop vectorize(disable) interleave(disable)")
+#else
+#define DDC_SCALAR_MIX
+#endif
+
 size_t
 dp_ddc_execute (dp_ddc_state_t *s, const float _Complex *in, size_t n_in,
                 float _Complex *out, size_t max_out)
@@ -142,6 +155,7 @@ dp_ddc_execute (dp_ddc_state_t *s, const float _Complex *in, size_t n_in,
 
   /* Generate LO phasors and multiply with input in one pass. */
   dp_lo_steps (s->lo, n_in, mix, n_in);
+  DDC_SCALAR_MIX
   for (size_t i = 0; i < n_in; i++)
     mix[i] = in[i] * mix[i];
 
@@ -184,6 +198,7 @@ dp_ddc_execute_ctrl (dp_ddc_state_t *s, const float _Complex *in, size_t n_in,
      ctrl == 0 is bit-identical to the vectorised dp_lo_steps() path (both
      index the same LUT off the same integer accumulator), so no fast path is
      worth the branch here. */
+  DDC_SCALAR_MIX
   for (size_t i = 0; i < n_in; i++)
     mix[i] = in[i] * lo_step_ctrl (s->lo, freq_ctrl);
 

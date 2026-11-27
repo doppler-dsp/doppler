@@ -2074,6 +2074,16 @@ test_lifecycle (void)
                       dp_ratesync_get_state (&bad, bb);
                       DP_CHECK (dp_ratesync_set_state (b, bb)
                                 == DP_ERR_INVALID);
+                      /* The case the restore of the loop exists for: the
+                         LAST child refuses, the estimator, after the
+                         cascade and the loop have both taken the blob.
+                         `b` is fresh and `a` is far along, so a loop left
+                         holding the blob's state would not match `keep`.
+                         Sabotage, shown red here: the loop not put back. */
+                      memcpy (bb, blob, nb);
+                      bb[nb - dp_timing_est_state_bytes (a->est)] ^= 0x5a;
+                      DP_CHECK (dp_ratesync_set_state (b, bb)
+                                == DP_ERR_INVALID);
                       dp_ratesync_get_state (b, bb);
                       DP_CHECK (memcmp (bb, keep, nb) == 0);
                       DP_CHECK (b->loop.acquires == 0);

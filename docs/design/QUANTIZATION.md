@@ -315,7 +315,7 @@ x = -1.0  →  uint64  0x0000000000008000
 
 The CIC decimator (`resample.CIC`) does **not** consume this format: it
 takes complex64 and encodes each component to its own word internally, held
-modulo 2⁶⁴ (§2.4, §8), with the 48 bits above it absorbing the `N · log₂(R)` bits of
+modulo 2⁶⁴ (§2.4, §8), with the register's other bits absorbing the `N · log₂(R)` bits of
 bit-growth — 44 at the cap `R = CIC_R_MAX = 2048`.
 
 ______________________________________________________________________
@@ -377,7 +377,7 @@ decode: x̂ = ((int32_t)u − 32768) · 2⁻¹⁵
 
 The `cvt` module provides `F32ToUQ15` / `UQ15ToF32` for this encoding.
 The CIC pipeline uses the same bias only at its two ends, around
-`uint64_t` registers with 48 bits of headroom: see §2.4 and §8.
+`uint64_t` registers whose bits are the word and the pipeline's gain: see §2.4 and §8.
 
 ______________________________________________________________________
 
@@ -419,7 +419,7 @@ ______________________________________________________________________
 | ------------------------ | ----------------------- | --------------- |
 | CF32 compute path        | 23-bit mantissa + sign  | ~138 dB         |
 | Q15 quantization         | 15-bit magnitude + sign | ~92 dB          |
-| CIC accumulator (uint64) | 15 + 48 bits headroom   | exact (modular) |
+| CIC accumulator (uint64) | word + gain = 64 bits   | exact (modular) |
 | CIC output (after shift) | the input word          | ~92 dB at 16    |
 
 ______________________________________________________________________

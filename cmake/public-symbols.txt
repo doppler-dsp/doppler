@@ -14,6 +14,7 @@ carrier_nda_loop_error function
 carrier_nda_steer function
 carrier_nda_update function
 carrier_nda_wipeoff function
+cic_decimate_word function
 conv_next_state function
 conv_states function
 costas_update function
@@ -523,6 +524,7 @@ dp_cic_get_precision function
 dp_cic_get_state function
 dp_cic_get_step function
 dp_cic_headroom_bits_ok function
+dp_cic_precision_headroom function
 dp_cic_precision_ok function
 dp_cic_reconfigure function
 dp_cic_reset function

@@ -60,10 +60,10 @@ cic_model (const dp_cic_state_t *c, const float _Complex *x, size_t n,
       for (size_t i = 0; i < n; i++)
         {
           float s = (part ? cimagf (x[i]) : crealf (x[i])) * c->in_scale;
-          if (!(s <= c->in_hi))
-            s = c->in_hi;
-          if (s < c->in_lo)
-            s = c->in_lo;
+          if (!(s <= CIC_WORD_TOP (c->bits)))
+            s = CIC_WORD_TOP (c->bits);
+          if (s < CIC_WORD_BOTTOM (c->bits))
+            s = CIC_WORD_BOTTOM (c->bits);
           v[i] = (int64_t)s;
         }
       for (int o = 0; o < CIC_N; o++)
@@ -364,11 +364,12 @@ test_the_word (void)
                 if (PRECISIONS[pi] == CIC_PRECISION_16)
                   {
                     cic_legacy (x, n, R, m);
-                    DP_CHECK (
-                        memcmp (y + CIC_N, m + CIC_N, (no - CIC_N) * sizeof *y)
-                        == 0);
+                    /* past the first CIC_N - 1, which are the fill */
+                    DP_CHECK (memcmp (y + (CIC_N - 1), m + (CIC_N - 1),
+                                      (no - (CIC_N - 1)) * sizeof *y)
+                              == 0);
                     legacy_rows++;
-                    legacy_fill += memcmp (y, m, CIC_N * sizeof *y) != 0;
+                    legacy_fill += memcmp (y, m, (CIC_N - 1) * sizeof *y) != 0;
                   }
                 /* How far the output is from the boxcars' exact sum of the
                    float input, on the slow tone well inside the range:
@@ -422,43 +423,57 @@ test_the_word (void)
   DP_CHECK (worst64 < 4.0 * ldexp (1.0, -24));
 
   /* The registers wrap and the answer does not: both rails as DC, at
-     every ratio and every precision, far past where the last integrator
-     passes 2^CIC_REG_BITS. Every output past the fill is the input. */
+     every ratio, every precision and four headrooms (none, the
+     precision's own, 4 bits and CIC_HEADROOM_BITS_MAX), far past where the
+     last integrator passes 2^CIC_REG_BITS. Every output past the fill is the
+     input. The rail is built from dp_cic_get_step(), not from the filter's own
+     scale fields, so a scale that is wrong at a set headroom shows. Sabotage,
+     shown red: the output scale taken at the precision's own headroom rather
+     than the one set. */
+  static const int hrs[]
+      = { 0, -1 /* the precision's own */, 4, (int)CIC_HEADROOM_BITS_MAX };
   for (size_t pi = 0; pi < N_PREC; pi++)
-    for (uint32_t R = 2; R <= CIC_R_MAX; R <<= 1)
-      {
-        const size_t    n  = (size_t)R * 64u > 8192u ? (size_t)R * 64u : 8192u;
-        const size_t    no = n / R;
-        float _Complex *x  = malloc (n * sizeof *x);
-        float _Complex *y  = malloc (no * sizeof *y);
-        DP_CHECK (x != NULL && y != NULL);
-        for (int r = 0; x && y && r < 2; r++)
-          {
-            dp_cic_state_t *c = dp_cic_create (R);
-            DP_CHECK (c != NULL);
-            if (!c)
-              continue;
-            DP_CHECK (dp_cic_set_precision (c, PRECISIONS[pi]) == DP_OK);
-            /* the top and the bottom of the word, as inputs */
-            const float rail = (r ? c->in_lo : c->in_hi) * c->out_scale;
-            for (size_t i = 0; i < n; i++)
-              x[i] = CMPLXF (rail, -0.5f * rail);
-            DP_CHECK (dp_cic_decimate (c, x, n, y, no) == no);
-            size_t bad = 0;
-            for (size_t k = CIC_N; k < no; k++)
-              bad += crealf (y[k]) != rail;
-            DP_CHECK (bad == 0);
-            DP_CHECK (!c->clipped);
-            /* and one float past the top is over the bound */
-            x[0] = CMPLXF (nextafterf (c->in_hi, INFINITY) * c->out_scale,
-                           0.0f);
-            (void)dp_cic_decimate (c, x, R, y, no);
-            DP_CHECK (c->clipped);
-            dp_cic_destroy (c);
-          }
-        free (x);
-        free (y);
-      }
+    for (size_t hi = 0; hi < sizeof hrs / sizeof *hrs; hi++)
+      for (uint32_t R = 2; R <= CIC_R_MAX; R <<= 1)
+        {
+          const size_t n  = (size_t)R * 64u > 8192u ? (size_t)R * 64u : 8192u;
+          const size_t no = n / R;
+          float _Complex *x = malloc (n * sizeof *x);
+          float _Complex *y = malloc (no * sizeof *y);
+          DP_CHECK (x != NULL && y != NULL);
+          for (int r = 0; x && y && r < 2; r++)
+            {
+              dp_cic_state_t *c = dp_cic_create (R);
+              DP_CHECK (c != NULL);
+              if (!c)
+                continue;
+              DP_CHECK (dp_cic_set_precision (c, PRECISIONS[pi]) == DP_OK);
+              if (hrs[hi] >= 0)
+                DP_CHECK (dp_cic_set_headroom_bits (c, (uint32_t)hrs[hi])
+                          == DP_OK);
+              /* the top and the bottom of the word, as inputs */
+              const float rail
+                  = (r ? CIC_WORD_BOTTOM (c->bits) : CIC_WORD_TOP (c->bits))
+                    * (float)dp_cic_get_step (c);
+              for (size_t i = 0; i < n; i++)
+                x[i] = CMPLXF (rail, -0.5f * rail);
+              DP_CHECK (dp_cic_decimate (c, x, n, y, no) == no);
+              size_t bad = 0;
+              for (size_t k = CIC_N; k < no; k++)
+                bad += crealf (y[k]) != rail;
+              DP_CHECK (bad == 0);
+              DP_CHECK (!c->clipped);
+              /* and one float past the top is over the bound */
+              x[0] = CMPLXF (nextafterf (CIC_WORD_TOP (c->bits), INFINITY)
+                                 * (float)dp_cic_get_step (c),
+                             0.0f);
+              (void)dp_cic_decimate (c, x, R, y, no);
+              DP_CHECK (c->clipped);
+              dp_cic_destroy (c);
+            }
+          free (x);
+          free (y);
+        }
 
   /* A sample that is not a number is over the bound: it reads as the top
      of the range, raises the flag, and is gone when it has left the

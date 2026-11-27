@@ -873,19 +873,20 @@ class CIC:
         out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Decimate a block of CF32 samples through the CIC pipeline. Each
-        sample is converted to 16-bit Q15, pushed through CIC_N integrators
-        (unsigned wrapping), and when the phase counter reaches R the
-        integrated value is passed through CIC_N one-sample combs and converted
-        back to CF32. State persists between calls. A fresh or reset filter
-        starts from silence: its first CIC_N - 1 outputs are the filter filling
-        with the input, and silence in gives exact zeros out from the first
-        one. Feeding blocks that are multiples of R gives predictable output
-        counts (exactly n_in/R samples per block).
+        sample is converted to the filter's integer word (dp_cic_get_bits()),
+        pushed through CIC_N integrators (unsigned wrapping), and when the
+        phase counter reaches R the integrated value is passed through CIC_N
+        one-sample combs and converted back to CF32. State persists between
+        calls. A fresh or reset filter starts from silence: its first CIC_N - 1
+        outputs are the filter filling with the input, and silence in gives
+        exact zeros out from the first one. Feeding blocks that are multiples
+        of R gives predictable output counts (exactly n_in/R samples per
+        block).
 
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            CF32 input block, |Re| and |Im| <= 2.0 (clipped otherwise).
+            CF32 input block, inside the full scale (clipped otherwise).
         out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least max_out elements.
 
@@ -898,10 +899,11 @@ class CIC:
 
         Notes
         -----
-        **Input amplitude is bounded: |Re| and |Im| <= 2.0.** A component
-        beyond +-2.0 is clipped at the boundary before filtering; the sample
-        stream gives no sign of it, so check the sticky clipped flag. Scale the
-        input into range first; see the file header.
+        **Input amplitude is bounded** by dp_cic_get_full_scale(), 4.0 as
+        built: a component scaled past the word's top, or below its bottom, is
+        clipped at the boundary before filtering; the sample stream gives no
+        sign of it, so check the sticky clipped flag. Scale the input into
+        range first; see the file header.
 
         Examples
         --------
@@ -1024,14 +1026,16 @@ class CIC:
         2**headroom_bits. The rest of the word is precision, so each bit of
         headroom doubles `step`. Setting `precision` puts it back to that
         precision's own (1 at 16, 2 at 32 and 64). Setting it resets the
-        filter. Raises ValueError, changing nothing, outside 0 to 14.
+        filter. Raises ValueError, changing nothing, outside 0 to
+        CIC_HEADROOM_BITS_MAX.
 
         Raises
         ------
         ValueError
             On assignment, if ``dp_cic_set_headroom_bits`` refuses the value by
             returning non-zero. The exception message is ``CIC: headroom_bits
-            is 0 to 14``, with the return code appended.
+            is outside what dp_cic_headroom_bits_ok() accepts (0 to
+            CIC_HEADROOM_BITS_MAX)``, with the return code appended.
         """
     @headroom_bits.setter
     def headroom_bits(self, value: int) -> None: ...
@@ -1443,15 +1447,16 @@ class RateConverter:
         `full_scale` is 2**cic_headroom_bits when the plan has a CIC, and
         `step` doubles with each bit. Setting `cic_precision` puts it back to
         that precision's own. Setting it resets the converter. Raises
-        ValueError, changing nothing, outside 0 to 14.
+        ValueError, changing nothing, outside 0 to CIC_HEADROOM_BITS_MAX.
 
         Raises
         ------
         ValueError
             On assignment, if ``dp_RateConverter_set_cic_headroom_bits``
             refuses the value by returning non-zero. The exception message is
-            ``RateConverter: cic_headroom_bits is 0 to 14``, with the return
-            code appended.
+            ``RateConverter: cic_headroom_bits is outside what
+            dp_cic_headroom_bits_ok() accepts (0 to CIC_HEADROOM_BITS_MAX)``,
+            with the return code appended.
         """
     @cic_headroom_bits.setter
     def cic_headroom_bits(self, value: int) -> None: ...
@@ -1910,15 +1915,16 @@ class MatchedRateConverter:
         `full_scale` is 2**cic_headroom_bits when the plan has a CIC, and
         `step` doubles with each bit. Setting `cic_precision` puts it back to
         that precision's own. Setting it resets the converter. Raises
-        ValueError, changing nothing, outside 0 to 14.
+        ValueError, changing nothing, outside 0 to CIC_HEADROOM_BITS_MAX.
 
         Raises
         ------
         ValueError
             On assignment, if ``dp_RateConverter_set_cic_headroom_bits``
             refuses the value by returning non-zero. The exception message is
-            ``RateConverter: cic_headroom_bits is 0 to 14``, with the return
-            code appended.
+            ``RateConverter: cic_headroom_bits is outside what
+            dp_cic_headroom_bits_ok() accepts (0 to CIC_HEADROOM_BITS_MAX)``,
+            with the return code appended.
         """
     @cic_headroom_bits.setter
     def cic_headroom_bits(self, value: int) -> None: ...

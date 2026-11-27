@@ -67,16 +67,19 @@ the one family where it does.
     detector needs two samples per symbol anyway, and removing the cast
     shrinks the allowlist by one.
 
-1. **The CIC encoder truncates.** [`cic_core.h`][cicenc] clamps, then converts
-    with a bare `(int16_t)sr`. It's a private copy of
-    [`dp_f32_to_uq15_step`][f2uq15] (the same offset-binary encoding, plus
-    headroom) that truncates where that function rounds: the 6 dB defect #1117
-    fixed everywhere else. [QUANTIZATION.md §2.4][q24] documents this
-    truncation, while [§3.1][q31] says the Q15 encoder rounds. Proposed fix:
-    call `dp_f32_to_uq15_step` with scale `32768 / CIC_PAPR_HEADROOM`.
+1. **The CIC encoder truncates.** [`cic_core.h`][cicenc] (linked as it was when
+    this page was written, with a 16-bit word) clamps, then converts with a
+    bare `(int64_t)sr`, at the word's full width: 16 bits at
+    precision 16, up to 60 at the default. Rounding is what #1117 fixed
+    everywhere else and [`dp_f32_to_uq15_step`][f2uq15] does; [QUANTIZATION.md
+    §2.4][q24] documents the truncation, while [§3.1][q31] says the Q15
+    encoder rounds. At the default word the truncation is far under a float
+    sample's own resolution; at precision 16 it is the 6 dB of #1117.
+    Proposed fix: round, at every width. It changes precision 16's numbers,
+    which is then no longer the old filter output for output.
 
 1. **The CIC output shift floors.** The [decoder][cicdec] computes
-    `(uint16_t)(re >> shift)` with no rounding bias. Because the value is
+    `(re + bias) >> shift` with no rounding bias. Because the value is
     offset-binary, that floor is a −½ LSB DC offset on the signed value.
     Proposed fix: add `1 << (shift − 1)` before the shift, the same form as
     kind E. Both CIC fixes change its numbers, so its validation evidence

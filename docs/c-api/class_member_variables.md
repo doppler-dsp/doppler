@@ -522,8 +522,6 @@
 * **id\_s\_prop** ([**dll\_tlm\_t**](structdll__tlm__t.md))
 * **inv\_len** ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md))
 * **index** ([**dp\_chunk\_t**](structdp__chunk__t.md))
-* **in\_hi** ([**dp\_cic\_state\_t**](structdp__cic__state__t.md))
-* **in\_lo** ([**dp\_cic\_state\_t**](structdp__cic__state__t.md))
 * **in\_scale** ([**dp\_cic\_state\_t**](structdp__cic__state__t.md))
 * **integ\_im** ([**dp\_cic\_state\_t**](structdp__cic__state__t.md))
 * **integ\_re** ([**dp\_cic\_state\_t**](structdp__cic__state__t.md))

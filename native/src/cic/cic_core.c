@@ -77,9 +77,8 @@ dp_cic_headroom_bits_ok (uint32_t bits)
   return bits <= CIC_HEADROOM_BITS_MAX;
 }
 
-/* The headroom a precision starts with. */
-static uint32_t
-precision_headroom (uint32_t precision)
+uint32_t
+dp_cic_precision_headroom (uint32_t precision)
 {
   return precision == CIC_PRECISION_16 ? CIC_HEADROOM_BITS_16
                                        : CIC_HEADROOM_BITS_WIDE;
@@ -98,13 +97,6 @@ derive (dp_cic_state_t *s)
   const int unit = (int)(s->bits - 1u - s->headroom_bits);
   s->in_scale    = ldexpf (1.0f, unit);
   s->out_scale   = ldexpf (1.0f, -unit);
-  /* The word holds [-offset, offset - 1]. The top as a float is the
-     largest float at or under offset - 1: that value itself while a float
-     can hold it, and the float under offset once it rounds up to it. */
-  s->in_lo = -(float)s->offset;
-  s->in_hi = (float)(s->offset - 1u);
-  if (s->in_hi >= (float)s->offset)
-    s->in_hi = nextafterf ((float)s->offset, 0.0f);
 }
 
 /* ── lifecycle ─────────────────────────────────────────────────────────── */
@@ -121,7 +113,7 @@ dp_cic_create (uint32_t R)
 
   s->R             = R;
   s->precision     = CIC_PRECISION_DEFAULT;
-  s->headroom_bits = precision_headroom (s->precision);
+  s->headroom_bits = dp_cic_precision_headroom (s->precision);
   derive (s);
   return s;
 }
@@ -251,7 +243,7 @@ dp_cic_set_precision (dp_cic_state_t *state, uint32_t precision)
   if (!dp_cic_precision_ok (precision))
     return DP_ERR_INVALID;
   state->precision     = precision;
-  state->headroom_bits = precision_headroom (precision);
+  state->headroom_bits = dp_cic_precision_headroom (precision);
   derive (state);
   dp_cic_reset (state);
   return DP_OK;

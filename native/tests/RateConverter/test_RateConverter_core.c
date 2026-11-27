@@ -2531,6 +2531,47 @@ test_cic_word (void)
       DP_CHECK (isinf (dp_RateConverter_get_full_scale (hb)));
       DP_CHECK (dp_RateConverter_get_step (hb) == 0.0);
 
+      /* one rule for a precision's headroom: a converter and a CIC built
+         or set to the same precision have the same word */
+      {
+        dp_cic_state_t *c = dp_cic_create (64);
+        DP_CHECK (c != NULL);
+        DP_CHECK (dp_RateConverter_get_cic_headroom_bits (rc)
+                      == dp_cic_get_headroom_bits (c)
+                  && dp_cic_get_headroom_bits (c)
+                         == dp_cic_precision_headroom (CIC_PRECISION_DEFAULT));
+        static const uint32_t ps[]
+            = { CIC_PRECISION_16, CIC_PRECISION_32, CIC_PRECISION_64 };
+        for (size_t k = 0; c && k < 3; k++)
+          {
+            DP_CHECK (dp_RateConverter_set_cic_precision (rc, ps[k]) == DP_OK);
+            DP_CHECK (dp_cic_set_precision (c, ps[k]) == DP_OK);
+            DP_CHECK (dp_RateConverter_get_cic_headroom_bits (rc)
+                          == dp_cic_get_headroom_bits (c)
+                      && dp_cic_get_headroom_bits (c)
+                             == dp_cic_precision_headroom (ps[k]));
+          }
+        dp_cic_destroy (c);
+        DP_CHECK (
+            dp_RateConverter_set_cic_precision (rc, CIC_PRECISION_DEFAULT)
+            == DP_OK);
+      }
+      /* the matched constructor builds its CIC by the same rule */
+      {
+        dp_RateConverter_state_t *mc = dp_RateConverter_create_matched (
+            2.0 / 64.0, 1, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
+        DP_CHECK (mc != NULL);
+        if (mc)
+          {
+            DP_CHECK (dp_RateConverter_get_cic_precision (mc)
+                      == CIC_PRECISION_DEFAULT);
+            DP_CHECK (dp_RateConverter_get_cic_headroom_bits (mc)
+                      == dp_cic_precision_headroom (CIC_PRECISION_DEFAULT));
+            DP_CHECK (dp_RateConverter_get_full_scale (mc)
+                      == dp_RateConverter_get_full_scale (rc));
+          }
+        dp_RateConverter_destroy (mc);
+      }
       /* a precision reaches the stage, with its own headroom */
       DP_CHECK (dp_RateConverter_set_cic_headroom_bits (rc, 5) == DP_OK);
       DP_CHECK (dp_RateConverter_get_full_scale (rc) == 32.0);
@@ -2614,6 +2655,47 @@ test_cic_word (void)
               dp_RateConverter_set_rate (tw, 0.005);
               DP_CHECK (dp_RateConverter_get_rate (tw) == 0.005);
               DP_CHECK (dp_RateConverter_get_full_scale (tw) == 8.0);
+              /* A blob whose own copy of the word is not its CIC's:
+                 refused, and nothing changes. Then one whose terminal
+                 stage refuses after the CIC stage has taken its part:
+                 refused, and the CIC stage is put back too. */
+              {
+                /* a twin at the blob's own rate, so the rate key is not
+                   what refuses */
+                dp_RateConverter_state_t *t2
+                    = dp_RateConverter_create (0.01, 0);
+                char *before = malloc (nb), *after = malloc (nb);
+                DP_CHECK (t2 && before && after
+                          && dp_RateConverter_state_bytes (t2) == nb);
+                if (t2 && before && after)
+                  {
+                    dp_RateConverter_get_state (rc, blob);
+                    dp_RateConverter_get_state (t2, before);
+                    const uint32_t other[2]
+                        = { CIC_PRECISION_16, CIC_HEADROOM_BITS_16 };
+                    memcpy (blob + sizeof (dp_state_hdr_t) + sizeof (double),
+                            other, sizeof other);
+                    DP_CHECK (dp_RateConverter_set_state (t2, blob)
+                              == DP_ERR_INVALID);
+                    dp_RateConverter_get_state (t2, after);
+                    DP_CHECK (memcmp (before, after, nb) == 0);
+                    dp_RateConverter_get_state (rc, blob);
+                    const resamp_state_t *term
+                        = rc->stage_ptrs[rc->n_stages - 1];
+                    DP_CHECK (rc->stage_types[0] == RC_STAGE_CIC
+                              && rc->stage_types[rc->n_stages - 1]
+                                     == RC_STAGE_RESAMP);
+                    blob[nb - dp_resamp_state_bytes (term)] ^= 0x5a;
+                    DP_CHECK (dp_RateConverter_set_state (t2, blob)
+                              == DP_ERR_INVALID);
+                    dp_RateConverter_get_state (t2, after);
+                    DP_CHECK (memcmp (before, after, nb) == 0);
+                  }
+                free (before);
+                free (after);
+                dp_RateConverter_destroy (t2);
+              }
+              dp_RateConverter_get_state (rc, blob);
               /* a word no CIC takes is refused */
               uint32_t bad = 24;
               memcpy (blob + sizeof (dp_state_hdr_t) + sizeof (double), &bad,

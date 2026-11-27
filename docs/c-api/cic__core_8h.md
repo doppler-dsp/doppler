@@ -59,9 +59,10 @@ _CIC decimation filter — CIC\_N stages, one-sample combs, an integer pipeline 
 
 | Type | Name |
 | ---: | :--- |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**cic\_decimate\_word**](#function-cic_decimate_word) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out, const unsigned b) <br>[_**dp\_cic\_decimate()**_](cic__core_8h.md#function-dp_cic_decimate) _for a word of_`b` _bits: the kernel._ |
 |  [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* | [**dp\_cic\_create**](#function-dp_cic_create) (uint32\_t R) <br>_Create a CIC decimation filter of CIC\_N stages. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC\_N \* log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM. The filter is built at CIC\_PRECISION\_DEFAULT with that precision's headroom, so its input is bounded at CIC\_PAPR\_WIDE (_ [_**dp\_cic\_set\_precision()**_](cic__core_8h.md#function-dp_cic_set_precision) _,_[_**dp\_cic\_set\_headroom\_bits()**_](cic__core_8h.md#function-dp_cic_set_headroom_bits) _). A component at or beyond it is clipped at the boundary before any filtering; the sample stream gives no sign of it, so check the sticky_`clipped` _flag. Unlike doppler's floating-point blocks this one is not scale-free_ _scale the input into range first._ |
 |  double | [**dp\_cic\_dc\_gain**](#function-dp_cic_dc_gain) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_The filter's response to a constant input, from its own geometry._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**dp\_cic\_decimate**](#function-dp_cic_decimate) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to 16-bit Q15, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N one-sample combs and converted back to CF32. State persists between calls. A fresh or reset filter starts from silence: its first CIC\_N - 1 outputs are the filter filling with the input, and silence in gives exact zeros out from the first one. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**dp\_cic\_decimate**](#function-dp_cic_decimate) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to the filter's integer word (_ [_**dp\_cic\_get\_bits()**_](cic__core_8h.md#function-dp_cic_get_bits) _), pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N one-sample combs and converted back to CF32. State persists between calls. A fresh or reset filter starts from silence: its first CIC\_N - 1 outputs are the filter filling with the input, and silence in gives exact zeros out from the first one. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._ |
 |  size\_t | [**dp\_cic\_decimate\_max\_out**](#function-dp_cic_decimate_max_out) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
 |  void | [**dp\_cic\_destroy**](#function-dp_cic_destroy) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Free the filter state._  |
 |  uint32\_t | [**dp\_cic\_get\_bits**](#function-dp_cic_get_bits) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_The input word's width in bits, sign included._  |
@@ -72,6 +73,7 @@ _CIC decimation filter — CIC\_N stages, one-sample combs, an integer pipeline 
 |  void | [**dp\_cic\_get\_state**](#function-dp_cic_get_state) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, void \* blob) <br>_Serialize R, the integrator/comb/phase state and_ `clipped` _into_`blob` _. shift is not written: it is derived from R._ |
 |  double | [**dp\_cic\_get\_step**](#function-dp_cic_get_step) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_The input's step: a component smaller than this reads zero, and the output is a whole number of them._  |
 |  int | [**dp\_cic\_headroom\_bits\_ok**](#function-dp_cic_headroom_bits_ok) (uint32\_t bits) <br>_Is this a headroom a CIC takes: 0 to CIC\_HEADROOM\_BITS\_MAX bits._  |
+|  uint32\_t | [**dp\_cic\_precision\_headroom**](#function-dp_cic_precision_headroom) (uint32\_t precision) <br>_The headroom a precision starts with: CIC\_HEADROOM\_BITS\_16 for CIC\_PRECISION\_16, CIC\_HEADROOM\_BITS\_WIDE for the other two._  |
 |  int | [**dp\_cic\_precision\_ok**](#function-dp_cic_precision_ok) (uint32\_t precision) <br>_Is this a precision: CIC\_PRECISION\_16, CIC\_PRECISION\_32 or CIC\_PRECISION\_64._  |
 |  void | [**dp\_cic\_reconfigure**](#function-dp_cic_reconfigure) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 2048]` _(_`CIC_R_MAX` _) — the state is left unchanged in that case._ |
 |  void | [**dp\_cic\_reset**](#function-dp_cic_reset) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state. Also clears the sticky_ `clipped` _flag._ |
@@ -125,6 +127,10 @@ _CIC decimation filter — CIC\_N stages, one-sample combs, an integer pipeline 
 | define  | [**CIC\_R\_MAX**](cic__core_8h.md#define-cic_r_max)  `2048u`<br>_Largest decimation ratio a CIC will be built at._  |
 | define  | [**CIC\_STATE\_MAGIC**](cic__core_8h.md#define-cic_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C', 'I', 'C', '\_')`<br> |
 | define  | [**CIC\_STATE\_VERSION**](cic__core_8h.md#define-cic_state_version)  `5u`<br> |
+| define  | [**CIC\_WORD\_BOTTOM**](cic__core_8h.md#define-cic_word_bottom) (b) `(-(float)(1ull &lt;&lt; ((b) - 1)))`<br> |
+| define  | [**CIC\_WORD\_CASE**](cic__core_8h.md#define-cic_word_case) (b) `/* multi line expression */`<br> |
+| define  | [**CIC\_WORD\_TOP**](cic__core_8h.md#define-cic_word_top) (b) `/* multi line expression */`<br> |
+| define  | [**CIC\_WORD\_WIDTHS**](cic__core_8h.md#define-cic_word_widths) (X) `X(16) X(20) X(24) X(28) X(32) X(36) X(40) X(44) X(48) X(52) X(56) X(60)`<br> |
 
 ## Detailed Description
 
@@ -175,7 +181,7 @@ The unsigned modular-arithmetic CIC property guarantees exact outputs: every int
 With one-sample combs and CIC\_N fixed, the entire comb state is CIC\_N registers per channel — no heap allocation beyond the state struct itself.
 
 
-Alias rejection : ~77 dB at f\_p = 0.1 \* f\_out, CIC\_N stages (independent of R) Passband droop : ~0.57 dB at f\_p = 0.1 \* f\_out (independent of R) Output precision: the input word's ([**dp\_cic\_get\_bits()**](cic__core_8h.md#function-dp_cic_get_bits))
+Alias rejection : ~77 dB at f\_p = 0.1 \* f\_out, CIC\_N stages (independent of R) Passband droop : ~0.57 dB at f\_p = 0.1 \* f\_out (independent of R) Output precision: CF32, so a float's 24 bits of the input word
 
 
 
@@ -191,6 +197,53 @@ dp_cic_destroy(cic);
     
 ## Public Functions Documentation
 
+
+
+
+### function cic\_decimate\_word 
+
+[_**dp\_cic\_decimate()**_](cic__core_8h.md#function-dp_cic_decimate) _for a word of_`b` _bits: the kernel._
+```C++
+JM_FORCEINLINE  JM_HOT size_t cic_decimate_word (
+    dp_cic_state_t * state,
+    const float _Complex * in,
+    size_t n_in,
+    float _Complex * out,
+    size_t max_out,
+    const unsigned b
+) 
+```
+
+
+
+Force-inlined, and called only with a literal `b`, so each width is compiled with its two ends as constants ([**CIC\_WORD\_TOP()**](cic__core_8h.md#define-cic_word_top), [**CIC\_WORD\_BOTTOM()**](cic__core_8h.md#define-cic_word_bottom)). That is what makes the clamp branch-free: with the ends in variables the compiler cannot rule out that one is NaN and keeps a branch per comparison, and the loop ran at half the rate (measured on bench\_cic\_core, R = 32). [**dp\_cic\_decimate()**](cic__core_8h.md#function-dp_cic_decimate) picks the width.
+
+
+
+
+**Parameters:**
+
+
+* `state` As [**dp\_cic\_decimate()**](cic__core_8h.md#function-dp_cic_decimate). 
+* `in` As [**dp\_cic\_decimate()**](cic__core_8h.md#function-dp_cic_decimate). 
+* `n_in` As [**dp\_cic\_decimate()**](cic__core_8h.md#function-dp_cic_decimate). 
+* `out` As [**dp\_cic\_decimate()**](cic__core_8h.md#function-dp_cic_decimate). 
+* `max_out` As [**dp\_cic\_decimate()**](cic__core_8h.md#function-dp_cic_decimate). 
+* `b` The word's width, `state->bits`, as a literal. 
+
+
+
+**Returns:**
+
+As [**dp\_cic\_decimate()**](cic__core_8h.md#function-dp_cic_decimate). 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -280,7 +333,7 @@ dp_cic_destroy (c);
 
 ### function dp\_cic\_decimate 
 
-_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to 16-bit Q15, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N one-sample combs and converted back to CF32. State persists between calls. A fresh or reset filter starts from silence: its first CIC\_N - 1 outputs are the filter filling with the input, and silence in gives exact zeros out from the first one. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._ 
+_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to the filter's integer word (_ [_**dp\_cic\_get\_bits()**_](cic__core_8h.md#function-dp_cic_get_bits) _), pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N one-sample combs and converted back to CF32. State persists between calls. A fresh or reset filter starts from silence: its first CIC\_N - 1 outputs are the filter filling with the input, and silence in gives exact zeros out from the first one. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._
 ```C++
 JM_FORCEINLINE  JM_HOT size_t dp_cic_decimate (
     dp_cic_state_t * state,
@@ -297,7 +350,7 @@ JM_FORCEINLINE  JM_HOT size_t dp_cic_decimate (
 
 **Note:**
 
-**Input amplitude is bounded: \|Re\| and \|Im\| &lt;= 2.0.** A component beyond +-2.0 is clipped at the boundary before filtering; the sample stream gives no sign of it, so check the sticky `clipped` flag. Scale the input into range first; see the file header.
+**Input amplitude is bounded** by [**dp\_cic\_get\_full\_scale()**](cic__core_8h.md#function-dp_cic_get_full_scale), 4.0 as built: a component scaled past the word's top, or below its bottom, is clipped at the boundary before filtering; the sample stream gives no sign of it, so check the sticky `clipped` flag. Scale the input into range first; see the file header.
 
 
 
@@ -306,7 +359,7 @@ JM_FORCEINLINE  JM_HOT size_t dp_cic_decimate (
 
 
 * `state` Pointer to a valid [**dp\_cic\_state\_t**](structdp__cic__state__t.md). 
-* `in` CF32 input block, \|Re\| and \|Im\| &lt;= 2.0 (clipped otherwise). 
+* `in` CF32 input block, inside the full scale (clipped otherwise). 
 * `n_in` Number of input samples. 
 * `out` Output buffer; must hold at least max\_out elements. 
 * `max_out` Capacity of `out` in samples. Normally n\_in (the loosest bound: at most one output per input). If it is smaller the integrators and combs still advance over every input sample  the pipeline is a running filter and cannot be left half-fed  but emission stops, so the samples past the capacity are dropped rather than written past the end. 
@@ -448,7 +501,7 @@ double dp_cic_get_full_scale (
 
 
 
-
+Exactly: a component is clipped when it scales past the word's top float, [**CIC\_WORD\_TOP()**](cic__core_8h.md#define-cic_word_top), or below its bottom. For a word wider than a float's mantissa that is at full scale; for one of 25 bits or fewer the top is `2^(bits - 1) - 1`, so a component in the last step under full scale is clipped too, which is the filter as it was at 16 bits. 
 
 **Parameters:**
 
@@ -671,6 +724,43 @@ The ONE predicate: [**dp\_cic\_set\_headroom\_bits()**](cic__core_8h.md#function
 **Returns:**
 
 1 inside the domain, 0 outside it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_cic\_precision\_headroom 
+
+_The headroom a precision starts with: CIC\_HEADROOM\_BITS\_16 for CIC\_PRECISION\_16, CIC\_HEADROOM\_BITS\_WIDE for the other two._ 
+```C++
+uint32_t dp_cic_precision_headroom (
+    uint32_t precision
+) 
+```
+
+
+
+The ONE rule: [**dp\_cic\_create()**](cic__core_8h.md#function-dp_cic_create), [**dp\_cic\_set\_precision()**](cic__core_8h.md#function-dp_cic_set_precision) and every owner that builds or configures a CIC ([**dp\_RateConverter\_set\_cic\_precision()**](RateConverter__core_8h.md#function-dp_rateconverter_set_cic_precision), [**dp\_RateConverter\_create()**](RateConverter__core_8h.md#function-dp_rateconverter_create)) take the headroom from here.
+
+
+
+
+**Parameters:**
+
+
+* `precision` A precision [**dp\_cic\_precision\_ok()**](cic__core_8h.md#function-dp_cic_precision_ok) accepts. 
+
+
+
+**Returns:**
+
+Bits of headroom. 
 
 
 
@@ -1219,6 +1309,82 @@ FourCC type tag ("CIC\_") stamped in a CIC state blob's header.
 
 
 Layout version of the CIC state blob (2 added `clipped`, 3 added R; 4: the registers hold the sample without its offset; 5: the precision and the headroom travel, and the word is theirs). 
+
+
+        
+
+<hr>
+
+
+
+### define CIC\_WORD\_BOTTOM 
+
+```C++
+#define CIC_WORD_BOTTOM (
+    b
+) `(-(float)(1ull << ((b) - 1)))`
+```
+
+
+
+The smallest: `-2^(b - 1)`, a float exactly. 
+
+
+        
+
+<hr>
+
+
+
+### define CIC\_WORD\_CASE 
+
+```C++
+#define CIC_WORD_CASE (
+    b
+) `/* multi line expression */`
+```
+
+
+
+One case of [**dp\_cic\_decimate()**](cic__core_8h.md#function-dp_cic_decimate)'s width switch: the kernel with `b` as a literal. 
+
+
+        
+
+<hr>
+
+
+
+### define CIC\_WORD\_TOP 
+
+```C++
+#define CIC_WORD_TOP (
+    b
+) `/* multi line expression */`
+```
+
+
+
+The largest float the word holds: `2^(b - 1) - 1` while a float can hold that (24 bits of mantissa: `b` up to 25), and past that the float under `2^(b - 1)`. A sample scaled past it is a clip. 
+
+
+        
+
+<hr>
+
+
+
+### define CIC\_WORD\_WIDTHS 
+
+```C++
+#define CIC_WORD_WIDTHS (
+    X
+) `X(16) X(20) X(24) X(28) X(32) X(36) X(40) X(44) X(48) X(52) X(56) X(60)`
+```
+
+
+
+Every width a word can have: a precision's, or what the register has left after a power-of-two ratio's gain, `CIC_REG_BITS - CIC_N * log2(R)`. The kernel is compiled once for each. 
 
 
         

@@ -907,7 +907,7 @@ dp_RateConverter_create (double rate, int compensate)
   s->rate              = rate;
   s->compensate        = compensate;
   s->cic_precision     = CIC_PRECISION_DEFAULT;
-  s->cic_headroom_bits = CIC_HEADROOM_BITS_WIDE;
+  s->cic_headroom_bits = dp_cic_precision_headroom (CIC_PRECISION_DEFAULT);
 
   rc_plan_entry_t plan[RC_MAX_STAGES];
   int             n = rc_plan (rate, compensate, 0, plan);
@@ -943,7 +943,7 @@ dp_RateConverter_create_matched (double rate, int compensate, int pulse,
   s->rate              = rate;
   s->compensate        = compensate;
   s->cic_precision     = CIC_PRECISION_DEFAULT;
-  s->cic_headroom_bits = CIC_HEADROOM_BITS_WIDE;
+  s->cic_headroom_bits = dp_cic_precision_headroom (CIC_PRECISION_DEFAULT);
   s->pulse             = pulse;
   s->beta              = beta;
   s->span              = span;
@@ -1084,9 +1084,7 @@ dp_RateConverter_set_cic_precision (dp_RateConverter_state_t *s,
   if (!dp_cic_precision_ok (precision))
     return DP_ERR_INVALID;
   s->cic_precision     = precision;
-  s->cic_headroom_bits = precision == CIC_PRECISION_16
-                             ? CIC_HEADROOM_BITS_16
-                             : CIC_HEADROOM_BITS_WIDE;
+  s->cic_headroom_bits = dp_cic_precision_headroom (precision);
   rc_apply_cic_word (s);
   return DP_OK;
 }
@@ -1213,21 +1211,32 @@ dp_RateConverter_set_state (dp_RateConverter_state_t *s, const void *blob)
   const uint32_t precision = dp_r_u32 (&r), headroom = dp_r_u32 (&r);
   if (!dp_cic_precision_ok (precision) || !dp_cic_headroom_bits_ok (headroom))
     return DP_ERR_INVALID;
+  /* The children commit as each accepts its sub-blob, so what they held
+     is kept until the whole blob has been accepted, and put back on any
+     refusal: a refused blob leaves the converter as it was. */
+  const size_t total = dp_RateConverter_state_bytes (s);
+  char        *held  = dp_xmallocn (total, 1);
+  dp_RateConverter_get_state (s, held);
   const char *p = (const char *)blob + r.off;
-  for (int i = 0; i < s->n_stages; i++)
+  for (int i = 0; i < s->n_stages && rc == DP_OK; i++)
+    rc = rc_stage_set_state (s->stage_types[i], s->stage_ptrs[i], &p);
+  if (rc == DP_OK && s->agc)
+    rc = dp_agc_set_state (s->agc, p);
+  /* Each CIC stage took its word from its own sub-blob, and the converter
+     builds a re-plan's CIC from its own copy: the two must be one word,
+     or a re-plan would switch to a word no stage was using. */
+  const dp_cic_state_t *c = rc_first_cic (s);
+  if (rc == DP_OK && c
+      && (dp_cic_get_precision (c) != precision
+          || dp_cic_get_headroom_bits (c) != headroom))
+    rc = DP_ERR_INVALID;
+  if (rc != DP_OK)
     {
-      rc = rc_stage_set_state (s->stage_types[i], s->stage_ptrs[i], &p);
-      if (rc != DP_OK)
-        return rc;
+      (void)dp_RateConverter_set_state (s, held);
+      free (held);
+      return rc;
     }
-  if (s->agc)
-    {
-      rc = dp_agc_set_state (s->agc, p);
-      if (rc != DP_OK)
-        return rc;
-    }
-  /* each CIC stage took its word from its own sub-blob; this is the copy
-     a re-plan builds from */
+  free (held);
   s->cic_precision     = precision;
   s->cic_headroom_bits = headroom;
   return DP_OK;
@@ -1731,9 +1740,7 @@ rc_pre_hb (rc_pre_t *p, const hbdecim_state_t *r)
 }
 
 /* The CIC: CIC_N boxcars of R inputs in a row at unit gain, output k
-   formed as input k R + R - 1 arrives. Then its droop compensator, when
-   the plan appends one: a FIR at the CIC's output rate, aligned with its
-   newest input. */
+   formed as input k R + R - 1 arrives. */
 static void
 rc_pre_cic (rc_pre_t *p, const rc_cic_stage_t *cs)
 {
@@ -1757,12 +1764,9 @@ rc_pre_cic (rc_pre_t *p, const rc_cic_stage_t *cs)
     }
   rc_pre_compose (p, t, len, (int64_t)R, (int64_t)R - 1);
   free (t);
-  if (cs->fir)
-    {
-      double f[7];
-      dp_ciccompmf (f, 4, (uint32_t)cs->R, 7);
-      rc_pre_compose (p, f, 7, 1, 0);
-    }
+  /* No droop compensator here: a matched plan folds it into the terminal
+     bank (both of its planners zero the stage's own), so the bank's arm,
+     composed below, already carries it. */
 }
 
 static int

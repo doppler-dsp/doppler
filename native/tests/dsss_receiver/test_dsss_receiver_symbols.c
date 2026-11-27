@@ -41,6 +41,7 @@ const jm_any_fn jm_bound_symbols_dsss_receiver[] = {
     (jm_any_fn)dp_dsss_receiver_get_code_rate,
     (jm_any_fn)dp_dsss_receiver_get_lock,
     (jm_any_fn)dp_dsss_receiver_get_norm_freq,
+    (jm_any_fn)dp_dsss_receiver_get_settle_time,
     (jm_any_fn)dp_dsss_receiver_state_bytes,
     (jm_any_fn)dp_dsss_receiver_get_state,
     (jm_any_fn)dp_dsss_receiver_set_state,

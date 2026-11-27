@@ -84,6 +84,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despre
 |  int | [**dp\_dsss\_receiver\_get\_n**](#function-dp_dsss_receiver_get_n) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_MpskReceiver terminal outputs per symbol (_ `m_out` _) in use._ |
 |  double | [**dp\_dsss\_receiver\_get\_norm\_freq**](#function-dp_dsss_receiver_get_norm_freq) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_MpskReceiver's tracked carrier frequency; 0.0 while searching._  |
 |  size\_t | [**dp\_dsss\_receiver\_get\_segments**](#function-dp_dsss_receiver_get_segments) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Dll partial correlations per code period currently in use._  |
+|  double | [**dp\_dsss\_receiver\_get\_settle\_time**](#function-dp_dsss_receiver_get_settle_time) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Symbols a track emits before its demodulator has settled: where a steady-state measurement of a track's symbols may start._  |
 |  size\_t | [**dp\_dsss\_receiver\_get\_sps**](#function-dp_dsss_receiver_get_sps) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_MpskReceiver samples per symbol currently in use._  |
 |  void | [**dp\_dsss\_receiver\_get\_state**](#function-dp_dsss_receiver_get_state) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state, void \* blob) <br>_Serialize the whole receiver (searching or tracking) into_ `blob` _._ |
 |  int | [**dp\_dsss\_receiver\_get\_tracking**](#function-dp_dsss_receiver_get_tracking) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Routing state: searching or tracking._  |
@@ -127,6 +128,9 @@ _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despre
 | define  | [**DSSS\_RECEIVER\_STATE\_VERSION**](dsss__receiver__core_8h.md#define-dsss_receiver_state_version)  `/* multi line expression */`<br>_Layout version of the receiver state blob._  |
 | define  | [**DSSS\_RX\_BN\_CARRIER**](dsss__receiver__core_8h.md#define-dsss_rx_bn_carrier)  `0.01`<br>_Pre-despread carrier loop's PLL noise bandwidth, normalized to its once-per-code-period update rate._  |
 | define  | [**DSSS\_RX\_BN\_FLL**](dsss__receiver__core_8h.md#define-dsss_rx_bn_fll)  `0.03`<br>_Pre-despread carrier loop's FLL-assist bandwidth, normalized to its once-per-code-period update rate._  |
+| define  | [**DSSS\_RX\_DEMOD\_BN\_CARRIER**](dsss__receiver__core_8h.md#define-dsss_rx_demod_bn_carrier)  `0.01`<br>_The demodulator's carrier loop noise bandwidth, cycles per symbol, as this receiver builds its MpskReceiver._  |
+| define  | [**DSSS\_RX\_DEMOD\_BN\_TIMING**](dsss__receiver__core_8h.md#define-dsss_rx_demod_bn_timing)  `0.005`<br>_The demodulator's timing loop noise bandwidth, cycles per symbol, as this receiver builds its MpskReceiver._  |
+| define  | [**DSSS\_RX\_DEMOD\_ZETA**](dsss__receiver__core_8h.md#define-dsss_rx_demod_zeta)  `0.707`<br>_The damping of both the demodulator's loops._  |
 
 ## Detailed Description
 
@@ -350,7 +354,7 @@ dp_dsss_receiver_state_t * dp_dsss_receiver_create (
 
 
 
-Only `code`/`chip_rate`/`symbol_rate` describe the signal itself — everything else is a physically-motivated default a caller can override, not a requirement. Internally: the embedded continuous search is built via `dp_correlator_create_continuous()` (this receiver is inherently continuous/streaming)  always window-tiles, never coherently combines across epochs, sensitivity purely from an internally auto-sized non-coherent look count (see `correlator_core.h`'s file doc comment); `Dll` always uses `bn=0.002` (this story's own validated stable loop bandwidth for a one-update-per-code-epoch geometry, not `dp_dll_create()`'s own default of 0.01, which this story found unstable here) and `zeta=0.707`, `spacing=0.5`; `MpskReceiver` always uses `pulse=iandd`, `bn_carrier=bn_timing=0.01`, `zeta=0.707` and `lock_thresh=0.3` — this story's own validated values throughout. It also passed `acq_to_track=1` and `warmup_syms=30` until those were deleted (doppler#877, `1f417e97`); the composed receiver now runs its one NDA discriminator here as everywhere else. `lock_thresh=0.3` predates the lock statistic becoming a calibrated detector and is retained because it is validated here, but it now has a derivable reading: the carrier lock EMA's noise-only sd is 0.1132 at every M, so 0.3 is **2.65 noise sigmas**, a per-look Pfa of ~4e-3 — looser than `MpskReceiver`'s own 0.5 default (4.42 sigma, 5e-6) and still ~6 sigma clear of the +0.99 a locked BPSK constellation reads, which is why it holds. See `carrier_nda_core.h`. `n` (MpskReceiver's terminal outputs per symbol, `m_out`) is derived from `sps` by [**mpsk\_rx\_derive\_m\_out()**](mpsk__rx__loops_8h.md#function-mpsk_rx_derive_m_out): the even count `2*floor(sps/2)`, capped at 8.
+Only `code`/`chip_rate`/`symbol_rate` describe the signal itself — everything else is a physically-motivated default a caller can override, not a requirement. Internally: the embedded continuous search is built via `dp_correlator_create_continuous()` (this receiver is inherently continuous/streaming)  always window-tiles, never coherently combines across epochs, sensitivity purely from an internally auto-sized non-coherent look count (see `correlator_core.h`'s file doc comment); `Dll` always uses `bn=0.002` (this story's own validated stable loop bandwidth for a one-update-per-code-epoch geometry, not `dp_dll_create()`'s own default of 0.01, which this story found unstable here) and `zeta=0.707`, `spacing=0.5`; `MpskReceiver` always uses `pulse=iandd`, DSSS\_RX\_DEMOD\_BN\_CARRIER, DSSS\_RX\_DEMOD\_BN\_TIMING, DSSS\_RX\_DEMOD\_ZETA and `lock_thresh=0.3` — this story's own validated values throughout. It also passed `acq_to_track=1` and `warmup_syms=30` until those were deleted (doppler#877, `1f417e97`); the composed receiver now runs its one NDA discriminator here as everywhere else. `lock_thresh=0.3` predates the lock statistic becoming a calibrated detector and is retained because it is validated here, but it now has a derivable reading: the carrier lock EMA's noise-only sd is 0.1132 at every M, so 0.3 is **2.65 noise sigmas**, a per-look Pfa of ~4e-3 — looser than `MpskReceiver`'s own 0.5 default (4.42 sigma, 5e-6) and still ~6 sigma clear of the +0.99 a locked BPSK constellation reads, which is why it holds. See `carrier_nda_core.h`. `n` (MpskReceiver's terminal outputs per symbol, `m_out`) is derived from `sps` by [**mpsk\_rx\_derive\_m\_out()**](mpsk__rx__loops_8h.md#function-mpsk_rx_derive_m_out): the even count `2*floor(sps/2)`, capped at 8.
 
 
 
@@ -712,6 +716,54 @@ size_t dp_dsss_receiver_get_segments (
 **Returns:**
 
 The create-time value, or the last configure\_chain\_raw() pin. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dsss\_receiver\_get\_settle\_time 
+
+_Symbols a track emits before its demodulator has settled: where a steady-state measurement of a track's symbols may start._ 
+```C++
+double dp_dsss_receiver_get_settle_time (
+    const dp_dsss_receiver_state_t * state
+) 
+```
+
+
+
+The demodulator's own figure, [**dp\_mpsk\_receiver\_get\_settle\_time()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_get_settle_time), at the bandwidths this receiver builds it with (DSSS\_RX\_DEMOD\_BN\_TIMING, DSSS\_RX\_DEMOD\_BN\_CARRIER and DSSS\_RX\_DEMOD\_ZETA): 778.5 symbols. Counted from the first symbol a track emits, since nothing is emitted while the receiver searches; reset() starts the search, and so the count, again. It is a design figure of the demodulator's two linear loops: the code loop and the pre-despread carrier loop, which run ahead of it and pull in over the same span, are not counted.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Symbols, from the first one of a track. 
+```C++
+uint8_t code[7] = { 1, 1, 1, 0, 0, 1, 0 };
+dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
+    code, 7, 1.0e6, 35714.29, 4.0e6, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+if (!rx)
+  return 1;
+// known before a sample is fed: prints 778.5
+printf ("%.1f\n", dp_dsss_receiver_get_settle_time (rx));
+dp_dsss_receiver_destroy (rx);
+```
+ 
 
 
 
@@ -1097,6 +1149,48 @@ _Pre-despread carrier loop's PLL noise bandwidth, normalized to its once-per-cod
 _Pre-despread carrier loop's FLL-assist bandwidth, normalized to its once-per-code-period update rate._ 
 ```C++
 #define DSSS_RX_BN_FLL `0.03`
+```
+
+
+
+
+<hr>
+
+
+
+### define DSSS\_RX\_DEMOD\_BN\_CARRIER 
+
+_The demodulator's carrier loop noise bandwidth, cycles per symbol, as this receiver builds its MpskReceiver._ 
+```C++
+#define DSSS_RX_DEMOD_BN_CARRIER `0.01`
+```
+
+
+
+
+<hr>
+
+
+
+### define DSSS\_RX\_DEMOD\_BN\_TIMING 
+
+_The demodulator's timing loop noise bandwidth, cycles per symbol, as this receiver builds its MpskReceiver._ 
+```C++
+#define DSSS_RX_DEMOD_BN_TIMING `0.005`
+```
+
+
+
+
+<hr>
+
+
+
+### define DSSS\_RX\_DEMOD\_ZETA 
+
+_The damping of both the demodulator's loops._ 
+```C++
+#define DSSS_RX_DEMOD_ZETA `0.707`
 ```
 
 

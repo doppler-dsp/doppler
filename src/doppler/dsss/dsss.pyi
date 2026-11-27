@@ -2111,6 +2111,12 @@ class DsssReceiver:
     def norm_freq(self) -> float:
         """MpskReceiver's tracked carrier frequency; 0.0 while searching."""
 
+    @property
+    def settle_time(self) -> float:
+        """Symbols a track emits before its demodulator has settled: where a
+        steady-state measurement of a track's symbols may start.
+        """
+
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 

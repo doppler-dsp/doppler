@@ -901,8 +901,8 @@ over-damped). It scales as `1 / bn`:
 closed around a unit-gain integrator, to 1% and two updates over seven
 dampings. `DP_LOOP_FILTER_SETTLE_EPS`, 0.02, is the residual the library's
 objects report their `settle_time` at: `RateSync` for its timing loop, and
-`MpskReceiver` and `AsyncDsssReceiver` for the timing and carrier loops
-added. It is the linear loop's figure: a detector slope of `K` scales the
+`MpskReceiver`, `AsyncDsssReceiver` and `DsssReceiver` for the timing and
+carrier loops added. It is the linear loop's figure: a detector slope of `K` scales the
 decay rate by `K` (§3), and a frequency offset's transient is not in it.
 
 ## 15. The unknowns, and what the sweep measured

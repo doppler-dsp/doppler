@@ -1115,6 +1115,7 @@
 * **dp\_dsss\_receiver\_get\_n** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **dp\_dsss\_receiver\_get\_norm\_freq** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **dp\_dsss\_receiver\_get\_segments** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
+* **dp\_dsss\_receiver\_get\_settle\_time** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **dp\_dsss\_receiver\_get\_sps** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **dp\_dsss\_receiver\_get\_state** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **dp\_dsss\_receiver\_get\_tracking** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))

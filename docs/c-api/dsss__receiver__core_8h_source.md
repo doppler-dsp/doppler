@@ -73,6 +73,9 @@ extern "C"
    * physical parameters are required). */
 #define DSSS_RX_BN_CARRIER 0.01
 #define DSSS_RX_BN_FLL 0.03
+#define DSSS_RX_DEMOD_BN_CARRIER 0.01
+#define DSSS_RX_DEMOD_BN_TIMING 0.005
+#define DSSS_RX_DEMOD_ZETA 0.707
 
   dp_dsss_receiver_state_t *
   dp_dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
@@ -113,6 +116,8 @@ extern "C"
   double dp_dsss_receiver_get_code_rate (const dp_dsss_receiver_state_t *state);
   double dp_dsss_receiver_get_lock (const dp_dsss_receiver_state_t *state);
   double dp_dsss_receiver_get_norm_freq (const dp_dsss_receiver_state_t *state);
+  double
+  dp_dsss_receiver_get_settle_time (const dp_dsss_receiver_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car + dll + rc + rx, always all five (a fixed

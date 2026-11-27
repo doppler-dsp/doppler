@@ -1172,6 +1172,87 @@ _test_lost_is_released (void)
   return 0;
 }
 
+/* The search stops while every receiver holds and a fresh one starts on
+   the period one is free, reset at its first period (#3267, P3); a
+   receiver the controller resets keeps reporting under the same names
+   (P42). Two receivers on the two-emitter stream, B leaving at CI_B_OFF,
+   pushed one group (one control step) at a time, telemetry attached:
+   - while both hold, the search is not fed: search_periods stands still;
+   - in the group after B's holder is released, the search is fed again,
+     a group's periods, and its correlator stands where a fresh search
+     does after one group: its position counts samples since its reset
+     (dp_correlator_position()), so a search resumed from where it
+     stopped reads its earlier count plus a group;
+   - the released receiver is still attached to the same context, and the
+     registry holds the same probes under the same names.
+   Sabotage: drop feed_group's reset of a restarted search -> red on the
+   position; feed the search while all hold -> red on search_periods;
+   detach a receiver in its reset -> red on the names. */
+static int
+_test_search_restarts_and_names_survive (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t                      n;
+  float _Complex             *x     = _two_emitters_off (code, CI_B_OFF, &n);
+  dp_async_dsss_pool_state_t *p     = _pool (code, 2, CI_CONFIRM_S, 1);
+  dp_async_dsss_pool_state_t *fresh = _pool (code, 2, CI_CONFIRM_S, 1);
+  dp_tlm_t                   *t     = dp_tlm_create (1 << 12);
+  DP_REQUIRE (p && fresh && x && t);
+  DP_REQUIRE (dp_async_dsss_pool_set_telemetry (p, t, "p", 1) == DP_OK);
+  const uint32_t n_probes = t->n_probes;
+  /* A fresh search after one group: where a restarted one must stand. */
+  (void)dp_async_dsss_pool_push (fresh, x, POOL_GROUP);
+  const uint64_t fresh_pos  = dp_correlator_position (fresh->search->acq);
+  int            held_still = 1, restarted = 0, both_held = 0;
+  uint64_t       stop_pos = 0;
+  for (size_t pos = 0; pos + 2 * POOL_GROUP <= n && !restarted;
+       pos += POOL_GROUP)
+    {
+      const uint64_t periods  = p->search_periods;
+      const uint64_t released = p->released_lost;
+      const int      all_held = !p->searching && p->search_periods > 0;
+      (void)dp_async_dsss_pool_push (p, x + pos, POOL_GROUP);
+      if (all_held && p->released_lost == released && !p->searching)
+        held_still &= p->search_periods == periods;
+      if (!p->searching && !both_held)
+        {
+          both_held = 1;
+          stop_pos  = dp_correlator_position (p->search->acq);
+        }
+      if (p->released_lost > released)
+        {
+          /* The next group restarts the search. */
+          const uint64_t before = p->search_periods;
+          (void)dp_async_dsss_pool_push (p, x + pos + POOL_GROUP, POOL_GROUP);
+          DP_CHECK (p->searching);
+          DP_CHECK (p->search_periods
+                    == before + ASYNC_DSSS_POOL_PERIODS_PER_JOIN);
+          DP_REQUIRE_MSG (stop_pos > 0,
+                          "the search was fed before it stopped");
+          DP_CHECK_MSG (dp_correlator_position (p->search->acq) == fresh_pos,
+                        "a restarted search is reset at its first period");
+          restarted = 1;
+        }
+    }
+  DP_REQUIRE_MSG (both_held && restarted,
+                  "both held, then B's holder was released");
+  DP_CHECK_MSG (held_still,
+                "the search is not fed while every receiver holds");
+  DP_CHECK (p->rx[0]->tlm == t && p->rx[1]->tlm == t);
+  DP_CHECK_MSG (t->n_probes == n_probes, "no probe registered anew");
+  int found = 0;
+  for (uint32_t k = 0; k < t->n_probes; k++)
+    found += strcmp (t->probes[k].name, "p.r0.state") == 0
+             || strcmp (t->probes[k].name, "p.r1.state") == 0;
+  DP_CHECK_MSG (found == 2, "a reset receiver reports under its names");
+  dp_async_dsss_pool_destroy (p);
+  dp_async_dsss_pool_destroy (fresh);
+  dp_tlm_destroy (t);
+  free (x);
+  return 0;
+}
+
 /* The thread count changes nothing but the cost: one worker and three
    give the same state, byte for byte, and the same symbols. The search
    spans +-5 kHz, several Doppler tiles, so on three workers it fans its
@@ -2287,6 +2368,7 @@ main (void)
   DP_CHECK (_test_reset_clears_the_carry () == 0);
   DP_CHECK (_test_telemetry_one_producer () == 0);
   DP_CHECK (_test_lost_is_released () == 0);
+  DP_CHECK (_test_search_restarts_and_names_survive () == 0);
   DP_CHECK (_test_two_emitters_two_holders () == 0);
   DP_CHECK (_test_seeds_go_strongest_first_in_index_order () == 0);
   DP_CHECK (_test_fractional_period_phase (1.1) == 0);

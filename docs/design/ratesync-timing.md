@@ -795,6 +795,11 @@ designed for.
 loop emits before its timing error is under 2% of where it started,
 `2.59 / bn` at damping 0.707
 ([`dp_loop_filter_settle_time()`](loop-filter.md#14-closed-forms-a-caller-sizes-from)).
+It is a linear loop's figure: it holds for an RRC start of 0.25 symbol or
+less (`test_settle_time_from_an_offset`), and a start further out takes
+longer. On the rectangle the Gardner loop settles more slowly than the
+figure, which is what the derivative detector of section 9.2 replaces
+([#3377](https://github.com/doppler-dsp/doppler/issues/3377) is the baseline).
 The lock flag declares before that, on a statistic that crossed a
 threshold, so a window opened at the flag holds the pull-in. `MpskReceiver`,
 `AsyncDsssReceiver` and `DsssReceiver` report the timing and carrier loops'

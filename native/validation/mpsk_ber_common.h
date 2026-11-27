@@ -289,7 +289,7 @@ mpsk_ber_measure (const mpsk_ber_cfg_t *c, double esn0_db,
            that fixed the alignment are never also scored. */
         mk.sym = NULL;
         mk.n   = DP_BER_SYNC_SYMS;
-        mk.t0  = dp_ber_marker_place (truth, nsym, c->m,
+        mk.t0  = dp_ber_marker_place (truth, nsym, out, n, c->m,
                                       settle + (size_t)DP_BER_LAG_SPAN, 0,
                                       DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
         if (mk.t0 == SIZE_MAX)

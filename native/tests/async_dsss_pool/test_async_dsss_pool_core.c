@@ -1398,6 +1398,120 @@ _test_reset_and_threads (void)
   return 0;
 }
 
+static void _ring (dp_async_dsss_pool_state_t *p, size_t r, double f0,
+                   double slope, double jit, size_t locked);
+
+/* The header's reset, restore and read-back edges (#3267, P31, P33, P37,
+   P38, P39):
+   - reset() zeroes the ghost history and its release count, not only the
+     clock and the duplicate and loss counts;
+   - set_state() refuses a carry of a whole group or more, and leaves the
+     pool as it was;
+   - status() past the pool is a zeroed record, not only its state;
+   - symbols_max_out() is 0 before the first push and after reset(), and
+     is the largest of the receivers' counts;
+   - a push replaces the symbols: the pool holds what its last push
+     emitted, which a copy restored from the state before that push
+     emits on the same samples (set_state clears them, and the resume is
+     bit-for-bit); reset() clears them.
+   Sabotage, one per claim: drop reset's released_ghost = 0, or its
+   hist_len memset -> red; drop set_state's carry check -> the forged blob
+   restores; give status' none record a nonzero field -> red; let push
+   append to n_sym -> the original holds more than the copy. */
+static int
+_test_reset_and_restore_edges (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t                      n;
+  float _Complex             *x = _two_emitters (code, &n);
+  dp_async_dsss_pool_state_t *p = _pool (code, 3, 0.0, 1);
+  dp_async_dsss_pool_state_t *q = _pool (code, 3, 0.0, 1);
+  DP_REQUIRE (p && q && x && n > 4 * POOL_GROUP);
+  DP_CHECK_MSG (dp_async_dsss_pool_symbols_max_out (p) == 0,
+                "no symbols before the first push");
+
+  /* status() past the pool: every byte but the state is zero. */
+  {
+    const async_dsss_receiver_status_t none = dp_async_dsss_pool_status (p, 3);
+    async_dsss_receiver_status_t       want = { 0 };
+    want.state                              = ASYNC_DSSS_POOL_NO_RECEIVER;
+    DP_CHECK_MSG (memcmp (&none, &want, sizeof none) == 0,
+                  "status past the pool is a zeroed record");
+  }
+
+  /* A push replaces the symbols: q resumes from p's state before the
+     last push and emits on the same samples what p holds after it. */
+  const size_t first = n / 2 - (n / 2) % POOL_GROUP;
+  (void)dp_async_dsss_pool_push (p, x, first);
+  const size_t   bytes = dp_async_dsss_pool_state_bytes (p);
+  unsigned char *blob  = malloc (bytes);
+  DP_REQUIRE (blob != NULL);
+  dp_async_dsss_pool_get_state (p, blob);
+  DP_REQUIRE (dp_async_dsss_pool_set_state (q, blob) == DP_OK);
+  (void)dp_async_dsss_pool_push (p, x + first, POOL_GROUP);
+  (void)dp_async_dsss_pool_push (q, x + first, POOL_GROUP);
+  size_t most = 0;
+  for (size_t i = 0; i < 3; i++)
+    {
+      const size_t np = p->n_sym[i], nq = q->n_sym[i];
+      if (np != nq)
+        fprintf (stderr, "receiver %zu: %zu held against %zu emitted\n", i, np,
+                 nq);
+      DP_CHECK_MSG (np == nq, "a push replaces the symbols");
+      most = np > most ? np : most;
+    }
+  DP_REQUIRE_MSG (most > 0, "the scene emits symbols in the push");
+  DP_CHECK (dp_async_dsss_pool_symbols_max_out (p) == most);
+  /* Largest of: one receiver's count raised past the others reads back. */
+  p->n_sym[2] = most + 1;
+  DP_CHECK (dp_async_dsss_pool_symbols_max_out (p) == most + 1);
+  p->n_sym[2] = q->n_sym[2];
+
+  /* set_state() refuses a carry of a group or more, unchanged. The carry
+     length is the sixth field of the pool's extra, after the header. */
+  {
+    unsigned char *forged = malloc (bytes), *before = malloc (bytes),
+                  *after = malloc (bytes);
+    DP_REQUIRE (forged && before && after);
+    dp_async_dsss_pool_get_state (p, forged);
+    dp_async_dsss_pool_get_state (q, before);
+    const uint64_t group = (uint64_t)p->group;
+    memcpy (forged + sizeof (dp_state_hdr_t) + 5 * sizeof (uint64_t), &group,
+            sizeof group);
+    DP_CHECK_MSG (dp_async_dsss_pool_set_state (q, forged) == DP_ERR_INVALID,
+                  "a carry of a whole group is refused");
+    dp_async_dsss_pool_get_state (q, after);
+    DP_CHECK (memcmp (before, after, bytes) == 0);
+    free (forged);
+    free (before);
+    free (after);
+  }
+
+  /* reset() zeroes the ghost history and its count. */
+  _ring (p, 0, 100.0, 0.0, 0.0, 0);
+  _ring (p, 1, 1600.0, 0.0, 0.0, 0);
+  p->hist_pos       = 7;
+  p->released_ghost = 3;
+  dp_async_dsss_pool_reset (p);
+  DP_CHECK (p->released_ghost == 0 && p->hist_pos == 0);
+  for (size_t i = 0; i < 3; i++)
+    {
+      DP_CHECK_MSG (p->hist_len[i] == 0, "every ring emptied");
+      DP_CHECK (dp_async_dsss_pool_symbols (p, i, x, 1) == 0);
+    }
+  int zero = 1;
+  for (size_t c = 0; c < 3 * p->ghost_window; c++)
+    zero &= p->car_hist[c] == 0.0 && p->cl_hist[c] == 0;
+  DP_CHECK_MSG (zero, "every ring cell zeroed");
+  DP_CHECK (dp_async_dsss_pool_symbols_max_out (p) == 0);
+  free (blob);
+  dp_async_dsss_pool_destroy (p);
+  dp_async_dsss_pool_destroy (q);
+  free (x);
+  return 0;
+}
+
 /* Chunk invariance (dp_chunk_inv.h): the controller acts at group
    positions of the stream (ASYNC_DSSS_POOL_PERIODS_PER_JOIN code periods,
    on the grid counted from create), so how the stream is cut into pushes
@@ -2056,6 +2170,7 @@ main (void)
   DP_CHECK (_test_duplicates_keep_the_first () == 0);
   DP_CHECK (_test_duplicate_zone_is_one_chip_circular () == 0);
   DP_CHECK (_test_reset_and_threads () == 0);
+  DP_CHECK (_test_reset_and_restore_edges () == 0);
   DP_CHECK (_test_reset_clears_the_carry () == 0);
   DP_CHECK (_test_telemetry_one_producer () == 0);
   DP_CHECK (_test_lost_is_released () == 0);

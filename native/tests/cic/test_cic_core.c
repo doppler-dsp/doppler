@@ -101,11 +101,15 @@ cic_model (const dp_cic_state_t *c, const float _Complex *x, size_t n,
 /* The filter this one was before it had a precision: a 16-bit sample at
    full scale 2.0 with the offset-binary midpoint carried through the
    boxcars, written out with its own literals because it is a record of
-   that filter and not a use of this one's constants. */
+   that filter and not a use of this one's constants. Each boxcar is the
+   difference of a running sum, kept unsigned: the sum outgrows 64 bits at
+   large R (signed, that is undefined behavior, UBSan's catch), and the
+   difference of two wrapped sums is exact, since every boxcar fits. */
 static void
 cic_legacy (const float _Complex *x, size_t n, uint32_t R, float _Complex *y)
 {
-  int64_t      *v = malloc (n * sizeof *v), *c = malloc ((n + 1) * sizeof *c);
+  int64_t      *v    = malloc (n * sizeof *v);
+  uint64_t     *c    = malloc ((n + 1) * sizeof *c);
   const int64_t gain = (int64_t)R * R * R * R;
   for (int part = 0; part < 2; part++)
     {
@@ -122,9 +126,9 @@ cic_legacy (const float _Complex *x, size_t n, uint32_t R, float _Complex *y)
         {
           c[0] = 0;
           for (size_t i = 0; i < n; i++)
-            c[i + 1] = c[i] + v[i];
+            c[i + 1] = c[i] + (uint64_t)v[i];
           for (size_t i = 0; i < n; i++)
-            v[i] = c[i + 1] - c[i + 1 >= R ? i + 1 - R : 0];
+            v[i] = (int64_t)(c[i + 1] - c[i + 1 >= R ? i + 1 - R : 0]);
         }
       for (size_t k = 0; (k + 1) * R <= n; k++)
         {

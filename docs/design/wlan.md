@@ -733,9 +733,13 @@ difference: every 6 Mb/s record reads as 36 Mb/s, one-field records at 9,
 12 and 24 Mb/s are refused, and every `mac` none record gains the FCS.
 
 **A live object's pair stays whole.** A `Synth`'s `constellation`,
-`code_rate` and `wlan` setters write through
-`dp_wfm_source_set_constellation`, `_set_code_rate` and `_set_wlan`
-(just-makeit's `set_fn`), which keep the pair whole on an ofdm source:
+`code_rate`, `wlan`, `bandwidth` and `type` setters write through
+`dp_wfm_source_set_constellation`, `_set_code_rate`, `_set_wlan`,
+`_set_bandwidth` and `_set_type` (just-makeit's `set_fn`). Each builds the
+source it would leave and writes it only if `dp_wfm_source_rate_why`, the
+rate check the build itself runs, accepts it, so no write leaves a source
+that reads as a valid pair and is refused when it builds; a refused write
+leaves every field as it was. On an ofdm source:
 
 - a half set beside an `auto` other fixes the other at the value it read,
     so `constellation = "bpsk"` on a default source reads (bpsk, 3/4) and
@@ -745,12 +749,21 @@ difference: every 6 Mb/s record reads as 36 Mb/s, one-field records at 9,
 - a half set while `wlan` names the rate, and `wlan` set beside a given
     pair, are each refused with the object untouched, in two sentences
     worded as a pair;
-- a given pair Table 17-6 lacks, as (qam16, 5/6), is written, and the
-    source is refused when it builds, with "no SIGNAL RATE bits".
+- a `wlan` no row of Table 17-6 names, and `wlan` beside a bandwidth other
+    than 20 MHz (set from either side), are refused at the write;
+- the write that makes a source ofdm is refused when the rate fields it
+    held as another type do not resolve: half a pair ("are one rate: give
+    both, or neither"), or `wlan` beside a given pair, in the resolver's
+    second-spelling sentence ("a data rate in Mb/s is a spelling of
+    constellation and code_rate");
+- a given pair Table 17-6 lacks, as (qam16, 5/6), reads back as written, not
+    as a valid pair: it is written, and the source is refused when it
+    builds, with "no SIGNAL RATE bits".
 
 The header (`wfm_compose.h`) holds the rules as a table. A `Segment`'s rate
-fields are set at construction only, and the constructor and a record still
-refuse half a pair. A source built in C that holds half a pair reads each
+fields are set at construction only. The constructor runs the same check
+(just-makeit's `check_fn`, #2856), so `Synth(type="ofdm", constellation="bpsk")` is refused where it is written, and a record refuses
+half a pair when it is read. A source built in C that holds half a pair reads each
 given half as written and the default's for the other, never `auto`.
 
 **At 10 and 5 MHz** the zero-config source is the same pair, so it carries 18

@@ -209,7 +209,7 @@ double wfm_source_t::bandwidth;
 
 
 
-For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for 802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an integer multiple of it, at most 128 times it; the multiple is the oversampling M, done by a larger transform. 
+For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for 802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an integer multiple of it, at most 128 times it; the multiple is the oversampling M, done by a larger transform. Set on a live ofdm source whose rate wlan spells, a bandwidth other than 20 MHz is refused at once. 
 
 
         
@@ -1076,7 +1076,7 @@ int wfm_source_t::wlan;
 
 
 
-For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation and code\_rate (wlan 36 is constellation qam16 code-rate 3/4). 0 = not given. Refused beside a given constellation or code\_rate, at any other bandwidth (where a 10 or 5 MHz source is spelled by its constellation and code\_rate), and on any other type. Set on a live ofdm source whose pair is given, it is refused at once (set constellation or code\_rate to auto first). 
+For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation and code\_rate (wlan 36 is constellation qam16 code-rate 3/4). 0 = not given. Refused beside a given constellation or code\_rate, at any other bandwidth (where a 10 or 5 MHz source is spelled by its constellation and code\_rate), and on any other type. Set on a live ofdm source, it is refused at once beside a given pair (set constellation or code\_rate to auto first), when no row of the table names it, and at a bandwidth other than 20 MHz. 
 
 
         

@@ -324,6 +324,94 @@ def test_another_type_stores_a_half_as_given():
     assert _pair(t) == ("bpsk", "auto")
 
 
+def _readback(s: Synth) -> dict:
+    """Every property the Synth reads back, by name: what a refused write
+    must leave exactly as it was."""
+    names = [
+        n
+        for n in dir(type(s))
+        if isinstance(getattr(type(s), n), property)
+        or type(getattr(type(s), n)).__name__ == "getset_descriptor"
+    ]
+    return {n: repr(getattr(s, n)) for n in names if not n.startswith("_")}
+
+
+def _tone_with(**given) -> Synth:
+    s = Synth(type="tone")
+    for name, value in given.items():
+        setattr(s, name, value)
+    return s
+
+
+@pytest.mark.parametrize(
+    "given, words",
+    [
+        ({"constellation": "bpsk"}, "are one rate: give both, or neither"),
+        ({"code_rate": "1/2"}, "are one rate: give both, or neither"),
+        (
+            {"constellation": "bpsk", "code_rate": "1/2", "wlan": 36},
+            "is a spelling of constellation and code_rate",
+        ),
+        ({"wlan": 7}, "the data rate is one of 6, 9"),
+        (
+            {"wlan": 36, "bandwidth": 10e6},
+            "wlan is the data rate at 20 MHz",
+        ),
+    ],
+)
+def test_a_type_write_to_ofdm_refuses_what_the_build_would(given, words):
+    """A tone holds the rate fields as given; the write that makes it ofdm
+    is refused with the build's sentence, and every property reads back as
+    before. Rejects a type setter that stores and leaves the refusal to
+    steps() (#3273's case: ('bpsk', '3/4') read back, then refused)."""
+    s = _tone_with(**given)
+    before = _readback(s)
+    with pytest.raises(ValueError, match=words):
+        s.type = "ofdm"
+    assert _readback(s) == before
+
+
+def test_a_type_write_with_a_whole_pair_builds():
+    """The accepted case beside the refusals: a whole pair carried into
+    ofdm is written and renders."""
+    s = _tone_with(constellation="bpsk", code_rate="1/2")
+    s.type = "ofdm"
+    assert _pair(s) == ("bpsk", "1/2")
+    assert s.steps(8).shape == (8,)
+
+
+@pytest.mark.parametrize(
+    "start, name, value, words",
+    [
+        ({}, "wlan", 7, "the data rate is one of 6, 9"),
+        ({"wlan": 36}, "bandwidth", 10e6, "wlan is the data rate at 20 MHz"),
+        ({"bandwidth": 10e6}, "wlan", 36, "wlan is the data rate at 20 MHz"),
+    ],
+)
+def test_a_live_ofdm_write_refuses_what_the_build_would(
+    start, name, value, words
+):
+    """A wlan no row names, and wlan off 20 MHz from either side, are
+    refused at the write, every property unchanged. Rejects a setter that
+    stores a source reading as a valid pair that steps() then refuses."""
+    s = Synth(type="ofdm", **start)
+    before = _readback(s)
+    with pytest.raises(ValueError, match=words):
+        setattr(s, name, value)
+    assert _readback(s) == before
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="the constructor calls no check until just-makeit#2856's "
+    "check_fn; #3273 pins it at that release",
+)
+def test_construction_with_half_a_pair_is_refused():
+    """The constructor route of the same rule (#3273)."""
+    with pytest.raises(ValueError, match="are one rate: give both"):
+        Synth(type="ofdm", constellation="bpsk")
+
+
 def _synth_fs_default() -> float:
     """``WFM_SYNTH_FS_DEFAULT``, the constant the manifest names.
 

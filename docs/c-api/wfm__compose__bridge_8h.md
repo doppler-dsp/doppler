@@ -70,8 +70,10 @@
 |  double | [**dp\_wfm\_source\_fs**](#function-dp_wfm_source_fs) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double) <br> |
 |  int | [**dp\_wfm\_source\_mac**](#function-dp_wfm_source_mac) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double) <br> |
 |  size\_t | [**dp\_wfm\_source\_mac\_header\_bits**](#function-dp_wfm_source_mac_header_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double, uint8\_t \*, size\_t) <br> |
+|  const char \* | [**dp\_wfm\_source\_set\_bandwidth**](#function-dp_wfm_source_set_bandwidth) ([**wfm\_source\_t**](structwfm__source__t.md) \*, double) <br> |
 |  const char \* | [**dp\_wfm\_source\_set\_code\_rate**](#function-dp_wfm_source_set_code_rate) ([**wfm\_source\_t**](structwfm__source__t.md) \*, int) <br> |
 |  const char \* | [**dp\_wfm\_source\_set\_constellation**](#function-dp_wfm_source_set_constellation) ([**wfm\_source\_t**](structwfm__source__t.md) \*, int) <br> |
+|  const char \* | [**dp\_wfm\_source\_set\_type**](#function-dp_wfm_source_set_type) ([**wfm\_source\_t**](structwfm__source__t.md) \*, int) <br> |
 |  const char \* | [**dp\_wfm\_source\_set\_wlan**](#function-dp_wfm_source_set_wlan) ([**wfm\_source\_t**](structwfm__source__t.md) \*, int) <br> |
 |  size\_t | [**dp\_wfm\_source\_sync\_refuse\_text**](#function-dp_wfm_source_sync_refuse_text) (const char \*, uint8\_t \*, size\_t, const char \*\*) <br> |
 |  [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* | [**dp\_wfm\_source\_to\_synth**](#function-dp_wfm_source_to_synth) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double) <br> |
@@ -377,6 +379,22 @@ size_t dp_wfm_source_mac_header_bits (
 
 
 
+### function dp\_wfm\_source\_set\_bandwidth 
+
+```C++
+const char * dp_wfm_source_set_bandwidth (
+    wfm_source_t *,
+    double
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function dp\_wfm\_source\_set\_code\_rate 
 
 ```C++
@@ -397,6 +415,22 @@ const char * dp_wfm_source_set_code_rate (
 
 ```C++
 const char * dp_wfm_source_set_constellation (
+    wfm_source_t *,
+    int
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_set\_type 
+
+```C++
+const char * dp_wfm_source_set_type (
     wfm_source_t *,
     int
 ) 

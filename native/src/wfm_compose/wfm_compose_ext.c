@@ -1934,7 +1934,12 @@ Synth_set_type (SynthObject *self, PyObject *value, void *closure)
                     s);
       return -1;
     }
-  self->src.type = _i;
+  const char *_why = dp_wfm_source_set_type (&self->src, _i);
+  if (_why)
+    {
+      PyErr_SetString (PyExc_ValueError, _why);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -3221,7 +3226,12 @@ Synth_set_bandwidth (SynthObject *self, PyObject *value, void *closure)
   double _v = 0.0;
   if (!PyArg_Parse (value, "d", &_v))
     return -1;
-  self->src.bandwidth = _v;
+  const char *_why = dp_wfm_source_set_bandwidth (&self->src, _v);
+  if (_why)
+    {
+      PyErr_SetString (PyExc_ValueError, _why);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -3532,8 +3542,9 @@ static PyGetSetDef Synth_getset[] = {
     "not given. Refused beside a given constellation or code_rate, at any "
     "other bandwidth (where a 10 or 5 MHz source is spelled by its "
     "constellation and code_rate), and on any other type. Set on a live ofdm "
-    "source whose pair is given, it is refused at once (set constellation or "
-    "code_rate to auto first).\n",
+    "source, it is refused at once beside a given pair (set constellation or "
+    "code_rate to auto first), when no row of the table names it, and at a "
+    "bandwidth other than 20 MHz.\n",
     NULL },
   { "constellation", (getter)Synth_get_constellation,
     (setter)Synth_set_constellation,
@@ -3587,7 +3598,9 @@ static PyGetSetDef Synth_getset[] = {
     "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for "
     "802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an "
     "integer multiple of it, at most 128 times it; the multiple is the "
-    "oversampling M, done by a larger transform.\n",
+    "oversampling M, done by a larger transform. Set on a live ofdm source "
+    "whose rate wlan spells, a bandwidth other than 20 MHz is refused at "
+    "once.\n",
     NULL },
   { "mac_header", (getter)Synth_get_mac_header, (setter)Synth_set_mac_header,
     "For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data "
@@ -4244,9 +4257,11 @@ static PyTypeObject SynthType = {
       "is\n"
       "    spelled by its constellation and code_rate), and on any other "
       "type. Set\n"
-      "    on a live ofdm source whose pair is given, it is refused at once "
+      "    on a live ofdm source, it is refused at once beside a given pair "
       "(set\n"
-      "    constellation or code_rate to auto first).\n"
+      "    constellation or code_rate to auto first), when no row of the "
+      "table\n"
+      "    names it, and at a bandwidth other than 20 MHz.\n"
       "constellation : str, default ``\"auto\"``\n"
       "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
       "qam16,\n"
@@ -4323,7 +4338,11 @@ static PyTypeObject SynthType = {
       "    802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be "
       "an\n"
       "    integer multiple of it, at most 128 times it; the multiple is the\n"
-      "    oversampling M, done by a larger transform.\n"
+      "    oversampling M, done by a larger transform. Set on a live ofdm "
+      "source\n"
+      "    whose rate wlan spells, a bandwidth other than 20 MHz is refused "
+      "at\n"
+      "    once.\n"
       "mac_header : bytes | None, default None\n"
       "    For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a "
       "data\n"
@@ -6473,8 +6492,9 @@ static PyGetSetDef Segment_getset[] = {
     "not given. Refused beside a given constellation or code_rate, at any "
     "other bandwidth (where a 10 or 5 MHz source is spelled by its "
     "constellation and code_rate), and on any other type. Set on a live ofdm "
-    "source whose pair is given, it is refused at once (set constellation or "
-    "code_rate to auto first).\n",
+    "source, it is refused at once beside a given pair (set constellation or "
+    "code_rate to auto first), when no row of the table names it, and at a "
+    "bandwidth other than 20 MHz.\n",
     NULL },
   { "constellation", (getter)Segment_flat_constellation, NULL,
     "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, "
@@ -6526,7 +6546,9 @@ static PyGetSetDef Segment_getset[] = {
     "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for "
     "802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an "
     "integer multiple of it, at most 128 times it; the multiple is the "
-    "oversampling M, done by a larger transform.\n",
+    "oversampling M, done by a larger transform. Set on a live ofdm source "
+    "whose rate wlan spells, a bandwidth other than 20 MHz is refused at "
+    "once.\n",
     NULL },
   { "mac_header", (getter)Segment_flat_mac_header, NULL,
     "For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data "
@@ -6908,9 +6930,11 @@ static PyTypeObject SegmentType = {
       "is\n"
       "    spelled by its constellation and code_rate), and on any other "
       "type. Set\n"
-      "    on a live ofdm source whose pair is given, it is refused at once "
+      "    on a live ofdm source, it is refused at once beside a given pair "
       "(set\n"
-      "    constellation or code_rate to auto first).\n"
+      "    constellation or code_rate to auto first), when no row of the "
+      "table\n"
+      "    names it, and at a bandwidth other than 20 MHz.\n"
       "constellation : str, default ``\"auto\"``\n"
       "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
       "qam16,\n"
@@ -6987,7 +7011,11 @@ static PyTypeObject SegmentType = {
       "    802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be "
       "an\n"
       "    integer multiple of it, at most 128 times it; the multiple is the\n"
-      "    oversampling M, done by a larger transform.\n"
+      "    oversampling M, done by a larger transform. Set on a live ofdm "
+      "source\n"
+      "    whose rate wlan spells, a bandwidth other than 20 MHz is refused "
+      "at\n"
+      "    once.\n"
       "mac_header : bytes | None, default None\n"
       "    For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a "
       "data\n"

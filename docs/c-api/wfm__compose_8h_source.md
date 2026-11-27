@@ -260,6 +260,12 @@ const char *dp_wfm_source_set_code_rate(wfm_source_t *src, int code_rate);
 
 const char *dp_wfm_source_set_wlan(wfm_source_t *src, int wlan);
 
+const char *dp_wfm_source_set_type(wfm_source_t *src, int type);
+
+const char *dp_wfm_source_set_bandwidth(wfm_source_t *src, double bandwidth);
+
+const char *dp_wfm_source_rate_why(const wfm_source_t *src);
+
 int dp_wfm_source_mac(const wfm_source_t *src, double fs);
 
 double dp_wfm_source_fs(const wfm_source_t *src, double fs);

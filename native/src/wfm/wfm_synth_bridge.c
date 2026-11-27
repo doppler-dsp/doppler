@@ -1384,59 +1384,116 @@ dp_wfm_source_code_rate (const wfm_source_t *src, double fs)
   "the rate is set by constellation and code_rate: set either to auto "       \
   "(which returns the pair to auto) before setting wlan"
 
-/* One half of an ofdm source's pair, written so the pair stays whole
-   (docs/design/wlan.md, "A live object's pair stays whole"). `mine` is the
-   half being set and `other` its sibling; `other_read` is the sibling's
-   read before the write, the value it is fixed at. */
+/* The one rule every write of a source keeps: an ofdm source it leaves
+   names its rate as the build reads it, so no write leaves a source that
+   reads as a valid pair and is refused when it builds (docs/design/wlan.md,
+   "A live object's pair stays whole"). Another type has no rate, so any
+   value is written. `beside` is a setter's own sentence for wlan beside a
+   given half; NULL leaves that to the resolver's sentence. Then the build's
+   own resolver: half a pair, or a wlan no row of Table 17-6 names; and wlan
+   at a bandwidth other than 20 MHz, which reads only these fields. A given
+   pair the table lacks reads as written, not as a valid pair, so it stays
+   the build's to refuse ("no SIGNAL RATE bits"). */
 static const char *
-wfofdm_set_half (wfm_source_t *src, int *mine, int *other, int v,
-                 int mine_auto, int other_auto, int other_read)
+wfofdm_rate_why (const wfm_source_t *src, const char *beside)
 {
   if (src->type != WFM_SYNTH_FRAMES)
-    {
-      *mine = v;
-      return NULL;
-    }
-  if (v == mine_auto)
+    return NULL;
+  if (beside && src->wlan != 0
+      && (src->constellation != WLAN_CONSTELLATION_AUTO
+          || src->code_rate != WLAN_CODE_AUTO))
+    return beside;
+  int         c, r;
+  const char *why = wfofdm_resolve_pair (src, &c, &r);
+  if (why)
+    return why;
+  if (src->wlan && dp_wfm_source_bandwidth (src) != 20e6)
+    return "wlan is the data rate at 20 MHz, and a bandwidth other than "
+           "20 MHz carries a different rate for the same pair: give "
+           "constellation and code_rate with that bandwidth, or drop wlan";
+  return NULL;
+}
+
+const char *
+dp_wfm_source_rate_why (const wfm_source_t *src)
+{
+  return wfofdm_rate_why (src, NULL);
+}
+
+/* Store `next` in `src` only if it keeps the rule, so a refused write
+   leaves the source as it was. */
+static const char *
+wfofdm_commit (wfm_source_t *src, const wfm_source_t *next, const char *beside)
+{
+  const char *why = wfofdm_rate_why (next, beside);
+  if (!why)
+    *src = *next;
+  return why;
+}
+
+/* One half of an ofdm source's pair, written so the pair stays whole:
+   `is_c` picks constellation, else code_rate. The sibling is fixed at the
+   value it read before the write. */
+static const char *
+wfofdm_set_half (wfm_source_t *src, int is_c, int v)
+{
+  wfm_source_t next     = *src;
+  int         *mine     = is_c ? &next.constellation : &next.code_rate;
+  int         *other    = is_c ? &next.code_rate : &next.constellation;
+  const int    mine_au  = is_c ? WLAN_CONSTELLATION_AUTO : WLAN_CODE_AUTO;
+  const int    other_au = is_c ? WLAN_CODE_AUTO : WLAN_CONSTELLATION_AUTO;
+  if (src->type != WFM_SYNTH_FRAMES)
+    *mine = v;
+  else if (v == mine_au)
     {
       /* auto is the pair's, not a half's: both return to it */
-      *mine  = mine_auto;
-      *other = other_auto;
-      return NULL;
+      *mine  = mine_au;
+      *other = other_au;
     }
-  if (src->wlan != 0)
-    return WFOFDM_HALF_BESIDE_WLAN;
-  if (*other == other_auto)
-    *other = other_read;
-  *mine = v;
-  return NULL;
+  else
+    {
+      if (*other == other_au)
+        *other = is_c ? dp_wfm_source_code_rate (src, 0.0)
+                      : dp_wfm_source_constellation (src, 0.0);
+      *mine = v;
+    }
+  return wfofdm_commit (src, &next, WFOFDM_HALF_BESIDE_WLAN);
 }
 
 const char *
 dp_wfm_source_set_constellation (wfm_source_t *src, int constellation)
 {
-  return wfofdm_set_half (src, &src->constellation, &src->code_rate,
-                          constellation, WLAN_CONSTELLATION_AUTO,
-                          WLAN_CODE_AUTO, dp_wfm_source_code_rate (src, 0.0));
+  return wfofdm_set_half (src, 1, constellation);
 }
 
 const char *
 dp_wfm_source_set_code_rate (wfm_source_t *src, int code_rate)
 {
-  return wfofdm_set_half (src, &src->code_rate, &src->constellation, code_rate,
-                          WLAN_CODE_AUTO, WLAN_CONSTELLATION_AUTO,
-                          dp_wfm_source_constellation (src, 0.0));
+  return wfofdm_set_half (src, 0, code_rate);
 }
 
 const char *
 dp_wfm_source_set_wlan (wfm_source_t *src, int wlan)
 {
-  if (src->type == WFM_SYNTH_FRAMES && wlan != 0
-      && (src->constellation != WLAN_CONSTELLATION_AUTO
-          || src->code_rate != WLAN_CODE_AUTO))
-    return WFOFDM_WLAN_BESIDE_HALF;
-  src->wlan = wlan;
-  return NULL;
+  wfm_source_t next = *src;
+  next.wlan         = wlan;
+  return wfofdm_commit (src, &next, WFOFDM_WLAN_BESIDE_HALF);
+}
+
+const char *
+dp_wfm_source_set_bandwidth (wfm_source_t *src, double bandwidth)
+{
+  wfm_source_t next = *src;
+  next.bandwidth    = bandwidth;
+  return wfofdm_commit (src, &next, NULL);
+}
+
+const char *
+dp_wfm_source_set_type (wfm_source_t *src, int type)
+{
+  wfm_source_t next = *src;
+  next.type         = type;
+  return wfofdm_commit (src, &next, NULL);
 }
 
 int
@@ -1474,6 +1531,10 @@ ofdm_source_error (const wfm_source_t *given)
                "give type ofdm, or drop them";
       return NULL;
     }
+  /* The rate's own rules, the one check every setter writes through. */
+  const char *rate = wfofdm_rate_why (given, NULL);
+  if (rate)
+    return rate;
   /* The rules below hold the source as it renders: its defaults filled in,
      and the rate's spellings checked, by dp_wfm_source_ofdm_defaults. */
   wfm_source_t resolved;
@@ -1484,10 +1545,6 @@ ofdm_source_error (const wfm_source_t *given)
   if (src->bandwidth < 0.0)
     return "bandwidth is 20e6, 10e6 or 5e6 Hz for an 802.11a/g/p/j ofdm "
            "source, not negative";
-  if (src->wlan && dp_wfm_source_bandwidth (src) != 20e6)
-    return "wlan is the data rate at 20 MHz, and a bandwidth other than "
-           "20 MHz carries a different rate for the same pair: give "
-           "constellation and code_rate with that bandwidth, or drop wlan";
   if (dp_wfm_source_bandwidth (src) != 20e6
       && dp_wfm_source_bandwidth (src) != 10e6
       && dp_wfm_source_bandwidth (src) != 5e6)

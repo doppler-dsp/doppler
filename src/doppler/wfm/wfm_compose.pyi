@@ -241,8 +241,9 @@ class Synth:
         --code-rate 3/4). 0 = not given. Refused beside a given constellation
         or code_rate, at any other bandwidth (where a 10 or 5 MHz source is
         spelled by its constellation and code_rate), and on any other type. Set
-        on a live ofdm source whose pair is given, it is refused at once (set
-        constellation or code_rate to auto first).
+        on a live ofdm source, it is refused at once beside a given pair (set
+        constellation or code_rate to auto first), when no row of the table
+        names it, and at a bandwidth other than 20 MHz.
     constellation : str, default ``"auto"``
         For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16,
         qam64; the pair with code_rate must be a row of the standard's rate
@@ -291,7 +292,9 @@ class Synth:
         For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for
         802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an
         integer multiple of it, at most 128 times it; the multiple is the
-        oversampling M, done by a larger transform.
+        oversampling M, done by a larger transform. Set on a live ofdm source
+        whose rate wlan spells, a bandwidth other than 20 MHz is refused at
+        once.
     mac_header : bytes | None, default None
         For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
         frame's header). A Field of whole octets on the command line and in a
@@ -737,8 +740,9 @@ class Segment:
         --code-rate 3/4). 0 = not given. Refused beside a given constellation
         or code_rate, at any other bandwidth (where a 10 or 5 MHz source is
         spelled by its constellation and code_rate), and on any other type. Set
-        on a live ofdm source whose pair is given, it is refused at once (set
-        constellation or code_rate to auto first).
+        on a live ofdm source, it is refused at once beside a given pair (set
+        constellation or code_rate to auto first), when no row of the table
+        names it, and at a bandwidth other than 20 MHz.
     constellation : str, default ``"auto"``
         For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16,
         qam64; the pair with code_rate must be a row of the standard's rate
@@ -787,7 +791,9 @@ class Segment:
         For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for
         802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an
         integer multiple of it, at most 128 times it; the multiple is the
-        oversampling M, done by a larger transform.
+        oversampling M, done by a larger transform. Set on a live ofdm source
+        whose rate wlan spells, a bandwidth other than 20 MHz is refused at
+        once.
     mac_header : bytes | None, default None
         For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
         frame's header). A Field of whole octets on the command line and in a

@@ -1507,12 +1507,81 @@ test_a_live_pair_stays_whole (void)
   return 0;
 }
 
+/* No write leaves a source that reads as a valid pair and is refused when
+   it builds: the type, wlan and bandwidth setters write through the same
+   check as the halves (dp_wfm_source_rate_why), each refusal leaving the
+   struct byte-for-byte as it was, and the check is the build's own. */
+static int
+test_every_write_keeps_the_rate_buildable (void)
+{
+  const char *why;
+
+  /* tone -> ofdm with half a pair: refused, still tone */
+  wfm_source_t h = WFM_SOURCE_DEFAULTS, h0;
+  DP_CHECK (dp_wfm_source_set_constellation (&h, 0) == NULL);
+  h0  = h;
+  why = dp_wfm_source_set_type (&h, WFM_SYNTH_FRAMES);
+  DP_CHECK (why && strstr (why, "are one rate: give both") != NULL);
+  DP_CHECK (memcmp (&h, &h0, sizeof h) == 0);
+  /* the build says the same thing: the check is the build's */
+  h0.type = WFM_SYNTH_FRAMES;
+  DP_CHECK (dp_wfm_source_rate_why (&h0) == why);
+
+  /* tone -> ofdm with a whole pair: written, and the rate builds */
+  wfm_source_t w = WFM_SOURCE_DEFAULTS;
+  DP_CHECK (dp_wfm_source_set_constellation (&w, 0) == NULL);
+  DP_CHECK (dp_wfm_source_set_code_rate (&w, WLAN_CODE_1_2) == NULL);
+  DP_CHECK (dp_wfm_source_set_type (&w, WFM_SYNTH_FRAMES) == NULL);
+  DP_CHECK (w.type == WFM_SYNTH_FRAMES && w.constellation == 0
+            && w.code_rate == WLAN_CODE_1_2);
+  DP_CHECK (dp_wfm_source_rate_why (&w) == NULL);
+
+  /* tone -> ofdm with wlan beside a pair: the resolver's second spelling */
+  wfm_source_t s = w, s0;
+  s.type         = WFM_SYNTH_TONE;
+  DP_CHECK (dp_wfm_source_set_wlan (&s, 36) == NULL); /* tone: as given */
+  s0  = s;
+  why = dp_wfm_source_set_type (&s, WFM_SYNTH_FRAMES);
+  DP_CHECK (why && strstr (why, "is a spelling of constellation") != NULL);
+  DP_CHECK (memcmp (&s, &s0, sizeof s) == 0);
+
+  /* ofdm -> another type is always written */
+  DP_CHECK (dp_wfm_source_set_type (&w, WFM_SYNTH_TONE) == NULL);
+
+  /* a wlan no row names, on a live ofdm source: refused at the write */
+  wfm_source_t n = WFM_SOURCE_DEFAULTS, n0;
+  n.type         = WFM_SYNTH_FRAMES;
+  n0             = n;
+  why            = dp_wfm_source_set_wlan (&n, 7);
+  DP_CHECK (why && strstr (why, "the data rate is one of") != NULL);
+  DP_CHECK (memcmp (&n, &n0, sizeof n) == 0);
+  DP_CHECK (dp_wfm_source_set_wlan (&n, 36) == NULL && n.wlan == 36);
+
+  /* wlan beside a bandwidth other than 20 MHz: refused at the bandwidth
+     write, and 20 MHz (or 0, its spelling) is written */
+  n0  = n;
+  why = dp_wfm_source_set_bandwidth (&n, 10e6);
+  DP_CHECK (why && strstr (why, "wlan is the data rate at 20 MHz") != NULL);
+  DP_CHECK (memcmp (&n, &n0, sizeof n) == 0);
+  DP_CHECK (dp_wfm_source_set_bandwidth (&n, 0.0) == NULL);
+  /* and the mirror: wlan set at 10 MHz */
+  wfm_source_t b = WFM_SOURCE_DEFAULTS, b0;
+  b.type         = WFM_SYNTH_FRAMES;
+  DP_CHECK (dp_wfm_source_set_bandwidth (&b, 10e6) == NULL);
+  b0  = b;
+  why = dp_wfm_source_set_wlan (&b, 36);
+  DP_CHECK (why && strstr (why, "wlan is the data rate at 20 MHz") != NULL);
+  DP_CHECK (memcmp (&b, &b0, sizeof b) == 0);
+  return 0;
+}
+
 int
 main (void)
 {
   make_data ();
   int rc = 0;
   rc |= test_renders_the_ppdu_wlan_builds ();
+  rc |= test_every_write_keeps_the_rate_buildable ();
   rc |= test_the_default_window_is_the_standards_100_ns ();
   rc |= test_mac_data_renders_header_body_and_fcs ();
   rc |= test_each_name_is_its_value ();

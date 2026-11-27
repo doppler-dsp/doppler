@@ -461,9 +461,11 @@ typedef struct {
                             a given constellation or code_rate, at any other
                             bandwidth (where a 10 or 5 MHz source is spelled
                             by its constellation and code_rate), and on any
-                            other type. Set on a live ofdm source whose pair
-                            is given, it is refused at once (set
-                            constellation or code_rate to auto first). */
+                            other type. Set on a live ofdm source, it is
+                            refused at once beside a given pair (set
+                            constellation or code_rate to auto first), when
+                            no row of the table names it, and at a
+                            bandwidth other than 20 MHz. */
     int constellation; /**< For type=ofdm: the subcarrier constellation, one
                             of bpsk, qpsk, qam16, qam64; the pair with
                             code_rate must be a row of the standard's rate
@@ -518,7 +520,9 @@ typedef struct {
                             default. The segment's fs must be an integer
                             multiple of it, at most 128 times it; the
                             multiple is the oversampling M, done by a larger
-                            transform. */
+                            transform. Set on a live ofdm source whose rate
+                            wlan spells, a bandwidth other than 20 MHz is
+                            refused at once. */
     wfm_seq_t mac_header; /**< For type=ofdm with mac=data: the MAC header, 24 or
                             30 octets (a data frame's header). A Field of whole
                             octets on the command line and in a scene, where a
@@ -1195,8 +1199,12 @@ int dp_wfm_source_code_rate(const wfm_source_t *src, double fs);
  * eight of the sixteen pairs)". On any other type the value is stored as
  * given, as it reads back.
  *
- * A constructor, a record and `from_json` do not call this: they set every
- * field at once and refuse half a pair.
+ * Every setter, this one, dp_wfm_source_set_code_rate(),
+ * dp_wfm_source_set_wlan() and dp_wfm_source_set_type(), writes only a
+ * source that dp_wfm_source_rate_why() accepts, so no write leaves a
+ * source that reads as a valid pair and is refused when it builds. A
+ * record and `from_json` set every field at once and refuse half a pair
+ * when they are read.
  *
  * @param src            The source.
  * @param constellation  The index, or #WLAN_CONSTELLATION_AUTO.
@@ -1234,13 +1242,74 @@ const char *dp_wfm_source_set_code_rate(wfm_source_t *src, int code_rate);
  * either to auto (which returns the pair to auto) before setting wlan".
  * It is the mirror of a half set beside `wlan`
  * (dp_wfm_source_set_constellation()). 0 is always written, and so is any
- * value on another type. A `wlan` no row of the table names is written
- * and refused when the source builds, as a constructor's is.
+ * value on another type. On an ofdm source, a `wlan` no row of the table
+ * names is refused at the write, the struct untouched, with
+ * dp_wfm_source_rate_why()'s sentence.
  * @param src   The source.
  * @param wlan  0, or a data rate at 20 MHz in Mb/s.
  * @return NULL after writing, or a static sentence with @p src untouched.
  */
 const char *dp_wfm_source_set_wlan(wfm_source_t *src, int wlan);
+
+/**
+ * @brief Set a source's `type`: the `set_fn` behind a Synth's and a
+ *        Segment's `type`.
+ *
+ * The rate fields of another type are stored as given, so a source can
+ * hold half a pair, or `wlan` beside a pair, until it becomes ofdm. A
+ * write to ofdm is refused, the struct untouched, when
+ * dp_wfm_source_rate_why() refuses the source it would leave: half a pair
+ * ("constellation and code_rate are one rate: give both, or neither"),
+ * `wlan` beside a given pair ("a data rate in Mb/s is a spelling of
+ * constellation and code_rate: give the rate, or constellation and
+ * code_rate, not both"), or a `wlan` no row names. A write to any other
+ * type is always made.
+ * @param src   The source.
+ * @param type  A waveform type, #WFM_SYNTH_TONE to #WFM_SYNTH_FRAMES.
+ * @return NULL after writing, or a static sentence with @p src untouched.
+ *
+ * @code
+ * #include <doppler/wfm/wfm_defaults.h>   // WFM_SOURCE_DEFAULTS
+ *
+ * wfm_source_t s  = WFM_SOURCE_DEFAULTS;           // tone
+ * s.constellation = 0;                             // bpsk, stored as given
+ * const char *why = dp_wfm_source_set_type (&s, WFM_SYNTH_FRAMES);
+ * // why names half a pair; s.type is still tone
+ * @endcode
+ */
+const char *dp_wfm_source_set_type(wfm_source_t *src, int type);
+
+/**
+ * @brief Set a source's `bandwidth`: the `set_fn` behind a Synth's and a
+ *        Segment's `bandwidth`.
+ *
+ * On an ofdm source whose rate is spelled by `wlan`, a bandwidth other than
+ * 20 MHz is refused, the struct untouched, with dp_wfm_source_rate_why()'s
+ * sentence: `wlan` is the data rate at 20 MHz. Any other value is written,
+ * and one the build refuses (not 20e6, 10e6 or 5e6) reads back as written.
+ * @param src        The source.
+ * @param bandwidth  Hz; 0 is 20e6.
+ * @return NULL after writing, or a static sentence with @p src untouched.
+ */
+const char *dp_wfm_source_set_bandwidth(wfm_source_t *src, double bandwidth);
+
+/**
+ * @brief Why a source's rate fields would be refused when it builds, by
+ *        the build's own resolver, or NULL: the one check every setter
+ *        of a source's rate and type writes through.
+ *
+ * Another type has no rate, so it is always NULL. An ofdm source is
+ * refused for half a pair, for `wlan` beside a given half, and for a
+ * `wlan` no row of Table 17-6 names, each in dp_wlan_rate_resolve()'s
+ * words. A given pair the table lacks, as (qam16, 5/6), reads back as
+ * written, so it is not refused here: the build refuses it with "no
+ * SIGNAL RATE bits". `wlan` at a bandwidth other than 20 MHz is refused
+ * here too, since it reads only those two fields. The rules that need a
+ * sample rate or a data source are the build's, dp_wfm_source_error().
+ * @param src  The source.
+ * @return NULL, or a static sentence.
+ */
+const char *dp_wfm_source_rate_why(const wfm_source_t *src);
 
 /**
  * @brief The MAC mode an ofdm source renders with: `auto` reads `fcs`

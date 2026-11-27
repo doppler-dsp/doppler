@@ -153,6 +153,7 @@ help_section = "TYPE"
 type = "int"
 enum = "wfm_type"
 default = "tone"
+set_fn = "dp_wfm_source_set_type"
 doc = "Waveform type. tone: complex sinusoid. noise: AWGN. pn: PN sequence (LFSR). bpsk/qpsk: PN-driven modulation. chirp: linear-FM sweep. bits: a caller's bit pattern, with selectable modulation. symbols: a caller's complex constellation stream. dsss: spread spectrum -- a two-code burst (repeated preamble + data-code-spread frame) by default, or a continuous asynchronous stream when symbol_rate is set."
 
 [[module.wfm_compose.source.fields]]
@@ -627,7 +628,7 @@ help_section = "OFDM"
 type = "int"
 default = "0"
 set_fn = "dp_wfm_source_set_wlan"
-doc = "For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. Refused beside a given constellation or code_rate, at any other bandwidth (where a 10 or 5 MHz source is spelled by its constellation and code_rate), and on any other type. Set on a live ofdm source whose pair is given, it is refused at once (set constellation or code_rate to auto first)."
+doc = "For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. Refused beside a given constellation or code_rate, at any other bandwidth (where a 10 or 5 MHz source is spelled by its constellation and code_rate), and on any other type. Set on a live ofdm source, it is refused at once beside a given pair (set constellation or code_rate to auto first), when no row of the table names it, and at a bandwidth other than 20 MHz."
 
 [[module.wfm_compose.source.fields]]
 name = "constellation"
@@ -720,7 +721,8 @@ metavar = "HZ"
 help_section = "OFDM"
 type = "double"
 default = "20e6"
-doc = "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for 802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an integer multiple of it, at most 128 times it; the multiple is the oversampling M, done by a larger transform."
+set_fn = "dp_wfm_source_set_bandwidth"
+doc = "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for 802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an integer multiple of it, at most 128 times it; the multiple is the oversampling M, done by a larger transform. Set on a live ofdm source whose rate wlan spells, a bandwidth other than 20 MHz is refused at once."
 
 [[module.wfm_compose.source.fields]]
 name = "mac_header"

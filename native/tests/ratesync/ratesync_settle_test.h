@@ -27,11 +27,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The bound's width in standard errors. Three is a bound on one symbol;
-   this is held at the worst of some 190 correlated symbols over five
-   offsets, where three fails a correct loop on some data (measured: at 150
-   patterns, on two of five seed sets). Four passes on all five from 100
-   patterns up, and still fails a loop at 0.8 of its bandwidth. */
+/* The bound's width in standard errors: a count of comparisons, worked in
+   test_ratesync_core.c above `test_settle_time_from_an_offset`. */
 #define RS_SETTLE_K 4.0
 #define RS_SETTLE_END 450  /* last symbol held to the bound             */
 #define RS_SETTLE_TAIL 150 /* symbols after it, whose mean is the final */

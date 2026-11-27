@@ -172,10 +172,12 @@ Lifecycle: `dp_dll_create -> (steps / configure / reset)* -> dp_dll_destroy`, or
 
 ```C++
 uint8_t code[31] = { ... };  // 0/1 chips, one period
-dp_dll_state_t *d = dp_dll_create(code, 31, 2, 0.0, 0.01, 0.707, 0.5);
-float _Complex sym[16];
-size_t k = dp_dll_steps(d, rx, rx_len, sym, 16);  // one prompt per period
+dp_dll_state_t *d = dp_dll_create(code, 31, 2, 0.0, 0.01, 0.707, 0.5, 1);
+size_t cap = dp_dll_steps_max_out(d, rx_len);    // the call's bound
+float _Complex *sym = dp_xmallocn(cap, sizeof *sym); // aborts on OOM
+size_t k = dp_dll_steps(d, rx, rx_len, sym, cap); // one prompt per period
 double phase = d->chip_pos;                     // tracked code phase, chips
+free(sym);
 dp_dll_destroy(d);
 ```
  

@@ -10,6 +10,7 @@
  * too.
  */
 #include "doppler/ratesync/ratesync_core.h"
+#include "doppler/ratesync/ratesync_private.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -577,15 +578,7 @@ rs_seed (dp_ratesync_state_t *s, double eye, double rate, int set_rate)
   const ratesync_loop_t *l = &s->loop;
   if (!isfinite (eye) || !l->term || (set_rate && !(fabs (rate) < 0.5)))
     return DP_ERR_INVALID;
-  /* Where the terminal stage's next output reads the input: the inputs it
-     has been handed and its accumulator's lead say where on its own
-     timeline, the decimation ahead of it scales that to inputs, and the
-     cascade's group delay is what an output lags the input by. Unsteered
-     this is `outputs / rate - delay`; steered, the count of outputs no
-     longer says and the accumulator still does. */
-  const double t_next
-      = s->decim * ((double)s->term_in + dp_resamp_get_ctrl_lead (l->term))
-        - s->delay;
+  const double t_next = dp_ratesync_next_read (s);
   /* One output period at the rate the loop will hold, in inputs. */
   const double integ = set_rate ? rate : l->lf.integ;
   const double per   = s->decim / (l->term_rate * (1.0 + integ));

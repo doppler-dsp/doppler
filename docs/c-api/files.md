@@ -230,6 +230,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**psd\_core.h**](psd__core_8h.md) _PSD — averaging power-spectral-density estimator (Welch's method), its per-frame kernel, and spectral measurement suite._     
             * **dir** [**ratesync**](dir_6debd7d9ad90888bb5b8a40a122d95e8.md)     
                 * **file** [**ratesync\_core.h**](ratesync__core_8h.md) _RateSync — symbol-timing recovery on a matched-filter rate cascade._     
+                * **file** [**ratesync\_private.h**](ratesync__private_8h.md) _Where the terminal stage's next output reads the input._     
             * **dir** [**resamp**](dir_9d8524a806701f72e323943267d27190.md)     
                 * **file** [**resamp\_core.h**](resamp__core_8h.md) _Continuously-variable polyphase resampler for CF32 IQ._     
                 * **file** [**resamp\_impl.h**](resamp__impl_8h.md) _Resamp implementation header._ 

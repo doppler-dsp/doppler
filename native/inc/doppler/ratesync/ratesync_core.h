@@ -1086,9 +1086,9 @@ extern "C"
    *  It is a linear loop's figure, so it holds for a starting error inside
    *  the detector's near-linear range: on the RRC with Gardner, 0.25 symbol
    *  or less, where the mean error over data patterns is under 2% of the
-   *  start (plus three standard errors of that mean) from this symbol on
-   *  (test_ratesync_core.c, `test_settle_time_from_an_offset`, which also
-   *  prints the rows below). Further out the S-curve, a sinusoid, has less
+   *  start (plus four standard errors of that mean) from this symbol on
+   *  (test_ratesync_core.c, `test_settle_time_from_an_offset`; the rows
+   *  below are printed by native/validation/ratesync_settle.c). Further out the S-curve, a sinusoid, has less
    *  gain and the loop takes longer: at this symbol 4.5% of a 0.37 symbol
    *  start is left, and 9.1% of 0.44. On the rectangle the Gardner loop
    *  settles more slowly than this figure, and is what the derivative

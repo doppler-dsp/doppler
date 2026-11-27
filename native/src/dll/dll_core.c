@@ -1,6 +1,7 @@
 #include "doppler/dll/dll_core.h"
 #include "doppler/clib_common.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1086,11 +1087,40 @@ dll_block (dp_dll_state_t *s, const float _Complex *x, size_t x_len, size_t *n)
   return 1;
 }
 
+/* Debug builds hold dp_dll_steps_max_out() to its own derivation (#3282).
+ * The bound covers a loop whose code rate stays within its headroom, at most
+ * twice nominal; past that the header accepts a drop as the price of a rate
+ * the bound does not assume. So an emission refused while the caller's
+ * capacity is at least the bound AND the rate has stayed within the headroom
+ * all call can only mean the bound is wrong: that aborts. The rate is read
+ * at entry and after each steer, the only places it changes within a call.
+ * Release builds compile all of it away. */
+#ifndef NDEBUG
+static int
+dll_rate_in_headroom (const dp_dll_state_t *s)
+{
+  return nco_word_to_norm (s->code_nco.phase_inc) <= 2.0 * s->inv_tsamps;
+}
+#define DLL_BOUND_ENTER(state, x_len)                                         \
+  const size_t dbg_bound = dp_dll_steps_max_out ((state), (x_len));           \
+  int          dbg_in    = dll_rate_in_headroom (state)
+#define DLL_BOUND_STEERED(state) (dbg_in &= dll_rate_in_headroom (state))
+#define DLL_BOUND_REFUSED(max_out)                                            \
+  assert (!(dbg_in && (max_out) >= dbg_bound)                                 \
+          && "dp_dll_steps: an emission was refused within the headroom "     \
+             "dp_dll_steps_max_out() covers: the bound is wrong")
+#else
+#define DLL_BOUND_ENTER(state, x_len) ((void)0)
+#define DLL_BOUND_STEERED(state) ((void)0)
+#define DLL_BOUND_REFUSED(max_out) ((void)0)
+#endif
+
 static JM_FORCEINLINE size_t
 dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                 float _Complex *out, size_t max_out, int tlm_on)
 {
   size_t emitted = 0;
+  DLL_BOUND_ENTER (state, x_len);
   /* segments == 1: coherent full-epoch integrate-and-dump (one prompt/period).
    */
   if (state->segments <= 1)
@@ -1134,9 +1164,12 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
              look-back's winner is this epoch's own raw prompt sum. */
           state->win_p = state->acc_p;
           dll_update (state);
+          DLL_BOUND_STEERED (state);
           lock_look (state, prompt, noise);
           if (emitted < max_out)
             out[emitted++] = prompt;
+          else
+            DLL_BOUND_REFUSED (max_out);
           state->acc_e = 0.0f;
           state->acc_p = 0.0f;
           state->acc_l = 0.0f;
@@ -1321,6 +1354,7 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                   double best_mag = best_abs * tsamps;
                   dll_steer (state, (double)me * me, (double)ml * ml,
                              best_mag * best_mag);
+                  DLL_BOUND_STEERED (state);
                 }
 
               /* Output: this epoch's own natural chunk sums, each over the
@@ -1361,6 +1395,8 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                   if (emitted < max_out)
                     out[emitted++]
                         = state->chunk_p[k] / (float)(state->seg_norm * lvl);
+                  else
+                    DLL_BOUND_REFUSED (max_out);
                 }
 
               /* Step 6 (Python: `backward_sums = partial_sums[::-1]

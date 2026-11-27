@@ -14,7 +14,6 @@
 # call without saying so.
 
 native/inc/doppler/delay/delay_core.h dp_delay_create
-native/inc/doppler/dll/dll_core.h dp_dll_create
 native/inc/doppler/dsss_receiver/dsss_receiver_core.h dp_dsss_receiver_create
 native/inc/doppler/pn/pn_core.h dp_pn_create
 native/inc/doppler/symsync/symsync_core.h symsync_step

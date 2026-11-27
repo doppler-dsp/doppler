@@ -144,7 +144,8 @@ Alias rejection : ~77 dB at f\_p = 0.1 \* f\_out (independent of R) Passband dro
 
 ```C++
 dp_cic_state_t *cic = dp_cic_create(16);   // R=16, N=4, M=1
-size_t n_out = dp_cic_decimate(cic, in, 1024, out, 1024);
+float _Complex  in[1024] = { 0 }, out[64];
+size_t n_out = dp_cic_decimate(cic, in, 1024, out, 64);   // 64
 dp_cic_destroy(cic);
 ```
  

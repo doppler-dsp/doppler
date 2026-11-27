@@ -1,15 +1,17 @@
 /**
  * @file cic_core.c
- * @brief CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline.
+ * @brief CIC decimation filter — 4-stage, M=1, 16-bit integer pipeline.
  *
  * Input amplitude is bounded: |Re| and |Im| < CIC_PAPR_HEADROOM (2.0),
  * clipped beyond that (see cic_core.h — that constraint is the caller-facing
  * contract; what follows is how it arises).
  *
  * Input samples (CF32) are scaled by 32768 / CIC_PAPR_HEADROOM, saturated to
- * Q15 and converted to offset-binary UQ16 (v_q15 + 32768, in [0, 65535])
- * in the lower 16 bits of a uint64_t. The upper 48 bits provide accumulation
- * headroom for the pipeline gain of CIC_N * log2(R) bits.
+ * Q15 and held modulo 2^64 in a uint64_t. The upper 48 bits provide
+ * accumulation headroom for the pipeline gain of CIC_N * log2(R) bits. The
+ * offset-binary midpoint is added after the combs, at the pipeline's gain,
+ * so the normalising shift is of a non-negative value and no register is
+ * signed.
  *
  * The unsigned modular-arithmetic CIC property holds unconditionally for
  * uint64_t: every overflow in the integrators cancels exactly in the comb

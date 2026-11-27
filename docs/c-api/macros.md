@@ -124,6 +124,7 @@
 * **CCSDS\_TM\_RS\_MAX\_DEPTH** ([**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md))
 * **CCSDS\_TM\_RS\_N** ([**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md))
 * **CIC\_N** ([**cic\_core.h**](cic__core_8h.md))
+* **CIC\_OFFSET** ([**cic\_core.h**](cic__core_8h.md))
 * **CIC\_PAPR\_HEADROOM** ([**cic\_core.h**](cic__core_8h.md))
 * **CIC\_R\_MAX** ([**cic\_core.h**](cic__core_8h.md))
 * **CIC\_STATE\_MAGIC** ([**cic\_core.h**](cic__core_8h.md))

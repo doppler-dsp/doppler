@@ -14,6 +14,7 @@
  */
 #include "doppler/cic/cic_core.h"
 #include "doppler/dp_complex.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
@@ -39,6 +40,236 @@ static float _Complex dc_last (dp_cic_state_t *obj, float _Complex sample,
   size_t n = dp_cic_decimate (obj, in, n_in, out, cap);
   free (in);
   return out[n - 1];
+}
+
+/* The CIC as its definition, with no modular arithmetic: the sample as
+   dp_cic_decimate() encodes it, four boxcars of R in plain 64-bit sums
+   that cannot overflow at the sizes used here (R <= 64, n <= 65536), the
+   offset-binary midpoint, a floor-divide by R^4, and the decode.
+   `offset_inside` carries the midpoint through the boxcars, the form the
+   filter had: the two agree once the boxcars are full of input, and
+   differ before that. */
+static void
+cic_model (const float _Complex *x, size_t n, uint32_t R, int offset_inside,
+           float _Complex *y)
+{
+  int64_t      *v = malloc (n * sizeof *v), *c = malloc ((n + 1) * sizeof *c);
+  const int64_t gain = (int64_t)R * R * R * R;
+  for (int part = 0; part < 2; part++)
+    {
+      for (size_t i = 0; i < n; i++)
+        {
+          float s = (part ? cimagf (x[i]) : crealf (x[i]))
+                    * (32768.0f / CIC_PAPR_HEADROOM);
+          if (!(s <= 32767.0f))
+            s = 32767.0f;
+          if (s < -32768.0f)
+            s = -32768.0f;
+          v[i] = (int64_t)(int16_t)s + (offset_inside ? 32768 : 0);
+        }
+      for (int o = 0; o < CIC_N; o++)
+        {
+          c[0] = 0;
+          for (size_t i = 0; i < n; i++)
+            c[i + 1] = c[i] + v[i];
+          for (size_t i = 0; i < n; i++)
+            v[i] = c[i + 1] - c[i + 1 >= R ? i + 1 - R : 0];
+        }
+      for (size_t k = 0; (k + 1) * R <= n; k++)
+        {
+          /* never negative, so the division floors */
+          int64_t w = v[(k + 1) * R - 1] + (offset_inside ? 0 : 32768 * gain);
+          float   f = ((float)(w / gain) - 32768.0f)
+                      * (CIC_PAPR_HEADROOM / 32768.0f);
+          if (part)
+            y[k] = CMPLXF (crealf (y[k]), f);
+          else
+            y[k] = CMPLXF (f, 0.0f);
+        }
+    }
+  free (v);
+  free (c);
+}
+
+/* The offset is carried around the pipeline, not through it.
+     Sabotages, each shown red: the offset left out of the decode; added
+   without the pipeline's gain; left on at the input as well; the NaN-safe
+   comparison written as `s > 32767`; the output taken with one stage of
+   gain too few in the shift. */
+static void
+test_offset_is_outside_the_pipeline (void)
+{
+  /* Silence in is exact zeros out, from the first output after create. */
+  static const uint32_t rs[] = { 2, 16, 64, 2048 };
+  for (size_t ri = 0; ri < sizeof rs / sizeof *rs; ri++)
+    {
+      const uint32_t  R = rs[ri];
+      const size_t    n = (size_t)R * 8u;
+      dp_cic_state_t *c = dp_cic_create (R);
+      float _Complex *x = calloc (n, sizeof *x), *y = malloc (8 * sizeof *y);
+      DP_CHECK (c != NULL && x != NULL && y != NULL);
+      if (c && x && y)
+        {
+          DP_CHECK (dp_cic_decimate (c, x, n, y, 8) == 8);
+          for (size_t k = 0; k < 8; k++)
+            DP_CHECK (crealf (y[k]) == 0.0f && cimagf (y[k]) == 0.0f);
+          for (int i = 0; i < CIC_N; i++)
+            DP_CHECK (c->integ_re[i] == 0 && c->comb_im[i] == 0);
+        }
+      dp_cic_destroy (c);
+      free (x);
+      free (y);
+    }
+
+  /* Every output is the definition's, bit for bit, and past the fill it is
+     the output the filter gave with the offset carried through. Tones from
+     1/512 of the output rate to the input's Nyquist and noise, at unit
+     amplitude, at both rails, and clipping. */
+  static const uint32_t rm[]  = { 2, 16, 64 };
+  static const float    amp[] = { 1.0f, 1.999f, 2.0f, 2.6f };
+  static const double   cyc[] = { 1.0 / 512.0,
+                                  0.05,
+                                  0.25,
+                                  0.49,
+                                  0.5,
+                                  1.0,
+                                  -1.0 /* the input's Nyquist, less a bit */,
+                                  0.0 /* noise */ };
+  size_t                rows = 0, fills_differ = 0;
+  for (size_t ri = 0; ri < sizeof rm / sizeof *rm; ri++)
+    for (size_t ai = 0; ai < sizeof amp / sizeof *amp; ai++)
+      for (size_t ci = 0; ci < sizeof cyc / sizeof *cyc; ci++)
+        {
+          const uint32_t  R = rm[ri];
+          const size_t    n = (size_t)R * 400u, no = n / R;
+          dp_cic_state_t *c  = dp_cic_create (R);
+          float _Complex *x  = malloc (n * sizeof *x);
+          float _Complex *y  = malloc (no * sizeof *y);
+          float _Complex *m  = malloc (no * sizeof *m);
+          float _Complex *mo = malloc (no * sizeof *mo);
+          DP_CHECK (c && x && y && m && mo);
+          if (c && x && y && m && mo)
+            {
+              uint32_t st = 0xC1Cu + (uint32_t)(ri * 100 + ai * 10 + ci);
+              double   f  = cyc[ci] < 0.0 ? 0.5 - 0.01 / R : cyc[ci] / R;
+              for (size_t i = 0; i < n; i++)
+                if (cyc[ci] == 0.0)
+                  {
+                    const double a = 2.0 * dp_uni (&st) - 1.0;
+                    const double b = 2.0 * dp_uni (&st) - 1.0;
+                    x[i] = CMPLXF ((float)(amp[ai] * a), (float)(amp[ai] * b));
+                  }
+                else
+                  x[i] = CMPLXF (
+                      (float)(amp[ai] * cos (2.0 * M_PI * f * (double)i)),
+                      (float)(amp[ai] * sin (2.0 * M_PI * f * (double)i)));
+              DP_CHECK (dp_cic_decimate (c, x, n, y, no) == no);
+              cic_model (x, n, R, 0, m);
+              cic_model (x, n, R, 1, mo);
+              DP_CHECK (memcmp (y, m, no * sizeof *y) == 0);
+              DP_CHECK (
+                  memcmp (y + CIC_N, mo + CIC_N, (no - CIC_N) * sizeof *y)
+                  == 0);
+              if (memcmp (y, mo, CIC_N * sizeof *y) != 0)
+                fills_differ++;
+              /* under the bound nothing clips, over it something does;
+                 at it, whether a sample lands on the top step is the
+                 stream's doing */
+              if (amp[ai] < 2.0f)
+                DP_CHECK (!c->clipped);
+              if (amp[ai] > 2.0f)
+                DP_CHECK (c->clipped);
+              rows++;
+            }
+          dp_cic_destroy (c);
+          free (x);
+          free (y);
+          free (m);
+          free (mo);
+        }
+  printf ("  offset outside the pipeline: %zu rows equal the definition on "
+          "every output; %zu of them differ from the old form inside the "
+          "fill\n",
+          rows, fills_differ);
+  /* and the old form's fill is not this one's: the model can tell them
+     apart, on every row */
+  DP_CHECK (rows == 96 && fills_differ == rows);
+
+  /* The registers wrap and the answer does not. Both rails as DC at the
+     largest ratio, 8.2 million inputs: the fourth integrator passes 2^64
+     after about 4096 of them. Every output past the fill is the input. */
+  {
+    const uint32_t  R = CIC_R_MAX;
+    const size_t    n = (size_t)R * 4000u, no = n / R;
+    float _Complex *x = malloc (n * sizeof *x), *y = malloc (no * sizeof *y);
+    DP_CHECK (x != NULL && y != NULL);
+    static const float rail[]
+        = { 32767.0f * (CIC_PAPR_HEADROOM / 32768.0f), -CIC_PAPR_HEADROOM };
+    for (size_t r = 0; x && y && r < 2; r++)
+      {
+        dp_cic_state_t *c = dp_cic_create (R);
+        DP_CHECK (c != NULL);
+        if (!c)
+          continue;
+        for (size_t i = 0; i < n; i++)
+          x[i] = CMPLXF (rail[r], -rail[r] > 1.9999f ? 1.5f : -rail[r]);
+        DP_CHECK (dp_cic_decimate (c, x, n, y, no) == no);
+        size_t bad = 0;
+        for (size_t k = CIC_N; k < no; k++)
+          bad += crealf (y[k]) != rail[r];
+        DP_CHECK (bad == 0);
+        DP_CHECK (c->integ_re[CIC_N - 1] != 0);
+        DP_CHECK (!c->clipped);
+        dp_cic_destroy (c);
+      }
+    free (x);
+    free (y);
+  }
+
+  /* A sample that is not a number is over the bound: it reads as the top
+     of the range, raises the flag, and is gone when it has left the
+     boxcars. The stream with a NaN, +inf and -inf in it gives exactly the
+     outputs of the same stream with the two rails in their places. */
+  {
+    const uint32_t  R = 16;
+    const size_t    n = (size_t)R * 64u, no = n / R;
+    dp_cic_state_t *a = dp_cic_create (R), *b = dp_cic_create (R);
+    float _Complex *x = malloc (n * sizeof *x), *z = malloc (n * sizeof *z);
+    float _Complex *ya = malloc (no * sizeof *ya),
+                   *yb = malloc (no * sizeof *yb);
+    DP_CHECK (a && b && x && z && ya && yb);
+    if (a && b && x && z && ya && yb)
+      {
+        uint32_t st = 77u;
+        for (size_t i = 0; i < n; i++)
+          {
+            const double u = dp_uni (&st) - 0.5;
+            const double w = dp_uni (&st) - 0.5;
+            x[i]           = CMPLXF ((float)u, (float)w);
+            z[i]           = x[i];
+          }
+        x[100] = CMPLXF (NAN, cimagf (x[100]));
+        z[100] = CMPLXF (4.0f, cimagf (z[100])); /* over the top */
+        x[200] = CMPLXF (crealf (x[200]), INFINITY);
+        z[200] = CMPLXF (crealf (z[200]), 4.0f);
+        x[300] = CMPLXF (-INFINITY, NAN);
+        z[300] = CMPLXF (-4.0f, 4.0f);
+        DP_CHECK (dp_cic_decimate (a, x, n, ya, no) == no);
+        DP_CHECK (dp_cic_decimate (b, z, n, yb, no) == no);
+        DP_CHECK (a->clipped && b->clipped);
+        DP_CHECK (memcmp (ya, yb, no * sizeof *ya) == 0);
+        size_t finite = 0;
+        for (size_t k = 0; k < no; k++)
+          finite += isfinite (crealf (ya[k])) && isfinite (cimagf (ya[k]));
+        DP_CHECK (finite == no);
+      }
+    dp_cic_destroy (a);
+    dp_cic_destroy (b);
+    free (x);
+    free (z);
+    free (ya);
+    free (yb);
+  }
 }
 
 int
@@ -505,6 +736,8 @@ main (void)
     dp_cic_destroy (src);
     dp_cic_destroy (dst);
   }
+
+  test_offset_is_outside_the_pipeline ();
 
   DP_TEST_END ("test_cic_core");
 }

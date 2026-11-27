@@ -88,12 +88,12 @@ that intermediate overflow is defined and cancels exactly across the N stages.
 
 ### 2.4 Cast chains used in this codebase
 
-**UQ16 encode (CIC encoder)**
+**Q15 encode (CIC encoder)**
 
 ```
 float x → sr = x · (32768 / CIC_PAPR_HEADROOM)
-        → [saturate to [-32768, 32767]] → (int16_t)sr
-        → (int32_t)sr + 32768 → (uint64_t)
+        → [saturate to [-32768, 32767], a NaN to the top] → (int16_t)sr
+        → (int32_t)sr + 32768 → (uint64_t) → − 32768  (mod 2⁶⁴)
 ```
 
 `CIC_PAPR_HEADROOM` is 2.0 (6 dB): full scale sits above unity amplitude so
@@ -121,16 +121,24 @@ a pulse-shaped signal's peaks have somewhere to go.
 1. Saturation makes the `(int16_t)` cast defined (§6.3.1.4 safe zone).
 1. Widen to `int32_t` before adding 32768: range `[-32768+32768, 32767+32768] = [0, 65535]` — no signed overflow (§6.5).
 1. `(uint64_t)` from `int32_t` in `[0, 65535]`: always defined (§6.3.1.3).
-    All inputs are non-negative; no sign extension; no signed integers anywhere
-    in the hot path.
+    What is converted is never negative, so there is no sign extension.
+1. The offset comes straight back off in `uint64_t`, which wraps: the
+    register holds the Q15 value modulo 2⁶⁴, and a zero sample is a zero
+    word. No register is signed, because only an unsigned one may overflow.
+1. The saturation's upper comparison is "not at or under", so a NaN, which
+    fails every comparison, is taken as over the bound and never reaches
+    the cast.
 
-**UQ16 decode (CIC decoder)**
+**Q15 decode (CIC decoder)**
 
 ```
-(uint64_t re >> shift) → (uint16_t) → float - 32768.0f → · (1/32768)
+(uint64_t re + (32768 << shift)) >> shift → (uint16_t) → float - 32768.0f → · (1/32768)
 ```
 
-1. Right-shift of `uint64_t`: defined (logical, zero-fills high bits).
+1. The offset goes back on at the pipeline's gain, in `uint64_t`: the sum
+    is the offset-binary result, in `[0, 2¹⁶ · R^N)`, never negative.
+1. Right-shift of `uint64_t`: defined (logical, zero-fills high bits), and
+    a floor because the value is not negative.
 1. `uint64_t → uint16_t`: always defined; truncates to bits 15:0.
 1. Subtract 32768.0f in floating-point: removes the offset-binary bias;
     no signed integer cast, no implementation-defined behaviour.
@@ -303,8 +311,8 @@ x = -1.0  →  uint64  0x0000000000008000
 ```
 
 The CIC decimator (`resample.CIC`) does **not** consume this format: it
-takes complex64 and encodes each component to offset-binary UQ16 internally
-(§2.4, §8), with the 48 bits above it absorbing the `N · log₂(R)` bits of
+takes complex64 and encodes each component to Q15 internally, held modulo
+2⁶⁴ (§2.4, §8), with the 48 bits above it absorbing the `N · log₂(R)` bits of
 bit-growth — 44 at the cap `R = CIC_R_MAX = 2048`.
 
 ______________________________________________________________________
@@ -365,15 +373,17 @@ decode: x̂ = ((int32_t)u − 32768) · 2⁻¹⁵
 | −1.0         | `0x8000`        | `0x0000` (0)      |
 
 The `cvt` module provides `F32ToUQ15` / `UQ15ToF32` for this encoding.
-For the CIC pipeline's UQ16 variant (same bias, stored in `uint64_t` with
-48 bits of headroom) see §2.4 and §8.
+The CIC pipeline uses the same bias only at its two ends, around
+`uint64_t` registers with 48 bits of headroom: see §2.4 and §8.
 
 ______________________________________________________________________
 
 ## 8. Headroom budget for the CIC pipeline
 
-The CIC decimator's integrators accumulate UQ16 samples in `uint64_t`
-accumulators using modular (wrapping) unsigned arithmetic. The unsigned
+The CIC decimator's integrators accumulate Q15 samples, held modulo 2⁶⁴, in
+`uint64_t` accumulators using modular (wrapping) unsigned arithmetic. The
+bound below is on the sum the decoder forms once the offset is back on,
+which is the largest value that has to fit. The unsigned
 modular-arithmetic CIC property guarantees that every intermediate overflow
 in the N integrator stages cancels exactly in the N comb stages, provided
 the **true result** of each comb difference fits within 64 bits.

@@ -1,6 +1,6 @@
 /**
  * @file cic_core.h
- * @brief CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline.
+ * @brief CIC decimation filter — 4-stage, M=1, 16-bit integer pipeline.
  *
  * **INPUT AMPLITUDE IS BOUNDED: |Re| and |Im| <= 2.0.** A component beyond
  * that is CLIPPED at the boundary, before any filtering happens.  Unlike the
@@ -36,17 +36,24 @@
  *   R = power-of-two decimation ratio (enforced at create time)
  *
  * Input/output boundary: CF32 (`float _Complex`), matching the doppler
- * default signal type.  Internally, each sample is converted to UQ16 —
- * offset-binary: v_q15 + 32768 → `[0, 65535]` in a uint64_t — giving 48
- * bits of headroom for the pipeline gain of N * log2(R) bits.  At the cap
- * `CIC_R_MAX` (2048, log2 = 11) the gain is 44 bits; max accumulation =
+ * default signal type.  Internally, each sample is a 16-bit Q15 value held
+ * in a uint64_t modulo 2^64, giving 48 bits of headroom for the pipeline
+ * gain of N * log2(R) bits.  At the cap `CIC_R_MAX` (2048, log2 = 11) the
+ * gain is 44 bits; the largest sum the output decode forms is
  * 65535 * R^N = (2^16 - 1) * 2^44, which is 16x inside 2^64.  R = 4096 also
  * fits, but to within one part in 65536 — see CIC_R_MAX for why the cap is
  * a halving below it.
  *
- * All arithmetic is unsigned: inputs are non-negative `[0, 65535]`, wrapping
- * is defined (mod 2^64), and the output decode subtracts the offset in
- * floating-point — no signed integer casts anywhere in the hot path.
+ * **Every register is unsigned**, because the pipeline depends on its
+ * registers wrapping and in C only an unsigned type promises that: a
+ * signed one that overflows is undefined. The sample goes in as its value
+ * modulo 2^64 (offset binary, then the offset off again, both unsigned),
+ * and comes out by adding the offset back at the pipeline's gain before
+ * the normalising shift, so what is shifted is never negative. The offset
+ * is carried around the pipeline and not through it, which is why a filter
+ * that has only seen silence holds zeros and gives zeros: its first
+ * outputs after create or reset are the filter filling with the input,
+ * and nothing else.
  *
  * The unsigned modular-arithmetic CIC property guarantees exact outputs:
  * every intermediate overflow in the integrators cancels in the comb
@@ -54,7 +61,8 @@
  * pipeline itself needs no saturation, no range checks and no
  * floating-point — the one saturation in the block is at the CF32 encoder,
  * and it is the +-2.0 input bound described at the top of this file, not an
- * arithmetic guard.
+ * arithmetic guard. A NaN component is taken as over the bound: it reads as
+ * the top of the range and raises @c clipped.
  *
  * With M=1 and N fixed, the entire comb state is four uint64_t values
  * per channel — no heap allocation beyond the state struct itself.
@@ -83,6 +91,11 @@ extern "C" {
 /** Fixed stage count.  Alias rejection ~19.2 dB/stage at f_p=0.1. */
 #define CIC_N 4
 
+/** The offset-binary midpoint of the 16-bit sample: what makes a Q15 value
+ *  non-negative. It is taken off again before the pipeline and put back,
+ *  at the pipeline's gain, after it (dp_cic_decimate()). */
+#define CIC_OFFSET ((uint64_t)32768)
+
 /**
  * @brief Largest decimation ratio a CIC will be built at.
  *
@@ -109,7 +122,7 @@ extern "C" {
  */
 typedef struct {
     uint64_t integ_re[CIC_N]; /**< Integrator accumulators, real path
-                                   (UQ16 input, wrapping mod 2^64);
+                                   (the Q15 sample, wrapping mod 2^64);
                                    running state. */
     uint64_t integ_im[CIC_N]; /**< Integrator accumulators, imag path;
                                    running state. */
@@ -193,8 +206,9 @@ void dp_cic_reset(dp_cic_state_t *state);
  * [integ_re/im, comb_re/im (CIC_N u64 each)][u32 phase][u8 clipped]. */
 /** FourCC type tag ("CIC_") stamped in a CIC state blob's header. */
 #define CIC_STATE_MAGIC DP_FOURCC ('C', 'I', 'C', '_')
-/** Layout version of the CIC state blob (2 added @c clipped, 3 added R). */
-#define CIC_STATE_VERSION 3u
+/** Layout version of the CIC state blob (2 added @c clipped, 3 added R; 4:
+ *  the registers hold the sample without its offset). */
+#define CIC_STATE_VERSION 4u
 
 /**
  * @brief Peak-to-average headroom the input encoding reserves, as a voltage
@@ -310,10 +324,13 @@ double dp_cic_get_group_delay(const dp_cic_state_t *state);
 
 /**
  * @brief Decimate a block of CF32 samples through the CIC pipeline.
- * Each sample is converted to offset-binary UQ16, pushed through
- * CIC_N integrators (unsigned wrapping), and when the phase counter
- * reaches R the integrated value is passed through CIC_N M=1 comb
- * stages and converted back to CF32.  State persists between calls.
+ * Each sample is converted to 16-bit Q15, pushed through CIC_N
+ * integrators (unsigned wrapping), and when the phase counter reaches R
+ * the integrated value is passed through CIC_N M=1 comb stages and
+ * converted back to CF32.  State persists between calls. A fresh or reset
+ * filter starts from silence: its first CIC_N - 1 outputs are the filter
+ * filling with the input, and silence in gives exact zeros out from the
+ * first one.
  * Feeding blocks that are multiples of R gives predictable output
  * counts (exactly n_in/R samples per block).
  *
@@ -340,11 +357,12 @@ double dp_cic_get_group_delay(const dp_cic_state_t *state);
  * >>> from doppler.resample import CIC
  * >>> import numpy as np
  * >>> cic = CIC(R=16)
- * >>> for _ in range(4):
- * ...     _ = cic.decimate(np.zeros(16, dtype=np.complex64))
- * >>> y = cic.decimate(np.zeros(16, dtype=np.complex64))
- * >>> y.tolist(), y.dtype
- * ([0j], dtype('complex64'))
+ * >>> y = cic.decimate(np.zeros(64, dtype=np.complex64))
+ * >>> y.tolist(), y.dtype                 # silence in, zeros from the first
+ * ([0j, 0j, 0j, 0j], dtype('complex64'))
+ * >>> ones = cic.decimate(np.ones(96, dtype=np.complex64))
+ * >>> [round(float(v.real), 3) for v in ones]  # then the filter fills
+ * [0.059, 0.562, 0.972, 1.0, 1.0, 1.0]
  * @endcode
  */
 #ifndef __cplusplus
@@ -358,18 +376,26 @@ dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
     int    clip  = 0;   /* accumulated in a register; folded in once below */
 
     for (size_t i = 0; i < n_in; i++) {
-        /* CF32 → UQ16: saturate to Q15, shift to offset-binary [0, 65535].
-           The four comparisons run regardless, so noting that one fired
-           costs a register OR — which is the whole reason `clipped` exists
-           rather than a line of documentation asking callers to be careful. */
+        /* CF32 → Q15, saturated. The four comparisons run regardless, so
+           noting that one fired costs a register OR — which is the whole
+           reason `clipped` exists rather than a line of documentation
+           asking callers to be careful. The upper one is written as
+           "not at or under", so a NaN, which fails every comparison, lands
+           on the top of the range and is counted as a clip: the conversion
+           to an integer below is never handed a value it cannot hold. */
         float sr = crealf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
         float si = cimagf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
-        if (sr >  32767.0f) { sr =  32767.0f; clip = 1; }
-        if (sr < -32768.0f) { sr = -32768.0f; clip = 1; }
-        if (si >  32767.0f) { si =  32767.0f; clip = 1; }
-        if (si < -32768.0f) { si = -32768.0f; clip = 1; }
-        uint64_t re = (uint64_t)((int32_t)(int16_t)sr + 32768);
-        uint64_t im = (uint64_t)((int32_t)(int16_t)si + 32768);
+        if (!(sr <=  32767.0f)) { sr =  32767.0f; clip = 1; }
+        if (sr < -32768.0f)     { sr = -32768.0f; clip = 1; }
+        if (!(si <=  32767.0f)) { si =  32767.0f; clip = 1; }
+        if (si < -32768.0f)     { si = -32768.0f; clip = 1; }
+        /* Into the unsigned registers as the value itself, modulo 2^64:
+           through offset binary, which is never negative, and the offset
+           straight back off in unsigned arithmetic. No register here is
+           signed. A zero sample is a zero word, so a filter that has only
+           seen silence holds zeros. */
+        uint64_t re = (uint64_t)((int32_t)(int16_t)sr + 32768) - CIC_OFFSET;
+        uint64_t im = (uint64_t)((int32_t)(int16_t)si + 32768) - CIC_OFFSET;
 
         /* 4 integrators — unsigned wrap-around is intentional. */
         re = state->integ_re[0] += re;
@@ -403,13 +429,19 @@ dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
         if (n_out >= max_out)
             continue;
 
-        /* UQ16 → CF32: right-shift to normalise, remove offset-binary bias,
-           and undo the encoder's PAPR headroom. The offset is NOT scaled by
-           it — it is the offset-binary midpoint, not signal. */
+        /* → CF32. The registers hold the filtered sum modulo 2^64, which
+           is negative as often as not. Adding the offset at the pipeline's
+           gain makes it the offset-binary sum, in [0, 2^16 * R^N), which
+           fits; the right shift then normalises it and floors it, an
+           unsigned shift of a non-negative value. The offset comes off in
+           floating point, and the encoder's PAPR headroom is undone. The
+           offset is NOT scaled by the headroom — it is the midpoint, not
+           signal. */
+        const uint64_t bias = CIC_OFFSET << shift;
         out[n_out++] = CMPLXF(
-            ((float)(uint16_t)(re >> shift) - 32768.0f)
+            ((float)(uint16_t)((re + bias) >> shift) - 32768.0f)
                 * (CIC_PAPR_HEADROOM / 32768.0f),
-            ((float)(uint16_t)(im >> shift) - 32768.0f)
+            ((float)(uint16_t)((im + bias) >> shift) - 32768.0f)
                 * (CIC_PAPR_HEADROOM / 32768.0f));
     }
     state->clipped |= (uint8_t)clip;   /* sticky; cleared by reset() */

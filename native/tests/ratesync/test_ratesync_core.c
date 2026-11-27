@@ -1514,7 +1514,7 @@ test_settle_time (void)
    2% of the start, plus RS_SETTLE_K standard errors of that mean
    (ratesync_settle_test.h says what is measured and why it is a mean).
 
-   Why four standard errors. The bound is checked at every symbol from
+   Why five standard errors. The bound is checked at every symbol from
    settle_time (260) to 449, 190 of them, on each of five rows: 950
    comparisons. For a loop that meets the claim, a normal mean passes its
    bound by k standard errors with probability at most erfc (k / sqrt (2))
@@ -1523,18 +1523,19 @@ test_settle_time (void)
        k    per comparison    expected false fails in 950    at least one
        3    2.7e-3            2.6                            92%
        4    6.3e-5            0.060                          at most 6%
+       5    5.7e-7            5.4e-4                         at most 0.06%
 
    The last column at 3 takes the comparisons as independent; neighboring
-   symbols are not, so it is an overestimate. The 6% at 4 is the union
-   bound, which holds whatever the correlation, and both are the worst
-   case, a true residual right at 2%. Three is a bound on one symbol: it
-   fails a correct loop on some data (two of five seed sets at 150
-   patterns), and four passed all five at 100, 150 and 200.
+   symbols are not, so it is an overestimate. The others are the union
+   bound, which holds whatever the correlation. All are the worst case, a
+   true residual right at 2%, and that case is real: the 0.25 symbol row
+   sits there, so 6% is not small enough.
+
    Further starts and the rectangle are the sweep's,
    native/validation/ratesync_settle.c.
 
-   Sabotage: the loop built at half its bandwidth, red at every row; at
-   0.8 of it, red at four rows or more. */
+   Sabotage, on these data: the loop built at half its bandwidth or at 0.8
+   of it, red at every row; at 0.9 of it, red at two. */
 #define _SETTLE_SEEDS 100
 
 static void

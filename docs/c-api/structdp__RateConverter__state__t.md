@@ -47,6 +47,8 @@ _Cascade state_  _owns all sub-stage C objects._[More...](#detailed-description)
 |  double | [**beta**](#variable-beta)  <br> |
 |  size\_t | [**buf\_cap**](#variable-buf_cap)  <br> |
 |  float \_Complex \* | [**bufs**](#variable-bufs)  <br> |
+|  uint32\_t | [**cic\_headroom\_bits**](#variable-cic_headroom_bits)  <br> |
+|  uint32\_t | [**cic\_precision**](#variable-cic_precision)  <br> |
 |  int | [**compensate**](#variable-compensate)  <br> |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**ctx**](#variable-ctx)  <br> |
 |  uint32\_t | [**decim**](#variable-decim)  <br> |
@@ -302,6 +304,41 @@ float _Complex* dp_RateConverter_state_t::bufs[2];
 
 
 Ping-pong intermediate buffers, grown lazily on first execute. 
+
+
+        
+
+<hr>
+
+
+
+### variable cic\_headroom\_bits 
+
+```C++
+uint32_t dp_RateConverter_state_t::cic_headroom_bits;
+```
+
+
+
+bits of the word above unit amplitude 
+
+
+        
+
+<hr>
+
+
+
+### variable cic\_precision 
+
+```C++
+uint32_t dp_RateConverter_state_t::cic_precision;
+```
+
+
+
+CIC\_PRECISION\_16, \_32 or \_64 
+ 
 
 
         

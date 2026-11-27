@@ -42,16 +42,68 @@ static float _Complex dc_last (dp_cic_state_t *obj, float _Complex sample,
   return out[n - 1];
 }
 
-/* The CIC as its definition, with no modular arithmetic: the sample as
-   dp_cic_decimate() encodes it, four boxcars of R in plain 64-bit sums
-   that cannot overflow at the sizes used here (R <= 64, n <= 65536), the
-   offset-binary midpoint, a floor-divide by R^4, and the decode.
-   `offset_inside` carries the midpoint through the boxcars, the form the
-   filter had: the two agree once the boxcars are full of input, and
-   differ before that. */
+/* The CIC as its definition, with no modular arithmetic. The sample is
+   encoded as dp_cic_decimate() encodes it for this filter's word; the four
+   boxcars are sliding sums of signed 64-bit values, which the word's width
+   keeps inside an int64 at every stage (a boxcar of R words of `bits` bits
+   four deep is under 2^(bits - 1) * R^4 <= 2^63 in size), so nothing here
+   wraps; the midpoint goes on, the sum is floor-divided by R^4, and the
+   sample is decoded. */
 static void
-cic_model (const float _Complex *x, size_t n, uint32_t R, int offset_inside,
+cic_model (const dp_cic_state_t *c, const float _Complex *x, size_t n,
            float _Complex *y)
+{
+  const uint32_t R = c->R;
+  int64_t       *v = malloc (n * sizeof *v), *w = malloc (n * sizeof *w);
+  for (int part = 0; part < 2; part++)
+    {
+      for (size_t i = 0; i < n; i++)
+        {
+          float s = (part ? cimagf (x[i]) : crealf (x[i])) * c->in_scale;
+          if (!(s <= c->in_hi))
+            s = c->in_hi;
+          if (s < c->in_lo)
+            s = c->in_lo;
+          v[i] = (int64_t)s;
+        }
+      for (int o = 0; o < CIC_N; o++)
+        {
+          int64_t run = 0;
+          for (size_t i = 0; i < n; i++)
+            {
+              if (i >= R)
+                run -= v[i - R];
+              run += v[i];
+              w[i] = run;
+            }
+          memcpy (v, w, n * sizeof *v);
+        }
+      for (size_t k = 0; (k + 1) * R <= n; k++)
+        {
+          /* v + 2^(bits-1) * R^4 is never negative: as an unsigned sum
+             (a negative int64 converts modulo 2^64, C99 6.3.1.3p2) it is
+             the true value, and the shift floors it */
+          const uint64_t u
+              = (uint64_t)v[(k + 1) * R - 1] + (c->offset << c->shift);
+          const float f
+              = (float)((int64_t)(u >> c->shift) - (int64_t)c->offset)
+                * c->out_scale;
+          if (part)
+            y[k] = CMPLXF (crealf (y[k]), f);
+          else
+            y[k] = CMPLXF (f, 0.0f);
+        }
+    }
+  free (v);
+  free (w);
+}
+
+/* The filter this one was before it had a precision: a 16-bit sample at
+   full scale 2.0 with the offset-binary midpoint carried through the
+   boxcars, written out with its own literals because it is a record of
+   that filter and not a use of this one's constants. */
+static void
+cic_legacy (const float _Complex *x, size_t n, uint32_t R, float _Complex *y)
 {
   int64_t      *v = malloc (n * sizeof *v), *c = malloc ((n + 1) * sizeof *c);
   const int64_t gain = (int64_t)R * R * R * R;
@@ -59,15 +111,14 @@ cic_model (const float _Complex *x, size_t n, uint32_t R, int offset_inside,
     {
       for (size_t i = 0; i < n; i++)
         {
-          float s = (part ? cimagf (x[i]) : crealf (x[i]))
-                    * (32768.0f / CIC_PAPR_HEADROOM);
-          if (!(s <= 32767.0f))
+          float s = (part ? cimagf (x[i]) : crealf (x[i])) * 16384.0f;
+          if (s > 32767.0f)
             s = 32767.0f;
           if (s < -32768.0f)
             s = -32768.0f;
-          v[i] = (int64_t)(int16_t)s + (offset_inside ? 32768 : 0);
+          v[i] = (int64_t)(int16_t)s + 32768;
         }
-      for (int o = 0; o < CIC_N; o++)
+      for (int o = 0; o < 4; o++)
         {
           c[0] = 0;
           for (size_t i = 0; i < n; i++)
@@ -77,10 +128,8 @@ cic_model (const float _Complex *x, size_t n, uint32_t R, int offset_inside,
         }
       for (size_t k = 0; (k + 1) * R <= n; k++)
         {
-          /* never negative, so the division floors */
-          int64_t w = v[(k + 1) * R - 1] + (offset_inside ? 0 : 32768 * gain);
-          float   f = ((float)(w / gain) - 32768.0f)
-                      * (CIC_PAPR_HEADROOM / 32768.0f);
+          float f = ((float)(v[(k + 1) * R - 1] / gain) - 32768.0f)
+                    * (2.0f / 32768.0f);
           if (part)
             y[k] = CMPLXF (crealf (y[k]), f);
           else
@@ -91,185 +140,375 @@ cic_model (const float _Complex *x, size_t n, uint32_t R, int offset_inside,
   free (c);
 }
 
-/* The offset is carried around the pipeline, not through it.
+static const uint32_t PRECISIONS[]
+    = { CIC_PRECISION_16, CIC_PRECISION_32, CIC_PRECISION_64 };
+enum
+{
+  N_PREC = 3
+};
+
+/* The word, its two ends, and the offset that goes around the pipeline.
      Sabotages, each shown red: the offset left out of the decode; added
    without the pipeline's gain; left on at the input as well; the NaN-safe
-   comparison written as `s > 32767`; the output taken with one stage of
-   gain too few in the shift. */
+   comparison written as `s > hi`; one stage of gain too few in the shift;
+   a 32-bit sum in the decode; CIC_PRECISION_64 given a 32-bit word; a
+   word one bit wider than the register has left; the headroom left out of
+   the scale; the top of the word one float too high. */
 static void
-test_offset_is_outside_the_pipeline (void)
+test_the_word (void)
 {
-  /* Silence in is exact zeros out, from the first output after create. */
-  static const uint32_t rs[] = { 2, 16, 64, 2048 };
-  for (size_t ri = 0; ri < sizeof rs / sizeof *rs; ri++)
-    {
-      const uint32_t  R = rs[ri];
-      const size_t    n = (size_t)R * 8u;
-      dp_cic_state_t *c = dp_cic_create (R);
-      float _Complex *x = calloc (n, sizeof *x), *y = malloc (8 * sizeof *y);
-      DP_CHECK (c != NULL && x != NULL && y != NULL);
-      if (c && x && y)
-        {
-          DP_CHECK (dp_cic_decimate (c, x, n, y, 8) == 8);
-          for (size_t k = 0; k < 8; k++)
-            DP_CHECK (crealf (y[k]) == 0.0f && cimagf (y[k]) == 0.0f);
-          for (int i = 0; i < CIC_N; i++)
-            DP_CHECK (c->integ_re[i] == 0 && c->comb_im[i] == 0);
-        }
-      dp_cic_destroy (c);
-      free (x);
-      free (y);
-    }
-
-  /* Every output is the definition's, bit for bit, and past the fill it is
-     the output the filter gave with the offset carried through. Tones from
-     1/512 of the output rate to the input's Nyquist and noise, at unit
-     amplitude, at both rails, and clipping. */
-  static const uint32_t rm[]  = { 2, 16, 64 };
-  static const float    amp[] = { 1.0f, 1.999f, 2.0f, 2.6f };
-  static const double   cyc[] = { 1.0 / 512.0,
-                                  0.05,
-                                  0.25,
-                                  0.49,
-                                  0.5,
-                                  1.0,
-                                  -1.0 /* the input's Nyquist, less a bit */,
-                                  0.0 /* noise */ };
-  size_t                rows = 0, fills_differ = 0;
-  for (size_t ri = 0; ri < sizeof rm / sizeof *rm; ri++)
-    for (size_t ai = 0; ai < sizeof amp / sizeof *amp; ai++)
-      for (size_t ci = 0; ci < sizeof cyc / sizeof *cyc; ci++)
-        {
-          const uint32_t  R = rm[ri];
-          const size_t    n = (size_t)R * 400u, no = n / R;
-          dp_cic_state_t *c  = dp_cic_create (R);
-          float _Complex *x  = malloc (n * sizeof *x);
-          float _Complex *y  = malloc (no * sizeof *y);
-          float _Complex *m  = malloc (no * sizeof *m);
-          float _Complex *mo = malloc (no * sizeof *mo);
-          DP_CHECK (c && x && y && m && mo);
-          if (c && x && y && m && mo)
-            {
-              uint32_t st = 0xC1Cu + (uint32_t)(ri * 100 + ai * 10 + ci);
-              double   f  = cyc[ci] < 0.0 ? 0.5 - 0.01 / R : cyc[ci] / R;
-              for (size_t i = 0; i < n; i++)
-                if (cyc[ci] == 0.0)
-                  {
-                    const double a = 2.0 * dp_uni (&st) - 1.0;
-                    const double b = 2.0 * dp_uni (&st) - 1.0;
-                    x[i] = CMPLXF ((float)(amp[ai] * a), (float)(amp[ai] * b));
-                  }
-                else
-                  x[i] = CMPLXF (
-                      (float)(amp[ai] * cos (2.0 * M_PI * f * (double)i)),
-                      (float)(amp[ai] * sin (2.0 * M_PI * f * (double)i)));
-              DP_CHECK (dp_cic_decimate (c, x, n, y, no) == no);
-              cic_model (x, n, R, 0, m);
-              cic_model (x, n, R, 1, mo);
-              DP_CHECK (memcmp (y, m, no * sizeof *y) == 0);
-              DP_CHECK (
-                  memcmp (y + CIC_N, mo + CIC_N, (no - CIC_N) * sizeof *y)
-                  == 0);
-              if (memcmp (y, mo, CIC_N * sizeof *y) != 0)
-                fills_differ++;
-              /* under the bound nothing clips, over it something does;
-                 at it, whether a sample lands on the top step is the
-                 stream's doing */
-              if (amp[ai] < 2.0f)
-                DP_CHECK (!c->clipped);
-              if (amp[ai] > 2.0f)
-                DP_CHECK (c->clipped);
-              rows++;
-            }
-          dp_cic_destroy (c);
-          free (x);
-          free (y);
-          free (m);
-          free (mo);
-        }
-  printf ("  offset outside the pipeline: %zu rows equal the definition on "
-          "every output; %zu of them differ from the old form inside the "
-          "fill\n",
-          rows, fills_differ);
-  /* and the old form's fill is not this one's: the model can tell them
-     apart, on every row */
-  DP_CHECK (rows == 96 && fills_differ == rows);
-
-  /* The registers wrap and the answer does not. Both rails as DC at the
-     largest ratio, 8.2 million inputs: the fourth integrator passes 2^64
-     after about 4096 of them. Every output past the fill is the input. */
+  /* What a filter is built with, and what each precision is. */
   {
-    const uint32_t  R = CIC_R_MAX;
-    const size_t    n = (size_t)R * 4000u, no = n / R;
-    float _Complex *x = malloc (n * sizeof *x), *y = malloc (no * sizeof *y);
-    DP_CHECK (x != NULL && y != NULL);
-    static const float rail[]
-        = { 32767.0f * (CIC_PAPR_HEADROOM / 32768.0f), -CIC_PAPR_HEADROOM };
-    for (size_t r = 0; x && y && r < 2; r++)
+    dp_cic_state_t *c = dp_cic_create (64);
+    DP_CHECK (c != NULL);
+    if (c)
       {
-        dp_cic_state_t *c = dp_cic_create (R);
-        DP_CHECK (c != NULL);
-        if (!c)
-          continue;
-        for (size_t i = 0; i < n; i++)
-          x[i] = CMPLXF (rail[r], -rail[r] > 1.9999f ? 1.5f : -rail[r]);
-        DP_CHECK (dp_cic_decimate (c, x, n, y, no) == no);
-        size_t bad = 0;
-        for (size_t k = CIC_N; k < no; k++)
-          bad += crealf (y[k]) != rail[r];
-        DP_CHECK (bad == 0);
-        DP_CHECK (c->integ_re[CIC_N - 1] != 0);
-        DP_CHECK (!c->clipped);
-        dp_cic_destroy (c);
+        const uint32_t room = CIC_REG_BITS - c->shift;
+        DP_CHECK (dp_cic_get_precision (c) == CIC_PRECISION_DEFAULT);
+        DP_CHECK (CIC_PRECISION_DEFAULT == CIC_PRECISION_64);
+        DP_CHECK (dp_cic_get_bits (c) == room);
+        DP_CHECK (dp_cic_get_headroom_bits (c) == CIC_HEADROOM_BITS_WIDE);
+        DP_CHECK (dp_cic_get_full_scale (c) == (double)CIC_PAPR_WIDE);
+        DP_CHECK (dp_cic_get_full_scale (c) == 4.0); /* the stated ratio */
+        DP_CHECK (dp_cic_get_step (c)
+                  == dp_cic_get_full_scale (c) / ldexp (1.0, (int)room - 1));
+        DP_CHECK (dp_cic_set_precision (c, CIC_PRECISION_32) == DP_OK);
+        DP_CHECK (dp_cic_get_bits (c) == CIC_PRECISION_32);
+        DP_CHECK (dp_cic_get_full_scale (c) == (double)CIC_PAPR_WIDE);
+        DP_CHECK (dp_cic_set_precision (c, CIC_PRECISION_16) == DP_OK);
+        DP_CHECK (dp_cic_get_bits (c) == CIC_PRECISION_16);
+        DP_CHECK (dp_cic_get_headroom_bits (c) == CIC_HEADROOM_BITS_16);
+        DP_CHECK (dp_cic_get_full_scale (c) == (double)CIC_PAPR_16);
+        DP_CHECK (dp_cic_get_full_scale (c) == 2.0);
+        DP_CHECK (dp_cic_get_step (c) == 2.0 / 32768.0);
+        /* the headroom is its own setting, and a precision puts it back */
+        DP_CHECK (dp_cic_set_headroom_bits (c, 4) == DP_OK);
+        DP_CHECK (dp_cic_get_full_scale (c) == 16.0);
+        DP_CHECK (dp_cic_get_step (c) == 16.0 / 32768.0);
+        DP_CHECK (dp_cic_set_precision (c, CIC_PRECISION_64) == DP_OK);
+        DP_CHECK (dp_cic_get_headroom_bits (c) == CIC_HEADROOM_BITS_WIDE);
+        /* refusals change nothing */
+        dp_cic_state_t before = *c;
+        DP_CHECK (dp_cic_set_precision (c, 0) == DP_ERR_INVALID);
+        DP_CHECK (dp_cic_set_precision (c, 8) == DP_ERR_INVALID);
+        DP_CHECK (dp_cic_set_precision (c, 33) == DP_ERR_INVALID);
+        DP_CHECK (dp_cic_set_headroom_bits (c, CIC_HEADROOM_BITS_MAX + 1u)
+                  == DP_ERR_INVALID);
+        DP_CHECK (memcmp (&before, c, sizeof before) == 0);
+        DP_CHECK (dp_cic_set_headroom_bits (c, CIC_HEADROOM_BITS_MAX)
+                  == DP_OK);
+        DP_CHECK (dp_cic_set_headroom_bits (c, 0) == DP_OK);
+        DP_CHECK (dp_cic_get_full_scale (c) == 1.0);
       }
-    free (x);
-    free (y);
+    dp_cic_destroy (c);
+    /* past R = 256 the register has under 32 bits left, and the two wide
+       precisions are one word */
+    for (uint32_t R = 2; R <= CIC_R_MAX; R <<= 1)
+      {
+        dp_cic_state_t *w = dp_cic_create (R);
+        DP_CHECK (w != NULL);
+        if (!w)
+          continue;
+        const uint32_t room = CIC_REG_BITS - w->shift;
+        DP_CHECK (room > CIC_PRECISION_16); /* what CIC_R_MAX is for */
+        DP_CHECK (dp_cic_get_bits (w) == room);
+        DP_CHECK (dp_cic_set_precision (w, CIC_PRECISION_32) == DP_OK);
+        DP_CHECK (dp_cic_get_bits (w)
+                  == (room < CIC_PRECISION_32 ? room : CIC_PRECISION_32));
+        DP_CHECK ((R > 256) == (room < CIC_PRECISION_32));
+        dp_cic_destroy (w);
+      }
   }
 
-  /* A sample that is not a number is over the bound: it reads as the top
-     of the range, raises the flag, and is gone when it has left the
-     boxcars. The stream with a NaN, +inf and -inf in it gives exactly the
-     outputs of the same stream with the two rails in their places. */
+  /* A setting resets the filter and travels in the blob: a twin built
+     with nothing set resumes a configured stream bit for bit. */
   {
     const uint32_t  R = 16;
-    const size_t    n = (size_t)R * 64u, no = n / R;
+    const size_t    n = (size_t)R * 40u, no = n / R;
     dp_cic_state_t *a = dp_cic_create (R), *b = dp_cic_create (R);
-    float _Complex *x = malloc (n * sizeof *x), *z = malloc (n * sizeof *z);
+    float _Complex *x  = malloc (n * sizeof *x);
     float _Complex *ya = malloc (no * sizeof *ya),
                    *yb = malloc (no * sizeof *yb);
-    DP_CHECK (a && b && x && z && ya && yb);
-    if (a && b && x && z && ya && yb)
+    DP_CHECK (a && b && x && ya && yb);
+    if (a && b && x && ya && yb)
       {
-        uint32_t st = 77u;
+        uint32_t st = 5u;
         for (size_t i = 0; i < n; i++)
           {
             const double u = dp_uni (&st) - 0.5;
             const double w = dp_uni (&st) - 0.5;
-            x[i]           = CMPLXF ((float)u, (float)w);
-            z[i]           = x[i];
+            x[i]           = CMPLXF ((float)(20.0 * u), (float)w);
           }
-        x[100] = CMPLXF (NAN, cimagf (x[100]));
-        z[100] = CMPLXF (4.0f, cimagf (z[100])); /* over the top */
-        x[200] = CMPLXF (crealf (x[200]), INFINITY);
-        z[200] = CMPLXF (crealf (z[200]), 4.0f);
-        x[300] = CMPLXF (-INFINITY, NAN);
-        z[300] = CMPLXF (-4.0f, 4.0f);
-        DP_CHECK (dp_cic_decimate (a, x, n, ya, no) == no);
-        DP_CHECK (dp_cic_decimate (b, z, n, yb, no) == no);
-        DP_CHECK (a->clipped && b->clipped);
-        DP_CHECK (memcmp (ya, yb, no * sizeof *ya) == 0);
-        size_t finite = 0;
-        for (size_t k = 0; k < no; k++)
-          finite += isfinite (crealf (ya[k])) && isfinite (cimagf (ya[k]));
-        DP_CHECK (finite == no);
+        (void)dp_cic_decimate (a, x, n, ya, no);
+        DP_CHECK (a->clipped && a->integ_re[0] != 0);
+        DP_CHECK (dp_cic_set_precision (a, CIC_PRECISION_32) == DP_OK);
+        DP_CHECK (!a->clipped && a->integ_re[0] == 0 && a->phase == 0);
+        DP_CHECK (dp_cic_set_headroom_bits (a, 5) == DP_OK);
+        (void)dp_cic_decimate (a, x, n / 2, ya, no);
+        DP_CHECK (!a->clipped); /* 10 of full scale 32 */
+        size_t nb   = dp_cic_state_bytes (a);
+        char  *blob = malloc (nb);
+        DP_CHECK (blob != NULL);
+        if (blob)
+          {
+            dp_cic_get_state (a, blob);
+            DP_CHECK (dp_cic_set_state (b, blob) == DP_OK);
+            DP_CHECK (dp_cic_get_precision (b) == CIC_PRECISION_32
+                      && dp_cic_get_headroom_bits (b) == 5);
+            size_t ka = dp_cic_decimate (a, x + n / 2, n / 2, ya, no);
+            size_t kb = dp_cic_decimate (b, x + n / 2, n / 2, yb, no);
+            DP_CHECK (ka == kb && memcmp (ya, yb, ka * sizeof *ya) == 0);
+            /* a precision or a headroom no filter has is refused */
+            dp_cic_state_t bad = *a, keep = *b;
+            bad.precision = 17;
+            dp_cic_get_state (&bad, blob);
+            DP_CHECK (dp_cic_set_state (b, blob) == DP_ERR_INVALID);
+            bad               = *a;
+            bad.headroom_bits = CIC_HEADROOM_BITS_MAX + 1u;
+            dp_cic_get_state (&bad, blob);
+            DP_CHECK (dp_cic_set_state (b, blob) == DP_ERR_INVALID);
+            DP_CHECK (memcmp (&keep, b, sizeof keep) == 0);
+          }
+        free (blob);
       }
     dp_cic_destroy (a);
     dp_cic_destroy (b);
     free (x);
-    free (z);
     free (ya);
     free (yb);
   }
+
+  /* Silence in is exact zeros out, from the first output after create. */
+  static const uint32_t rs[] = { 2, 16, 64, CIC_R_MAX };
+  for (size_t pi = 0; pi < N_PREC; pi++)
+    for (size_t ri = 0; ri < sizeof rs / sizeof *rs; ri++)
+      {
+        const uint32_t  R = rs[ri];
+        const size_t    n = (size_t)R * 8u;
+        dp_cic_state_t *c = dp_cic_create (R);
+        float _Complex *x = calloc (n, sizeof *x), *y = malloc (8 * sizeof *y);
+        DP_CHECK (c != NULL && x != NULL && y != NULL);
+        if (c && x && y)
+          {
+            DP_CHECK (dp_cic_set_precision (c, PRECISIONS[pi]) == DP_OK);
+            DP_CHECK (dp_cic_decimate (c, x, n, y, 8) == 8);
+            for (size_t k = 0; k < 8; k++)
+              DP_CHECK (crealf (y[k]) == 0.0f && cimagf (y[k]) == 0.0f);
+            for (int i = 0; i < CIC_N; i++)
+              DP_CHECK (c->integ_re[i] == 0 && c->comb_im[i] == 0);
+          }
+        dp_cic_destroy (c);
+        free (x);
+        free (y);
+      }
+
+  /* Every output is the definition's, bit for bit, at each precision; and
+     at CIC_PRECISION_16 it is, past the fill, the output of the filter
+     this one was. Tones from 1/512 of the output rate to the input's
+     Nyquist and noise, at unit amplitude, just under full scale, at it,
+     and clipping. */
+  static const uint32_t rm[]   = { 2, 16, 64, 512, CIC_R_MAX };
+  static const float    frac[] = { 0.25f, 0.9995f, 1.0f, 1.3f };
+  static const double   cyc[]  = { 1.0 / 512.0,
+                                   0.05,
+                                   0.25,
+                                   0.49,
+                                   0.5,
+                                   1.0,
+                                   -1.0 /* the input's Nyquist, less a bit */,
+                                   0.0 /* noise */ };
+  size_t                rows = 0, legacy_rows = 0, legacy_fill = 0;
+  double                worst16 = 0.0, worst64 = 0.0;
+  for (size_t pi = 0; pi < N_PREC; pi++)
+    for (size_t ri = 0; ri < sizeof rm / sizeof *rm; ri++)
+      for (size_t ai = 0; ai < sizeof frac / sizeof *frac; ai++)
+        for (size_t ci = 0; ci < sizeof cyc / sizeof *cyc; ci++)
+          {
+            const uint32_t  R  = rm[ri];
+            const size_t    n  = (size_t)R * (R > 64 ? 24u : 400u);
+            const size_t    no = n / R;
+            dp_cic_state_t *c  = dp_cic_create (R);
+            float _Complex *x  = malloc (n * sizeof *x);
+            float _Complex *y  = malloc (no * sizeof *y);
+            float _Complex *m  = malloc (no * sizeof *m);
+            DP_CHECK (c && x && y && m);
+            if (c && x && y && m)
+              {
+                DP_CHECK (dp_cic_set_precision (c, PRECISIONS[pi]) == DP_OK);
+                const double fs  = dp_cic_get_full_scale (c);
+                const double amp = (double)frac[ai] * fs;
+                uint32_t     st
+                    = 0xC1Cu + (uint32_t)(pi * 1000 + ri * 100 + ai * 10 + ci);
+                double f = cyc[ci] < 0.0 ? 0.5 - 0.01 / R : cyc[ci] / R;
+                for (size_t i = 0; i < n; i++)
+                  if (cyc[ci] == 0.0)
+                    {
+                      const double a = 2.0 * dp_uni (&st) - 1.0;
+                      const double b = 2.0 * dp_uni (&st) - 1.0;
+                      x[i] = CMPLXF ((float)(amp * a), (float)(amp * b));
+                    }
+                  else
+                    x[i] = CMPLXF (
+                        (float)(amp * cos (2.0 * M_PI * f * (double)i)),
+                        (float)(amp * sin (2.0 * M_PI * f * (double)i)));
+                DP_CHECK (dp_cic_decimate (c, x, n, y, no) == no);
+                cic_model (c, x, n, m);
+                DP_CHECK (memcmp (y, m, no * sizeof *y) == 0);
+                /* under the bound nothing clips, over it something does;
+                   at it, whether a sample lands on the top step is the
+                   stream's doing */
+                if (frac[ai] < 1.0f)
+                  DP_CHECK (!c->clipped);
+                if (frac[ai] > 1.0f)
+                  DP_CHECK (c->clipped);
+                if (PRECISIONS[pi] == CIC_PRECISION_16)
+                  {
+                    cic_legacy (x, n, R, m);
+                    DP_CHECK (
+                        memcmp (y + CIC_N, m + CIC_N, (no - CIC_N) * sizeof *y)
+                        == 0);
+                    legacy_rows++;
+                    legacy_fill += memcmp (y, m, CIC_N * sizeof *y) != 0;
+                  }
+                /* How far the output is from the boxcars' exact sum of the
+                   float input, on the slow tone well inside the range:
+                   the word's doing. */
+                if (ci == 0 && ai == 0 && R == 64)
+                  {
+                    double worst = 0.0;
+                    for (size_t k = CIC_N; k < no; k++)
+                      {
+                        /* a tone through four boxcars of R is the tone
+                           scaled by (sin (pi f R) / (R sin (pi f)))^4 and
+                           centered CIC_N (R - 1) / 2 behind the newest */
+                        const double g
+                            = pow (sin (M_PI * f * R) / (R * sin (M_PI * f)),
+                                   (double)CIC_N);
+                        const double t
+                            = (double)((k + 1) * R - 1)
+                              - 0.5 * (double)CIC_N * (double)(R - 1);
+                        const double d
+                            = fabs ((double)crealf (y[k])
+                                    - amp * g * cos (2.0 * M_PI * f * t));
+                        if (d > worst)
+                          worst = d;
+                      }
+                    if (PRECISIONS[pi] == CIC_PRECISION_16)
+                      worst16 = worst / dp_cic_get_step (c);
+                    if (PRECISIONS[pi] == CIC_PRECISION_64)
+                      worst64 = worst / amp;
+                  }
+                rows++;
+              }
+            dp_cic_destroy (c);
+            free (x);
+            free (y);
+            free (m);
+          }
+  printf ("  the word: %zu rows equal the definition on every output; %zu "
+          "of them at 16 bits equal the filter this one was past the fill, "
+          "and differ from it inside the fill on %zu\n",
+          rows, legacy_rows, legacy_fill);
+  printf ("  the word: a slow tone at a quarter of full scale is off its "
+          "exact value by %.2f steps at 16 bits and by %.1e of itself at "
+          "64\n",
+          worst16, worst64);
+  DP_CHECK (rows == N_PREC * 5 * 4 * 8);
+  DP_CHECK (legacy_rows == 5 * 4 * 8 && legacy_fill == legacy_rows);
+  /* at 16 bits the error is the word's step (the encoder truncates and
+     the decode floors, so it is under two of them and over a tenth); at
+     64 it is the float's own rounding, 2^-24 of the value and a little */
+  DP_CHECK (worst16 > 0.1 && worst16 < 2.0);
+  DP_CHECK (worst64 < 4.0 * ldexp (1.0, -24));
+
+  /* The registers wrap and the answer does not: both rails as DC, at
+     every ratio and every precision, far past where the last integrator
+     passes 2^CIC_REG_BITS. Every output past the fill is the input. */
+  for (size_t pi = 0; pi < N_PREC; pi++)
+    for (uint32_t R = 2; R <= CIC_R_MAX; R <<= 1)
+      {
+        const size_t    n  = (size_t)R * 64u > 8192u ? (size_t)R * 64u : 8192u;
+        const size_t    no = n / R;
+        float _Complex *x  = malloc (n * sizeof *x);
+        float _Complex *y  = malloc (no * sizeof *y);
+        DP_CHECK (x != NULL && y != NULL);
+        for (int r = 0; x && y && r < 2; r++)
+          {
+            dp_cic_state_t *c = dp_cic_create (R);
+            DP_CHECK (c != NULL);
+            if (!c)
+              continue;
+            DP_CHECK (dp_cic_set_precision (c, PRECISIONS[pi]) == DP_OK);
+            /* the top and the bottom of the word, as inputs */
+            const float rail = (r ? c->in_lo : c->in_hi) * c->out_scale;
+            for (size_t i = 0; i < n; i++)
+              x[i] = CMPLXF (rail, -0.5f * rail);
+            DP_CHECK (dp_cic_decimate (c, x, n, y, no) == no);
+            size_t bad = 0;
+            for (size_t k = CIC_N; k < no; k++)
+              bad += crealf (y[k]) != rail;
+            DP_CHECK (bad == 0);
+            DP_CHECK (!c->clipped);
+            /* and one float past the top is over the bound */
+            x[0] = CMPLXF (nextafterf (c->in_hi, INFINITY) * c->out_scale,
+                           0.0f);
+            (void)dp_cic_decimate (c, x, R, y, no);
+            DP_CHECK (c->clipped);
+            dp_cic_destroy (c);
+          }
+        free (x);
+        free (y);
+      }
+
+  /* A sample that is not a number is over the bound: it reads as the top
+     of the range, raises the flag, and is gone when it has left the
+     boxcars. The stream with a NaN, +inf and -inf in it gives exactly the
+     outputs of the same stream with values past the two rails in their
+     places. */
+  for (size_t pi = 0; pi < N_PREC; pi++)
+    {
+      const uint32_t  R = 16;
+      const size_t    n = (size_t)R * 64u, no = n / R;
+      dp_cic_state_t *a = dp_cic_create (R), *b = dp_cic_create (R);
+      float _Complex *x = malloc (n * sizeof *x), *z = malloc (n * sizeof *z);
+      float _Complex *ya = malloc (no * sizeof *ya),
+                     *yb = malloc (no * sizeof *yb);
+      DP_CHECK (a && b && x && z && ya && yb);
+      if (a && b && x && z && ya && yb)
+        {
+          DP_CHECK (dp_cic_set_precision (a, PRECISIONS[pi]) == DP_OK);
+          DP_CHECK (dp_cic_set_precision (b, PRECISIONS[pi]) == DP_OK);
+          const float over = 2.0f * (float)dp_cic_get_full_scale (a);
+          uint32_t    st   = 77u;
+          for (size_t i = 0; i < n; i++)
+            {
+              const double u = dp_uni (&st) - 0.5;
+              const double w = dp_uni (&st) - 0.5;
+              x[i]           = CMPLXF ((float)u, (float)w);
+              z[i]           = x[i];
+            }
+          x[100] = CMPLXF (NAN, cimagf (x[100]));
+          z[100] = CMPLXF (over, cimagf (z[100]));
+          x[200] = CMPLXF (crealf (x[200]), INFINITY);
+          z[200] = CMPLXF (crealf (z[200]), over);
+          x[300] = CMPLXF (-INFINITY, NAN);
+          z[300] = CMPLXF (-over, over);
+          DP_CHECK (dp_cic_decimate (a, x, n, ya, no) == no);
+          DP_CHECK (dp_cic_decimate (b, z, n, yb, no) == no);
+          DP_CHECK (a->clipped && b->clipped);
+          DP_CHECK (memcmp (ya, yb, no * sizeof *ya) == 0);
+          size_t finite = 0;
+          for (size_t k = 0; k < no; k++)
+            finite += isfinite (crealf (ya[k])) && isfinite (cimagf (ya[k]));
+          DP_CHECK (finite == no);
+        }
+      dp_cic_destroy (a);
+      dp_cic_destroy (b);
+      free (x);
+      free (z);
+      free (ya);
+      free (yb);
+    }
 }
 
 int
@@ -535,7 +774,7 @@ main (void)
     const size_t    L  = 320;
     float _Complex *in = malloc (L * sizeof (float _Complex));
     for (size_t i = 0; i < L; i++)
-      in[i] = (float)(i % 7) - 3.0f + I * ((float)(i % 5) - 2.0f);
+      in[i] = 2.0f * ((float)(i % 7) - 3.0f) + I * ((float)(i % 5) - 2.0f);
     float _Complex outA[64], outB[64];
 
     dp_cic_state_t *ra = dp_cic_create (R);
@@ -547,10 +786,10 @@ main (void)
     size_t          nB  = dp_cic_decimate (r1, in, cut, outB, 64);
     size_t          sb  = dp_cic_state_bytes (r1);
     DP_CHECK (sb
-              == sizeof (dp_state_hdr_t) + sizeof (uint32_t)
+              == sizeof (dp_state_hdr_t) + 3 * sizeof (uint32_t)
                      + 4 * CIC_N * sizeof (uint64_t) + sizeof (uint32_t)
                      + sizeof (uint8_t));
-    /* This block's own input runs to +-3, i.e. well past the +-1.0 bound —
+    /* This block's own input runs to +-6, past the bound as built —
        so the sticky flag must be up, and must survive the round trip.  A
        resumed stream that forgot it had clipped would answer wrongly. */
     DP_CHECK (r1->clipped == 1);
@@ -576,17 +815,15 @@ main (void)
     free (in);
   }
 
-  /* ── sticky clip flag: the only signal that the +-1.0 input bound was
+  /* ── sticky clip flag: the only signal that the input bound was
    *    exceeded, since the sample stream stays finite and plausible ────── */
   {
     dp_cic_state_t *obj = dp_cic_create (16);
     float _Complex in[64];
     DP_CHECK (obj->clipped == 0);
-    /* The bound is CIC_PAPR_HEADROOM, not 1.0: the encoder reserves that
+    /* The bound is the filter's full scale, not 1.0: the word reserves that
        headroom precisely so a unit-amplitude signal's peaks fit (an RRC
-       stream peaks at 1.582x its symbol amplitude). 1.5 is now IN range —
-       it used to clip, and a caller who backed off to avoid that was giving
-       away 4 dB nothing restored. */
+       stream peaks at 1.582x its symbol amplitude), so 1.5 is in range. */
     for (size_t i = 0; i < 64; i++)
       in[i] = 0.9f + 0.9f * I;
     float _Complex out[8];
@@ -599,7 +836,7 @@ main (void)
     DP_CHECK (obj->clipped == 0); /* inside the PAPR headroom */
 
     for (size_t i = 0; i < 64; i++)
-      in[i] = 1.05f * CIC_PAPR_HEADROOM + 0.0f * I;
+      in[i] = 1.05f * (float)dp_cic_get_full_scale (obj) + 0.0f * I;
     dp_cic_decimate (obj, in, 64, out, 8);
     DP_CHECK (obj->clipped == 1);
 
@@ -612,7 +849,7 @@ main (void)
     DP_CHECK (obj->clipped == 0); /* cleared only by reset() */
 
     /* every component and sign is caught */
-    const float B               = 1.05f * CIC_PAPR_HEADROOM;
+    const float B               = 1.05f * (float)dp_cic_get_full_scale (obj);
     const float _Complex bad[4] = { B, -B, B * I, -B * I };
     for (size_t k = 0; k < 4; k++)
       {
@@ -737,7 +974,7 @@ main (void)
     dp_cic_destroy (dst);
   }
 
-  test_offset_is_outside_the_pipeline ();
+  test_the_word ();
 
   DP_TEST_END ("test_cic_core");
 }

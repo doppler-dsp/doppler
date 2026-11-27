@@ -323,7 +323,8 @@ test_clipped_forwards (void)
   float _Complex *in  = malloc (L * sizeof (float _Complex));
   float _Complex *out = malloc (L * sizeof (float _Complex));
   for (size_t i = 0; i < L; i++)
-    in[i] = (float)(2.0 * cos (0.11 * (double)i)); /* twice full scale */
+    /* twice the CIC's full scale as built */
+    in[i] = (float)(2.0 * CIC_PAPR_WIDE * cos (0.11 * (double)i));
 
   /* rate 2/64 plans a CIC(32) + terminal stage. */
   dp_ddc_state_t *d = dp_ddc_create_matched (0.0, 2.0 / 64.0, RC_PULSE_RRC,

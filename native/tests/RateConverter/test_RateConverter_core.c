@@ -2364,9 +2364,8 @@ test_count_lag_matches_the_count (void)
    of a random input are the response's sums over that input. One stage,
    halfbands, a CIC with its compensator folded into the bank, whole and
    not whole decimations, one to four outputs a symbol, both pulses.
-     The input is under the CIC's clip and far above its 16-bit step, and
-   the bound is what the response says it leaves out: single precision on
-   a plan with no CIC, the CIC's input and output steps on one with.
+     The input is under the CIC's clip and far above its step, and the
+   bound is what the response says it leaves out: single precision.
      Sabotages, each shown red: the halfband's delay tap one input off; the
    CIC with three boxcars for four; its output formed one input early; the
    bank's taps read newest-last; the arm taken from the next output's
@@ -2494,18 +2493,143 @@ test_response (void)
                   sps, plan[pi].m, plan[pi].pulse, rc->n_stages,
                   has_cic ? " with a CIC" : "", len, worst, rms);
           DP_CHECK (rms > 0.01);
-          /* With a CIC: two of its output steps, CIC_PAPR_HEADROOM /
-             32768 each (measured 6.5e-05 to 8.4e-05, a little over one).
-             Without: single precision over the taps (measured under
-             7e-08). */
-          DP_CHECK (worst
-                    < (has_cic ? 2.0 * CIC_PAPR_HEADROOM / 32768.0 : 1e-6));
+          /* Single precision over the taps, with a CIC or without: a
+             CIC's word is far finer than a float at this level. */
+          DP_CHECK (worst < 1e-6);
         }
       free (x);
       free (y);
       free (h);
       dp_RateConverter_destroy (rc);
     }
+}
+
+/* The word a converter gives its CIC stages: the setting reaches every
+   CIC the plan has and every CIC a re-plan builds, the bound and the step
+   read back through the converter, and both settings travel in the blob.
+     Sabotages, each shown red: the setting not applied to the stages; a
+   re-plan's CIC built at the default; the headroom not put back by a
+   precision; the two words left out of the blob; a plan with no CIC
+   answering a bound. */
+static void
+test_cic_word (void)
+{
+  dp_RateConverter_state_t *rc = dp_RateConverter_create (0.01, 0);
+  dp_RateConverter_state_t *hb = dp_RateConverter_create (0.5, 0);
+  DP_CHECK (rc != NULL && hb != NULL);
+  if (rc && hb)
+    {
+      /* as built */
+      DP_CHECK (dp_RateConverter_get_cic_precision (rc)
+                == CIC_PRECISION_DEFAULT);
+      DP_CHECK (dp_RateConverter_get_cic_headroom_bits (rc)
+                == CIC_HEADROOM_BITS_WIDE);
+      DP_CHECK (dp_RateConverter_get_full_scale (rc) == (double)CIC_PAPR_WIDE);
+      DP_CHECK (dp_RateConverter_get_step (rc) > 0.0
+                && dp_RateConverter_get_step (rc) < 1e-9);
+      /* no CIC: no bound and no step, and that is the answer */
+      DP_CHECK (isinf (dp_RateConverter_get_full_scale (hb)));
+      DP_CHECK (dp_RateConverter_get_step (hb) == 0.0);
+
+      /* a precision reaches the stage, with its own headroom */
+      DP_CHECK (dp_RateConverter_set_cic_headroom_bits (rc, 5) == DP_OK);
+      DP_CHECK (dp_RateConverter_get_full_scale (rc) == 32.0);
+      DP_CHECK (dp_RateConverter_set_cic_precision (rc, CIC_PRECISION_16)
+                == DP_OK);
+      DP_CHECK (dp_RateConverter_get_cic_headroom_bits (rc)
+                == CIC_HEADROOM_BITS_16);
+      DP_CHECK (dp_RateConverter_get_full_scale (rc) == (double)CIC_PAPR_16);
+      DP_CHECK (dp_RateConverter_get_step (rc)
+                == (double)CIC_PAPR_16
+                       / ldexp (1.0, (int)CIC_PRECISION_16 - 1));
+
+      /* refusals change nothing */
+      DP_CHECK (dp_RateConverter_set_cic_precision (rc, 24) == DP_ERR_INVALID);
+      DP_CHECK (dp_RateConverter_set_cic_headroom_bits (
+                    rc, CIC_HEADROOM_BITS_MAX + 1u)
+                == DP_ERR_INVALID);
+      DP_CHECK (dp_RateConverter_get_cic_precision (rc) == CIC_PRECISION_16
+                && dp_RateConverter_get_cic_headroom_bits (rc)
+                       == CIC_HEADROOM_BITS_16);
+
+      /* a setting made on a plan with no CIC is the one a re-plan builds */
+      DP_CHECK (dp_RateConverter_set_cic_precision (hb, CIC_PRECISION_16)
+                == DP_OK);
+      DP_CHECK (isinf (dp_RateConverter_get_full_scale (hb)));
+      dp_RateConverter_set_rate (hb, 0.01);
+      DP_CHECK (dp_RateConverter_get_rate (hb) == 0.01);
+      DP_CHECK (dp_RateConverter_get_full_scale (hb) == (double)CIC_PAPR_16);
+
+      /* a setting starts the converter over */
+      enum
+      {
+        N = 4096
+      };
+      float _Complex *x = malloc (N * sizeof *x), *y = malloc (N * sizeof *y);
+      float _Complex *z = malloc (N * sizeof *z);
+      DP_CHECK (x && y && z);
+      if (x && y && z)
+        {
+          for (size_t i = 0; i < N; i++)
+            x[i] = CMPLXF (3.0f * (float)cos (0.01 * (double)i), 0.5f);
+          (void)dp_RateConverter_execute (rc, x, N, y, N);
+          DP_CHECK (dp_RateConverter_get_clipped (rc)); /* 3 of 2 */
+          DP_CHECK (dp_RateConverter_set_cic_precision (rc, CIC_PRECISION_64)
+                    == DP_OK);
+          DP_CHECK (!dp_RateConverter_get_clipped (rc));
+          /* every stage, not only the CIC: from here it is a converter
+             that was built this way and has seen nothing */
+          dp_RateConverter_state_t *fresh = dp_RateConverter_create (0.01, 0);
+          DP_CHECK (fresh != NULL && rc->n_stages > 1);
+          if (fresh)
+            {
+              size_t ka = dp_RateConverter_execute (rc, x, N / 2, y, N);
+              size_t kb = dp_RateConverter_execute (fresh, x, N / 2, z, N);
+              DP_CHECK (ka == kb && ka > 8
+                        && memcmp (y, z, ka * sizeof *y) == 0);
+            }
+          dp_RateConverter_destroy (fresh);
+          DP_CHECK (!dp_RateConverter_get_clipped (rc)); /* 3 of 4 */
+
+          /* both words travel: a twin built with nothing set resumes */
+          DP_CHECK (dp_RateConverter_set_cic_headroom_bits (rc, 3) == DP_OK);
+          (void)dp_RateConverter_execute (rc, x, N / 2, y, N);
+          dp_RateConverter_state_t *tw   = dp_RateConverter_create (0.01, 0);
+          size_t                    nb   = dp_RateConverter_state_bytes (rc);
+          char                     *blob = malloc (nb);
+          DP_CHECK (tw != NULL && blob != NULL
+                    && nb == dp_RateConverter_state_bytes (tw));
+          if (tw && blob)
+            {
+              dp_RateConverter_get_state (rc, blob);
+              DP_CHECK (dp_RateConverter_set_state (tw, blob) == DP_OK);
+              DP_CHECK (dp_RateConverter_get_cic_headroom_bits (tw) == 3
+                        && dp_RateConverter_get_full_scale (tw) == 8.0);
+              size_t ka
+                  = dp_RateConverter_execute (rc, x + N / 2, N / 2, y, N);
+              size_t kb
+                  = dp_RateConverter_execute (tw, x + N / 2, N / 2, z, N);
+              DP_CHECK (ka == kb && memcmp (y, z, ka * sizeof *y) == 0);
+              /* and the copy a re-plan builds from came with them */
+              dp_RateConverter_set_rate (tw, 0.005);
+              DP_CHECK (dp_RateConverter_get_rate (tw) == 0.005);
+              DP_CHECK (dp_RateConverter_get_full_scale (tw) == 8.0);
+              /* a word no CIC takes is refused */
+              uint32_t bad = 24;
+              memcpy (blob + sizeof (dp_state_hdr_t) + sizeof (double), &bad,
+                      sizeof bad);
+              DP_CHECK (dp_RateConverter_set_state (rc, blob)
+                        == DP_ERR_INVALID);
+            }
+          free (blob);
+          dp_RateConverter_destroy (tw);
+        }
+      free (x);
+      free (y);
+      free (z);
+    }
+  dp_RateConverter_destroy (rc);
+  dp_RateConverter_destroy (hb);
 }
 
 int
@@ -2554,6 +2678,7 @@ main (void)
   test_matched_state_roundtrip ();
   test_matched_set_rate_keeps_pulse ();
   test_response ();
+  test_cic_word ();
 
   DP_TEST_END ("test_RateConverter_core");
 }

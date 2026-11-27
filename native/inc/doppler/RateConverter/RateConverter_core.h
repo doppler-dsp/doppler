@@ -25,10 +25,13 @@
  * decimated by R and claimed D (see the CHANGELOG for the measurement).
  *
  * **INPUT AMPLITUDE IS BOUNDED whenever the plan contains a CIC stage** —
- * that is, any decimation by 8 or more: |Re| and |Im| <= 2.0, clipped beyond
- * that, before any filtering.  The bound is `CIC_PAPR_HEADROOM` (6 dB above
- * unity), which is there so a pulse-shaped waveform's PEAKS have somewhere to
- * sit above its unit average; see cic_core.h.  `stages` is how you tell: a
+ * that is, any decimation by 8 or more: |Re| and |Im| under
+ * dp_RateConverter_get_full_scale(), CIC_PAPR_WIDE (12 dB above unity) as
+ * built, clipped at and beyond that, before any filtering.  The headroom is
+ * there so a waveform's PEAKS have somewhere to sit above its unit average,
+ * and it and the word under it are settings
+ * (dp_RateConverter_set_cic_precision(), dp_RateConverter_set_cic_headroom_
+ * bits()); see cic_core.h.  `stages` is how you tell: a
  * plan naming `CIC(...)` is not scale-free, every other plan is.  This is the
  * one property of this object a caller cannot infer from an output that is
  * finite and looks plausible — an overdriven RRC-BPSK waveform matched-filters
@@ -119,6 +122,12 @@ typedef struct
       samples per symbol, where its matched filter degenerates to a 2-3 tap
       sum.  Read by the binding, which turns it into a UserWarning. */
   bool narrow_pulse;
+  /* The word every CIC stage the plan builds is given
+     (dp_RateConverter_set_cic_precision(),
+     dp_RateConverter_set_cic_headroom_bits()): kept here so a re-plan
+     builds its CIC the same way, and so a plan with no CIC still answers. */
+  uint32_t cic_precision;     /**< CIC_PRECISION_16, _32 or _64          */
+  uint32_t cic_headroom_bits; /**< bits of the word above unit amplitude */
   /* ── Pre-terminal AGC (NULL = off, which is the default and what every
      constructor builds).  See dp_RateConverter_enable_agc(). ─────────────── */
   dp_agc_state_t *agc;          /**< NULL when off — one branch per sample  */
@@ -214,8 +223,8 @@ dp_RateConverter_state_t *dp_RateConverter_create (double rate, int compensate);
  * taps per arm and no extra pass over the data. Folded or appended agree to
  * within 0.6 dB, i.e. the fold gives up nothing to a separate comp FIR.
  *
- * @note Keep the INPUT inside +-2.0 whenever the plan contains a CIC stage —
- * see the file header.  The clip is silent, and it costs 25 dB of the EVM
+ * @note Keep the INPUT inside dp_RateConverter_get_full_scale() whenever the
+ * plan contains a CIC stage — see the file header.  The clip is silent, and it costs 25 dB of the EVM
  * quoted above for reasons that have nothing to do with the matched filter.
  *
  * @param rate       Output-to-input sample rate ratio (finite and > 0,
@@ -257,8 +266,9 @@ dp_RateConverter_create_matched (double rate, int compensate, int pulse,
 /**
  * @brief Has any planned CIC stage clipped its input since the last reset?
  *
- * The cascade inherits cic_core's input bound (|Re|, |Im| <= 2.0) whenever the
- * plan contains a CIC — any decimation by 8 or more — and the clip does not
+ * The cascade inherits cic_core's input bound, dp_RateConverter_get_full_
+ * scale(), whenever the plan contains a CIC — any decimation by 8 or more —
+ * and the clip does not
  * show up in the samples: the output stays finite and plausible, merely
  * distorted.  This is the only reliable way to find out, and it is free (the
  * boundary comparisons run on every sample regardless).
@@ -270,6 +280,75 @@ dp_RateConverter_create_matched (double rate, int compensate, int pulse,
  * @return 1 if any CIC stage has clipped, else 0.
  */
 bool dp_RateConverter_get_clipped (const dp_RateConverter_state_t *s);
+
+/**
+ * @brief Choose the input word of every CIC stage this converter plans,
+ *        with that word's headroom, and reset the converter.
+ *
+ * dp_cic_set_precision() on each CIC stage, now and after any re-plan
+ * (dp_RateConverter_set_rate()): CIC_PRECISION_16 is a 16-bit word at full
+ * scale CIC_PAPR_16, CIC_PRECISION_32 a 32-bit word and CIC_PRECISION_64,
+ * what a converter is built with, the widest the stage's registers have
+ * left, both at full scale CIC_PAPR_WIDE. A plan with no CIC stage keeps
+ * the setting for a re-plan that has one.
+ *
+ * @param s          Pointer to a valid dp_RateConverter_state_t.
+ * @param precision  CIC_PRECISION_16, CIC_PRECISION_32 or CIC_PRECISION_64.
+ * @return DP_OK, or DP_ERR_INVALID with nothing changed.
+ * @code
+ * >>> from doppler.resample import RateConverter
+ * >>> rc = RateConverter(rate=1 / 64)
+ * >>> rc.stages, rc.cic_precision, rc.full_scale
+ * (['CIC(64)'], 64, 4.0)
+ * >>> rc.cic_precision = 16
+ * >>> rc.full_scale, rc.step
+ * (2.0, 6.103515625e-05)
+ * >>> RateConverter(rate=0.5).full_scale     # no CIC: no bound
+ * inf
+ * @endcode
+ */
+int dp_RateConverter_set_cic_precision (dp_RateConverter_state_t *s,
+                                     uint32_t                  precision);
+
+/** @brief The precision this converter gives its CIC stages.
+ *  @param s  Pointer to a valid dp_RateConverter_state_t.
+ *  @return CIC_PRECISION_16, CIC_PRECISION_32 or CIC_PRECISION_64. */
+uint32_t dp_RateConverter_get_cic_precision (const dp_RateConverter_state_t *s);
+
+/**
+ * @brief Set the headroom of every CIC stage this converter plans, and
+ *        reset the converter.
+ *
+ * dp_cic_set_headroom_bits() on each CIC stage, now and after any re-plan:
+ * full scale becomes `2^bits` and the step doubles with each bit.
+ * dp_RateConverter_set_cic_precision() puts it back to the precision's own.
+ *
+ * @param s     Pointer to a valid dp_RateConverter_state_t.
+ * @param bits  Bits of headroom, 0 to CIC_HEADROOM_BITS_MAX.
+ * @return DP_OK, or DP_ERR_INVALID with nothing changed.
+ */
+int dp_RateConverter_set_cic_headroom_bits (dp_RateConverter_state_t *s,
+                                         uint32_t                  bits);
+
+/** @brief The headroom this converter gives its CIC stages, in bits.
+ *  @param s  Pointer to a valid dp_RateConverter_state_t.
+ *  @return Bits of the CIC's input word above unit amplitude. */
+uint32_t
+dp_RateConverter_get_cic_headroom_bits (const dp_RateConverter_state_t *s);
+
+/** @brief The input bound of this plan: a component at or beyond it is
+ *         clipped.
+ *  @param s  Pointer to a valid dp_RateConverter_state_t.
+ *  @return The CIC stage's full scale (dp_cic_get_full_scale()); infinity
+ *          for a plan with no CIC stage, which is scale-free. */
+double dp_RateConverter_get_full_scale (const dp_RateConverter_state_t *s);
+
+/** @brief The input step of this plan: a component smaller than it reads
+ *         zero.
+ *  @param s  Pointer to a valid dp_RateConverter_state_t.
+ *  @return The CIC stage's step (dp_cic_get_step()); 0 for a plan with no
+ *          CIC stage. */
+double dp_RateConverter_get_step (const dp_RateConverter_state_t *s);
 
 /**
  * @brief Is this converter's rectangular matched filter degenerately narrow?
@@ -470,11 +549,10 @@ size_t dp_RateConverter_response_len (const dp_RateConverter_state_t *s);
  * are all one.
  *
  * It is the linear response at the gains the stages have. It leaves out
- * what is not linear or not there by default: a CIC's 16-bit input and
- * output steps and its clip at CIC_PAPR_HEADROOM, single-precision
- * rounding, the output a CIC plan gives for silence at its start
- * (dp_RateConverter_get_memory() says when that has passed), and a
- * pre-terminal AGC's gain (dp_RateConverter_enable_agc()).
+ * what is not linear or not there by default: a CIC's step and its clip
+ * (dp_RateConverter_get_step(), dp_RateConverter_get_full_scale()),
+ * single-precision rounding, and a pre-terminal AGC's gain
+ * (dp_RateConverter_enable_agc()).
  *
  * What it is for: the noise at the output. White input noise of variance
  * `s2` comes out with covariance `s2 * sum_j h_i[j] h_k[j + newest_k -
@@ -756,8 +834,8 @@ void dp_RateConverter_reset (dp_RateConverter_state_t *s);
 /** State-blob magic: FOURCC 'RCVT'. */
 #define RC_STATE_MAGIC DP_FOURCC ('R', 'C', 'V', 'T')
 /** State-blob layout version; 2 adds the optional pre-terminal AGC part,
- *  3 the rate reject key. */
-#define RC_STATE_VERSION 3u
+ *  3 the rate reject key, 4 the word its CIC stages are given. */
+#define RC_STATE_VERSION 4u
 
 /**
  * @brief Bytes dp_RateConverter_get_state() writes for @p s (envelope +

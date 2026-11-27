@@ -95,7 +95,33 @@ writable = true
 [[RateConverter.properties]]
 name = "clipped"
 type = "bool"
-doc = "True if any planned CIC stage has clipped its input since the last `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <= 2.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The clip is invisible in the samples (finite, no NaN, merely distorted), so this is the only reliable check, and it is free: the boundary comparisons run on every sample regardless. Always False for a cascade with no CIC stage -- those plans are scale-free."
+doc = "True if any planned CIC stage has clipped its input since the last `reset()`. The cascade inherits the CIC's input bound (`full_scale`) whenever `stages` names a CIC -- any decimation by 8 or more. The clip is invisible in the samples (finite, no NaN, merely distorted), so this is the only reliable check, and it is free: the boundary comparisons run on every sample regardless. Always False for a cascade with no CIC stage -- those plans are scale-free."
+
+[[RateConverter.properties]]
+name = "cic_precision"
+type = "uint32_t"
+writable = true
+error = "ValueError"
+error_message = "RateConverter: cic_precision is 16, 32 or 64"
+doc = "The input word every CIC stage this converter plans is given: 16 (a 16-bit word, full scale 2.0), 32 (a 32-bit word, or the widest the stage's registers have left) or 64 (the widest they have left, the default); 32 and 64 start at full scale 4.0. It holds across a re-plan, and a plan with no CIC keeps it for one that has. Setting it sets that precision's headroom and resets the converter. Raises ValueError, changing nothing, for any other value."
+
+[[RateConverter.properties]]
+name = "cic_headroom_bits"
+type = "uint32_t"
+writable = true
+error = "ValueError"
+error_message = "RateConverter: cic_headroom_bits is 0 to 14"
+doc = "Bits of the CIC stages' input word above unit amplitude: `full_scale` is 2**cic_headroom_bits when the plan has a CIC, and `step` doubles with each bit. Setting `cic_precision` puts it back to that precision's own. Setting it resets the converter. Raises ValueError, changing nothing, outside 0 to 14."
+
+[[RateConverter.properties]]
+name = "full_scale"
+type = "double"
+doc = "The input bound of this plan: a component at or beyond it is clipped. The CIC stage's full scale, 4.0 as built; `inf` for a plan with no CIC stage, which is scale-free."
+
+[[RateConverter.properties]]
+name = "step"
+type = "double"
+doc = "The input step of this plan: a component smaller than it reads zero. The CIC stage's step; 0.0 for a plan with no CIC stage."
 
 [[RateConverter.properties]]
 name = "narrow_pulse"

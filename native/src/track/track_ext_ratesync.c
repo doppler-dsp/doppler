@@ -928,10 +928,10 @@ static PyGetSetDef RateSync_getset[] = {
     NULL },
   { "clipped", (getter)RateSync_getprop_clipped, NULL,
     "True if the cascade's CIC stage has clipped its input since the last "
-    "reset(). A CIC bounds its input to +-2.0 and clips silently past that, "
-    "which no timing metric reveals -- an overdriven front end degrades EVM "
-    "by 25 dB with a perfectly healthy lock. Always False when the plan "
-    "contains no CIC stage.\n",
+    "reset(). A CIC bounds its input to its full scale (4.0 as built) and "
+    "clips silently at and past that, which no timing metric reveals -- an "
+    "overdriven front end degrades EVM by 25 dB with a perfectly healthy "
+    "lock. Always False when the plan contains no CIC stage.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };

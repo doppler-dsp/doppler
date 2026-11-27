@@ -292,9 +292,8 @@ test_clipped_forwards (void)
   float          *in  = malloc (L * sizeof (float));
   float _Complex *out = malloc (L * sizeof (float _Complex));
   for (size_t i = 0; i < L; i++)
-    /* Past the encoder's PAPR headroom, which IS full scale — see
-       CIC_PAPR_HEADROOM. */
-    in[i] = (float)(2.0 * CIC_PAPR_HEADROOM * cos (0.11 * (double)i));
+    /* Past the CIC's full scale as built, CIC_PAPR_WIDE. */
+    in[i] = (float)(2.0 * CIC_PAPR_WIDE * cos (0.11 * (double)i));
 
   dp_ddcr_state_t *r = dp_ddcr_create_matched (0.0, 2.0 / 64.0, RC_PULSE_RRC,
                                                0.35, 8, 2.0, 1024);

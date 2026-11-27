@@ -800,21 +800,22 @@ class HalfbandDecimatorR2C:
 
 @final
 class CIC:
-    """Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct
-    on the heap and pre-computes the normalisation right-shift (CIC_N * log2(R)
-    bits). All integrator and comb accumulators are zeroed; the first output
-    arrives after R input samples. Returns NULL for invalid R or OOM. Input
-    amplitude is bounded: |Re| and |Im| <= 2.0. A component beyond +-2.0 is
-    clipped at the boundary before any filtering; the sample stream gives no
-    sign of it, so check the sticky clipped flag. Unlike doppler's
-    floating-point blocks this one is not scale-free -- scale the input into
-    range first.
+    """Create a CIC decimation filter of CIC_N stages. Allocates the state
+    struct on the heap and pre-computes the normalisation right-shift (CIC_N *
+    log2(R) bits). All integrator and comb accumulators are zeroed; the first
+    output arrives after R input samples. Returns NULL for invalid R or OOM.
+    The filter is built at CIC_PRECISION_DEFAULT with that precision's
+    headroom, so its input is bounded at CIC_PAPR_WIDE (dp_cic_set_precision(),
+    dp_cic_set_headroom_bits()). A component at or beyond it is clipped at the
+    boundary before any filtering; the sample stream gives no sign of it, so
+    check the sticky clipped flag. Unlike doppler's floating-point blocks this
+    one is not scale-free -- scale the input into range first.
 
     Parameters
     ----------
     R : int, default 16
-        Decimation ratio. Must be a power of two in `[2, 2048]` (`CIC_R_MAX`).
-        Returns NULL for R=0, non-power-of-two, or a ratio above that cap.
+        Decimation ratio. Must be a power of two from 2 to CIC_R_MAX. Returns
+        NULL for R=0, non-power-of-two, or a ratio above that cap.
 
     Examples
     --------
@@ -874,7 +875,7 @@ class CIC:
         """Decimate a block of CF32 samples through the CIC pipeline. Each
         sample is converted to 16-bit Q15, pushed through CIC_N integrators
         (unsigned wrapping), and when the phase counter reaches R the
-        integrated value is passed through CIC_N M=1 comb stages and converted
+        integrated value is passed through CIC_N one-sample combs and converted
         back to CF32. State persists between calls. A fresh or reset filter
         starts from silence: its first CIC_N - 1 outputs are the filter filling
         with the input, and silence in gives exact zeros out from the first
@@ -1000,13 +1001,66 @@ class CIC:
         """
 
     @property
+    def precision(self) -> int:
+        """The input word the filter is built for: 16 (a 16-bit word, full
+        scale 2.0: the filter as it was before it had a precision), 32 (a
+        32-bit word, or the widest the register has left past R = 256) or 64
+        (the widest the register has left, the default); 32 and 64 start with
+        full scale 4.0. Setting it sets that precision's headroom and resets
+        the filter. Raises ValueError, changing nothing, for any other value.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_cic_set_precision`` refuses the value by
+            returning non-zero. The exception message is ``CIC: precision is
+            16, 32 or 64``, with the return code appended.
+        """
+    @precision.setter
+    def precision(self, value: int) -> None: ...
+    @property
+    def headroom_bits(self) -> int:
+        """Bits of the input word above unit amplitude: full scale is
+        2**headroom_bits. The rest of the word is precision, so each bit of
+        headroom doubles `step`. Setting `precision` puts it back to that
+        precision's own (1 at 16, 2 at 32 and 64). Setting it resets the
+        filter. Raises ValueError, changing nothing, outside 0 to 14.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_cic_set_headroom_bits`` refuses the value by
+            returning non-zero. The exception message is ``CIC: headroom_bits
+            is 0 to 14``, with the return code appended.
+        """
+    @headroom_bits.setter
+    def headroom_bits(self, value: int) -> None: ...
+    @property
+    def bits(self) -> int:
+        """The input word's width in bits, sign included: the precision, or 64
+        - 4*log2(R) when the register has less than that left.
+        """
+
+    @property
+    def full_scale(self) -> float:
+        """The input bound, 2**headroom_bits: a component at or beyond it is
+        clipped.
+        """
+
+    @property
+    def step(self) -> float:
+        """The input's step: a component smaller than this reads zero.
+        full_scale / 2**(bits - 1).
+        """
+
+    @property
     def clipped(self) -> bool:
-        """True if any input component has exceeded the +-2.0 bound since the
-        last reset(). Sticky, and free to read: the CIC's boundary comparisons
-        run on every sample anyway, so it records something the sample stream
-        cannot tell you -- a clipped stream still looks entirely plausible
-        (finite, no NaN, merely distorted), so this flag is the only reliable
-        check.
+        """True if any input component has reached the bound (`full_scale`)
+        since the last reset(). Sticky, and free to read: the CIC's boundary
+        comparisons run on every sample anyway, so it records something the
+        sample stream cannot tell you -- a clipped stream still looks entirely
+        plausible (finite, no NaN, merely distorted), so this flag is the only
+        reliable check.
         """
 
     def destroy(self) -> None:
@@ -1355,12 +1409,63 @@ class RateConverter:
     @property
     def clipped(self) -> bool:
         """True if any planned CIC stage has clipped its input since the last
-        `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <=
-        2.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The
-        clip is invisible in the samples (finite, no NaN, merely distorted), so
-        this is the only reliable check, and it is free: the boundary
-        comparisons run on every sample regardless. Always False for a cascade
-        with no CIC stage -- those plans are scale-free.
+        `reset()`. The cascade inherits the CIC's input bound (`full_scale`)
+        whenever `stages` names a CIC -- any decimation by 8 or more. The clip
+        is invisible in the samples (finite, no NaN, merely distorted), so this
+        is the only reliable check, and it is free: the boundary comparisons
+        run on every sample regardless. Always False for a cascade with no CIC
+        stage -- those plans are scale-free.
+        """
+
+    @property
+    def cic_precision(self) -> int:
+        """The input word every CIC stage this converter plans is given: 16 (a
+        16-bit word, full scale 2.0), 32 (a 32-bit word, or the widest the
+        stage's registers have left) or 64 (the widest they have left, the
+        default); 32 and 64 start at full scale 4.0. It holds across a re-plan,
+        and a plan with no CIC keeps it for one that has. Setting it sets that
+        precision's headroom and resets the converter. Raises ValueError,
+        changing nothing, for any other value.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_RateConverter_set_cic_precision`` refuses
+            the value by returning non-zero. The exception message is
+            ``RateConverter: cic_precision is 16, 32 or 64``, with the return
+            code appended.
+        """
+    @cic_precision.setter
+    def cic_precision(self, value: int) -> None: ...
+    @property
+    def cic_headroom_bits(self) -> int:
+        """Bits of the CIC stages' input word above unit amplitude:
+        `full_scale` is 2**cic_headroom_bits when the plan has a CIC, and
+        `step` doubles with each bit. Setting `cic_precision` puts it back to
+        that precision's own. Setting it resets the converter. Raises
+        ValueError, changing nothing, outside 0 to 14.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_RateConverter_set_cic_headroom_bits``
+            refuses the value by returning non-zero. The exception message is
+            ``RateConverter: cic_headroom_bits is 0 to 14``, with the return
+            code appended.
+        """
+    @cic_headroom_bits.setter
+    def cic_headroom_bits(self, value: int) -> None: ...
+    @property
+    def full_scale(self) -> float:
+        """The input bound of this plan: a component at or beyond it is
+        clipped. The CIC stage's full scale, 4.0 as built; `inf` for a plan
+        with no CIC stage, which is scale-free.
+        """
+
+    @property
+    def step(self) -> float:
+        """The input step of this plan: a component smaller than it reads zero.
+        The CIC stage's step; 0.0 for a plan with no CIC stage.
         """
 
     @property
@@ -1771,12 +1876,63 @@ class MatchedRateConverter:
     @property
     def clipped(self) -> bool:
         """True if any planned CIC stage has clipped its input since the last
-        `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <=
-        2.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The
-        clip is invisible in the samples (finite, no NaN, merely distorted), so
-        this is the only reliable check, and it is free: the boundary
-        comparisons run on every sample regardless. Always False for a cascade
-        with no CIC stage -- those plans are scale-free.
+        `reset()`. The cascade inherits the CIC's input bound (`full_scale`)
+        whenever `stages` names a CIC -- any decimation by 8 or more. The clip
+        is invisible in the samples (finite, no NaN, merely distorted), so this
+        is the only reliable check, and it is free: the boundary comparisons
+        run on every sample regardless. Always False for a cascade with no CIC
+        stage -- those plans are scale-free.
+        """
+
+    @property
+    def cic_precision(self) -> int:
+        """The input word every CIC stage this converter plans is given: 16 (a
+        16-bit word, full scale 2.0), 32 (a 32-bit word, or the widest the
+        stage's registers have left) or 64 (the widest they have left, the
+        default); 32 and 64 start at full scale 4.0. It holds across a re-plan,
+        and a plan with no CIC keeps it for one that has. Setting it sets that
+        precision's headroom and resets the converter. Raises ValueError,
+        changing nothing, for any other value.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_RateConverter_set_cic_precision`` refuses
+            the value by returning non-zero. The exception message is
+            ``RateConverter: cic_precision is 16, 32 or 64``, with the return
+            code appended.
+        """
+    @cic_precision.setter
+    def cic_precision(self, value: int) -> None: ...
+    @property
+    def cic_headroom_bits(self) -> int:
+        """Bits of the CIC stages' input word above unit amplitude:
+        `full_scale` is 2**cic_headroom_bits when the plan has a CIC, and
+        `step` doubles with each bit. Setting `cic_precision` puts it back to
+        that precision's own. Setting it resets the converter. Raises
+        ValueError, changing nothing, outside 0 to 14.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_RateConverter_set_cic_headroom_bits``
+            refuses the value by returning non-zero. The exception message is
+            ``RateConverter: cic_headroom_bits is 0 to 14``, with the return
+            code appended.
+        """
+    @cic_headroom_bits.setter
+    def cic_headroom_bits(self, value: int) -> None: ...
+    @property
+    def full_scale(self) -> float:
+        """The input bound of this plan: a component at or beyond it is
+        clipped. The CIC stage's full scale, 4.0 as built; `inf` for a plan
+        with no CIC stage, which is scale-free.
+        """
+
+    @property
+    def step(self) -> float:
+        """The input step of this plan: a component smaller than it reads zero.
+        The CIC stage's step; 0.0 for a plan with no CIC stage.
         """
 
     @property

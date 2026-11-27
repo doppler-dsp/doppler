@@ -22,8 +22,18 @@ extern "C" {
 
 #define CIC_N 4
 
-#define CIC_OFFSET ((uint64_t)32768)
+#define CIC_REG_BITS 64u
 
+#define CIC_PRECISION_16 16u
+#define CIC_PRECISION_32 32u
+#define CIC_PRECISION_64 64u
+#define CIC_PRECISION_DEFAULT CIC_PRECISION_64
+#define CIC_HEADROOM_BITS_16 1u
+#define CIC_HEADROOM_BITS_WIDE 2u
+#define CIC_PAPR_16 ((float)(1u << CIC_HEADROOM_BITS_16))
+#define CIC_PAPR_WIDE ((float)(1u << CIC_HEADROOM_BITS_WIDE))
+#define CIC_FRACTION_BITS_MIN 1u
+#define CIC_HEADROOM_BITS_MAX (CIC_PRECISION_16 - 1u - CIC_FRACTION_BITS_MIN)
 #define CIC_R_MAX 2048u
 
 typedef struct {
@@ -34,6 +44,14 @@ typedef struct {
     uint32_t R;               
     uint32_t phase;           
     uint32_t shift;           
+    uint32_t precision;       
+    uint32_t headroom_bits;   
+    uint32_t bits;            
+    uint64_t offset;          
+    float    in_scale;        
+    float    in_hi;           
+    float    in_lo;           
+    float    out_scale;       
     uint8_t  clipped;         
 } dp_cic_state_t;
 
@@ -44,19 +62,38 @@ void dp_cic_destroy(dp_cic_state_t *state);
 void dp_cic_reset(dp_cic_state_t *state);
 
 /* Serializable state (reusable elastic-resume convention): the decimation
- * rate R, the integrator and comb accumulators, the decimation phase counter
- * and the sticky clip flag.  R travels because dp_cic_reconfigure() changes
- * it (#2022's rule, doppler#2642); shift is derived from it on restore, so
- * the two cannot disagree.  `clipped` is
+ * rate R, the precision and the headroom, the integrator and comb
+ * accumulators, the decimation phase counter and the sticky clip flag.  R,
+ * the precision and the headroom travel because dp_cic_reconfigure(),
+ * dp_cic_set_precision() and dp_cic_set_headroom_bits() change
+ * them (#2022's rule, doppler#2642); the shift, the word and its scales are
+ * derived from the three on restore, so they cannot disagree.  `clipped` is
  * running state, not a diagnostic bolted on the side: a resumed stream that
  * silently forgot it had clipped would answer the question wrongly. */
 
 /* Standard bytes interface (see dp_state.h): [dp_state_hdr_t][u32 R]
- * [integ_re/im, comb_re/im (CIC_N u64 each)][u32 phase][u8 clipped]. */
+ * [u32 precision][u32 headroom_bits][integ_re/im, comb_re/im (CIC_N u64
+ * each)][u32 phase][u8 clipped]. */
 #define CIC_STATE_MAGIC DP_FOURCC ('C', 'I', 'C', '_')
-#define CIC_STATE_VERSION 4u
+#define CIC_STATE_VERSION 5u
 
-#define CIC_PAPR_HEADROOM 2.0f
+int dp_cic_precision_ok(uint32_t precision);
+
+int dp_cic_headroom_bits_ok(uint32_t bits);
+
+int dp_cic_set_precision(dp_cic_state_t *state, uint32_t precision);
+
+uint32_t dp_cic_get_precision(const dp_cic_state_t *state);
+
+uint32_t dp_cic_get_bits(const dp_cic_state_t *state);
+
+int dp_cic_set_headroom_bits(dp_cic_state_t *state, uint32_t bits);
+
+uint32_t dp_cic_get_headroom_bits(const dp_cic_state_t *state);
+
+double dp_cic_get_full_scale(const dp_cic_state_t *state);
+
+double dp_cic_get_step(const dp_cic_state_t *state);
 
 size_t dp_cic_state_bytes(const dp_cic_state_t *state);
 void dp_cic_get_state(const dp_cic_state_t *state, void *blob);
@@ -73,57 +110,56 @@ JM_FORCEINLINE JM_HOT size_t
 dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
              size_t n_in, float _Complex *out, size_t max_out)
 {
-    const uint32_t R     = state->R;
-    const uint32_t shift = state->shift;
+    const uint32_t R      = state->R;
+    const uint32_t shift  = state->shift;
+    const float    scale  = state->in_scale;
+    const float    hi     = state->in_hi;
+    const float    lo     = state->in_lo;
+    const uint64_t offset = state->offset;
     size_t n_out = 0;
     int    clip  = 0;   /* accumulated in a register; folded in once below */
 
     for (size_t i = 0; i < n_in; i++) {
-        /* CF32 → Q15, saturated. The four comparisons run regardless, so
-           noting that one fired costs a register OR — which is the whole
+        /* CF32 → the word, saturated. The four comparisons run regardless,
+           so noting that one fired costs a register OR — which is the whole
            reason `clipped` exists rather than a line of documentation
-           asking callers to be careful. The upper one is written as
-           "not at or under", so a NaN, which fails every comparison, lands
-           on the top of the range and is counted as a clip: the conversion
-           to an integer below is never handed a value it cannot hold. */
-        float sr = crealf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
-        float si = cimagf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
-        if (!(sr <=  32767.0f)) { sr =  32767.0f; clip = 1; }
-        if (sr < -32768.0f)     { sr = -32768.0f; clip = 1; }
-        if (!(si <=  32767.0f)) { si =  32767.0f; clip = 1; }
-        if (si < -32768.0f)     { si = -32768.0f; clip = 1; }
+           asking callers to be careful. The upper one is written as "not
+           at or under", so a NaN, which fails every comparison, lands on
+           the top of the range and is counted as a clip: the conversion to
+           an integer below is never handed a value it cannot hold. */
+        float sr = crealf(in[i]) * scale;
+        float si = cimagf(in[i]) * scale;
+        if (!(sr <= hi)) { sr = hi; clip = 1; }
+        if (sr < lo)     { sr = lo; clip = 1; }
+        if (!(si <= hi)) { si = hi; clip = 1; }
+        if (si < lo)     { si = lo; clip = 1; }
         /* Into the unsigned registers as the value itself, modulo 2^64:
-           through offset binary, which is never negative, and the offset
+           through offset binary, which is never negative (the word is
+           under CIC_REG_BITS - 1 bits, so the sum cannot leave an int64),
+           and the offset
            straight back off in unsigned arithmetic. No register here is
            signed. A zero sample is a zero word, so a filter that has only
            seen silence holds zeros. */
-        uint64_t re = (uint64_t)((int32_t)(int16_t)sr + 32768) - CIC_OFFSET;
-        uint64_t im = (uint64_t)((int32_t)(int16_t)si + 32768) - CIC_OFFSET;
+        uint64_t re = (uint64_t)((int64_t)sr + (int64_t)offset) - offset;
+        uint64_t im = (uint64_t)((int64_t)si + (int64_t)offset) - offset;
 
-        /* 4 integrators — unsigned wrap-around is intentional. */
-        re = state->integ_re[0] += re;
-        re = state->integ_re[1] += re;
-        re = state->integ_re[2] += re;
-        re = state->integ_re[3] += re;
-        im = state->integ_im[0] += im;
-        im = state->integ_im[1] += im;
-        im = state->integ_im[2] += im;
-        im = state->integ_im[3] += im;
+        /* CIC_N integrators — unsigned wrap-around is intentional. The
+           count is a constant, so the loops below unroll. */
+        for (int k = 0; k < CIC_N; k++) {
+            re = state->integ_re[k] += re;
+            im = state->integ_im[k] += im;
+        }
 
         if (++state->phase < R)
             continue;
         state->phase = 0;
 
-        /* 4 comb stages — M=1: y = x - prev; prev = x. */
-        uint64_t t;
-        t = state->comb_re[0]; state->comb_re[0] = re; re -= t;
-        t = state->comb_re[1]; state->comb_re[1] = re; re -= t;
-        t = state->comb_re[2]; state->comb_re[2] = re; re -= t;
-        t = state->comb_re[3]; state->comb_re[3] = re; re -= t;
-        t = state->comb_im[0]; state->comb_im[0] = im; im -= t;
-        t = state->comb_im[1]; state->comb_im[1] = im; im -= t;
-        t = state->comb_im[2]; state->comb_im[2] = im; im -= t;
-        t = state->comb_im[3]; state->comb_im[3] = im; im -= t;
+        /* CIC_N one-sample combs: y = x - prev; prev = x. */
+        for (int k = 0; k < CIC_N; k++) {
+            uint64_t t;
+            t = state->comb_re[k]; state->comb_re[k] = re; re -= t;
+            t = state->comb_im[k]; state->comb_im[k] = im; im -= t;
+        }
 
         /* Capacity reached: keep running the filter (the integrator and
            comb state must stay in step with the input stream) but stop
@@ -134,18 +170,17 @@ dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
 
         /* → CF32. The registers hold the filtered sum modulo 2^64, which
            is negative as often as not. Adding the offset at the pipeline's
-           gain makes it the offset-binary sum, in [0, 2^16 * R^N), which
-           fits; the right shift then normalises it and floors it, an
-           unsigned shift of a non-negative value. The offset comes off in
-           floating point, and the encoder's PAPR headroom is undone. The
-           offset is NOT scaled by the headroom — it is the midpoint, not
-           signal. */
-        const uint64_t bias = CIC_OFFSET << shift;
+           gain makes it the offset-binary sum, in [0, 2^bits * R^CIC_N),
+           which fits; the right
+           shift then normalises it and floors it, an unsigned shift of a
+           non-negative value. What is left is a word, so it and the
+           offset are both in an int64 and their difference is the sample. */
+        const uint64_t bias = offset << shift;
         out[n_out++] = CMPLXF(
-            ((float)(uint16_t)((re + bias) >> shift) - 32768.0f)
-                * (CIC_PAPR_HEADROOM / 32768.0f),
-            ((float)(uint16_t)((im + bias) >> shift) - 32768.0f)
-                * (CIC_PAPR_HEADROOM / 32768.0f));
+            (float)((int64_t)((re + bias) >> shift) - (int64_t)offset)
+                * state->out_scale,
+            (float)((int64_t)((im + bias) >> shift) - (int64_t)offset)
+                * state->out_scale);
     }
     state->clipped |= (uint8_t)clip;   /* sticky; cleared by reset() */
     return n_out;

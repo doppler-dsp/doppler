@@ -88,18 +88,24 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 |  size\_t | [**dp\_RateConverter\_execute\_max\_out**](#function-dp_rateconverter_execute_max_out) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Upper bound on execute output for a standard 65536-sample block._  |
 |  double | [**dp\_RateConverter\_gain**](#function-dp_rateconverter_gain) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The cascade's response to a constant input, from its stages' own coefficients — computed, never measured._  |
 |  double | [**dp\_RateConverter\_get\_bank\_sps**](#function-dp_rateconverter_get_bank_sps) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._  |
+|  uint32\_t | [**dp\_RateConverter\_get\_cic\_headroom\_bits**](#function-dp_rateconverter_get_cic_headroom_bits) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The headroom this converter gives its CIC stages, in bits._  |
+|  uint32\_t | [**dp\_RateConverter\_get\_cic\_precision**](#function-dp_rateconverter_get_cic_precision) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The precision this converter gives its CIC stages._  |
 |  bool | [**dp\_RateConverter\_get\_clipped**](#function-dp_rateconverter_get_clipped) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Has any planned CIC stage clipped its input since the last reset?_  |
 |  double | [**dp\_RateConverter\_get\_count\_lag**](#function-dp_rateconverter_get_count_lag) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_How far the output COUNT can trail the rate, in INPUT samples: after_ `m` _inputs a fresh converter has emitted at least_`(m - lag) * rate` _outputs, whatever the call sizes._ |
+|  double | [**dp\_RateConverter\_get\_full\_scale**](#function-dp_rateconverter_get_full_scale) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The input bound of this plan: a component at or beyond it is clipped._  |
 |  double | [**dp\_RateConverter\_get\_group\_delay**](#function-dp_rateconverter_get_group_delay) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The converter's group delay, in its INPUT samples: where in the input timeline an output sample's content sits._  |
 |  double | [**dp\_RateConverter\_get\_memory**](#function-dp_rateconverter_get_memory) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The converter's memory, in its INPUT samples: how many inputs after create or reset until an output depends on nothing but the input._  |
 |  bool | [**dp\_RateConverter\_get\_narrow\_pulse**](#function-dp_rateconverter_get_narrow_pulse) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Is this converter's rectangular matched filter degenerately narrow?_  |
 |  double | [**dp\_RateConverter\_get\_rate**](#function-dp_rateconverter_get_rate) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. A rate that is not finite and &gt; 0 is refused and leaves the converter as it was._  |
 |  void | [**dp\_RateConverter\_get\_state**](#function-dp_rateconverter_get_state) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, void \* blob) <br>_Serialize_ `s's` _active-stage state into_`blob` _._ |
+|  double | [**dp\_RateConverter\_get\_step**](#function-dp_rateconverter_get_step) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The input step of this plan: a component smaller than it reads zero._  |
 |  size\_t | [**dp\_RateConverter\_num\_bank\_shape**](#function-dp_rateconverter_num_bank_shape) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._ |
 |  size\_t | [**dp\_RateConverter\_num\_stages**](#function-dp_rateconverter_num_stages) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Number of planned cascade stages (backs the_ `stages` _property)._ |
 |  void | [**dp\_RateConverter\_reset**](#function-dp_rateconverter_reset) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory. An enabled AGC is reset too (back to unity gain with its detector at the reference), and the clip flag read by_ [_**dp\_RateConverter\_get\_clipped()**_](RateConverter__core_8h.md#function-dp_rateconverter_get_clipped) _is cleared with the CIC stages._ |
 |  int | [**dp\_RateConverter\_response**](#function-dp_rateconverter_response) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, uint64\_t k0, size\_t n, double \* h, int64\_t \* newest) <br>_What each of a run of outputs is, as a filter on the input: the plan's response, from the stages' definitions._  |
 |  size\_t | [**dp\_RateConverter\_response\_len**](#function-dp_rateconverter_response_len) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Taps_ [_**dp\_RateConverter\_response()**_](RateConverter__core_8h.md#function-dp_rateconverter_response) _writes for one output._ |
+|  int | [**dp\_RateConverter\_set\_cic\_headroom\_bits**](#function-dp_rateconverter_set_cic_headroom_bits) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, uint32\_t bits) <br>_Set the headroom of every CIC stage this converter plans, and reset the converter._  |
+|  int | [**dp\_RateConverter\_set\_cic\_precision**](#function-dp_rateconverter_set_cic_precision) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, uint32\_t precision) <br>_Choose the input word of every CIC stage this converter plans, with that word's headroom, and reset the converter._  |
 |  void | [**dp\_RateConverter\_set\_rate**](#function-dp_rateconverter_set_rate) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. A matched cascade keeps its pulse and an enabled AGC survives (its reference is re-derived for the new terminal bank). The change is all or nothing: the new cascade (and AGC) is built first and committed only once it exists, so a refused rate or a failed rebuild leaves the converter exactly as it was_  _same rate, same stages, same filter memory. That includes the AGC: one that cannot be rebuilt for the new bank refuses the whole change, where it used to be dropped and the rate taken anyway._ |
 |  int | [**dp\_RateConverter\_set\_state**](#function-dp_rateconverter_set_state) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, const void \* blob) <br>_Restore active-stage state from_ `blob` _(same rate)._ |
 |  int | [**dp\_RateConverter\_set\_telemetry**](#function-dp_rateconverter_set_telemetry) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the pre-terminal AGC._  |
@@ -139,7 +145,7 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 | ---: | :--- |
 | define  | [**RC\_MAX\_STAGES**](RateConverter__core_8h.md#define-rc_max_stages)  `3`<br> |
 | define  | [**RC\_STATE\_MAGIC**](RateConverter__core_8h.md#define-rc_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'C', 'V', 'T')`<br> |
-| define  | [**RC\_STATE\_VERSION**](RateConverter__core_8h.md#define-rc_state_version)  `3u`<br> |
+| define  | [**RC\_STATE\_VERSION**](RateConverter__core_8h.md#define-rc_state_version)  `4u`<br> |
 
 ## Detailed Description
 
@@ -156,7 +162,7 @@ rate &gt;= 1.0 or D &lt; 2 `[Resampler(rate)]` D ~= 2^1 `[HalfbandDecimator]` D 
 A single CIC stage is capped at `CIC_R_MAX` (2048) — see [**cic\_core.h**](cic__core_8h.md) for the accumulator budget that sets it. **The cap costs no rate**: whatever the capped CIC leaves is handed to a Resampler stage, so the cascade still delivers the D it was asked for. That was not always true — gating the residual on the matched-terminal flag alone meant a capped plan silently decimated by R and claimed D (see the CHANGELOG for the measurement).
 
 
-**INPUT AMPLITUDE IS BOUNDED whenever the plan contains a CIC stage** — that is, any decimation by 8 or more: \|Re\| and \|Im\| &lt;= 2.0, clipped beyond that, before any filtering. The bound is `CIC_PAPR_HEADROOM` (6 dB above unity), which is there so a pulse-shaped waveform's PEAKS have somewhere to sit above its unit average; see [**cic\_core.h**](cic__core_8h.md). `stages` is how you tell: a plan naming `CIC(...)` is not scale-free, every other plan is. This is the one property of this object a caller cannot infer from an output that is finite and looks plausible — an overdriven RRC-BPSK waveform matched-filters to -25 dB EVM where the same waveform well inside the bound reaches -50 dB.
+**INPUT AMPLITUDE IS BOUNDED whenever the plan contains a CIC stage** — that is, any decimation by 8 or more: \|Re\| and \|Im\| under [**dp\_RateConverter\_get\_full\_scale()**](RateConverter__core_8h.md#function-dp_rateconverter_get_full_scale), CIC\_PAPR\_WIDE (12 dB above unity) as built, clipped at and beyond that, before any filtering. The headroom is there so a waveform's PEAKS have somewhere to sit above its unit average, and it and the word under it are settings ([**dp\_RateConverter\_set\_cic\_precision()**](RateConverter__core_8h.md#function-dp_rateconverter_set_cic_precision), dp\_RateConverter\_set\_cic\_headroom\_ bits()); see [**cic\_core.h**](cic__core_8h.md). `stages` is how you tell: a plan naming `CIC(...)` is not scale-free, every other plan is. This is the one property of this object a caller cannot infer from an output that is finite and looks plausible — an overdriven RRC-BPSK waveform matched-filters to -25 dB EVM where the same waveform well inside the bound reaches -50 dB.
 
 
 Lifecycle: 
@@ -472,7 +478,7 @@ Measured on RRC-BPSK (beta 0.35, span 8, two outputs per symbol), best-case timi
 
 **Note:**
 
-Keep the INPUT inside +-2.0 whenever the plan contains a CIC stage — see the file header. The clip is silent, and it costs 25 dB of the EVM quoted above for reasons that have nothing to do with the matched filter.
+Keep the INPUT inside [**dp\_RateConverter\_get\_full\_scale()**](RateConverter__core_8h.md#function-dp_rateconverter_get_full_scale) whenever the plan contains a CIC stage — see the file header. The clip is silent, and it costs 25 dB of the EVM quoted above for reasons that have nothing to do with the matched filter.
 
 
 
@@ -1041,6 +1047,74 @@ Samples per symbol at the terminal stage's input; 0.0 for a plain cascade ([**dp
 
 
 
+### function dp\_RateConverter\_get\_cic\_headroom\_bits 
+
+_The headroom this converter gives its CIC stages, in bits._ 
+```C++
+uint32_t dp_RateConverter_get_cic_headroom_bits (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
+
+
+
+**Returns:**
+
+Bits of the CIC's input word above unit amplitude. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_get\_cic\_precision 
+
+_The precision this converter gives its CIC stages._ 
+```C++
+uint32_t dp_RateConverter_get_cic_precision (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
+
+
+
+**Returns:**
+
+CIC\_PRECISION\_16, CIC\_PRECISION\_32 or CIC\_PRECISION\_64. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_RateConverter\_get\_clipped 
 
 _Has any planned CIC stage clipped its input since the last reset?_ 
@@ -1052,7 +1126,7 @@ bool dp_RateConverter_get_clipped (
 
 
 
-The cascade inherits cic\_core's input bound (\|Re\|, \|Im\| &lt;= 2.0) whenever the plan contains a CIC — any decimation by 8 or more — and the clip does not show up in the samples: the output stays finite and plausible, merely distorted. This is the only reliable way to find out, and it is free (the boundary comparisons run on every sample regardless).
+The cascade inherits cic\_core's input bound, dp\_RateConverter\_get\_full\_ scale(), whenever the plan contains a CIC — any decimation by 8 or more — and the clip does not show up in the samples: the output stays finite and plausible, merely distorted. This is the only reliable way to find out, and it is free (the boundary comparisons run on every sample regardless).
 
 
 Sticky, cleared by [**dp\_RateConverter\_reset()**](RateConverter__core_8h.md#function-dp_rateconverter_reset). Always 0 for a cascade with no CIC stage, which is the honest answer: those plans are scale-free.
@@ -1127,6 +1201,40 @@ printf ("%.1f\n", dp_RateConverter_get_count_lag (rc));   // 1.0
 dp_RateConverter_destroy (rc);
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_get\_full\_scale 
+
+_The input bound of this plan: a component at or beyond it is clipped._ 
+```C++
+double dp_RateConverter_get_full_scale (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
+
+
+
+**Returns:**
+
+The CIC stage's full scale ([**dp\_cic\_get\_full\_scale()**](cic__core_8h.md#function-dp_cic_get_full_scale)); infinity for a plan with no CIC stage, which is scale-free. 
+
+
+
 
 
         
@@ -1359,6 +1467,40 @@ void dp_RateConverter_get_state (
 
 
 
+### function dp\_RateConverter\_get\_step 
+
+_The input step of this plan: a component smaller than it reads zero._ 
+```C++
+double dp_RateConverter_get_step (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
+
+
+
+**Returns:**
+
+The CIC stage's step ([**dp\_cic\_get\_step()**](cic__core_8h.md#function-dp_cic_get_step)); 0 for a plan with no CIC stage. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_RateConverter\_num\_bank\_shape 
 
 _Terminal polyphase bank shape (backs the_ `bank_shape` _property)._
@@ -1483,7 +1625,7 @@ int dp_RateConverter_response (
 Output `k` of an unsteered stream from a fresh converter is  and this writes `h_k` and `newest_k` for `k = k0 .. k0 + n - 1`. Nothing is run through the converter: the taps are the halfbands' coefficients, the CIC's `CIC_N` boxcars of `R` inputs, a droop compensator's taps and the terminal bank's arm, composed at the input's rate, and `newest_k` follows the instants each stage forms an output at and the terminal stage's own accumulator arithmetic. Each output has its own filter because each reads its own arm of the bank; at a whole decimation they are all one.
 
 
-It is the linear response at the gains the stages have. It leaves out what is not linear or not there by default: a CIC's 16-bit input and output steps and its clip at CIC\_PAPR\_HEADROOM, single-precision rounding, the output a CIC plan gives for silence at its start ([**dp\_RateConverter\_get\_memory()**](RateConverter__core_8h.md#function-dp_rateconverter_get_memory) says when that has passed), and a pre-terminal AGC's gain ([**dp\_RateConverter\_enable\_agc()**](RateConverter__core_8h.md#function-dp_rateconverter_enable_agc)).
+It is the linear response at the gains the stages have. It leaves out what is not linear or not there by default: a CIC's step and its clip ([**dp\_RateConverter\_get\_step()**](RateConverter__core_8h.md#function-dp_rateconverter_get_step), [**dp\_RateConverter\_get\_full\_scale()**](RateConverter__core_8h.md#function-dp_rateconverter_get_full_scale)), single-precision rounding, and a pre-terminal AGC's gain ([**dp\_RateConverter\_enable\_agc()**](RateConverter__core_8h.md#function-dp_rateconverter_enable_agc)).
 
 
 What it is for: the noise at the output. White input noise of variance `s2` comes out with covariance `s2 * sum_j h_i[j] h_k[j + newest_k - newest_i]` between outputs `i` and `k`, which is what a threshold on a statistic of the output is derived from.
@@ -1555,6 +1697,96 @@ size_t dp_RateConverter_response_len (
 **Returns:**
 
 The length of a matched plan's response at the converter's input rate; 0 for a plan with no matched terminal stage, which has no response here. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_set\_cic\_headroom\_bits 
+
+_Set the headroom of every CIC stage this converter plans, and reset the converter._ 
+```C++
+int dp_RateConverter_set_cic_headroom_bits (
+    dp_RateConverter_state_t * s,
+    uint32_t bits
+) 
+```
+
+
+
+[**dp\_cic\_set\_headroom\_bits()**](cic__core_8h.md#function-dp_cic_set_headroom_bits) on each CIC stage, now and after any re-plan: full scale becomes `2^bits` and the step doubles with each bit. [**dp\_RateConverter\_set\_cic\_precision()**](RateConverter__core_8h.md#function-dp_rateconverter_set_cic_precision) puts it back to the precision's own.
+
+
+
+
+**Parameters:**
+
+
+* `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
+* `bits` Bits of headroom, 0 to CIC\_HEADROOM\_BITS\_MAX. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID with nothing changed. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_set\_cic\_precision 
+
+_Choose the input word of every CIC stage this converter plans, with that word's headroom, and reset the converter._ 
+```C++
+int dp_RateConverter_set_cic_precision (
+    dp_RateConverter_state_t * s,
+    uint32_t precision
+) 
+```
+
+
+
+[**dp\_cic\_set\_precision()**](cic__core_8h.md#function-dp_cic_set_precision) on each CIC stage, now and after any re-plan ([**dp\_RateConverter\_set\_rate()**](RateConverter__core_8h.md#function-dp_rateconverter_set_rate)): CIC\_PRECISION\_16 is a 16-bit word at full scale CIC\_PAPR\_16, CIC\_PRECISION\_32 a 32-bit word and CIC\_PRECISION\_64, what a converter is built with, the widest the stage's registers have left, both at full scale CIC\_PAPR\_WIDE. A plan with no CIC stage keeps the setting for a re-plan that has one.
+
+
+
+
+**Parameters:**
+
+
+* `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
+* `precision` CIC\_PRECISION\_16, CIC\_PRECISION\_32 or CIC\_PRECISION\_64. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID with nothing changed. 
+```C++
+>>> from doppler.resample import RateConverter
+>>> rc = RateConverter(rate=1 / 64)
+>>> rc.stages, rc.cic_precision, rc.full_scale
+(['CIC(64)'], 64, 4.0)
+>>> rc.cic_precision = 16
+>>> rc.full_scale, rc.step
+(2.0, 6.103515625e-05)
+>>> RateConverter(rate=0.5).full_scale     # no CIC: no bound
+inf
+```
+ 
 
 
 
@@ -1859,12 +2091,12 @@ State-blob magic: FOURCC 'RCVT'.
 ### define RC\_STATE\_VERSION 
 
 ```C++
-#define RC_STATE_VERSION `3u`
+#define RC_STATE_VERSION `4u`
 ```
 
 
 
-State-blob layout version; 2 adds the optional pre-terminal AGC part, 3 the rate reject key. 
+State-blob layout version; 2 adds the optional pre-terminal AGC part, 3 the rate reject key, 4 the word its CIC stages are given. 
 
 
         

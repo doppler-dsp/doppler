@@ -21,9 +21,9 @@ def _tx(
     ``amp`` is the CONTRACTED unit symbol amplitude, matching the C twin
     (`native/tests/ratesync/test_ratesync_core.c` via `dp_tx_test.h`). It used
     to default to 0.25 "well inside the CIC's +-1.0 input bound", and both
-    halves of that were wrong: the bound is 2.0 (``CIC_PAPR_HEADROOM``
-    reserves exactly the 6 dB an RRC's 1.582 peak needs, so unit amplitude
-    fits), and a quarter-amplitude stream drives a Gardner TED at ``A^2``
+    halves of that were wrong: the bound is the CIC's full scale, 4.0 as
+    built, over an RRC's 1.582 peak, so unit amplitude fits, and a
+    quarter-amplitude stream drives a Gardner TED at ``A^2``
     -- a sixteenth of the loop gain ``bn`` names.
 
     That is not a small mismeasurement, because it makes the SETTLING

@@ -63,6 +63,12 @@ typedef struct
   double pulse_sps;  
   size_t num_phases; 
   bool narrow_pulse;
+  /* The word every CIC stage the plan builds is given
+     (dp_RateConverter_set_cic_precision(),
+     dp_RateConverter_set_cic_headroom_bits()): kept here so a re-plan
+     builds its CIC the same way, and so a plan with no CIC still answers. */
+  uint32_t cic_precision;     
+  uint32_t cic_headroom_bits; 
   /* ── Pre-terminal AGC (NULL = off, which is the default and what every
      constructor builds).  See dp_RateConverter_enable_agc(). ─────────────── */
   dp_agc_state_t *agc;          
@@ -88,6 +94,21 @@ dp_RateConverter_create_matched (double rate, int compensate, int pulse,
                               size_t num_phases);
 
 bool dp_RateConverter_get_clipped (const dp_RateConverter_state_t *s);
+
+int dp_RateConverter_set_cic_precision (dp_RateConverter_state_t *s,
+                                     uint32_t                  precision);
+
+uint32_t dp_RateConverter_get_cic_precision (const dp_RateConverter_state_t *s);
+
+int dp_RateConverter_set_cic_headroom_bits (dp_RateConverter_state_t *s,
+                                         uint32_t                  bits);
+
+uint32_t
+dp_RateConverter_get_cic_headroom_bits (const dp_RateConverter_state_t *s);
+
+double dp_RateConverter_get_full_scale (const dp_RateConverter_state_t *s);
+
+double dp_RateConverter_get_step (const dp_RateConverter_state_t *s);
 
 bool dp_RateConverter_get_narrow_pulse (const dp_RateConverter_state_t *s);
 
@@ -140,7 +161,7 @@ void dp_RateConverter_reset (dp_RateConverter_state_t *s);
  * restores the R it carries, so without the key a cross-rate blob ran the
  * source's chain behind the target's reported rate (doppler#2642). */
 #define RC_STATE_MAGIC DP_FOURCC ('R', 'C', 'V', 'T')
-#define RC_STATE_VERSION 3u
+#define RC_STATE_VERSION 4u
 
 size_t dp_RateConverter_state_bytes (const dp_RateConverter_state_t *s);
 void dp_RateConverter_get_state (const dp_RateConverter_state_t *s, void *blob);

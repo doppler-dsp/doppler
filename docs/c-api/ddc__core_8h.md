@@ -855,7 +855,7 @@ bool dp_ddc_get_clipped (
 
 
 
-Forwarded from [**dp\_RateConverter\_get\_clipped()**](RateConverter__core_8h.md#function-dp_rateconverter_get_clipped): a CIC bounds its input to `|Re|, |Im| <= 2.0` (`CIC_PAPR_HEADROOM`, 6 dB above unity — see [**cic\_core.h**](cic__core_8h.md)) and clips silently past it — the output stays finite and plausible, merely distorted, at a cost of ~25 dB of EVM that no downstream metric attributes to the front end. Sticky until [**dp\_ddc\_reset()**](ddc__core_8h.md#function-dp_ddc_reset); always false for a plan with no CIC stage, which is the honest answer since those plans are scale-free.
+Forwarded from [**dp\_RateConverter\_get\_clipped()**](RateConverter__core_8h.md#function-dp_rateconverter_get_clipped): a CIC bounds its input to its full scale (CIC\_PAPR\_WIDE as built, 12 dB above unity — see [**cic\_core.h**](cic__core_8h.md)) and clips silently at and past it — the output stays finite and plausible, merely distorted, at a cost of ~25 dB of EVM that no downstream metric attributes to the front end. Sticky until [**dp\_ddc\_reset()**](ddc__core_8h.md#function-dp_ddc_reset); always false for a plan with no CIC stage, which is the honest answer since those plans are scale-free.
 
 
 

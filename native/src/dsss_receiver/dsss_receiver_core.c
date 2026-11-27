@@ -315,16 +315,14 @@ dsss_rx_scratch (float _Complex **buf, size_t *cap, size_t need)
 }
 
 /* Carrier-wipe -> despread -> resample -> demod a block through the
- * already-built chain. The Dll's scratch holds the most this call can
- * emit: the carry and x_len make `periods` whole code periods, which close
- * at most periods + 1 epochs (a period's samples can hold two epoch ends
- * when the boundary sits on its edge), each `segments` partials. It is not
- * x_len: a few samples that complete a carried period emit a period's
- * partials, and dp_dll_steps() drops what does not fit silently (#3282;
- * the refine path's instance, #3281). The bound is written here until the
- * Dll states its own (dp_dll_steps_max_out(), #3282). The converter's
- * scratch follows from the partials. Both are kept in the state between
- * calls. */
+ * already-built chain. The carry and x_len make `periods` whole code
+ * periods, and the Dll is called once per period, so its scratch holds
+ * `periods` times what one call on a period can emit, the Dll's own bound
+ * (dp_dll_steps_max_out()). That bound carries the code-rate headroom, so a
+ * period whose epoch the rate aid has shortened (Doppler compression) still
+ * fits; a count of epochs at the nominal rate did not (#3282). The
+ * converter's scratch follows from the partials. Both are kept in the state
+ * between calls. */
 static size_t
 dsss_rx_track_chain (dp_dsss_receiver_state_t *s, const float _Complex *x,
                      size_t x_len, float _Complex *out, size_t max_out)
@@ -332,8 +330,11 @@ dsss_rx_track_chain (dp_dsss_receiver_state_t *s, const float _Complex *x,
   if (x_len == 0)
     return 0;
 
-  const size_t    periods = (s->car_carry_len + x_len) / s->tsamps;
-  const size_t    dll_cap = s->segments * (periods + 1);
+  const size_t periods = (s->car_carry_len + x_len) / s->tsamps;
+  size_t       dll_cap;
+  if (!dp_size_mul (periods, dp_dll_steps_max_out (s->dll, s->tsamps),
+                    &dll_cap))
+    dll_cap = SIZE_MAX; /* the scratch's checked allocation refuses it */
   float _Complex *dll_out
       = dsss_rx_scratch (&s->trk_dll_buf, &s->trk_dll_cap, dll_cap);
   size_t n_dll = dsss_rx_track_carrier_dll (s, x, x_len, dll_out, dll_cap);

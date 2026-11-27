@@ -323,10 +323,14 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
       MPSK_RX_AGC_BW_RATIO);
   dp_async_dsss_receiver_state_t *rx = whole ? make_rx (code, cn0) : NULL;
 
-  size_t         pcap = dp_dll_steps_max_out (dll, TE) + SEGMENTS;
-  float complex *prt  = dp_xmalloc (pcap * sizeof *prt);
-  size_t         qcap = (size_t)((double)N / TE * SEGMENTS * rate) + 64;
-  float complex *q    = dp_xcalloc (qcap, sizeof *q);
+  /* One close (SEGMENTS partials) of slack above the bound, so a call that
+     emitted more than the bound shows as got > pbound instead of stopping
+     at it. */
+  const size_t   pbound = dp_dll_steps_max_out (dll, TE);
+  size_t         pcap   = pbound + SEGMENTS;
+  float complex *prt    = dp_xmalloc (pcap * sizeof *prt);
+  size_t         qcap   = (size_t)((double)N / TE * SEGMENTS * rate) + 64;
+  float complex *q      = dp_xcalloc (qcap, sizeof *q);
   size_t         nq = 0, np = 0, k1d = 0, k0 = 0;
   float complex *sig   = dp_xmalloc (TE * sizeof *sig);
   float complex *nz    = dp_xmalloc (TE * sizeof *nz);
@@ -376,7 +380,7 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
         }
       /* S1d: the shipped Dll's partials, the j-th spanning S1's j-th. */
       size_t got = dp_dll_steps (dll, w, TE, prt, pcap);
-      DP_CHECK_MSG (got < pcap, "no block's call filled the Dll's capacity");
+      DP_CHECK_MSG (got <= pbound, "no block's call exceeded the Dll's bound");
       for (size_t j = 0; j < got; j++, np++)
         {
           double len = (double)TE / SEGMENTS;

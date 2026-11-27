@@ -1998,8 +1998,8 @@ the_remainders_upper_edge_is_produced_and_accepted (void)
  * lengths, each into a buffer of exactly its bound, the partials are the
  * ones a single call into an ample buffer makes, bit for bit. Sabotaged: the
  * old bound (the call's length, so one slot for one sample) -- the one-sample
- * call drops three partials, and every cut stream differs from the reference
- * (a Debug build asserts at the first drop instead). */
+ * call drops three partials, and every cut stream differs from the reference.
+ */
 static int
 a_one_sample_call_that_completes_a_carried_period_keeps_every_partial (void)
 {
@@ -2090,7 +2090,10 @@ random_call_lengths_never_exceed_the_bound (double sps, size_t segments,
   dp_dll_set_rate_aid (ref, aid);
   const size_t    refcap = dp_dll_steps_max_out (ref, total);
   float _Complex *want   = malloc (refcap * sizeof *want);
-  float _Complex *got    = malloc (refcap * sizeof *got);
+  /* Each cut call gets the hard ceiling, segments x len, as its max_out, so
+     a call that emits more than its bound is not stopped at the bound and
+     the check below can see it. */
+  float _Complex *got = malloc (segments * total * sizeof *got);
   DP_REQUIRE (want && got);
   const size_t nwant = dp_dll_steps (ref, x, total, want, refcap);
   size_t       ngot = 0, pos = 0;
@@ -2099,9 +2102,10 @@ random_call_lengths_never_exceed_the_bound (double sps, size_t segments,
       size_t len = 1 + dp_xs32 (&rng) % (size_t)(3.0 * period);
       if (len > total - pos)
         len = total - pos;
-      const size_t cap = dp_dll_steps_max_out (d, len);
-      const size_t k   = dp_dll_steps (d, x + pos, len, got + ngot, cap);
-      if (k > cap)
+      const size_t bound = dp_dll_steps_max_out (d, len);
+      const size_t k
+          = dp_dll_steps (d, x + pos, len, got + ngot, segments * len);
+      if (k > bound)
         fails++;
       ngot += k;
       pos += len;

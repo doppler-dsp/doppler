@@ -343,9 +343,9 @@ _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
   /* The buffer is the bound for one period's samples (dp_dll_steps_max_out):
      a call of one period can close two periods at segments > 1, and each
      close emits all of its partials. */
-  const size_t    cap     = dp_dll_steps_max_out (dll, tsamps);
-  float _Complex *parts   = malloc (cap * sizeof *parts);
-  size_t          most    = 0;
+  const size_t    cap   = dp_dll_steps_max_out (dll, tsamps);
+  float _Complex *parts = malloc (cap * sizeof *parts);
+  size_t          most  = 0;
   for (size_t p = 0; p < n_periods; p++)
     {
       const float _Complex *chunk = x + p * tsamps;
@@ -364,8 +364,7 @@ _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
         prompt += parts[k] * (crealf (parts[k]) >= 0.0f ? 1.0f : -1.0f);
       costas_update (&car, prompt);
     }
-  DP_CHECK_MSG (most < cap,
-                "no period's call filled the partials' capacity");
+  DP_CHECK_MSG (most < cap, "no period's call filled the partials' capacity");
 
   double tracked_hz  = dp_costas_get_norm_freq (&car) * fs;
   double true_at_end = rate_hz_per_s * (double)n_periods * (double)tsamps / fs;

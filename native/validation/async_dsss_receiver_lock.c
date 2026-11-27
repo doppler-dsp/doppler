@@ -1225,12 +1225,11 @@ run_noise_lock (const uint8_t *code, double fc, double esn0, int pin,
   *n_looks   = d->n_looks;
   *decisions = *hits    = 0;
   dp_awgn_state_t *g    = lk_noise (seed + 300000u, cn0);
-  size_t           dcap = dp_dll_steps_max_out (d);
-  dcap                  = dcap ? dcap : PUSH;
-  float complex *dout   = dp_xmalloc (dcap * sizeof *dout);
-  const size_t   n0     = (size_t)(CL_NOISE_SETTLE_S * DP_CCSDS_415_FS / PUSH);
-  const size_t   n1     = n0 + (size_t)(secs * DP_CCSDS_415_FS / PUSH);
-  double         last   = NAN;
+  const size_t     dcap = dp_dll_steps_max_out (d, PUSH);
+  float complex   *dout = dp_xmalloc (dcap * sizeof *dout);
+  const size_t     n0   = (size_t)(CL_NOISE_SETTLE_S * DP_CCSDS_415_FS / PUSH);
+  const size_t     n1   = n0 + (size_t)(secs * DP_CCSDS_415_FS / PUSH);
+  double           last = NAN;
   for (size_t k = 0; k < n1; k++)
     {
       if (pin)

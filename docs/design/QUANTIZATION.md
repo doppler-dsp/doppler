@@ -98,7 +98,7 @@ float x → s = x · 2^(word − 1 − headroom_bits)
 
 The word is the CIC's precision, 16 or 32 bits or all the register has left
 after the pipeline's gain (64, the default), and its top `headroom_bits` are
-headroom: full scale is 4.0 as built, 2.0 at 16 bits
+headroom: full scale is 4.0 at the default precision, 2.0 at 16 bits
 ([CIC](cic.md) is the budget).
 
 > **What this means for a caller: the CIC's input amplitude is bounded** by

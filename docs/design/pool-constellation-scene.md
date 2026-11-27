@@ -247,7 +247,7 @@ duplicate test) of that emitter's phase. A holder whose phase is a sidelobe lag
 of a parent, and within one chip of no emitter, sits on a ghost code.
 
 **The carrier hypotheses.** Each code allows these carriers, all on the comb of
-ambiguity intervals, which are lattice steps of `1/(2T)` with `T` the code period
+ambiguity intervals, spaced `1/(2T)` apart with `T` the code period
 (318.2 µs at 2.2 GHz, 250.0 µs at 2.8 GHz):
 
 - on an emitter's own code: its own carrier `f_e`, and each cross line
@@ -396,7 +396,7 @@ are the scorer's negative controls, written with the scorer.
 | ------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | same code phase (on an emitter's code, duplicate) | 1 chip                                                | `DP_CORRELATOR_SAME_PHASE_CHIPS`, the pool's own duplicate test                                        |
 | carrier resolution (ambiguous class)              | 99th percentile: 2.76 Hz (2.2 GHz), 2.50 Hz (2.8 GHz) | per-tenure largest reported-carrier error over on-phase tenures of a lone emitter at Es/N0 4 dB (§7.2) |
-| ambiguity interval (comb spacing)                 | `1/(2T)`                                              | the code's lattice: `chip rate / (2 × code length)`, from the chip rate                                |
+| ambiguity interval (comb spacing)                 | `1/(2T)`                                              | from the code: `chip rate / (2 × code length)`, from the chip rate                                     |
 | ghost tenure window                               | 0.2 s                                                 | `ASYNC_DSSS_POOL_GHOST_WINDOW_S`, the rule being scored                                                |
 | ghost end value                                   | 10 Hz                                                 | `ASYNC_DSSS_POOL_GHOST_EPS_HZ`, the rule being scored                                                  |
 | ghost end, existing validator                     | 40 Hz                                                 | EPS + 3 × STILL; the 3 is a 3-sigma coverage choice, labelled as such                                  |

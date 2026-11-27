@@ -19,8 +19,6 @@ docs/design/burst-capture.md 2 native span
 docs/design/burst-capture.md 2 tile
 docs/design/coarse-channel.md 1 native span
 docs/design/corr2d-hypotheses.md 2 tile
-docs/design/correlator.md 1 tile
-docs/design/correlator.md 2 tiles
 docs/design/detection.md 4 look count
 docs/design/dsss-burst-receiver.md 1 as built
 docs/design/loop-filter.md 1 as built

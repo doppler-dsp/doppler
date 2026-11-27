@@ -644,7 +644,7 @@ pi_live_align (const dp_air_t *air, size_t first_in, double secs,
       if (ns < PI_LV_START + 2 * guard)
         return;
       const size_t at
-          = dp_ber_marker_place (*truth, *n_truth, 2, PI_LV_START, 0,
+          = dp_ber_marker_place (*truth, *n_truth, syms, ns, 2, PI_LV_START, 0,
                                  DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
       mk->t0 = at == SIZE_MAX ? *n_truth : at;
       *sy    = dp_ber_sync (syms, ns, *truth, *n_truth, mk, 2, DP_BER_LAG_SPAN,
@@ -668,7 +668,7 @@ pi_live_align (const dp_air_t *air, size_t first_in, double secs,
       *next             = ns + PI_LV_RESYNC;
       dp_ber_marker_t m = *mk;
       const size_t    at
-          = dp_ber_marker_place (*truth, *n_truth, 2, ns - guard, 0,
+          = dp_ber_marker_place (*truth, *n_truth, syms, ns, 2, ns - guard, 0,
                                  DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1);
       m.t0                   = at == SIZE_MAX ? *n_truth : at;
       const dp_ber_sync_t s2 = dp_ber_sync (syms, ns, *truth, *n_truth, &m, 2,
@@ -704,8 +704,9 @@ pi_end_verdict (const float complex *syms, size_t ns, const uint8_t *truth,
 {
   const size_t    guard  = (size_t)DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS;
   dp_ber_marker_t mk_end = *mk;
-  const size_t    at_end = dp_ber_marker_place (
-      truth, n_truth, 2, ns - guard, 0, DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1);
+  const size_t    at_end
+      = dp_ber_marker_place (truth, n_truth, syms, ns, 2, ns - guard, 0,
+                             DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1);
   mk_end.t0         = at_end == SIZE_MAX ? n_truth : at_end;
   dp_ber_sync_t end = dp_ber_sync (syms, ns, truth, n_truth, &mk_end, 2,
                                    DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
@@ -786,7 +787,7 @@ pi_end_controls (const float complex *syms, size_t ns, const uint8_t *truth,
      shorter: it depends on the truth and the length only. */
   const size_t guard = (size_t)DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS;
   const size_t t_end
-      = dp_ber_marker_place (truth, n_truth, 2, ns - 1 - guard, 0,
+      = dp_ber_marker_place (truth, n_truth, syms, ns, 2, ns - 1 - guard, 0,
                              DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1);
   const long     win = (long)t_end - sy->lag; /* its first rx symbol */
   float complex *f   = dp_xmalloc (ns * sizeof *f);
@@ -1761,7 +1762,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
         {
           dp_ber_marker_t mk = { NULL, DP_BER_SYNC_SYMS, 0, 0, 0 };
           size_t          at = dp_ber_marker_place (
-              truth, n_truth, 2, lock_sym + DP_BER_LAG_SPAN, 0,
+              truth, n_truth, syms, ns, 2, lock_sym + DP_BER_LAG_SPAN, 0,
               DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
           mk.t0            = at == SIZE_MAX ? n_truth : at;
           dp_ber_sync_t sy = dp_ber_sync (syms, ns, truth, n_truth, &mk, 2,

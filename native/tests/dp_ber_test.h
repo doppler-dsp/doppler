@@ -90,6 +90,7 @@
 
 #include "doppler/ber/ber_core.h" /* the measurement primitives, once  */
 #include "doppler/ber_meter/ber_meter_core.h" /* the accumulator + the detector    */
+#include "doppler/detection/detection_core.h" /* dp_det_q_inv */
 #include "doppler/dp_complex.h"
 #include "doppler/mpsk/mpsk_core.h" /* mpsk_bps, mpsk_phi0, gray encode    */
 #include "dp_sym_test.h"            /* EVM / M2M4 / the settling budget    */
@@ -269,11 +270,96 @@ dp_ber_sync (const float _Complex *rx, size_t n_rx, const uint8_t *truth,
   return o;
 }
 
+/* dp_ber_marker_place()'s guard for one candidate start @p t: whether the
+   sync, on symbols carrying the marker at ANY true lag in +-span and with
+   the window's measured noise, clears its threshold and its 3 dB runner
+   gate. The geometry is the detector's (dp_ber_align_detect()): search
+   lag l reads rx[t - l], which carries truth[t - l + L] for true lag L,
+   so the truth's offset from the marker is d = L - l, and a lag is used
+   only where both records hold it. r2 is scratch for 4 span + 1 powers.
+   The derivation is the docblock of dp_ber_marker_place(). */
+static inline int
+ber_marker_holds (const uint8_t *truth, size_t n_truth,
+                  const float _Complex *rx, size_t n_rx, int m, size_t t,
+                  size_t n, size_t span, double pfa, double threshold,
+                  double *r2)
+{
+  const long   s2s = 2 * (long)span;
+  const double nn  = (double)n;
+  /* The truth against itself at offset d, |sum_j e^{j(th[t+j+d]-th[t+j])}|^2;
+     -1 where the shifted marker leaves the truth. */
+  for (long d = -s2s; d <= s2s; d++)
+    {
+      if ((long)t + d < 0 || (size_t)((long)t + d) + n > n_truth)
+        {
+          r2[d + s2s] = -1.0;
+          continue;
+        }
+      double cr = 0.0, ci = 0.0;
+      for (size_t j = 0; j < n; j++)
+        {
+          const double dth = 2.0 * M_PI
+                             * ((double)truth[(size_t)((long)t + d) + j]
+                                - (double)truth[t + j])
+                             / (double)m;
+          cr += cos (dth);
+          ci += sin (dth);
+        }
+      r2[d + s2s] = cr * cr + ci * ci;
+    }
+  /* The output noise over the symbols the marker can land on, relative to
+     the symbol power. */
+  const size_t n_rec = rx ? n_rx : n_truth;
+  double       s2    = 0.0;
+  if (rx)
+    {
+      const size_t lo = t > span ? t - span : 0;
+      size_t       hi = t + n + span;
+      hi              = hi < n_rx ? hi : n_rx;
+      s2 = pow (10.0, -dp_test_m2m4_snr_db_range (rx, lo, hi) / 10.0);
+    }
+  /* The peak, at its low quantile: amplitude n, less k noise sigmas
+     (sqrt (n s2 / 2) a quadrature), k at the sync's own Pfa -- a correct
+     marker missed no more often than a wrong one is taken. */
+  const double a_lo = nn - dp_det_q_inv (pfa) * sqrt (nn * s2 / 2.0);
+  if (!(a_lo > 0.0))
+    return 0;
+  const double pk  = a_lo * a_lo;
+  const double wn  = sqrt (nn * s2 * log (2.0 * (double)span + 1.0));
+  int          any = 0;
+  for (long L = -(long)span; L <= (long)span; L++)
+    {
+      double sum = 0.0, rmax = 0.0;
+      size_t cnt = 0;
+      for (long l = -(long)span; l <= (long)span; l++)
+        {
+          const long b = (long)t - l, d = L - l;
+          if (labs (l - L) <= 3 || b < 0 || (size_t)b + n > n_rec
+              || r2[d + s2s] < 0.0)
+            continue;
+          sum += r2[d + s2s];
+          rmax = r2[d + s2s] > rmax ? r2[d + s2s] : rmax;
+          cnt++;
+        }
+      /* A lag the records cannot hold a search around is no stretch's
+         fault: no placement syncs there. */
+      if (cnt < 8 || (long)t - L < 0 || (size_t)((long)t - L) + n > n_rec)
+        continue;
+      any             = 1;
+      const double fl = sum / (double)cnt + nn * s2;
+      const double rn = sqrt (rmax) + wn;
+      if (sqrt (2.0 * pk / fl) < threshold
+          || (rn > 0.0 && 10.0 * log10 (pk / (rn * rn)) < 3.0))
+        return 0;
+    }
+  return any;
+}
+
 /**
  * @brief Where a marker borrowed from truth can fix an alignment at all.
  *
  * A blind marker (`sym = NULL`, `period = 0`) is a stretch of truth, and
- * whether a stretch can fix an alignment is a property of the truth alone:
+ * whether a stretch can fix an alignment is first a property of the truth:
  * a run of identical symbols (a code-only window, an idle pattern, a
  * preamble of ones) correlates the same at every lag, so no Es/N0 makes
  * its peak unique. dp_ber_sync() then refuses, correctly, and a caller that
@@ -283,18 +369,56 @@ dp_ber_sync (const float _Complex *rx, size_t n_rx, const uint8_t *truth,
  * So this asks the detector itself. Starting at @p t, it replays truth
  * noiselessly over the marker and the lag search either side, and runs
  * dp_ber_align_detect() on that replay with the same marker length, span
- * and Pfa; the first position where the clean replay aligns at lag 0 is
- * returned. There is no second criterion to drift from the detector's:
- * a stretch is resolvable exactly when the detector resolves it with no
- * noise at all. Where @p t already is resolvable it is returned unchanged,
- * so a caller that never sat on a degenerate stretch measures the same
+ * and Pfa. Where @p t already is resolvable it is returned unchanged, so
+ * a caller that never sat near a degenerate stretch measures the same
  * symbols as before.
  *
+ * A clean replay that aligns at lag 0 is not enough (doppler#3131: a
+ * marker the old guard accepted refused a link with 256 of 256 decisions
+ * right, 0.63 dB short). The detector's CFAR floor is the mean off-peak
+ * correlation power over the lags it searches, `[-span, span]`, and those
+ * are offsets from the TRUE lag, which the placement does not know: with
+ * the link at lag L, the floor averages the truth's own correlation
+ * `|R(d)|^2` over `d` in `[-span - L, span - L]` (less the detector's
+ * +-3 guard), and a stretch next to a constant run lifts it by a
+ * different amount for every L. So the guard computes `R(d)` once over
+ * `d` in `[-2 span, 2 span]` (the truth against itself: a property of
+ * the truth, not a second detector) and takes the WORST L in the span:
+ *
+ *     floor_L  = mean |R(d)|^2 over that window   + n s2
+ *     stat_L   = sqrt (2 (n^2 + n s2) / floor_L)  >= the threshold
+ *
+ * with `n s2` the received noise each lag's power gains, and the peak
+ * taken at its low quantile: amplitude `n` (unit symbols against
+ * themselves) less `Q^-1(pfa)` noise sigmas, `sqrt (n s2 / 2)` a
+ * quadrature, so a correct marker is missed no more often than a wrong
+ * one is taken. A true lag the records cannot hold a search around (the
+ * end of a record) is skipped: no placement syncs there. The noise is
+ * measured, not stated: the blind M2M4 estimate (dp_test_m2m4_snr_db_range())
+ * of @p rx over the symbols the marker can land on, `[t - span, t + n +
+ * span)`, gives the output noise relative to the symbol power, `s2 =
+ * 10^(-snr/10)`, which needs neither phase nor lag and includes the receiver's
+ * implementation loss a channel Es/N0 would leave out. The runner-up is the
+ * detector's other gate: the largest off-peak `|R(d)|` plus the largest of the
+ * lags' noise terms, `sqrt (n s2 ln L)` over L lags, must stay 3 dB under the
+ * peak. Every term is the truth's or the window's; nothing is fitted. The
+ * threshold is the detector's own, read from the clean replay's call.
+ *
+ * @p rx NULL is the noiseless case (`s2 = 0`), for a caller asking only
+ * whether the truth itself can align. A window shorter than M2M4 can read
+ * (20 symbols) reads as all noise and is refused.
+ *
  * Steps are half a marker, toward @p dir, until the marker would leave
- * the truth.
+ * the truth. Single occurrences only (`period = 0`), as every caller
+ * syncs; a repeating marker would replay its K occurrences and add
+ * `n s2` per occurrence to the per-occurrence floor.
  *
  * @param truth     Transmitted symbol indices (0..m-1).
  * @param n_truth   How many.
+ * @param rx        The received symbols the caller will sync, indexed as
+ *                  the truth is up to the lag (`rx[i]` carries
+ *                  `truth[i + lag]`), or NULL for the noiseless question.
+ * @param n_rx      How many.
  * @param m         Constellation order.
  * @param t         The caller's preferred marker start.
  * @param n_marker  Marker length; 0 selects DP_BER_SYNC_SYMS.
@@ -305,7 +429,8 @@ dp_ber_sync (const float _Complex *rx, size_t n_rx, const uint8_t *truth,
  *                  that direction can fix an alignment.
  */
 static inline size_t
-dp_ber_marker_place (const uint8_t *truth, size_t n_truth, int m, size_t t,
+dp_ber_marker_place (const uint8_t *truth, size_t n_truth,
+                     const float _Complex *rx, size_t n_rx, int m, size_t t,
                      size_t n_marker, long lag_span, double pfa, int dir)
 {
   const size_t    n    = n_marker ? n_marker : DP_BER_SYNC_SYMS;
@@ -313,9 +438,14 @@ dp_ber_marker_place (const uint8_t *truth, size_t n_truth, int m, size_t t,
   const size_t    step = n / 2 ? n / 2 : 1;
   float _Complex *rep
       = (float _Complex *)malloc ((n + 2 * span) * sizeof *rep);
-  size_t out = SIZE_MAX;
-  if (!rep)
-    return SIZE_MAX;
+  double *r2  = (double *)malloc ((4 * span + 1) * sizeof *r2);
+  size_t  out = SIZE_MAX;
+  if (!rep || !r2)
+    {
+      free (rep);
+      free (r2);
+      return SIZE_MAX;
+    }
   for (;;)
     {
       if (t + n > n_truth)
@@ -337,7 +467,9 @@ dp_ber_marker_place (const uint8_t *truth, size_t n_truth, int m, size_t t,
             I * (float)(2.0 * M_PI * truth[a + i] / m + mpsk_phi0 (m)));
       ber_align_t al = dp_ber_align_detect (rep, w, truth + a, w, m, t - a, n,
                                             0, (int)lag_span, pfa);
-      if (al.ok && al.lag == 0)
+      if (al.ok && al.lag == 0
+          && ber_marker_holds (truth, n_truth, rx, n_rx, m, t, n, span, pfa,
+                               al.threshold, r2))
         {
           out = t;
           break;
@@ -352,6 +484,7 @@ dp_ber_marker_place (const uint8_t *truth, size_t n_truth, int m, size_t t,
         t += step;
     }
   free (rep);
+  free (r2);
   return out;
 }
 
@@ -888,7 +1021,7 @@ dp_ber_measure (dp_ber_t *b, const float _Complex *rx, size_t n_rx,
          past the end of the truth, which the detector refuses, so the
          burst reports unaligned rather than borrowing a SIZE_MAX that
          wraps the detector's bounds check. */
-      local.t0 = dp_ber_marker_place (truth, n_truth, b->m,
+      local.t0 = dp_ber_marker_place (truth, n_truth, rx, n_rx, b->m,
                                       settle + (size_t)DP_BER_LAG_SPAN, 0,
                                       DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
       if (local.t0 == SIZE_MAX)

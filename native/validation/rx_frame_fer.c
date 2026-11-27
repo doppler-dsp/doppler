@@ -382,7 +382,7 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
              baseline the named set exists to compare against. */
           mk.sym = NULL;
           mk.n   = DP_BER_SYNC_SYMS;
-          mk.t0  = dp_ber_marker_place (truth, nsym, c->m,
+          mk.t0  = dp_ber_marker_place (truth, nsym, out, n, c->m,
                                         settle + (size_t)DP_BER_LAG_SPAN, 0,
                                         DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
           if (mk.t0 == SIZE_MAX)

@@ -135,6 +135,7 @@
 * **rc\_stage\_t** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **ratesync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **ratesync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635** ([**ratesync\_core.h**](ratesync__core_8h.md))
+* **ratesync\_lifecycle\_t** ([**ratesync\_core.h**](ratesync__core_8h.md))
 
 
 ## s

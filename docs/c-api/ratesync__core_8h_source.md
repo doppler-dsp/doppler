@@ -23,11 +23,13 @@
 #include "doppler/loop_filter/loop_filter_core.h"
 #include "doppler/resamp/resamp_core.h"
 #include "doppler/resample/resample_core.h"
+#include "doppler/timing_est/timing_est_core.h"
 #include "doppler/symsync/symsync_core.h" /* gardner_ted / dttl_ted — one TED, reused */
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include "doppler/telemetry/telemetry_core.h"
 #include "doppler/ber/ber_core.h"
 #include "doppler/pn/pn_core.h"
+#include "doppler/nco/nco_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -70,6 +72,14 @@ extern "C"
     int32_t   id_integ;   
   } ratesync_tlm_t;
 
+  /* SSOT: enum=ratesync_lifecycle */
+  typedef enum
+  {
+    RATESYNC_ACQUIRING = 0, 
+    RATESYNC_TRACKING  = 1, 
+    RATESYNC_COASTING  = 2, 
+  } ratesync_lifecycle_t;
+
   typedef struct
   {
     dp_loop_filter_state_t lf; 
@@ -83,8 +93,13 @@ extern "C"
     double zeta;       
     int    ted;        
     double ted_scale;
-
+    int    acquires;   
     /* ── running state ──────────────────────────────────────────────── */
+    int      state;     
+    int      present;   
+    int      had_lock;  
+    uint32_t miss_run;  
+    size_t   seed_left; 
     double ctrl;       
     double last_error; 
     double rate_est;   
@@ -112,6 +127,17 @@ extern "C"
     double beta;       
     size_t span;       
     size_t num_phases; 
+    double delay;      
+    double decim;      
+    dp_timing_est_state_t *est; 
+    /* ── acquisition (dp_ratesync_configure_acquisition(); in the blob) */
+    size_t acq_symbols; 
+    double acq_quality; 
+    /* ── running state ──────────────────────────────────────────────── */
+    uint64_t in_count;   
+    uint64_t term_in;    
+    uint64_t acq_origin; 
+    int      acq_run;    
   } dp_ratesync_state_t;
 
   /* ------------------------------------------------------------------
@@ -128,6 +154,21 @@ extern "C"
                                    const dp_RateConverter_state_t *rc);
 
   void dp_ratesync_loop_reset (ratesync_loop_t *l);
+
+  void dp_ratesync_loop_set_acquisition (ratesync_loop_t *l, int on);
+
+  void dp_ratesync_loop_set_presence (ratesync_loop_t *l, int present);
+
+  int dp_ratesync_loop_seed (ratesync_loop_t *l, double ahead, double rate,
+                          int set_rate);
+
+  void dp_ratesync_loop_decide (ratesync_loop_t *l, int was, int now);
+
+  static inline int
+  dp_ratesync_loop_valid (const ratesync_loop_t *l)
+  {
+    return l->state == RATESYNC_TRACKING && !l->seed_left && l->lock.locked;
+  }
 
   double dp_ratesync_loop_settle_time (const ratesync_loop_t *l);
 
@@ -152,9 +193,12 @@ extern "C"
  * self-validating sub-blob. Config (sps/m/term_rate/prime_taps/bn/zeta/ted)
  * is restored by the owner's create() and never packed. */
 #define RATESYNC_LOOP_STATE_MAGIC DP_FOURCC ('R', 'S', 'L', 'P')
-#define RATESYNC_LOOP_STATE_VERSION 2u /* v2: the TED normaliser is
-                                        * a construct-time constant, so
-                                        * pwr_avg/pwr_seeded are gone */
+#define RATESYNC_LOOP_STATE_VERSION 3u /* v3: the lifecycle (state,
+                                        * presence, had_lock, miss_run,
+                                        * seed_left); v2: the TED
+                                        * normaliser is a construct-time
+                                        * constant, so pwr_avg/pwr_seeded
+                                        * are gone */
 
   size_t dp_ratesync_loop_state_bytes (const ratesync_loop_t *l);
   void dp_ratesync_loop_get_state (const ratesync_loop_t *l, void *blob);
@@ -173,6 +217,8 @@ extern "C"
   void dp_ratesync_destroy (dp_ratesync_state_t *state);
 
   void dp_ratesync_reset (dp_ratesync_state_t *state);
+
+  void dp_ratesync_acquire_push (dp_ratesync_state_t *state, float _Complex x);
 
   /* ------------------------------------------------------------------
    * Execute
@@ -193,6 +239,15 @@ extern "C"
     if (s->ring_n <= half)
       s->ring_n++;
 
+    /* A seed in progress. Its control is on the accumulator while the
+       first m outputs after it are emitted (each sets the interval to the
+       next), then the held rate returns; the loop stays open for m more,
+       until the gate a strobe reads is past the stretch. Counted on every
+       output, the ones the fill drops included: the terminal stage emitted
+       them under the same control. */
+    if (JM_UNLIKELY (s->seed_left) && --s->seed_left == s->m)
+      s->ctrl = s->lf.integ * s->term_rate;
+
     if (s->prime_left)
       {
         /* The cascade is still filling: these outputs are the delay lines,
@@ -208,6 +263,15 @@ extern "C"
 
     const float _Complex on  = y;
     const float _Complex mid = s->ring[half];
+    if (JM_UNLIKELY (s->state != RATESYNC_TRACKING || s->seed_left))
+      {
+        /* Open: the symbol clock runs on at the rate the loop holds and
+           the symbol is emitted, one a symbol period in every state. */
+        s->have_prev = 1;
+        s->prev_on   = on;
+        *y_out       = on;
+        return 1;
+      }
     if (!s->have_prev)
       {
         s->have_prev = 1;
@@ -288,10 +352,13 @@ extern "C"
     s->lock_sum += lock_signal;
     if (++s->lock_count >= s->avgs)
       {
-        s->lock_stat = s->lock_sum / (double)s->avgs;
-        (void)dp_lockdet_step (&s->lock, s->lock_stat);
+        s->lock_stat  = s->lock_sum / (double)s->avgs;
+        const int was = s->lock.locked;
+        const int now = dp_lockdet_step (&s->lock, s->lock_stat);
         s->lock_sum   = 0.0;
         s->lock_count = 0;
+        if (JM_UNLIKELY (s->acquires))
+          dp_ratesync_loop_decide (s, was, now);
       }
 
     s->prev_on = on;
@@ -318,11 +385,19 @@ extern "C"
        with m >= 2 those can contain at most one on-time strobe: the
        single-symbol return of this function is still correct. */
     float _Complex ys[4];
-    size_t n = dp_RateConverter_execute_ctrl_push (s->mf, x, s->loop.ctrl, ys,
-                                                sizeof (ys) / sizeof (ys[0]));
-    int    emitted = 0;
+    int            n_pre = 0;
+    size_t         n     = dp_RateConverter_execute_ctrl_push_tap (
+        s->mf, x, s->loop.ctrl, ys, sizeof (ys) / sizeof (ys[0]), NULL,
+        &n_pre);
+    /* Where the stream is, for a seed: the inputs taken and the ones the
+       terminal stage has been handed (dp_ratesync_seed()). */
+    s->in_count++;
+    s->term_in += (uint64_t)n_pre;
+    int emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= ratesync_loop_take_output (&s->loop, ys[oi], y_out, ted);
+    if (JM_UNLIKELY (s->loop.state != RATESYNC_TRACKING))
+      dp_ratesync_acquire_push (s, x);
     return emitted;
   }
 #endif /* !__cplusplus */
@@ -364,6 +439,19 @@ extern "C"
 
   int dp_ratesync_get_locked (const dp_ratesync_state_t *state);
 
+  int dp_ratesync_get_valid (const dp_ratesync_state_t *state);
+
+  int dp_ratesync_get_lifecycle (const dp_ratesync_state_t *state);
+
+  int dp_ratesync_configure_acquisition (dp_ratesync_state_t *state,
+                                      size_t symbols, double quality);
+
+  int dp_ratesync_seed (dp_ratesync_state_t *state, double eye, double rate);
+
+  int dp_ratesync_get_presence (const dp_ratesync_state_t *state);
+
+  void dp_ratesync_set_presence (dp_ratesync_state_t *state, int val);
+
   int dp_ratesync_get_clipped (const dp_ratesync_state_t *state);
 
   void dp_ratesync_configure_lock_raw (dp_ratesync_state_t *state, size_t avgs,
@@ -380,7 +468,7 @@ extern "C"
  * scalars of its own; config (sps/pulse/beta/span/m/num_phases/bn/zeta/ted) is
  * restored by create() and never packed. */
 #define RATESYNC_STATE_MAGIC DP_FOURCC ('R', 'A', 'T', 'S')
-#define RATESYNC_STATE_VERSION 2u /* v2: running state moved into the loop */
+#define RATESYNC_STATE_VERSION 3u /* v3: the acquisition (its two settings, the stream counts, the estimator's child blob); v2: running state moved into the loop */
 
   size_t dp_ratesync_state_bytes (const dp_ratesync_state_t *state);
   void dp_ratesync_get_state (const dp_ratesync_state_t *state, void *blob);

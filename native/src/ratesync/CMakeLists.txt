@@ -28,6 +28,7 @@ target_link_libraries(ratesync_core PUBLIC
     nco_core
     farrow_core
     detection_core
+    timing_est_core
     pn_core)
 
 # The C unit test; `ctest` runs it.
@@ -50,6 +51,7 @@ target_link_libraries(test_ratesync_core
     nco_core
     farrow_core
     detection_core
+    timing_est_core
     pn_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_ratesync_core
@@ -77,6 +79,7 @@ target_link_libraries(bench_ratesync_core
     nco_core
     farrow_core
     detection_core
+    timing_est_core
     pn_core
     ${JM_MATH_LIBRARY})
 target_include_directories(

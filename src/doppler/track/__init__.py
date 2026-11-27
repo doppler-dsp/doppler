@@ -19,6 +19,7 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
 del _os, _sys
 
 from .track import (  # noqa: E402
+    RATESYNC_LIFECYCLE,
     BpskReceiver,
     CarrierMpsk,
     CarrierNda,
@@ -46,4 +47,5 @@ __all__ = [
     "BpskReceiver",
     "StateFilter",
     "KalmanStateFilter",
+    "RATESYNC_LIFECYCLE",
 ]

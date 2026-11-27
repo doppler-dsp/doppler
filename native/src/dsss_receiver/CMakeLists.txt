@@ -42,6 +42,7 @@ target_link_libraries(dsss_receiver_core PUBLIC
     symsync_core
     nco_core
     farrow_core
+    timing_est_core
     pn_core
     snr_core)
 
@@ -79,6 +80,7 @@ target_link_libraries(test_dsss_receiver_core
     symsync_core
     nco_core
     farrow_core
+    timing_est_core
     pn_core
     snr_core
     ${JM_MATH_LIBRARY})
@@ -121,6 +123,7 @@ target_link_libraries(bench_dsss_receiver_core
     symsync_core
     nco_core
     farrow_core
+    timing_est_core
     pn_core
     snr_core
     ${JM_MATH_LIBRARY})

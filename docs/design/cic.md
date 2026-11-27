@@ -78,11 +78,11 @@ ______________________________________________________________________
 
 A filter is built for one of three words (`dp_cic_set_precision()`):
 
-| precision        | word                                  | full scale as built | what it is for                                       |
-| ---------------- | ------------------------------------- | ------------------- | ---------------------------------------------------- |
-| 16               | 16 bits, at every ratio               | 2.0 (6 dB)          | the filter as it was, output for output              |
-| 32               | 32 bits, or the widest word when less | 4.0 (12 dB)         | a fixed word across the ratios that have room for it |
-| 64 (the default) | the widest word                       | 4.0 (12 dB)         | everything the register has                          |
+| precision        | word                                  | full scale  | what it is for                                       |
+| ---------------- | ------------------------------------- | ----------- | ---------------------------------------------------- |
+| 16               | 16 bits, at every ratio               | 2.0 (6 dB)  | the filter as it was, output for output              |
+| 32               | 32 bits, or the widest word when less | 4.0 (12 dB) | a fixed word across the ratios that have room for it |
+| 64 (the default) | the widest word                       | 4.0 (12 dB) | everything the register has                          |
 
 Past `R = 256` the register has under 32 bits left and the two wide
 precisions are the same word.

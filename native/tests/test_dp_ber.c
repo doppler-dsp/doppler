@@ -417,9 +417,10 @@ test_marker_skips_a_degenerate_stretch (void)
  *     is refused by the sync on the received symbols;
  *   - the fix holds: from EVERY start, the guarded placement (rx given)
  *     lands where the sync aligns, at the true lag.
- * Sabotage: drop the measured noise (s2 = 0) -> the second count is the
- * first's, red; drop the runner's noise term -> no change here (the floor
- * term binds first), which is why it is pinned on its own below. */
+ * Sabotage: drop the measured noise (s2 = 0), fix the lag sweep at 0, or
+ * drop the peak's quantile -> some placement is refused, red. The
+ * runner's noise term does not bind here; it is pinned on its own, by
+ * test_marker_runner_bears_the_noise(). */
 /* The guard as it was before doppler#3131, the control: the truth replayed
    noiselessly around the marker, aligned at lag 0 by the detector. */
 static int
@@ -492,6 +493,50 @@ test_marker_placement_survives_the_noise (void)
   DP_CHECK_MSG (placed == 1000, "every start finds a placement");
   DP_CHECK_MSG (guarded_refused == 0,
                 "the guarded placement never refuses a link that aligns");
+}
+
+/* The runner gate bears the received noise too. A stretch whose truth
+ * repeats 164 of the marker's 256 symbols 300 symbols on (the other 92
+ * alternate agree and disagree, so they sum to 0) has its runner-up at
+ * |R(300)| = 164 exactly: 20 log10 (256 / 164) = 3.9 dB clean, outside
+ * the clean replay's +-200 search, and inside the window of every true
+ * lag of 100 or more. At 10 dB the peak's low quantile (Q^-1(1e-6) noise
+ * sigmas, about 17) leaves 3.3 dB, still over the detector's 3 dB gate;
+ * the runner's own noise term (sqrt (n s2 ln 401), about 12) takes it
+ * under. So: the noiseless question accepts the stretch, the guard on the
+ * received symbols refuses it. Sabotage: drop the runner's noise term ->
+ * accepted, red. */
+static void
+test_marker_runner_bears_the_noise (void)
+{
+  enum
+  {
+    NSYM = 3000,
+    T    = 1000,
+    D    = 300,
+    KEEP = 164
+  };
+  static uint8_t truth[NSYM];
+  static float _Complex rx[NSYM];
+  uint64_t     st    = 3131u;
+  const int    m     = 2;
+  const double sigma = sqrt (0.5 / pow (10.0, 10.0 / 10.0));
+  for (int i = 0; i < NSYM; i++)
+    truth[i] = (uint8_t)(dp_xs64 (&st) & 1u);
+  for (int j = 0; j < DP_BER_SYNC_SYMS; j++)
+    truth[T + D + j]
+        = (uint8_t)(truth[T + j] ^ (j < KEEP ? 0u : (unsigned)(j & 1)));
+  build (rx, NSYM, truth, NSYM, m, 37, 0.4, sigma, &st);
+  DP_CHECK_MSG (_clean_replay_aligns (truth, NSYM, m, T),
+                "premise: the offset is outside the clean replay's search");
+  DP_CHECK_MSG (dp_ber_marker_place (truth, NSYM, NULL, 0, m, T, 0,
+                                     DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1)
+                    == T,
+                "the noiseless question accepts the stretch");
+  DP_CHECK_MSG (dp_ber_marker_place (truth, NSYM, rx, NSYM, m, T, 0,
+                                     DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1)
+                    != T,
+                "the runner's noise refuses it on the received symbols");
 }
 
 /* The false-alarm gate: a marker correlated against a stream that does NOT
@@ -956,6 +1001,7 @@ main (void)
   test_sync_rejects_garbage ();
   test_marker_skips_a_degenerate_stretch ();
   test_marker_placement_survives_the_noise ();
+  test_marker_runner_bears_the_noise ();
   test_score_counts_exactly ();
   test_settle ();
   test_sanity_gate ();

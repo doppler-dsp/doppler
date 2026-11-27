@@ -341,9 +341,9 @@ ber_marker_holds (const uint8_t *truth, size_t n_truth,
           rmax = r2[d + s2s] > rmax ? r2[d + s2s] : rmax;
           cnt++;
         }
-      /* A lag the records cannot hold a search around is no stretch's
-         fault: no placement syncs there. */
-      if (cnt < 8 || (long)t - L < 0 || (size_t)((long)t - L) + n > n_rec)
+      /* A lag whose window the records cannot fill is one the detector
+         refuses at any stretch (cnt < 8, as dp_ber_align_detect()). */
+      if (cnt < 8)
         continue;
       any             = 1;
       const double fl = sum / (double)cnt + nn * s2;
@@ -386,22 +386,25 @@ ber_marker_holds (const uint8_t *truth, size_t n_truth,
  * the truth, not a second detector) and takes the WORST L in the span:
  *
  *     floor_L  = mean |R(d)|^2 over that window   + n s2
- *     stat_L   = sqrt (2 (n^2 + n s2) / floor_L)  >= the threshold
+ *     a_lo     = n - Q^-1(pfa) sqrt (n s2 / 2)
+ *     stat_L   = sqrt (2 a_lo^2 / floor_L)        >= the threshold
  *
  * with `n s2` the received noise each lag's power gains, and the peak
- * taken at its low quantile: amplitude `n` (unit symbols against
+ * taken at its low quantile `a_lo`: amplitude `n` (unit symbols against
  * themselves) less `Q^-1(pfa)` noise sigmas, `sqrt (n s2 / 2)` a
  * quadrature, so a correct marker is missed no more often than a wrong
- * one is taken. A true lag the records cannot hold a search around (the
- * end of a record) is skipped: no placement syncs there. The noise is
- * measured, not stated: the blind M2M4 estimate (dp_test_m2m4_snr_db_range())
- * of @p rx over the symbols the marker can land on, `[t - span, t + n +
- * span)`, gives the output noise relative to the symbol power, `s2 =
- * 10^(-snr/10)`, which needs neither phase nor lag and includes the receiver's
- * implementation loss a channel Es/N0 would leave out. The runner-up is the
- * detector's other gate: the largest off-peak `|R(d)|` plus the largest of the
- * lags' noise terms, `sqrt (n s2 ln L)` over L lags, must stay 3 dB under the
- * peak. Every term is the truth's or the window's; nothing is fitted. The
+ * one is taken. A true lag whose window holds fewer than the detector's
+ * 8 usable lags (the end of a record) is skipped: the detector itself
+ * refuses there, whatever the stretch. The noise is measured, not
+ * stated: the blind M2M4 estimate (dp_test_m2m4_snr_db_range()) of @p rx
+ * over the symbols the marker can land on, `[t - span, t + n + span)`,
+ * gives the output noise relative to the symbol power,
+ * `s2 = 10^(-snr/10)`, which needs neither phase nor lag and includes the
+ * receiver's implementation loss a channel Es/N0 would leave out. The
+ * runner-up is the detector's other gate: at each true lag, the largest
+ * off-peak `|R(d)|` in its window plus the largest of the lags' noise
+ * terms, `sqrt (n s2 ln L)` over L lags, must stay 3 dB under `a_lo`.
+ * Every term is the truth's or the window's; nothing is fitted. The
  * threshold is the detector's own, read from the clean replay's call.
  *
  * @p rx NULL is the noiseless case (`s2 = 0`), for a caller asking only

@@ -784,11 +784,14 @@ pi_end_controls (const float complex *syms, size_t ns, const uint8_t *truth,
   DP_CHECK_MSG (!u && !sl, "control: a clean end the sync cannot place is "
                            "accepted on its tail");
   /* The end marker pi_end_verdict places on the stream one symbol
-     shorter: it depends on the truth and the length only. */
+     shorter. The placement reads the received symbols' noise, so it is
+     predicted on that length and then checked on the stream the control
+     builds: a drop is one symbol, and the prediction must be where the
+     verdict looks or the control tests nothing. */
   const size_t guard = (size_t)DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS;
   const size_t t_end
-      = dp_ber_marker_place (truth, n_truth, syms, ns, 2, ns - 1 - guard, 0,
-                             DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1);
+      = dp_ber_marker_place (truth, n_truth, syms, ns - 1, 2, ns - 1 - guard,
+                             0, DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1);
   const long     win = (long)t_end - sy->lag; /* its first rx symbol */
   float complex *f   = dp_xmalloc (ns * sizeof *f);
   for (int force = 0; force < 2; force++)
@@ -803,6 +806,15 @@ pi_end_controls (const float complex *syms, size_t ns, const uint8_t *truth,
       const size_t at = (size_t)at_l;
       memcpy (f, syms, at * sizeof *f);
       memcpy (f + at, syms + at + 1, (ns - at - 1) * sizeof *f);
+      if (!force
+          && dp_ber_marker_place (truth, n_truth, f, ns - 1, 2, ns - 1 - guard,
+                                  0, DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1)
+                 != t_end)
+        {
+          DP_CHECK_MSG (0, "the control's end marker is where the verdict "
+                           "places it");
+          break;
+        }
       pi_end_verdict (f, ns - 1, truth, n_truth, mk, sy, esn0, force, &u, &sl,
                       &te);
       printf ("  end verdict's failing cases: a symbol dropped %zu before "

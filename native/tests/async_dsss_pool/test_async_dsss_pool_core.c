@@ -253,9 +253,12 @@ _test_two_emitters_two_holders (void)
    - the search's pick count is the receivers left idle (one when none
      is: the search is not fed then).
    The scene seeds both emitters in one step, so the order is exercised:
-   A is 3 dB over B. Sabotage: seed the idle receivers from the highest
+   A is 3 dB over B. A receiver that refines through a whole group has no
+   symbols for that push (P39). Sabotage: seed the idle receivers from the
+   highest
    index down -> red on the index rule; take the picks weakest first -> red
-   on the C/N0 order; set the pick count to the holders -> red. */
+   on the C/N0 order; set the pick count to the holders -> red; let a
+   refining receiver emit -> red on the refining row. */
 static int
 _test_seeds_go_strongest_first_in_index_order (void)
 {
@@ -266,10 +269,12 @@ _test_seeds_go_strongest_first_in_index_order (void)
   dp_async_dsss_pool_state_t *p = _pool (code, 3, 0.0, 1);
   DP_REQUIRE (p && x);
   async_dsss_receiver_status_t was[3], now[3];
+  float _Complex buf[1];
   for (size_t i = 0; i < 3; i++)
     was[i] = dp_async_dsss_pool_status (p, i);
   size_t most_in_a_step = 0;
-  int    lowest = 1, by_cn0 = 1, picks = 1;
+  int    lowest = 1, by_cn0 = 1, picks = 1, quiet = 1;
+  size_t refined_through = 0;
   for (size_t pos = 0; pos + POOL_GROUP <= n; pos += POOL_GROUP)
     {
       (void)dp_async_dsss_pool_push (p, x + pos, POOL_GROUP);
@@ -293,6 +298,15 @@ _test_seeds_go_strongest_first_in_index_order (void)
           idle_before += was_idle;
         }
       picks &= p->search->pick_want == (idle ? idle : 1);
+      /* A receiver refining at both ends of the group refined through it:
+         its symbols for this push are empty (#3267, P39). */
+      for (size_t i = 0; i < 3; i++)
+        if (was[i].state == ASYNC_DSSS_RX_REFINING
+            && now[i].state == ASYNC_DSSS_RX_REFINING)
+          {
+            refined_through++;
+            quiet &= dp_async_dsss_pool_symbols (p, i, buf, 1) == 0;
+          }
       most_in_a_step = seeded > most_in_a_step ? seeded : most_in_a_step;
       memcpy (was, now, sizeof was);
     }
@@ -301,6 +315,9 @@ _test_seeds_go_strongest_first_in_index_order (void)
   DP_CHECK_MSG (lowest, "seeds go to the lowest-index idle receivers");
   DP_CHECK_MSG (by_cn0, "the stronger pick goes to the lower index");
   DP_CHECK_MSG (picks, "the search's pick count is the receivers idle");
+  DP_REQUIRE_MSG (refined_through > 0,
+                  "a receiver refined through a whole group");
+  DP_CHECK_MSG (quiet, "a refining receiver's symbols are empty");
   dp_async_dsss_pool_destroy (p);
   free (x);
   return 0;

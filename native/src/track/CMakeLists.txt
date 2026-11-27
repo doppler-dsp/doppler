@@ -37,6 +37,7 @@ target_link_libraries(track PRIVATE
     hbdecim_core
     cic_core
     resample_core
+    timing_est_core
     boxcar_core
     wfm_dsp_core
     ddc_core

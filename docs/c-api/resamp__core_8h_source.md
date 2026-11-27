@@ -151,6 +151,8 @@ extern "C"
 
   double dp_resamp_get_ctrl_acc (const resamp_state_t *state);
 
+  double dp_resamp_get_ctrl_lead (const resamp_state_t *state);
+
   double dp_resamp_dc_gain (const resamp_state_t *state);
 
 #ifdef __cplusplus

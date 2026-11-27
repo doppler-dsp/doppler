@@ -303,6 +303,23 @@ dp_timing_est_accumulate (dp_timing_est_state_t *state, double power)
  */
 dp_timing_estimate_t dp_timing_est_finish(dp_timing_est_state_t *state);
 
+/**
+ * @brief Add samples to the block in progress without closing it.
+ *
+ * The streaming half of dp_timing_est_estimate(), which is this followed by
+ * dp_timing_est_finish(). A composing object that takes its input a sample
+ * or a chunk at a time pushes here and closes the block when it has the
+ * length it wants: `blk_n` counts the clock's samples in the block, `sps`
+ * a symbol on a plain instance and TIMING_EST_MATCHED_SPS on a matched one.
+ * On a matched instance the samples go through the converter and its
+ * lead-in is skipped, as in dp_timing_est_estimate().
+ *
+ * @param state  Must be non-NULL.
+ * @param in     Samples, `sps` a symbol.
+ * @param n_in   Number of samples; 0 does nothing.
+ */
+void dp_timing_est_push(dp_timing_est_state_t *state, const float _Complex *in, size_t n_in);
+
 /** @brief Bytes in the blob dp_timing_est_get_state() writes.
  *  @param state  Must be non-NULL.
  *  @return The blob's size: the envelope and the running fields. */

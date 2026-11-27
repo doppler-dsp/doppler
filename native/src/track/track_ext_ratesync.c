@@ -162,6 +162,27 @@ RateSyncObj_init (RateSyncObject *self, PyObject *args, PyObject *kwds)
   return 0;
 }
 
+/* String-enum tables — order is the C int (the [[enum]] SSOT). */
+static const char *const _enum_RateSync_ratesync_lifecycle[] = {
+  "acquiring",
+  "tracking",
+  "coasting",
+  NULL,
+};
+static const int _enum_RateSync_ratesync_lifecycle_c[] = {
+  RATESYNC_ACQUIRING,
+  RATESYNC_TRACKING,
+  RATESYNC_COASTING,
+};
+static inline const char *
+_enum_RateSync_ratesync_lifecycle_name (long v)
+{
+  for (int j = 0; j < 3; j++)
+    if (_enum_RateSync_ratesync_lifecycle_c[j] == v)
+      return _enum_RateSync_ratesync_lifecycle[j];
+  return NULL;
+}
+
 static PyObject *
 RateSyncObj_steps_max_out (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
@@ -525,6 +546,88 @@ RateSyncObj_configure_lock_raw (RateSyncObject *self, PyObject *args,
 }
 
 static PyObject *
+RateSyncObj_configure_acquisition (RateSyncObject *self, PyObject *args,
+                                   PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]   = { "symbols", "quality", NULL };
+  PyObject          *symbols_obj = NULL;
+  unsigned long long symbols_raw = 0ULL;
+  double             quality     = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", _kwlist, &symbols_obj,
+                                    &quality))
+    return NULL;
+  if (symbols_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (symbols_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      symbols_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((symbols_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || symbols_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "symbols: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t symbols = (size_t)symbols_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_ratesync_configure_acquisition (self->handle, symbols, quality);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "RateSync: acquisition needs sps >= 4 and 0 < quality < "
+                    "1",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+RateSyncObj_seed (RateSyncObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "eye", "rate", NULL };
+  double       eye       = 0.0;
+  double       rate      = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d|d", _kwlist, &eye, &rate))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_ratesync_seed (self->handle, eye, rate);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "RateSync: seed needs a finite eye and |rate| < 0.5",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 RateSyncObj_reset (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
@@ -692,6 +795,67 @@ RateSync_getprop_locked (RateSyncObject *self, void *Py_UNUSED (closure))
   return PyBool_FromLong ((long)(dp_ratesync_get_locked (self->handle)));
 }
 static PyObject *
+RateSync_getprop_presence (RateSyncObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong ((long)dp_ratesync_get_presence (self->handle));
+}
+static int
+RateSync_setprop_presence (RateSyncObject *self, PyObject *value,
+                           void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  int v = 0;
+  if (!PyArg_Parse (value, "i", &v))
+    return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  dp_ratesync_set_presence (self->handle, v);
+  return 0;
+}
+static PyObject *
+RateSync_getprop_valid (RateSyncObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong ((long)(dp_ratesync_get_valid (self->handle)));
+}
+static PyObject *
+RateSync_getprop_lifecycle (RateSyncObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  long        _v = (long)(self->handle->loop.state);
+  const char *_s = _enum_RateSync_ratesync_lifecycle_name (_v);
+  if (!_s)
+    {
+      PyErr_Format (
+          PyExc_ValueError,
+          "lifecycle holds ratesync_lifecycle value %ld, which is none of"
+          " its choices",
+          _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_s);
+}
+static PyObject *
 RateSync_getprop_clipped (RateSyncObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -742,6 +906,25 @@ static PyGetSetDef RateSync_getset[] = {
     "Current timing-lock decision: True after the verify count of consecutive "
     "above-threshold decisions, False again after the drop count of "
     "consecutive below-threshold ones.\n",
+    NULL },
+  { "presence", (getter)RateSync_getprop_presence,
+    (setter)RateSync_setprop_presence,
+    "The presence input: is the signal known to be there by evidence other "
+    "than the symbol lock (a code lock and a carrier lock, in a DSSS "
+    "receiver)? It decides where a lost symbol lock goes: coasting at the "
+    "held rate with it, acquiring from a zero rate without. Lowering it "
+    "during a coast ends the coast in acquiring. Non-zero is present, and it "
+    "reads back as set; 0 after create or reset.\n",
+    NULL },
+  { "valid", (getter)RateSync_getprop_valid, NULL,
+    "Is the symbol just emitted valid: the loop tracking, no seed in progress "
+    "and the lock declared. With no acquisition configured it is `locked`.\n",
+    NULL },
+  { "lifecycle", (getter)RateSync_getprop_lifecycle, NULL,
+    "Where the timing loop is, by name: \"acquiring\" (the loop open, the "
+    "estimator running), \"tracking\" (the loop closed) or \"coasting\" (the "
+    "loop held at its rate, the estimator running). Always \"tracking\" with "
+    "no acquisition configured.\n",
     NULL },
   { "clipped", (getter)RateSync_getprop_clipped, NULL,
     "True if the cascade's CIC stage has clipped its input since the last "
@@ -996,6 +1179,118 @@ static PyMethodDef RateSyncObj_methods[] = {
     "False\n"
     ">>> rs.lock_stat                 # the in-flight block was cleared\n"
     "0.0\n" },
+  { "configure_acquisition",
+    (PyCFunction)(void *)RateSyncObj_configure_acquisition,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_acquisition(symbols, quality) -> None\n"
+    "\n"
+    "Turn the built-in acquisition on (symbols > 0) or off (0). On, the "
+    "object estimates the symbol timing feedforward over `symbols` symbols on "
+    "a matched filter of its own, repeats until an estimate's quality is "
+    "`quality` or more, and seeds the loop with it, so the time to a closed "
+    "loop is a count. A declared lock that drops starts it again. Raises "
+    "ValueError, changing nothing, for a quality outside (0, 1) or an sps "
+    "under 4.\n"
+    "\n"
+    "On, the object starts by estimating: a feedforward timing estimate over\n"
+    "symbols symbols on a matched filter of its own\n"
+    "(dp_timing_est_create_matched()), repeated until one has a quality of\n"
+    "quality or more, then handed to the loop as a seed. The loop closes on\n"
+    "it, so the time to a closed loop is a count: the estimator's lead-in,\n"
+    "then symbols symbols an attempt. A declared lock that drops starts it\n"
+    "again (dp_ratesync_set_presence() says from which rate).\n"
+    "dp_ratesync_get_settle_time() counts one attempt.\n"
+    "\n"
+    "Both figures are the caller's. The block's length sets the estimate's\n"
+    "error and the threshold its false-alarm probability, and neither has a\n"
+    "derived default yet: the estimator's validation report\n"
+    "(`src/doppler/estimation/tests/validation/timing_est/results.md`) gives\n"
+    "the error and the pass rate against both.\n"
+    "\n"
+    "If the lock is not declared when this is called the loop is put in\n"
+    "acquiring at once. Off (symbols 0), the loop is in tracking and stays\n"
+    "there, which is the object as it was built.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "symbols : int\n"
+    "    Symbols an attempt estimates over; 0 turns it off.\n"
+    "quality : float\n"
+    "    The estimate's `quality` at or above which it seeds; over 0 and\n"
+    "    under 1. Ignored when symbols is 0.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``RateSync: acquisition needs sps >= 4 and 0 < quality < 1``, with\n"
+    "    the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import RateSync\n"
+    ">>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,\n"
+    "...                 1.0, -1.0)\n"
+    ">>> x = (0.25 * np.repeat(syms, 8)).astype(np.complex64)\n"
+    ">>> rs = RateSync(sps=8.0, pulse=\"iandd\", m=4, bn=0.01)\n"
+    ">>> rs.configure_acquisition(128, 0.05)\n"
+    ">>> rs.lifecycle\n"
+    "'acquiring'\n"
+    ">>> y = rs.steps(x)\n"
+    ">>> rs.lifecycle, rs.valid\n"
+    "('tracking', True)\n" },
+  { "seed", (PyCFunction)(void *)RateSyncObj_seed,
+    METH_VARARGS | METH_KEYWORDS,
+    "seed(eye, rate) -> None\n"
+    "\n"
+    "Seed the loop from a timing the caller already has: `eye` is an eye "
+    "center on the input's timeline, in samples since create or reset (any "
+    "one of them, past or future), and `rate` the symbol clock's offset to "
+    "start from, sps / true_sps - 1. The loop closes on it. Raises "
+    "ValueError, changing nothing, for a non-finite eye or a rate of "
+    "magnitude 0.5 or more.\n"
+    "\n"
+    "eye is an eye center on the input's timeline: the index, counted from\n"
+    "create or reset and not whole, of a sample instant where a symbol is to\n"
+    "be read. Other eye centers are whole symbols either side, so any one of\n"
+    "them will do, past or future. The object finds how far the terminal\n"
+    "stage's next output is from one (the stage's accumulator and the\n"
+    "cascade's group delay say where that output reads) and seeds the loop\n"
+    "with it, dp_ratesync_loop_seed(). The built-in acquisition makes this\n"
+    "call with its estimate.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "eye : float\n"
+    "    An eye center, input samples since create or reset.\n"
+    "rate : float, default 0.0\n"
+    "    The symbol clock's offset to start the loop's rate state from,\n"
+    "    symbols a symbol: `sps / true_sps - 1`, 0 for the nominal clock.\n"
+    "    Magnitude under 0.5.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``RateSync: seed needs a finite eye and |rate| < 0.5``, with the\n"
+    "    return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import RateSync\n"
+    ">>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,\n"
+    "...                 1.0, -1.0)\n"
+    ">>> x = np.repeat(syms, 8)[5:].astype(np.complex64)  # edges at 3, 11, "
+    "...\n"
+    ">>> rs = RateSync(sps=8.0, pulse=\"iandd\", m=4, bn=0.0)  # does not "
+    "steer\n"
+    ">>> rs.seed(6.5)                         # a symbol's center\n"
+    ">>> v = np.array(rs.steps(x)).real[4:-4]\n"
+    ">>> bool(np.mean(np.abs(v)) ** 2 / np.mean(v ** 2) > 0.99)  # in the "
+    "eye\n"
+    "True\n" },
   { "reset", (PyCFunction)RateSyncObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

@@ -74,6 +74,7 @@ _Feedforward symbol-timing estimator: a block of matched-filtered samples in, on
 |  [**dp\_timing\_estimate\_t**](structdp__timing__estimate__t.md) | [**dp\_timing\_est\_estimate**](#function-dp_timing_est_estimate) ([**dp\_timing\_est\_state\_t**](structdp__timing__est__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in) <br>_Estimate the symbol timing from one block of matched-filtered samples._  |
 |  [**dp\_timing\_estimate\_t**](structdp__timing__estimate__t.md) | [**dp\_timing\_est\_finish**](#function-dp_timing_est_finish) ([**dp\_timing\_est\_state\_t**](structdp__timing__est__state__t.md) \* state) <br>_Close the block in progress and return its estimate._  |
 |  void | [**dp\_timing\_est\_get\_state**](#function-dp_timing_est_get_state) (const [**dp\_timing\_est\_state\_t**](structdp__timing__est__state__t.md) \* state, void \* blob) <br>_Write the running state into_ `blob:` _the symbol clock, the sample count, the block in progress and the previous block._ |
+|  void | [**dp\_timing\_est\_push**](#function-dp_timing_est_push) ([**dp\_timing\_est\_state\_t**](structdp__timing__est__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in) <br>_Add samples to the block in progress without closing it._  |
 |  void | [**dp\_timing\_est\_reset**](#function-dp_timing_est_reset) ([**dp\_timing\_est\_state\_t**](structdp__timing__est__state__t.md) \* state) <br>_Return the symbol clock to zero and forget the previous block and any block in progress; keep_ `sps` _._ |
 |  int | [**dp\_timing\_est\_set\_state**](#function-dp_timing_est_set_state) ([**dp\_timing\_est\_state\_t**](structdp__timing__est__state__t.md) \* state, const void \* blob) <br>_Restore the running state from_ `blob` _._ |
 |  size\_t | [**dp\_timing\_est\_state\_bytes**](#function-dp_timing_est_state_bytes) (const [**dp\_timing\_est\_state\_t**](structdp__timing__est__state__t.md) \* state) <br>_Bytes in the blob_ [_**dp\_timing\_est\_get\_state()**_](timing__est__core_8h.md#function-dp_timing_est_get_state) _writes._ |
@@ -439,6 +440,40 @@ void dp_timing_est_get_state (
 
 * `state` Must be non-NULL. 
 * `blob` At least [**dp\_timing\_est\_state\_bytes()**](timing__est__core_8h.md#function-dp_timing_est_state_bytes) bytes. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_timing\_est\_push 
+
+_Add samples to the block in progress without closing it._ 
+```C++
+void dp_timing_est_push (
+    dp_timing_est_state_t * state,
+    const float _Complex * in,
+    size_t n_in
+) 
+```
+
+
+
+The streaming half of [**dp\_timing\_est\_estimate()**](timing__est__core_8h.md#function-dp_timing_est_estimate), which is this followed by [**dp\_timing\_est\_finish()**](timing__est__core_8h.md#function-dp_timing_est_finish). A composing object that takes its input a sample or a chunk at a time pushes here and closes the block when it has the length it wants: `blk_n` counts the clock's samples in the block, `sps` a symbol on a plain instance and TIMING\_EST\_MATCHED\_SPS on a matched one. On a matched instance the samples go through the converter and its lead-in is skipped, as in [**dp\_timing\_est\_estimate()**](timing__est__core_8h.md#function-dp_timing_est_estimate).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `in` Samples, `sps` a symbol. 
+* `n_in` Number of samples; 0 does nothing. 
 
 
 

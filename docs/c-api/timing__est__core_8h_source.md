@@ -89,6 +89,8 @@ dp_timing_est_accumulate (dp_timing_est_state_t *state, double power)
 
 dp_timing_estimate_t dp_timing_est_finish(dp_timing_est_state_t *state);
 
+void dp_timing_est_push(dp_timing_est_state_t *state, const float _Complex *in, size_t n_in);
+
 size_t dp_timing_est_state_bytes(const dp_timing_est_state_t *state);
 
 void dp_timing_est_get_state(const dp_timing_est_state_t *state, void *blob);

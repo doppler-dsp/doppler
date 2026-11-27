@@ -36,9 +36,11 @@ _The symbol-timing loop, independent of what feeds it._ [More...](#detailed-desc
 
 | Type | Name |
 | ---: | :--- |
+|  int | [**acquires**](#variable-acquires)  <br> |
 |  size\_t | [**avgs**](#variable-avgs)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
 |  double | [**ctrl**](#variable-ctrl)  <br> |
+|  int | [**had\_lock**](#variable-had_lock)  <br> |
 |  int | [**have\_prev**](#variable-have_prev)  <br> |
 |  double | [**last\_error**](#variable-last_error)  <br> |
 |  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) | [**lf**](#variable-lf)  <br> |
@@ -47,14 +49,18 @@ _The symbol-timing loop, independent of what feeds it._ [More...](#detailed-desc
 |  double | [**lock\_stat**](#variable-lock_stat)  <br> |
 |  double | [**lock\_sum**](#variable-lock_sum)  <br> |
 |  size\_t | [**m**](#variable-m)  <br> |
+|  uint32\_t | [**miss\_run**](#variable-miss_run)  <br> |
 |  size\_t | [**out\_count**](#variable-out_count)  <br> |
+|  int | [**present**](#variable-present)  <br> |
 |  float \_Complex | [**prev\_on**](#variable-prev_on)  <br> |
 |  size\_t | [**prime\_left**](#variable-prime_left)  <br> |
 |  size\_t | [**prime\_taps**](#variable-prime_taps)  <br> |
 |  double | [**rate\_est**](#variable-rate_est)  <br> |
 |  float \_Complex | [**ring**](#variable-ring)  <br> |
 |  size\_t | [**ring\_n**](#variable-ring_n)  <br> |
+|  size\_t | [**seed\_left**](#variable-seed_left)  <br> |
 |  double | [**sps**](#variable-sps)  <br> |
+|  int | [**state**](#variable-state)  <br> |
 |  int | [**ted**](#variable-ted)  <br> |
 |  double | [**ted\_scale**](#variable-ted_scale)  <br> |
 |  const [**resamp\_state\_t**](structresamp__state__t.md) \* | [**term**](#variable-term)  <br> |
@@ -123,6 +129,24 @@ The loop must be told the geometry of the accumulator it is steering ([**dp\_rat
 
 
 
+### variable acquires 
+
+```C++
+int ratesync_loop_t::acquires;
+```
+
+
+
+1: the owner has an estimator and seeds this loop ([**dp\_ratesync\_loop\_set\_acquisition()**](ratesync__core_8h.md#function-dp_ratesync_loop_set_acquisition)), so the loop starts in acquiring and leaves tracking on a lost lock; 0: tracking only. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable avgs 
 
 ```C++
@@ -169,6 +193,23 @@ double ratesync_loop_t::ctrl;
 
 per-input rate deviation now applied. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable had\_lock 
+
+```C++
+int ratesync_loop_t::had_lock;
+```
+
+
+
+lock has declared since tracking was entered. 
 
 
         
@@ -321,6 +362,24 @@ terminal outputs per symbol (&gt;= 2, even).
 
 
 
+### variable miss\_run 
+
+```C++
+uint32_t ratesync_loop_t::miss_run;
+```
+
+
+
+decisions in a row that were not hits, while lock has not declared. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable out\_count 
 
 ```C++
@@ -330,6 +389,24 @@ size_t ratesync_loop_t::out_count;
 
 
 terminal outputs seen (mod m: strobe phase). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable present 
+
+```C++
+int ratesync_loop_t::present;
+```
+
+
+
+the owner's presence input, as given ([**dp\_ratesync\_loop\_set\_presence()**](ratesync__core_8h.md#function-dp_ratesync_loop_set_presence)): non-zero is present. 
  
 
 
@@ -445,6 +522,24 @@ valid entries in the ring (saturates at m/2 + 1); 0 after reset.
 
 
 
+### variable seed\_left 
+
+```C++
+size_t ratesync_loop_t::seed_left;
+```
+
+
+
+outputs until a seed is behind the loop: the seed's control is applied while this is above `m`, and the loop stays open until it is 0. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable sps 
 
 ```C++
@@ -454,6 +549,24 @@ double ratesync_loop_t::sps;
 
 
 nominal samples per symbol (any double). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable state 
+
+```C++
+int ratesync_loop_t::state;
+```
+
+
+
+ratesync\_lifecycle\_t. 
  
 
 

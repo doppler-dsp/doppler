@@ -859,7 +859,7 @@ test_ctrl_scale_is_the_terminal_rate (void)
       ratesync_loop_t l;
       dp_ratesync_loop_init (&l, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
       dp_ratesync_loop_bind_cascade (&l, rc);
-      if (wrong) /* the cascade rate, m/sps — 32x too small */
+      if (wrong) /* the cascade rate, m/sps — 32x too under4 */
         dp_ratesync_loop_set_cascade (&l, 2.0 / sps, l.prime_taps);
       size_t ns = 0;
       for (size_t k = 0; k < n; k++)
@@ -1507,6 +1507,604 @@ test_settle_time (void)
   dp_ratesync_destroy (s);
 }
 
+/* mean (|Re y|)^2 / mean (Re y ^2) over y[a..b): 1 when every symbol is
+   read at its full height, lower as the reading instant leaves the eye. */
+static double
+_eye (const float _Complex *y, size_t a, size_t b)
+{
+  double sa = 0.0, sp = 0.0;
+  for (size_t i = a; i < b; i++)
+    {
+      double v = (double)crealf (y[i]);
+      sa += fabs (v);
+      sp += v * v;
+    }
+  double n = (double)(b - a);
+  return (b > a && sp > 0.0) ? (sa / n) * (sa / n) / (sp / n) : 0.0;
+}
+
+/* Symbol periods the cascade's fill takes: its outputs are dropped, not
+   emitted, so a count of symbols is short by this. */
+static double
+_primed (const dp_ratesync_state_t *s)
+{
+  return (double)(s->loop.prime_taps + 1u) / (double)s->loop.m;
+}
+
+/* The seed: where the next output reads, the caller's call, and the call
+   after the rate has been steered.
+     Sabotages, each shown red: the whole inputs owed left out of
+   dp_resamp_get_ctrl_lead() -> (1), every plan under unity; the group
+   delay left out of the seed -> (2); the seed's control first order
+   (`r / m` for `r / (m + r)`) -> (2); its sign -> (2); the on-time outputs
+   picked one early -> (2); the next output placed by the count of outputs
+   and not by the accumulator -> (3), the second seed. */
+static void
+test_seed (void)
+{
+  static const struct
+  {
+    double sps;
+    size_t m;
+  } plan[]
+      = { { 4.0, 2 }, { 5.0, 2 }, { 8.0, 4 }, { 17.333, 4 }, { 67.3, 2 } };
+  static const double taus[]
+      = { 0.0, 0.13, 0.25, 0.37, 0.5, 0.63, 0.75, 0.87 };
+
+  /* (1) Unsteered, the accumulator and the count of outputs say the same
+     thing at every input: decim * (term_in + lead) is outputs / rate. */
+  for (size_t pi = 0; pi < sizeof plan / sizeof *plan; pi++)
+    {
+      const double         sps = plan[pi].sps;
+      dp_ratesync_state_t *s   = dp_ratesync_create (
+          sps, RATESYNC_PULSE_RRC, _BETA, _SPAN, plan[pi].m, 1024, 0.0, 0.707,
+          RATESYNC_TED_GARDNER);
+      size_t          n = 0;
+      float _Complex *x = _tx (sps, 0.3, &n);
+      DP_CHECK (s != NULL && x != NULL);
+      if (!s || !x)
+        {
+          dp_ratesync_destroy (s);
+          free (x);
+          continue;
+        }
+      double worst = 0.0;
+      size_t lim   = n < 6000 ? n : 6000;
+      for (size_t i = 0; i < lim; i++)
+        {
+          float _Complex y;
+          (void)ratesync_step (s, x[i], &y);
+          double outs = (double)(s->loop.out_count + s->loop.prime_taps + 1u
+                                 - s->loop.prime_left);
+          double here = s->decim
+                        * ((double)s->term_in
+                           + dp_resamp_get_ctrl_lead (s->loop.term));
+          double d    = fabs (here - outs * sps / (double)plan[pi].m);
+          if (d > worst)
+            worst = d;
+        }
+      printf ("  seed: sps %.3f m %zu, next output placed within %.2e "
+              "inputs of outputs / rate\n",
+              sps, plan[pi].m, worst);
+      DP_CHECK (s->in_count == lim);
+      DP_CHECK (worst < 1e-4);
+      dp_ratesync_destroy (s);
+      free (x);
+    }
+
+  /* (2) The caller's seed, on a loop that does not steer (bn = 0), so
+     where the symbols are read is the seed's doing alone. Seeded, the eye
+     is open at every offset; unseeded, the same stream is read wherever
+     the count happens to fall, and at some offset that is not the eye. */
+  for (size_t pi = 0; pi < sizeof plan / sizeof *plan; pi++)
+    {
+      const double sps        = plan[pi].sps;
+      double       worst_seed = 1.0, worst_none = 1.0;
+      for (size_t ti = 0; ti < sizeof taus / sizeof *taus; ti++)
+        for (int seeded = 0; seeded < 2; seeded++)
+          {
+            dp_ratesync_state_t *s = dp_ratesync_create (
+                sps, RATESYNC_PULSE_RRC, _BETA, _SPAN, plan[pi].m, 1024, 0.0,
+                0.707, RATESYNC_TED_GARDNER);
+            size_t          n = 0;
+            float _Complex *x = _tx (sps, taus[ti], &n);
+            float _Complex *y = malloc ((n + 8) * sizeof *y);
+            DP_CHECK (s != NULL && x != NULL && y != NULL);
+            if (!s || !x || !y)
+              {
+                dp_ratesync_destroy (s);
+                free (x);
+                free (y);
+                continue;
+              }
+            /* symbol k's center, on the input's timeline */
+            const double eye = ((double)_SPAN + taus[ti]) * sps;
+            /* at half the offsets the seed comes before the first
+               input, while the cascade has still to fill */
+            const size_t at = (ti & 1u) ? 0u : (size_t)(300.0 * sps);
+            size_t       ny = 0, y_at = 0;
+            for (size_t i = 0; i < n; i++)
+              {
+                if (i == at)
+                  {
+                    y_at = ny;
+                    if (seeded)
+                      DP_CHECK (dp_ratesync_seed (s, eye, 0.0) == DP_OK);
+                  }
+                ny += (size_t)ratesync_step (s, x[i], &y[ny]);
+              }
+            /* one symbol a symbol period, seed or no seed */
+            DP_CHECK (fabs ((double)ny + _primed (s) - (double)n / sps) < 4.0);
+            double e = _eye (y, y_at + 4, ny - 4);
+            if (seeded)
+              {
+                DP_CHECK (dp_ratesync_get_lifecycle (s) == RATESYNC_TRACKING);
+                if (e < worst_seed)
+                  worst_seed = e;
+              }
+            else if (e < worst_none)
+              worst_none = e;
+            dp_ratesync_destroy (s);
+            free (x);
+            free (y);
+          }
+      printf ("  seed: sps %.3f m %zu, worst eye over %zu offsets: seeded "
+              "%.3f, unseeded %.3f\n",
+              sps, plan[pi].m, sizeof taus / sizeof *taus, worst_seed,
+              worst_none);
+      DP_CHECK (worst_seed > 0.97);
+      DP_CHECK (worst_none < 0.90);
+    }
+
+  /* (3) After the rate has been steered. Symbols 0.2% long; the first
+     seed gives the loop that rate, which it holds (bn = 0), and a second
+     seed 1200 symbols on names an eye center of the same stream. The
+     outputs' count no longer says where an output reads; the eye has to
+     stay open through both. */
+  {
+    const double         sps = 8.0, stretch = 1.002;
+    dp_ratesync_state_t *s
+        = dp_ratesync_create (sps, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                              0.0, 0.707, RATESYNC_TED_GARDNER);
+    dp_tx_cfg_t c     = _tx_cfg (sps, 0.37);
+    c.rate            = stretch;
+    size_t          n = 0;
+    float _Complex *x = dp_tx_make (&c, NULL, &n);
+    float _Complex *y = malloc ((n + 8) * sizeof *y);
+    DP_CHECK (s != NULL && x != NULL && y != NULL);
+    if (s && x && y)
+      {
+        const double sym  = sps * stretch;
+        const double eye  = (double)_SPAN * sym + 0.37 * sps;
+        const double rate = 1.0 / stretch - 1.0;
+        const size_t at1 = (size_t)(300.0 * sym), at2 = (size_t)(1500.0 * sym);
+        size_t       ny = 0, y1 = 0, y2 = 0;
+        for (size_t i = 0; i < n; i++)
+          {
+            if (i == at1)
+              {
+                y1 = ny;
+                DP_CHECK (dp_ratesync_seed (s, eye, rate) == DP_OK);
+              }
+            if (i == at2)
+              {
+                y2 = ny;
+                /* an eye center 2000 symbols on: any one will do */
+                DP_CHECK (dp_ratesync_seed (s, eye + 2000.0 * sym, rate)
+                          == DP_OK);
+              }
+            ny += (size_t)ratesync_step (s, x[i], &y[ny]);
+          }
+        double e1 = _eye (y, y1 + 4, y2), e2 = _eye (y, y2 + 4, ny - 4);
+        printf ("  seed: symbols 0.2%% long, eye %.3f after the first seed, "
+                "%.3f after the second\n",
+                e1, e2);
+        DP_CHECK (e1 > 0.97);
+        DP_CHECK (e2 > 0.97);
+        DP_CHECK (s->loop.lf.integ == rate);
+      }
+    dp_ratesync_destroy (s);
+    free (x);
+    free (y);
+  }
+
+  /* Refusals change nothing: an eye that is not a number, a rate of half
+     a symbol a symbol. */
+  {
+    dp_ratesync_state_t *s
+        = dp_ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                              0.01, 0.707, RATESYNC_TED_GARDNER);
+    DP_CHECK (s != NULL);
+    if (s)
+      {
+        size_t          n = 0;
+        float _Complex *x = _tx (8.0, 0.0, &n);
+        float _Complex y;
+        for (size_t i = 0; x && i < 2000; i++)
+          (void)ratesync_step (s, x[i], &y);
+        size_t nb = dp_ratesync_state_bytes (s);
+        char  *b0 = malloc (nb), *b1 = malloc (nb);
+        DP_CHECK (b0 != NULL && b1 != NULL);
+        if (b0 && b1)
+          {
+            dp_ratesync_get_state (s, b0);
+            DP_CHECK (dp_ratesync_seed (s, NAN, 0.0) == DP_ERR_INVALID);
+            DP_CHECK (dp_ratesync_seed (s, INFINITY, 0.0) == DP_ERR_INVALID);
+            DP_CHECK (dp_ratesync_seed (s, 3.0, 0.5) == DP_ERR_INVALID);
+            DP_CHECK (dp_ratesync_seed (s, 3.0, NAN) == DP_ERR_INVALID);
+            dp_ratesync_get_state (s, b1);
+            DP_CHECK (memcmp (b0, b1, nb) == 0);
+            DP_CHECK (dp_ratesync_seed (s, 3.0, 0.0) == DP_OK);
+          }
+        free (b0);
+        free (b1);
+        free (x);
+      }
+    dp_ratesync_destroy (s);
+  }
+}
+
+/* A rectangle stream in three parts: `a` symbols of signal, `gap` symbols
+   of nothing, `b` symbols of signal whose symbol edges sit `shift` samples
+   off the first part's. Symbols `stretch` of nominal long. */
+static float _Complex *
+_tx_gap (double sps, double stretch, size_t a, size_t gap, size_t b,
+         size_t shift, size_t *n_out)
+{
+  dp_tx_cfg_t c     = _tx_cfg (sps, 0.0);
+  c.pulse           = DP_TX_NRZ;
+  c.rate            = stretch;
+  c.nsym            = a + gap + b + 8;
+  size_t          n = 0;
+  float _Complex *x = dp_tx_make (&c, NULL, &n);
+  if (!x)
+    return NULL;
+  const double    sym = sps * stretch;
+  size_t          g0  = (size_t)((double)(a + _SPAN) * sym);
+  size_t          g1  = g0 + (size_t)((double)gap * sym);
+  float _Complex *o   = calloc (n, sizeof *o);
+  if (o)
+    {
+      for (size_t i = 0; i < g0 && i < n; i++)
+        o[i] = x[i];
+      for (size_t i = g1; i + shift < n; i++)
+        o[i] = x[i + shift];
+      *n_out = n - shift;
+    }
+  free (x);
+  return o;
+}
+
+/* The three states. Sabotages, each shown red: a loop whose owner does
+   not acquire leaving tracking -> the first block; the estimator not
+   reset at a new acquisition -> the reacquisition's eye; presence not
+   read -> the coast; the coast's rate zeroed -> the held rate; the rate
+   kept when acquiring -> the zero rate; the miss run not counted -> the
+   never-declared return; the acquisition left out of settle_time. */
+static void
+test_lifecycle (void)
+{
+  const double sps = 8.0;
+  const size_t L   = 128;
+
+  /* No acquisition: tracking from reset to the end, through a loss of
+     signal, and `valid` is the lock flag. */
+  {
+    dp_ratesync_state_t *s
+        = dp_ratesync_create (sps, RATESYNC_PULSE_IANDD, _BETA, _SPAN, 4, 1024,
+                              0.01, 0.707, RATESYNC_TED_GARDNER);
+    size_t          n = 0;
+    float _Complex *x = _tx_gap (sps, 1.0, 1200, 1200, 400, 0, &n);
+    DP_CHECK (s != NULL && x != NULL);
+    int was_valid = 0, dropped = 0;
+    for (size_t i = 0; s && x && i < n; i++)
+      {
+        float _Complex y;
+        (void)ratesync_step (s, x[i], &y);
+        DP_CHECK (dp_ratesync_get_lifecycle (s) == RATESYNC_TRACKING);
+        DP_CHECK (dp_ratesync_get_valid (s) == dp_ratesync_get_locked (s));
+        /* and nothing of the machine has run: no decision was read, no
+           acquisition started, no seed made */
+        DP_CHECK (!s->loop.had_lock && !s->acq_run && !s->loop.seed_left);
+        if (dp_ratesync_get_valid (s))
+          was_valid = 1;
+        else if (was_valid)
+          dropped = 1;
+      }
+    DP_CHECK (was_valid && dropped);
+    dp_ratesync_destroy (s);
+    free (x);
+  }
+
+  /* The domain of the setting. */
+  {
+    dp_ratesync_state_t *s
+        = dp_ratesync_create (sps, RATESYNC_PULSE_IANDD, _BETA, _SPAN, 4, 1024,
+                              0.01, 0.707, RATESYNC_TED_GARDNER);
+    dp_ratesync_state_t *under4
+        = dp_ratesync_create (3.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                              0.01, 0.707, RATESYNC_TED_GARDNER);
+    DP_CHECK (s != NULL && under4 != NULL);
+    if (s && under4)
+      {
+        DP_CHECK (under4->est == NULL && s->est != NULL);
+        DP_CHECK (dp_ratesync_configure_acquisition (under4, L, 0.05)
+                  == DP_ERR_INVALID);
+        DP_CHECK (dp_ratesync_configure_acquisition (under4, 0, 0.05)
+                  == DP_OK);
+        DP_CHECK (dp_ratesync_configure_acquisition (s, L, 0.0)
+                  == DP_ERR_INVALID);
+        DP_CHECK (dp_ratesync_configure_acquisition (s, L, 1.0)
+                  == DP_ERR_INVALID);
+        DP_CHECK (dp_ratesync_configure_acquisition (s, L, NAN)
+                  == DP_ERR_INVALID);
+        DP_CHECK (dp_ratesync_get_lifecycle (s) == RATESYNC_TRACKING);
+        const double t0 = dp_ratesync_get_settle_time (s);
+        DP_CHECK (dp_ratesync_configure_acquisition (s, L, 0.05) == DP_OK);
+        DP_CHECK (dp_ratesync_get_lifecycle (s) == RATESYNC_ACQUIRING);
+        /* one attempt ahead of the loop */
+        DP_CHECK (dp_ratesync_get_settle_time (s)
+                  == t0
+                         + ((double)s->est->lead / TIMING_EST_MATCHED_SPS
+                            + (double)L + 2.0));
+        DP_CHECK (s->est->lead > 0);
+        dp_ratesync_reset (s);
+        DP_CHECK (dp_ratesync_get_lifecycle (s) == RATESYNC_ACQUIRING);
+        DP_CHECK (dp_ratesync_configure_acquisition (s, 0, 0.0) == DP_OK);
+        DP_CHECK (dp_ratesync_get_lifecycle (s) == RATESYNC_TRACKING);
+        DP_CHECK (dp_ratesync_get_settle_time (s) == t0);
+      }
+    dp_ratesync_destroy (s);
+    dp_ratesync_destroy (under4);
+  }
+
+  /* Signal, nothing, signal again with its symbol edges 3 samples off and
+     its symbols 0.1% long; `present` is the owner's presence input. */
+  for (int present = 0; present < 3; present++)
+    {
+      const double         stretch = 1.001;
+      dp_ratesync_state_t *s
+          = dp_ratesync_create (sps, RATESYNC_PULSE_IANDD, _BETA, _SPAN, 4,
+                                1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+      size_t          n = 0;
+      float _Complex *x = _tx_gap (sps, stretch, 1500, 1200, 1500, 3, &n);
+      float _Complex *y = malloc ((n + 8) * sizeof *y);
+      DP_CHECK (s != NULL && x != NULL && y != NULL);
+      if (!s || !x || !y)
+        {
+          dp_ratesync_destroy (s);
+          free (x);
+          free (y);
+          continue;
+        }
+      DP_CHECK (dp_ratesync_configure_acquisition (s, L, 0.05) == DP_OK);
+      DP_CHECK (dp_ratesync_get_presence (s) == 0);
+      dp_ratesync_set_presence (s, present != 0);
+      DP_CHECK (dp_ratesync_get_presence (s) == (present != 0));
+
+      const double sym  = sps * stretch;
+      const size_t g0   = (size_t)((double)(1500 + _SPAN) * sym);
+      const size_t g1   = g0 + (size_t)(1200.0 * sym);
+      const double want = 1.0 / stretch - 1.0; /* the loop's rate state */
+      size_t       ny = 0, first_track = 0, first_valid = 0, left = 0;
+      size_t       back = 0, valid2 = 0, y_back = 0;
+      int          left_to      = -1;
+      double       rate_at_drop = 0.0, rate_after = 0.0, rate_seeded = 0.0;
+      int          prev = dp_ratesync_get_lifecycle (s);
+      for (size_t i = 0; i < n; i++)
+        {
+          /* case 2: presence drops in the middle of the coast */
+          if (present == 2 && i == g0 + (size_t)(1000.0 * sym))
+            {
+              DP_CHECK (dp_ratesync_get_lifecycle (s) == RATESYNC_COASTING);
+              dp_ratesync_set_presence (s, 0);
+              DP_CHECK (dp_ratesync_get_lifecycle (s) == RATESYNC_ACQUIRING);
+              DP_CHECK (s->loop.lf.integ == 0.0);
+              DP_CHECK (dp_ratesync_get_ctrl (s) == 0.0);
+            }
+          const double integ_before = s->loop.lf.integ;
+          ny += (size_t)ratesync_step (s, x[i], &y[ny]);
+          int now = dp_ratesync_get_lifecycle (s);
+          if (now != prev)
+            {
+              if (prev == RATESYNC_ACQUIRING && !first_track)
+                first_track = ny;
+              else if (prev == RATESYNC_TRACKING && !left)
+                {
+                  left         = i;
+                  left_to      = now;
+                  rate_at_drop = integ_before;
+                  rate_after   = s->loop.lf.integ;
+                  DP_CHECK (dp_ratesync_get_ctrl (s)
+                            == s->loop.lf.integ * s->loop.term_rate);
+                }
+              else if (now == RATESYNC_TRACKING && left && !back)
+                {
+                  back        = i;
+                  y_back      = ny;
+                  rate_seeded = s->loop.lf.integ;
+                }
+              prev = now;
+            }
+          if (dp_ratesync_get_valid (s))
+            {
+              if (!first_valid)
+                first_valid = ny;
+              if (back && !valid2)
+                valid2 = ny;
+            }
+          /* valid is never up outside tracking */
+          DP_CHECK (!dp_ratesync_get_valid (s) || now == RATESYNC_TRACKING);
+        }
+      printf ("  lifecycle (presence %d): tracking at symbol %zu, valid at "
+              "%zu, left tracking at input %zu for state %d (gap %zu..%zu), "
+              "back at input %zu, valid again %zu symbols on; rate %.6f at "
+              "the drop, %.6f after, %.6f at the reseed (signal's %.6f)\n",
+              present, first_track, first_valid, left, left_to, g0, g1, back,
+              valid2 - y_back, rate_at_drop, rate_after, rate_seeded, want);
+      /* acquired by count: the estimator's lead-in, one block, the seed */
+      DP_CHECK (first_track > L
+                && (double)first_track
+                       < (double)s->est->lead / TIMING_EST_MATCHED_SPS
+                             + (double)L + 8.0);
+      DP_CHECK (first_valid > first_track);
+      /* the lock drops n_down decisions into the gap, not before */
+      DP_CHECK (left > g0 && left < g1);
+      DP_CHECK (left_to == (present ? RATESYNC_COASTING : RATESYNC_ACQUIRING));
+      DP_CHECK (fabs (rate_at_drop) < 5e-3);
+      if (present)
+        DP_CHECK (rate_after == rate_at_drop); /* held */
+      else
+        DP_CHECK (rate_after == 0.0);
+      /* signal again: reseeded within one block of its return */
+      DP_CHECK (back > g1 && (double)(back - g1) < ((double)L + 40.0) * sym);
+      if (present == 1)
+        DP_CHECK (rate_seeded == rate_at_drop); /* the held rate, kept */
+      else
+        DP_CHECK (rate_seeded == 0.0);
+      DP_CHECK (valid2 > y_back);
+      /* one symbol a symbol period, in every state */
+      DP_CHECK (fabs ((double)ny + _primed (s) - (double)n / sym) < 4.0);
+      /* and the reacquired stream is read in its eye from the seed on,
+         before the loop could have pulled it there: the 60 symbols after
+         the seed's two */
+      DP_CHECK (_eye (y, y_back + 4, y_back + 64) > 0.97);
+      DP_CHECK (_eye (y, y_back + 8, ny - 4) > 0.97);
+      dp_ratesync_destroy (s);
+      free (x);
+      free (y);
+    }
+
+  /* A seed on nothing: tracking that never declares goes back to acquiring
+     after n_down decisions that were not hits, and not one sooner. */
+  {
+    dp_ratesync_state_t *s
+        = dp_ratesync_create (sps, RATESYNC_PULSE_IANDD, _BETA, _SPAN, 4, 1024,
+                              0.01, 0.707, RATESYNC_TED_GARDNER);
+    DP_CHECK (s != NULL);
+    if (s)
+      {
+        DP_CHECK (dp_ratesync_configure_acquisition (s, L, 0.05) == DP_OK);
+        float _Complex y;
+        for (size_t i = 0; i < 400; i++)
+          (void)ratesync_step (s, 0.0f, &y);
+        DP_CHECK (dp_ratesync_get_lifecycle (s) == RATESYNC_ACQUIRING);
+        DP_CHECK (dp_ratesync_seed (s, 0.0, 0.0) == DP_OK);
+        DP_CHECK (dp_ratesync_get_lifecycle (s) == RATESYNC_TRACKING);
+        size_t syms = 0, went = 0;
+        for (size_t i = 0; i < (size_t)(1200.0 * sps) && !went; i++)
+          {
+            syms += (size_t)ratesync_step (s, 0.0f, &y);
+            if (dp_ratesync_get_lifecycle (s) == RATESYNC_ACQUIRING)
+              went = syms;
+          }
+        const size_t decisions = s->loop.lock.n_down * s->loop.avgs;
+        printf ("  lifecycle: a seed on nothing returns to acquiring %zu "
+                "symbols on (%u decisions of %zu)\n",
+                went, s->loop.lock.n_down, s->loop.avgs);
+        /* the seed's two open symbols, then the decisions */
+        DP_CHECK (went >= decisions && went <= decisions + 4);
+      }
+    dp_ratesync_destroy (s);
+  }
+
+  /* State: a split in the middle of an acquisition and in the middle of a
+     coast resumes bit for bit on an object that was never configured; and
+     blobs this object does not reach are refused, changing nothing. */
+  {
+    size_t          n = 0;
+    float _Complex *x = _tx_gap (sps, 1.001, 1500, 1200, 600, 3, &n);
+    DP_CHECK (x != NULL);
+    static const size_t cuts[] = { 517, 19000, 0 };
+    for (size_t ci = 0; x && cuts[ci]; ci++)
+      {
+        dp_ratesync_state_t *a
+            = dp_ratesync_create (sps, RATESYNC_PULSE_IANDD, _BETA, _SPAN, 4,
+                                  1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+        dp_ratesync_state_t *b
+            = dp_ratesync_create (sps, RATESYNC_PULSE_IANDD, _BETA, _SPAN, 4,
+                                  1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+        DP_CHECK (a != NULL && b != NULL);
+        if (a && b)
+          {
+            DP_CHECK (dp_ratesync_configure_acquisition (a, L, 0.05) == DP_OK);
+            dp_ratesync_set_presence (a, 1);
+            float _Complex ya, yb;
+            for (size_t i = 0; i < cuts[ci]; i++)
+              (void)ratesync_step (a, x[i], &ya);
+            DP_CHECK (dp_ratesync_get_lifecycle (a)
+                      == (ci == 0 ? RATESYNC_ACQUIRING : RATESYNC_COASTING));
+            size_t nb   = dp_ratesync_state_bytes (a);
+            char  *blob = malloc (nb), *keep = malloc (nb);
+            DP_CHECK (blob != NULL && keep != NULL
+                      && nb == dp_ratesync_state_bytes (b));
+            if (blob && keep)
+              {
+                dp_ratesync_get_state (a, blob);
+                /* refusals first, on the untouched twin */
+                dp_ratesync_get_state (b, keep);
+                {
+                  dp_ratesync_state_t bad = *a;
+                  char               *bb  = malloc (nb);
+                  DP_CHECK (bb != NULL);
+                  if (bb)
+                    {
+                      bad.loop.state = 7; /* no such state */
+                      dp_ratesync_get_state (&bad, bb);
+                      DP_CHECK (dp_ratesync_set_state (b, bb)
+                                == DP_ERR_INVALID);
+                      bad             = *a;
+                      bad.acq_quality = 2.0; /* outside the setting */
+                      dp_ratesync_get_state (&bad, bb);
+                      DP_CHECK (dp_ratesync_set_state (b, bb)
+                                == DP_ERR_INVALID);
+                      bad             = *a;
+                      bad.acq_symbols = 0; /* not tracking, no acquisition */
+                      bad.acq_run     = 0;
+                      dp_ratesync_get_state (&bad, bb);
+                      DP_CHECK (dp_ratesync_set_state (b, bb)
+                                == DP_ERR_INVALID);
+                      bad         = *a;
+                      bad.term_in = bad.in_count + 1u;
+                      dp_ratesync_get_state (&bad, bb);
+                      DP_CHECK (dp_ratesync_set_state (b, bb)
+                                == DP_ERR_INVALID);
+                      bad                = *a;
+                      bad.loop.seed_left = 2u * bad.loop.m + 1u;
+                      dp_ratesync_get_state (&bad, bb);
+                      DP_CHECK (dp_ratesync_set_state (b, bb)
+                                == DP_ERR_INVALID);
+                      dp_ratesync_get_state (b, bb);
+                      DP_CHECK (memcmp (bb, keep, nb) == 0);
+                      DP_CHECK (b->loop.acquires == 0);
+                    }
+                  free (bb);
+                }
+                DP_CHECK (dp_ratesync_set_state (b, blob) == DP_OK);
+                DP_CHECK (b->acq_symbols == L && b->loop.acquires == 1);
+                int same = 1;
+                for (size_t i = cuts[ci]; i < n; i++)
+                  {
+                    int ra = ratesync_step (a, x[i], &ya);
+                    int rb = ratesync_step (b, x[i], &yb);
+                    if (ra != rb || (ra && memcmp (&ya, &yb, sizeof ya) != 0)
+                        || dp_ratesync_get_lifecycle (a)
+                               != dp_ratesync_get_lifecycle (b))
+                      same = 0;
+                  }
+                DP_CHECK (same);
+                DP_CHECK (dp_ratesync_get_lifecycle (a) == RATESYNC_TRACKING);
+              }
+            free (blob);
+            free (keep);
+          }
+        dp_ratesync_destroy (a);
+        dp_ratesync_destroy (b);
+      }
+    free (x);
+  }
+}
+
 int
 main (void)
 {
@@ -1533,6 +2131,8 @@ main (void)
   test_amplitude_law ();
   test_lock_time_hysteresis ();
   test_settle_time ();
+  test_seed ();
+  test_lifecycle ();
 
   DP_TEST_END ("test_ratesync_core");
 }

@@ -131,9 +131,9 @@ dp_timing_est_finish (dp_timing_est_state_t *state)
   return r;
 }
 
-dp_timing_estimate_t
-dp_timing_est_estimate (dp_timing_est_state_t *state, const float _Complex *in,
-                        size_t n_in)
+void
+dp_timing_est_push (dp_timing_est_state_t *state, const float _Complex *in,
+                    size_t n_in)
 {
   if (!state->mf)
     {
@@ -142,7 +142,7 @@ dp_timing_est_estimate (dp_timing_est_state_t *state, const float _Complex *in,
           double re = (double)crealf (in[i]), im = (double)cimagf (in[i]);
           dp_timing_est_accumulate (state, re * re + im * im);
         }
-      return dp_timing_est_finish (state);
+      return;
     }
   /* Matched: the converter in chunks, its start skipped, the power of each
      output onto the clock. rate <= 1, so a chunk gives at most one output
@@ -169,6 +169,13 @@ dp_timing_est_estimate (dp_timing_est_state_t *state, const float _Complex *in,
         }
       done += c;
     }
+}
+
+dp_timing_estimate_t
+dp_timing_est_estimate (dp_timing_est_state_t *state, const float _Complex *in,
+                        size_t n_in)
+{
+  dp_timing_est_push (state, in, n_in);
   return dp_timing_est_finish (state);
 }
 

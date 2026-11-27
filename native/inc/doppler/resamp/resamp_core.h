@@ -571,6 +571,25 @@ extern "C"
    */
   double dp_resamp_get_ctrl_acc (const resamp_state_t *state);
 
+  /** @brief Where the next steered output sits, in input intervals past the
+   *         newest input the delay line holds.
+   *
+   *  dp_resamp_get_ctrl_acc() is the fraction; this adds the whole inputs
+   *  the accumulator still has to be given before that output is formed,
+   *  less any it was handed early. With `n` inputs taken since create or
+   *  reset, the next output of the control forms reads the input timeline
+   *  at `n - 1 + lead`, which is what a caller needs to place an output
+   *  after the rate has been steered: the count of outputs no longer says.
+   *  The interval to that output was fixed when the output before it was
+   *  emitted, so a control passed now moves the one after.
+   *
+   *  Pinned by test_ratesync_core.c (`test_seed`): unsteered, on four plans,
+   *  `n - 1 + lead` is the output count over the rate at every input.
+   *
+   *  @param state  Must be non-NULL.
+   *  @return The lead, in input intervals; 0 after create/reset. */
+  double dp_resamp_get_ctrl_lead (const resamp_state_t *state);
+
   /**
    * @brief The resampler's response to a constant input, from its own bank.
    *

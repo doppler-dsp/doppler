@@ -69,6 +69,7 @@ dp_ratesync_loop_init (ratesync_loop_t *l, double sps, size_t m, double bn,
      prime_taps do. Putting it in reset() clobbered it on every reset, which
      test_reset caught as a run/re-run mismatch. */
   l->ted_scale = 1.0;
+  l->acquires  = 0;
   /* Loop update period is one symbol: the TED fires once per on-time strobe,
      and bn is normalised to the symbol rate. */
   dp_loop_filter_init (&l->lf, bn, zeta, 1.0);
@@ -154,6 +155,11 @@ dp_ratesync_loop_reset (ratesync_loop_t *l)
   l->lock_count = 0;
   l->lock_stat  = 0.0;
   dp_lockdet_reset (&l->lock);
+  l->state     = l->acquires ? RATESYNC_ACQUIRING : RATESYNC_TRACKING;
+  l->present   = 0;
+  l->had_lock  = 0;
+  l->miss_run  = 0;
+  l->seed_left = 0;
   /* Terminal-stage OUTPUTS to discard while the cascade's delay lines fill.
      Counting outputs rather than strobes is what makes this rate-independent:
      the bank spans num_taps of its own input samples, and since the terminal
@@ -163,6 +169,104 @@ dp_ratesync_loop_reset (ratesync_loop_t *l)
      Steering during the fill is meaningless — the eye statistic swings over
      its whole +-2 range there — and costs an acquisition. */
   l->prime_left = l->prime_taps + 1u;
+}
+
+/* Leave tracking. Acquiring starts the rate from zero; a coast holds it.
+   Either way the loop is open from here: no filter update, the control the
+   integrator alone gives, and a lock detector that starts over when a seed
+   closes the loop again. */
+static void
+loop_leave (ratesync_loop_t *l, int state)
+{
+  l->state      = state;
+  l->had_lock   = 0;
+  l->miss_run   = 0;
+  l->seed_left  = 0;
+  l->lock_sum   = 0.0;
+  l->lock_count = 0;
+  l->last_error = 0.0;
+  dp_lockdet_reset (&l->lock);
+  if (state == RATESYNC_ACQUIRING)
+    {
+      dp_loop_filter_reset (&l->lf);
+      l->rate_est = l->sps;
+    }
+  l->ctrl = l->lf.integ * l->term_rate;
+}
+
+void
+dp_ratesync_loop_set_acquisition (ratesync_loop_t *l, int on)
+{
+  l->acquires = on ? 1 : 0;
+  if (!on)
+    {
+      l->state     = RATESYNC_TRACKING;
+      l->seed_left = 0;
+    }
+  else if (l->state == RATESYNC_TRACKING && !l->lock.locked)
+    loop_leave (l, RATESYNC_ACQUIRING);
+}
+
+void
+dp_ratesync_loop_set_presence (ratesync_loop_t *l, int present)
+{
+  l->present = present;
+  if (!l->present && l->state == RATESYNC_COASTING)
+    loop_leave (l, RATESYNC_ACQUIRING);
+}
+
+void
+dp_ratesync_loop_decide (ratesync_loop_t *l, int was, int now)
+{
+  if (now)
+    {
+      l->had_lock = 1;
+      l->miss_run = 0;
+      return;
+    }
+  if (was)
+    {
+      /* A declared lock dropped: with the signal known to be there the
+         clock is worth keeping, without it there is nothing to keep. */
+      loop_leave (l, l->present ? RATESYNC_COASTING : RATESYNC_ACQUIRING);
+      return;
+    }
+  /* Not declared yet. The lock detector counts misses only once it has
+     declared, so the run of decisions that were not hits is kept here. */
+  if (l->lock_stat > l->lock.up_thresh)
+    l->miss_run = 0;
+  else if (++l->miss_run >= l->lock.n_down)
+    loop_leave (l, RATESYNC_ACQUIRING);
+}
+
+int
+dp_ratesync_loop_seed (ratesync_loop_t *l, double ahead, double rate,
+                       int set_rate)
+{
+  if (!isfinite (ahead) || ahead < 0.0 || (set_rate && !(fabs (rate) < 0.5)))
+    return DP_ERR_INVALID;
+  const double m     = (double)l->m;
+  const double whole = floor (ahead);
+  const double r     = ahead - whole;
+  if (set_rate)
+    l->lf.integ = rate;
+  const double held = l->lf.integ * l->term_rate;
+  /* Each of the next m intervals longer by r / m of itself: the symbol is
+     r outputs longer and the outputs after it are on the instant. */
+  l->ctrl      = (l->term_rate + held) * m / (m + r) - l->term_rate;
+  l->seed_left = 2u * l->m;
+  /* The next output is `whole` outputs short of an on-time one, and the
+     strobe count starts only after the outputs the fill still drops. */
+  const size_t k = (size_t)fmod (whole, m);
+  l->out_count   = (l->prime_left % l->m + l->m - k) % l->m;
+  l->state       = RATESYNC_TRACKING;
+  l->had_lock    = 0;
+  l->miss_run    = 0;
+  l->lock_sum    = 0.0;
+  l->lock_count  = 0;
+  l->last_error  = 0.0;
+  dp_lockdet_reset (&l->lock);
+  return DP_OK;
 }
 
 int
@@ -281,9 +385,11 @@ dp_ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
 
 /* Scalars packed between the envelope and the child. */
 #define DP_RS_DOUBLES                                                         \
-  5                  /* ctrl, last_error, rate_est, lock_sum, lock_stat       \
-                      */
-#define DP_RS_U64S 4 /* have_prev, prime_left, out_count, ring_n           */
+  5 /* ctrl, last_error, rate_est, lock_sum, lock_stat                        \
+     */
+#define DP_RS_U64S                                                            \
+  9 /* have_prev, prime_left, out_count, ring_n, state, present, had_lock,    \
+       miss_run, seed_left */
 
 size_t
 dp_ratesync_loop_state_bytes (const ratesync_loop_t *l)
@@ -311,6 +417,11 @@ dp_ratesync_loop_get_state (const ratesync_loop_t *l, void *blob)
   dp_w_u64 (&w, (uint64_t)l->prime_left);
   dp_w_u64 (&w, (uint64_t)l->out_count);
   dp_w_u64 (&w, (uint64_t)l->ring_n);
+  dp_w_u64 (&w, (uint64_t)l->state);
+  dp_w_u64 (&w, (uint64_t)(int64_t)l->present);
+  dp_w_u64 (&w, (uint64_t)(l->had_lock ? 1u : 0u));
+  dp_w_u64 (&w, (uint64_t)l->miss_run);
+  dp_w_u64 (&w, (uint64_t)l->seed_left);
   dp_w_u64 (&w, (uint64_t)l->lock_count);
   dp_w_bytes (&w, l->ring, sizeof (l->ring));
   dp_w_bytes (&w, &l->prev_on, sizeof (l->prev_on));
@@ -346,7 +457,21 @@ dp_ratesync_loop_set_state (ratesync_loop_t *l, const void *blob)
   n.prime_left      = (size_t)dp_r_u64 (&r);
   n.out_count       = (size_t)dp_r_u64 (&r);
   n.ring_n          = (size_t)dp_r_u64 (&r);
-  n.lock_count      = (size_t)dp_r_u64 (&r);
+  const uint64_t st = dp_r_u64 (&r);
+  n.present         = (int)(int64_t)dp_r_u64 (&r);
+  n.had_lock        = (dp_r_u64 (&r) & 1u) ? 1 : 0;
+  n.miss_run        = (uint32_t)dp_r_u64 (&r);
+  const uint64_t sl = dp_r_u64 (&r);
+  /* A state this loop does not reach: one the enum does not have, a state
+     other than tracking on a loop whose owner does not acquire, or more of
+     a seed left than a seed starts with. */
+  if (st > (uint64_t)RATESYNC_COASTING
+      || (!l->acquires && st != (uint64_t)RATESYNC_TRACKING)
+      || sl > 2u * (uint64_t)l->m)
+    return DP_ERR_INVALID;
+  n.state      = (int)st;
+  n.seed_left  = (size_t)sl;
+  n.lock_count = (size_t)dp_r_u64 (&r);
   dp_r_bytes (&r, n.ring, sizeof (n.ring));
   dp_r_bytes (&r, &n.prev_on, sizeof (n.prev_on));
   n.lock.cnt    = dp_r_u32 (&r);
@@ -409,6 +534,16 @@ dp_ratesync_create (double sps, int pulse, double beta, size_t span, size_t m,
 
   dp_ratesync_loop_init (&s->loop, sps, m, bn, zeta, ted);
   dp_ratesync_loop_bind_cascade (&s->loop, s->mf);
+
+  /* What a seed needs to place an output on the input's timeline. */
+  s->delay = dp_RateConverter_get_group_delay (s->mf);
+  s->decim = s->loop.term_rate * sps / (double)m;
+  /* The estimator, with a matched filter of its own. Built here and not by
+     dp_ratesync_configure_acquisition() so the blob's size is the
+     constructor's alone. Under four samples a symbol it cannot be built
+     (NULL), and the object then has no built-in acquisition:
+     dp_ratesync_configure_acquisition() refuses. */
+  s->est = dp_timing_est_create_matched (sps, pulse, beta, span);
   return s;
 }
 
@@ -418,6 +553,7 @@ dp_ratesync_destroy (dp_ratesync_state_t *state)
   if (!state)
     return;
   dp_RateConverter_destroy (state->mf);
+  dp_timing_est_destroy (state->est);
   free (state);
 }
 
@@ -426,6 +562,106 @@ dp_ratesync_reset (dp_ratesync_state_t *state)
 {
   dp_RateConverter_reset (state->mf);
   dp_ratesync_loop_reset (&state->loop);
+  if (state->est)
+    dp_timing_est_reset (state->est);
+  state->in_count   = 0;
+  state->term_in    = 0;
+  state->acq_origin = 0;
+  state->acq_run    = 0;
+}
+
+/* The seed, for the caller's call and the built-in acquisition's. */
+static int
+rs_seed (dp_ratesync_state_t *s, double eye, double rate, int set_rate)
+{
+  const ratesync_loop_t *l = &s->loop;
+  if (!isfinite (eye) || !l->term || (set_rate && !(fabs (rate) < 0.5)))
+    return DP_ERR_INVALID;
+  /* Where the terminal stage's next output reads the input: the inputs it
+     has been handed and its accumulator's lead say where on its own
+     timeline, the decimation ahead of it scales that to inputs, and the
+     cascade's group delay is what an output lags the input by. Unsteered
+     this is `outputs / rate - delay`; steered, the count of outputs no
+     longer says and the accumulator still does. */
+  const double t_next
+      = s->decim * ((double)s->term_in + dp_resamp_get_ctrl_lead (l->term))
+        - s->delay;
+  /* One output period at the rate the loop will hold, in inputs. */
+  const double integ = set_rate ? rate : l->lf.integ;
+  const double per   = s->decim / (l->term_rate * (1.0 + integ));
+  const double sym   = per * (double)l->m;
+  const double d     = dp_fmod_pos (eye - t_next, sym);
+  int          rc = dp_ratesync_loop_seed (&s->loop, d / per, rate, set_rate);
+  if (rc == DP_OK)
+    s->acq_run = 0;
+  return rc;
+}
+
+int
+dp_ratesync_seed (dp_ratesync_state_t *state, double eye, double rate)
+{
+  return rs_seed (state, eye, rate, 1);
+}
+
+void
+dp_ratesync_acquire_push (dp_ratesync_state_t *state, float _Complex x)
+{
+  if (!state->acq_run)
+    {
+      dp_timing_est_reset (state->est);
+      state->acq_origin = state->in_count - 1u; /* this input is its first */
+      state->acq_run    = 1;
+    }
+  dp_timing_est_push (state->est, &x, 1);
+  if (state->est->blk_n
+      < (uint64_t)state->acq_symbols * (uint64_t)TIMING_EST_MATCHED_SPS)
+    return;
+  dp_timing_estimate_t e = dp_timing_est_finish (state->est);
+  if (e.quality >= state->acq_quality)
+    (void)rs_seed (state, (double)state->acq_origin + e.eye, 0.0, 0);
+}
+
+int
+dp_ratesync_configure_acquisition (dp_ratesync_state_t *state, size_t symbols,
+                                   double quality)
+{
+  if (symbols == 0)
+    {
+      state->acq_symbols = 0;
+      state->acq_run     = 0;
+      dp_ratesync_loop_set_acquisition (&state->loop, 0);
+      return DP_OK;
+    }
+  if (!state->est || !(quality > 0.0) || !(quality < 1.0))
+    return DP_ERR_INVALID;
+  state->acq_symbols = symbols;
+  state->acq_quality = quality;
+  dp_ratesync_loop_set_acquisition (&state->loop, 1);
+  return DP_OK;
+}
+
+int
+dp_ratesync_get_presence (const dp_ratesync_state_t *state)
+{
+  return state->loop.present;
+}
+
+void
+dp_ratesync_set_presence (dp_ratesync_state_t *state, int val)
+{
+  dp_ratesync_loop_set_presence (&state->loop, val);
+}
+
+int
+dp_ratesync_get_valid (const dp_ratesync_state_t *state)
+{
+  return dp_ratesync_loop_valid (&state->loop);
+}
+
+int
+dp_ratesync_get_lifecycle (const dp_ratesync_state_t *state)
+{
+  return state->loop.state;
 }
 
 size_t
@@ -480,7 +716,13 @@ dp_ratesync_get_bn (const dp_ratesync_state_t *state)
 double
 dp_ratesync_get_settle_time (const dp_ratesync_state_t *state)
 {
-  return dp_ratesync_loop_settle_time (&state->loop);
+  double t = dp_ratesync_loop_settle_time (&state->loop);
+  /* One attempt ahead of the loop: the estimator's lead-in on its own
+     clock, the block, and the two symbols a seed keeps the loop open. */
+  if (state->acq_symbols)
+    t += (double)state->est->lead / TIMING_EST_MATCHED_SPS
+         + (double)state->acq_symbols + 2.0;
+  return t;
 }
 
 int
@@ -548,11 +790,19 @@ dp_ratesync_set_telemetry (dp_ratesync_state_t *state, dp_tlm_t *tlm,
  * self-validating sub-blobs. Both children validate their own envelope, so a
  * mismatched cascade or loop is rejected rather than reinterpreted. */
 
+/* The object's own fields, between the envelope and the children. */
+#define DP_RATESYNC_OWN                                                       \
+  (5 * sizeof (uint64_t) /* in_count, term_in, acq_origin, acq_symbols,       \
+                            acq_run */                                        \
+   + sizeof (double))    /* acq_quality */
+
 size_t
 dp_ratesync_state_bytes (const dp_ratesync_state_t *state)
 {
-  return sizeof (dp_state_hdr_t) + dp_RateConverter_state_bytes (state->mf)
-         + dp_ratesync_loop_state_bytes (&state->loop);
+  return sizeof (dp_state_hdr_t) + DP_RATESYNC_OWN
+         + dp_RateConverter_state_bytes (state->mf)
+         + dp_ratesync_loop_state_bytes (&state->loop)
+         + (state->est ? dp_timing_est_state_bytes (state->est) : 0u);
 }
 
 void
@@ -561,10 +811,19 @@ dp_ratesync_get_state (const dp_ratesync_state_t *state, void *blob)
   const size_t total = dp_ratesync_state_bytes (state);
   dp_writer_t  w     = dp_writer_init (blob, total);
   dp_w_hdr (&w, RATESYNC_STATE_MAGIC, RATESYNC_STATE_VERSION, total);
+  dp_w_u64 (&w, state->in_count);
+  dp_w_u64 (&w, state->term_in);
+  dp_w_u64 (&w, state->acq_origin);
+  dp_w_u64 (&w, (uint64_t)state->acq_symbols);
+  dp_w_u64 (&w, (uint64_t)(state->acq_run ? 1u : 0u));
+  dp_w_f64 (&w, state->acq_quality);
   char *p = (char *)blob + w.off;
   dp_RateConverter_get_state (state->mf, p);
   p += dp_RateConverter_state_bytes (state->mf);
   dp_ratesync_loop_get_state (&state->loop, p);
+  p += dp_ratesync_loop_state_bytes (&state->loop);
+  if (state->est)
+    dp_timing_est_get_state (state->est, p);
 }
 
 int
@@ -576,10 +835,55 @@ dp_ratesync_set_state (dp_ratesync_state_t *state, const void *blob)
   if (rc != DP_OK)
     return rc;
 
-  const char *p = (const char *)blob + sizeof (dp_state_hdr_t);
-  rc            = dp_RateConverter_set_state (state->mf, p);
+  dp_reader_t r             = dp_reader_init (blob, total);
+  r.off                     = sizeof (dp_state_hdr_t);
+  const uint64_t in_count   = dp_r_u64 (&r);
+  const uint64_t term_in    = dp_r_u64 (&r);
+  const uint64_t acq_origin = dp_r_u64 (&r);
+  const uint64_t acq_syms   = dp_r_u64 (&r);
+  const uint64_t acq_run    = dp_r_u64 (&r);
+  const double   acq_q      = dp_r_f64 (&r);
+  /* dp_ratesync_configure_acquisition()'s own domain, and counts a stream
+     reaches: the terminal stage is never handed more than the object took,
+     and an acquisition starts at an input already taken. */
+  if (acq_run > 1u || term_in > in_count || acq_origin > in_count
+      || (acq_syms && (!state->est || !(acq_q > 0.0) || !(acq_q < 1.0)))
+      || (acq_run && !acq_syms))
+    return DP_ERR_INVALID;
+
+  /* The loop validates its state against whether its owner acquires, so
+     that is set first and put back on a refusal. */
+  const int was = state->loop.acquires;
+  /* Three children, each of which commits as it accepts. What the first
+     two held is kept until the last has accepted, so a refusal anywhere
+     puts them back and the object is unchanged. */
+  const size_t rc_n = dp_RateConverter_state_bytes (state->mf);
+  const size_t lp_n = dp_ratesync_loop_state_bytes (&state->loop);
+  char        *held = dp_xmallocn (rc_n + lp_n, 1);
+  dp_RateConverter_get_state (state->mf, held);
+  dp_ratesync_loop_get_state (&state->loop, held + rc_n);
+
+  state->loop.acquires = acq_syms ? 1 : 0;
+  const char *p        = (const char *)blob + r.off;
+  rc                   = dp_RateConverter_set_state (state->mf, p);
+  if (rc == DP_OK)
+    rc = dp_ratesync_loop_set_state (&state->loop, p + rc_n);
+  if (rc == DP_OK && state->est)
+    rc = dp_timing_est_set_state (state->est, p + rc_n + lp_n);
   if (rc != DP_OK)
-    return rc;
-  p += dp_RateConverter_state_bytes (state->mf);
-  return dp_ratesync_loop_set_state (&state->loop, p);
+    {
+      state->loop.acquires = was;
+      (void)dp_RateConverter_set_state (state->mf, held);
+      (void)dp_ratesync_loop_set_state (&state->loop, held + rc_n);
+      free (held);
+      return rc;
+    }
+  free (held);
+  state->in_count    = in_count;
+  state->term_in     = term_in;
+  state->acq_origin  = acq_origin;
+  state->acq_symbols = (size_t)acq_syms;
+  state->acq_run     = (int)acq_run;
+  state->acq_quality = acq_q;
+  return DP_OK;
 }

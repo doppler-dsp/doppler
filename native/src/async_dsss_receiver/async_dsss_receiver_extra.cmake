@@ -43,7 +43,8 @@ target_link_libraries(test_adr_telemetry_oom PRIVATE
     RateConverter_core
     resamp_core hbdecim_core cic_core fir_core resample_core agc_core
     mpsk_receiver_core ddc_core hbdecim_r2c_core ddcr_core ratesync_core
-    symsync_core nco_core farrow_core pn_core doppler_channel_core
+    symsync_core timing_est_core nco_core farrow_core pn_core
+    doppler_channel_core
     ccsds_415_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_adr_telemetry_oom PRIVATE

@@ -2669,16 +2669,30 @@ test_cic_word (void)
                           && dp_RateConverter_state_bytes (t2) == nb);
                 if (t2 && before && after)
                   {
-                    dp_RateConverter_get_state (rc, blob);
                     dp_RateConverter_get_state (t2, before);
-                    const uint32_t other[2]
-                        = { CIC_PRECISION_16, CIC_HEADROOM_BITS_16 };
-                    memcpy (blob + sizeof (dp_state_hdr_t) + sizeof (double),
-                            other, sizeof other);
-                    DP_CHECK (dp_RateConverter_set_state (t2, blob)
-                              == DP_ERR_INVALID);
-                    dp_RateConverter_get_state (t2, after);
-                    DP_CHECK (memcmp (before, after, nb) == 0);
+                    /* the CIC's word is the precision and headroom it was
+                       given; each field differs alone, so each half of the
+                       check is shown needed */
+                    const uint32_t prec
+                        = dp_RateConverter_get_cic_precision (rc);
+                    const uint32_t hb
+                        = dp_RateConverter_get_cic_headroom_bits (rc);
+                    const uint32_t other[2][2]
+                        = { { prec == CIC_PRECISION_32 ? CIC_PRECISION_64
+                                                       : CIC_PRECISION_32,
+                              hb },
+                            { prec, hb == 0u ? 1u : hb - 1u } };
+                    for (int k = 0; k < 2; k++)
+                      {
+                        dp_RateConverter_get_state (rc, blob);
+                        memcpy (blob + sizeof (dp_state_hdr_t)
+                                    + sizeof (double),
+                                other[k], sizeof other[k]);
+                        DP_CHECK (dp_RateConverter_set_state (t2, blob)
+                                  == DP_ERR_INVALID);
+                        dp_RateConverter_get_state (t2, after);
+                        DP_CHECK (memcmp (before, after, nb) == 0);
+                      }
                     dp_RateConverter_get_state (rc, blob);
                     const resamp_state_t *term
                         = rc->stage_ptrs[rc->n_stages - 1];

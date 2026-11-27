@@ -2000,7 +2000,9 @@ the_remainders_upper_edge_is_produced_and_accepted (void)
  * a single call into an ample buffer makes, bit for bit. Sabotaged: the old
  * bound (the call's length, so one slot for one sample) -- the one-sample call
  * drops three partials, and every cut stream differs from the reference; a
- * headroom of 1 in place of 2 -- a cut call emits past its bound.
+ * headroom of 1 in place of 2 -- a cut call emits past its bound. A Debug
+ * build asserts at the first refused emission instead, when the bound is
+ * what is wrong (#3282).
  */
 static int
 a_one_sample_call_that_completes_a_carried_period_keeps_every_partial (void)

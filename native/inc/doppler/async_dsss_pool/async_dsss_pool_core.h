@@ -87,7 +87,8 @@
  *      just seeded included, becomes the search's exclusions
  *      (dp_async_dsss_receiver_set_exclusions()), so it never names a
  *      signal already held, and its pick count is the receivers still
- *      idle. Both take effect at its next dwell.
+ *      idle (one while none is, when the search is not fed). Both take
+ *      effect at its next dwell.
  * 4. **Reports.** status() is a receiver's status now, symbols() the
  *    symbols it emitted during the last push(); both are as of the last
  *    whole period fed, since the controller runs right after it, so a

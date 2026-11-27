@@ -157,7 +157,7 @@ The pool owns one search and N receivers that each hold one signal (docs/design/
 
 
   * **seeds the idle receivers.** The search's picks of the period just fed, strongest first, go to the idle receivers in index order ([**dp\_async\_dsss\_receiver\_seed()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_seed)), each with its code phase at the receivers' next sample.
-  * **sets the search's levers.** Every holder's code phase, the ones just seeded included, becomes the search's exclusions ([**dp\_async\_dsss\_receiver\_set\_exclusions()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_exclusions)), so it never names a signal already held, and its pick count is the receivers still idle. Both take effect at its next dwell.
+  * **sets the search's levers.** Every holder's code phase, the ones just seeded included, becomes the search's exclusions ([**dp\_async\_dsss\_receiver\_set\_exclusions()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_exclusions)), so it never names a signal already held, and its pick count is the receivers still idle (one while none is, when the search is not fed). Both take effect at its next dwell.
 
 
 * **Reports.** status() is a receiver's status now, symbols() the symbols it emitted during the last push(); both are as of the last whole period fed, since the controller runs right after it, so a released receiver never reads lost.

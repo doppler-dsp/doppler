@@ -1303,6 +1303,92 @@ _test_reacquire_releases_itself (void)
   return 0;
 }
 
+/* A lock retuned through the borrow (dp_async_dsss_pool_receiver()) lasts
+   only as long as the chain it reached (#3267, P44). Two receivers on the
+   two emitters, one group a push:
+   - set on receiver 1 while it is idle, it never reaches the chain built
+     at its hand-over: that chain has the derived depth;
+   - set on receiver 0 while it tracks, its Dll takes it and keeps it over
+     the groups that follow;
+   - after receiver 0 is reset and seeded again on its own emitter, the
+     chain built at that hand-over has the derived depth again.
+   The retuned depth is one no derivation gives at this point (a prime
+   past the derived one). Sabotage: keep a retuned depth on the receiver
+   and apply it at every chain build -> red on the idle and reseed rows. */
+static int
+_test_borrowed_lock_lasts_one_chain (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t                      n;
+  float _Complex             *x = _two_emitters (code, &n);
+  dp_async_dsss_pool_state_t *p = _pool (code, 2, 0.0, 1);
+  DP_REQUIRE (p && x);
+  dp_async_dsss_receiver_state_t *r0 = dp_async_dsss_pool_receiver (p, 0);
+  dp_async_dsss_receiver_state_t *r1 = dp_async_dsss_pool_receiver (p, 1);
+  DP_REQUIRE (r0 && r1 && dp_async_dsss_pool_receiver (p, 2) == NULL);
+  /* The derived depth, from a pool no retune has touched, run first. */
+  size_t derived = 0;
+  {
+    dp_async_dsss_pool_state_t *c = _pool (code, 2, 0.0, 1);
+    DP_REQUIRE (c != NULL);
+    for (size_t at = 0; at + POOL_GROUP <= n && !derived; at += POOL_GROUP)
+      {
+        (void)dp_async_dsss_pool_push (c, x + at, POOL_GROUP);
+        if (c->rx[0]->state == ASYNC_DSSS_RX_TRACKING)
+          derived = c->rx[0]->dll->n_looks;
+      }
+    dp_async_dsss_pool_destroy (c);
+  }
+  const size_t odd = 37; /* no derivation at this point gives a prime */
+  DP_REQUIRE_MSG (derived && derived != odd,
+                  "the retuned depth is not the derived one");
+  dp_async_dsss_receiver_configure_lock_raw (r1, 0.4, 0.2, odd, 0.1, 5, 3);
+  size_t pos = 0;
+  for (; pos + POOL_GROUP <= n; pos += POOL_GROUP)
+    {
+      (void)dp_async_dsss_pool_push (p, x + pos, POOL_GROUP);
+      if (r0->state == ASYNC_DSSS_RX_TRACKING
+          && r1->state == ASYNC_DSSS_RX_TRACKING)
+        break;
+    }
+  DP_REQUIRE_MSG (r0->state == ASYNC_DSSS_RX_TRACKING
+                      && r1->state == ASYNC_DSSS_RX_TRACKING,
+                  "both receivers track");
+  DP_CHECK_MSG (r1->dll->n_looks == derived,
+                "a lock set on an idle receiver never reaches its chain");
+  /* Set while tracking: taken, and kept. */
+  dp_async_dsss_receiver_configure_lock_raw (r0, 0.4, 0.2, odd, 0.1, 5, 3);
+  DP_CHECK (r0->dll->n_looks == odd);
+  for (size_t k = 0; k < 4 && pos + 2 * POOL_GROUP <= n; k++)
+    {
+      pos += POOL_GROUP;
+      (void)dp_async_dsss_pool_push (p, x + pos, POOL_GROUP);
+    }
+  DP_CHECK_MSG (r0->state == ASYNC_DSSS_RX_TRACKING && r0->dll->n_looks == odd,
+                "a lock set while tracking lasts while it tracks");
+  /* A fresh seed on the same emitter: the next hand-over's chain is the
+     derived one. */
+  const async_dsss_receiver_status_t s0 = dp_async_dsss_pool_status (p, 0);
+  dp_async_dsss_receiver_reset (r0);
+  DP_REQUIRE (dp_async_dsss_receiver_seed (r0, s0.chip_phase, s0.doppler_hz,
+                                           s0.cn0_dbhz_est)
+              == DP_OK);
+  for (pos += POOL_GROUP; pos + POOL_GROUP <= n; pos += POOL_GROUP)
+    {
+      (void)dp_async_dsss_pool_push (p, x + pos, POOL_GROUP);
+      if (r0->state == ASYNC_DSSS_RX_TRACKING)
+        break;
+    }
+  DP_REQUIRE_MSG (r0->state == ASYNC_DSSS_RX_TRACKING,
+                  "receiver 0 tracks again");
+  DP_CHECK_MSG (r0->dll->n_looks == derived,
+                "the next hand-over builds the derived lock");
+  dp_async_dsss_pool_destroy (p);
+  free (x);
+  return 0;
+}
+
 /* The thread count changes nothing but the cost: one worker and three
    give the same state, byte for byte, and the same symbols. The search
    spans +-5 kHz, several Doppler tiles, so on three workers it fans its
@@ -2471,6 +2557,7 @@ main (void)
   DP_CHECK (_test_lost_is_released () == 0);
   DP_CHECK (_test_search_restarts_and_names_survive () == 0);
   DP_CHECK (_test_reacquire_releases_itself () == 0);
+  DP_CHECK (_test_borrowed_lock_lasts_one_chain () == 0);
   DP_CHECK (_test_two_emitters_two_holders () == 0);
   DP_CHECK (_test_seeds_go_strongest_first_in_index_order () == 0);
   DP_CHECK (_test_fractional_period_phase (1.1) == 0);

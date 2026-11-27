@@ -96,10 +96,12 @@ jobs:
       # weekly run and a dispatch always build: they exist to ask.
       - id: owed
         run: |
-          # The packager's sources owe a rebuild too, when it is on. grep -q
-          # fails when it is off, so an adopter without it is unchanged.
+          # The packager's sources owe a rebuild too, when it is on. grep
+          # fails when it is off, so an adopter without it is unchanged. Not
+          # grep -q: under pipefail a make still writing takes SIGPIPE, and
+          # the `!` reads that as off, skipping an owed check.
           if [ "${{ github.event_name }}" = push ] && make -s ci-image-check \
-             && { ! make -s ci-image-config | grep -qx packager=1 \
+             && { ! make -s ci-image-config | grep -x packager=1 >/dev/null \
                   || make -s packager-image-check; }; then
             echo "owed=false" >> "$GITHUB_OUTPUT"
           else

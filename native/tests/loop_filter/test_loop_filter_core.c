@@ -99,7 +99,10 @@ test_settle_time (void)
   for (size_t i = 0; i < sizeof zs / sizeof zs[0]; i++)
     for (size_t j = 0; j < sizeof es / sizeof es[0]; j++)
       {
-        dp_loop_filter_state_t lf;
+        /* Zeroed first: dp_loop_filter_init() sets the gains and leaves
+           the integrator alone, so a loop on the stack starts from
+           whatever was there. */
+        dp_loop_filter_state_t lf = { 0 };
         dp_loop_filter_init (&lf, sim_bn, zs[i], 1.0);
         double th = 0.0, last = 0.0;
         for (int n = 0; n < 40000; n++)

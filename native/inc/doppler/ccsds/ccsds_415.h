@@ -143,8 +143,9 @@ typedef struct
  *
  * @p spc and @p start_hz are the scene's choices, not the point's: the
  * emitter's samples a chip and the Doppler it starts at. Fast math is off,
- * so the result does not depend on the compiler. Its Python face waits on
- * just-makeit#2755 (a module function returning one record).
+ * so the result does not depend on the compiler. Its Python face is
+ * `doppler.ccsds.ccsds415_scene()`, which returns a `Ccsds415Scene` record
+ * (dp_ccsds415_scene() in `doppler/ccsds/ccsds_core.h`).
  *
  * @param fc        The carrier, Hz.
  * @param spc       The emitter's samples a chip, > 0.

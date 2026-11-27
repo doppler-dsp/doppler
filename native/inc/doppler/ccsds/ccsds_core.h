@@ -17,6 +17,7 @@
 #ifndef DP_CCSDS_CORE_H
 #define DP_CCSDS_CORE_H
 
+#include "doppler/ccsds/ccsds_415.h"
 #include "doppler/clib_common.h"
 
 #ifdef __cplusplus
@@ -88,6 +89,25 @@ double dp_ccsds415_chip_rate(double fc);
  * @endcode
  */
 double dp_ccsds415_cn0(double esn0_db);
+
+
+/**
+ * @brief The numbers a scene at the 415.1-B-1 point is built from, at
+ *        carrier @p fc: the chip rate, the rate converter's ratio to the
+ *        capture, and the Doppler's start and rate in ppm of the carrier.
+ *        An alias over dp_ccsds_415_scene(), which owns the arithmetic
+ *        (fast math off, so the Python face reads the same bits).
+ *
+ * @param fc        The carrier, F_fwd, Hz.
+ * @param spc       The emitter's samples a chip, > 0.
+ * @param start_hz  The Doppler at the scene's first sample, Hz.
+ * @return The scene's numbers, a dp_ccsds_415_scene_t.
+ * @code
+ * dp_ccsds_415_scene_t s = dp_ccsds415_scene (2.2e9, 2.0, -13.75);
+ * printf ("%.17g\n", s.ratio);   // 1.7109677419354838
+ * @endcode
+ */
+dp_ccsds_415_scene_t dp_ccsds415_scene(double fc, double spc, double start_hz);
 
 #ifdef __cplusplus
 }

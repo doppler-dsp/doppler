@@ -484,6 +484,7 @@ dp_carrier_nda_steps_max_out function
 dp_carrier_nda_tlm_flush function
 dp_ccsds415_chip_rate function
 dp_ccsds415_cn0 function
+dp_ccsds415_scene function
 dp_ccsds_415_chip_rate function
 dp_ccsds_415_cn0 function
 dp_ccsds_415_frame_desc function

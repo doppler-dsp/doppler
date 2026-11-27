@@ -135,9 +135,9 @@ struct regime
 };
 
 /* The scene's numbers are computed once, by the library, with fast math
-   off: the Python twin reads the same bits (it types them until
-   just-makeit#2755 binds the helper, and the pair test holds its literals
-   to these through the line main() prints). */
+   off: the Python twin reads the same bits through
+   doppler.ccsds.ccsds415_scene, and the pair test holds the two to each
+   other through the line main() prints. */
 static struct regime REGIMES[] = {
   { .name = "2.2 GHz", .carrier_hz = DP_CCSDS_415_FC_LO },
   { .name = "2.8 GHz", .carrier_hz = DP_CCSDS_415_FC_HI },

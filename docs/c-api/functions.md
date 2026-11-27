@@ -609,6 +609,7 @@
 * **dp\_asm\_bits** ([**ccsds\_core.h**](ccsds__core_8h.md))
 * **dp\_ccsds415\_chip\_rate** ([**ccsds\_core.h**](ccsds__core_8h.md))
 * **dp\_ccsds415\_cn0** ([**ccsds\_core.h**](ccsds__core_8h.md))
+* **dp\_ccsds415\_scene** ([**ccsds\_core.h**](ccsds__core_8h.md))
 * **dp\_ccsds\_tm\_asm\_bits** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **dp\_ccsds\_tm\_asm\_find** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **dp\_ccsds\_tm\_rand\_init** ([**ccsds\_tm.h**](ccsds__tm_8h.md))

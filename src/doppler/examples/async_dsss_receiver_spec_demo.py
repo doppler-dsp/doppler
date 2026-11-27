@@ -29,6 +29,7 @@ import sys
 
 import numpy as np
 
+from doppler.ccsds import ccsds415_scene
 from doppler.examples._extra import require
 from doppler.impairment import DopplerChannel
 from doppler.resample import RateConverter
@@ -45,9 +46,9 @@ DOPPLER_UNCERTAINTY_HZ = 1500.0  # one-sided: within +/-1,500 Hz
 #: The fastest the Doppler changes: R_env, the residual's rate (the design
 #: page's §1.8; the 415.1-B-1 fixture's dp_s415_r_env(), which
 #: test_c_example_pairs.py holds this equal to). The point's numbers are the
-#: library's (doppler/ccsds/ccsds_415.h); this face types them until
-#: just-makeit#2755 binds the scene helper, and the C twin prints the
-#: library's, which the pair test holds these equal to, bit for bit.
+#: library's (doppler/ccsds/ccsds_415.h); the scene's derived numbers are
+#: read from it below, and the C twin prints the library's, which the pair
+#: test holds equal, bit for bit.
 DOPPLER_RATE_HZ_S = 11.0
 #: Es/N0 at the receiver input: 6 dB above the link's 4 dB floor, so the
 #: despread symbols show as two clusters. A demonstration, not a validator.
@@ -66,34 +67,16 @@ DRAWS = range(1, 5)  # one noise seed per draw
 #: through zero at START_HZ / -DOPPLER_RATE_HZ_S = 1.25 s, to +13.75 Hz.
 START_HZ = -13.75
 
-#: The two carriers, the band's ends, as (carrier Hz; chip rate, the carrier
-#: times 31/21216; the rate converter's ratio, FS over the emitter's two
-#: samples a chip; the Doppler at the start and its rate, in ppm of the
-#: carrier, the unit the channel takes). The derived numbers are LITERALS,
-#: the C twin's own: a division written in each face rounds differently
-#: under the C twin's -ffast-math, and a ulp of rate moves a bit error
-#: between the twins. Checked against their definitions below.
+#: The two carriers, the band's ends, as (carrier Hz; then the scene's
+#: numbers: the chip rate, the rate converter's ratio from the emitter's two
+#: samples a chip, and the Doppler's start and rate in ppm of the carrier,
+#: the unit the channel takes). The library computes them with fast math
+#: off (``ccsds415_scene``, ``dp_ccsds_415_scene()`` in C), so this and the
+#: C twin read the same bits.
 REGIMES = {
-    "2.2 GHz": (
-        2.2e9,
-        3214555.052790347,
-        1.7109677419354838,
-        -0.0062499999999999995,
-        0.005,
-    ),
-    "2.8 GHz": (
-        2.8e9,
-        4091251.8853695323,
-        1.344331797235023,
-        -0.004910714285714286,
-        0.003928571428571429,
-    ),
+    name: (fc, *ccsds415_scene(fc, 2.0, START_HZ))
+    for name, fc in (("2.2 GHz", 2.2e9), ("2.8 GHz", 2.8e9))
 }
-for _fc, _chip, _ratio, _ppm, _ppm_s in REGIMES.values():
-    assert abs(_chip - _fc * 31.0 / 21216.0) < 1e-6
-    assert abs(_ratio - FS / (2.0 * _chip)) < 1e-12
-    assert abs(_ppm * _fc * 1e-6 - START_HZ) < 1e-6
-    assert abs(_ppm_s * _fc * 1e-6 - DOPPLER_RATE_HZ_S) < 1e-6
 
 GOLD = np.asarray(Gold().generate(SF), np.uint8)
 #: The payload, one bit per symbol: doppler's own PN, each frame's first
@@ -422,8 +405,8 @@ def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:
     import matplotlib.pyplot as plt
 
     # The point and each carrier's scene, spelled as C's printf("%a") spells
-    # them, so the pair test compares these literals with the library's
-    # bits (the C twin prints dp_ccsds_415_scene()'s).
+    # them, so the pair test compares these with the C twin's
+    # (dp_ccsds_415_scene()'s, read here through ccsds415_scene).
     print(
         f"point: sf {SF} fs {_a(FS)} sym {_a(SYM_RATE)} span "
         f"{_a(DOPPLER_UNCERTAINTY_HZ)} r_env {_a(DOPPLER_RATE_HZ_S)} frame "

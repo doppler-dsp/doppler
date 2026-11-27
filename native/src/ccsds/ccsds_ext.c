@@ -222,6 +222,56 @@ _bind_ccsds415_chip_rate (PyObject *self, PyObject *args, PyObject *kwds)
   return PyFloat_FromDouble (dp_ccsds415_chip_rate (fc));
 }
 
+static PyStructSequence_Field _jm_fnrec_ccsds415_scene_fields[] = {
+  { "chip_rate", "Chips a second, dp_ccsds_415_chip_rate()." },
+  { "ratio", "The rate converter's ratio from an emitter at `spc` samples a "
+             "chip to the capture: DP_CCSDS_415_FS / (spc x chip_rate)." },
+  { "start_ppm",
+    "The Doppler at the first sample in ppm of the carrier, the unit "
+    "dp_doppler_channel_create() takes: start_hz / fc x 1e6." },
+  { "rate_ppm_s", "R_env in ppm of the carrier a second: "
+                  "DP_CCSDS_415_R_ENV_HZ_S / fc x 1e6." },
+  { NULL, NULL },
+};
+static PyStructSequence_Desc _jm_fnrec_ccsds415_scene_desc
+    = { "doppler.ccsds.Ccsds415Scene",
+        "A scene's derived numbers at the CCSDS 415.1-B-1 point, at one "
+        "carrier: chip_rate (chips/s), ratio (the rate converter's, from the "
+        "emitter's samples a chip to the capture), start_ppm and rate_ppm_s "
+        "(the Doppler's start and rate, ppm of the carrier).",
+        _jm_fnrec_ccsds415_scene_fields, 4 };
+static PyTypeObject *_jm_fnrec_ccsds415_scene_type = NULL;
+static PyObject *
+_bind_ccsds415_scene (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "fc", "spc", "start_hz", NULL };
+  double       fc        = 0.0;
+  double       spc       = 0.0;
+  double       start_hz  = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &fc, &spc,
+                                    &start_hz))
+    return NULL;
+  if (!_jm_fnrec_ccsds415_scene_type)
+    {
+      _jm_fnrec_ccsds415_scene_type
+          = PyStructSequence_NewType (&_jm_fnrec_ccsds415_scene_desc);
+      if (!_jm_fnrec_ccsds415_scene_type)
+        {
+          return NULL;
+        }
+    }
+  dp_ccsds_415_scene_t _r = dp_ccsds415_scene (fc, spc, start_hz);
+  PyObject *_o = PyStructSequence_New (_jm_fnrec_ccsds415_scene_type);
+  if (!_o)
+    return NULL;
+  PyStructSequence_SET_ITEM (_o, 0, PyFloat_FromDouble (_r.chip_rate));
+  PyStructSequence_SET_ITEM (_o, 1, PyFloat_FromDouble (_r.ratio));
+  PyStructSequence_SET_ITEM (_o, 2, PyFloat_FromDouble (_r.start_ppm));
+  PyStructSequence_SET_ITEM (_o, 3, PyFloat_FromDouble (_r.rate_ppm_s));
+  return _o;
+}
+
 static PyObject *
 _bind_ccsds415_cn0 (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -307,6 +357,40 @@ static PyMethodDef ccsds_module_methods[] = {
     "--------\n"
     "printf (\"%.6f\\n\", dp_ccsds415_chip_rate (2.8e9));   // "
     "4091251.885370\n" },
+  { "ccsds415_scene", (PyCFunction)(void *)_bind_ccsds415_scene,
+    METH_VARARGS | METH_KEYWORDS,
+    "The numbers a scene at the CCSDS 415.1-B-1 point is built from, at "
+    "carrier `fc` (Hz), for an emitter at `spc` samples a chip whose Doppler "
+    "starts at `start_hz`: the chip rate, the rate converter's ratio to the "
+    "11 MSa/s capture, and the Doppler's start and rate in ppm of the carrier "
+    "(the unit `DopplerChannel` takes). Computed in C with fast math off, so "
+    "this and `dp_ccsds_415_scene()` give the same bits.\n"
+    "\n"
+    ">>> from doppler.ccsds import ccsds415_scene\n"
+    ">>> s = ccsds415_scene(2.2e9, 2.0, -13.75)\n"
+    ">>> s.chip_rate, s.ratio\n"
+    "(3214555.052790347, 1.7109677419354838)\n"
+    ">>> s.start_ppm, s.rate_ppm_s\n"
+    "(-0.0062499999999999995, 0.005)\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "fc : float\n"
+    "    The carrier, F_fwd, Hz.\n"
+    "spc : float\n"
+    "    The emitter's samples a chip, > 0.\n"
+    "start_hz : float\n"
+    "    The Doppler at the scene's first sample, Hz.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Ccsds415Scene\n"
+    "    The scene's numbers, a dp_ccsds_415_scene_t.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "dp_ccsds_415_scene_t s = dp_ccsds415_scene (2.2e9, 2.0, -13.75);\n"
+    "printf (\"%.17g\\n\", s.ratio);   // 1.7109677419354838\n" },
   { "ccsds415_cn0", (PyCFunction)(void *)_bind_ccsds415_cn0,
     METH_VARARGS | METH_KEYWORDS,
     "C/N0 in dB-Hz of an Es/N0 (dB) at the CCSDS 415.1-B-1 point's 3,000 "
@@ -401,10 +485,23 @@ PyMODINIT_FUNC
 PyInit_ccsds (void)
 {
   import_array ();
-
+  if (!_jm_fnrec_ccsds415_scene_type)
+    {
+      _jm_fnrec_ccsds415_scene_type
+          = PyStructSequence_NewType (&_jm_fnrec_ccsds415_scene_desc);
+      if (!_jm_fnrec_ccsds415_scene_type)
+        return NULL;
+    }
   PyObject *m = PyModule_Create (&ccsds_moduledef);
   if (!m)
     return NULL;
-
+  if (PyModule_AddObject (m, "Ccsds415Scene",
+                          (PyObject *)_jm_fnrec_ccsds415_scene_type)
+      < 0)
+    {
+      Py_DECREF (_jm_fnrec_ccsds415_scene_type);
+      Py_DECREF (m);
+      return NULL;
+    }
   return m;
 }

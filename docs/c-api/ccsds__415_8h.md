@@ -287,7 +287,7 @@ dp_ccsds_415_scene_t dp_ccsds_415_scene (
 
 
 
-`spc` and `start_hz` are the scene's choices, not the point's: the emitter's samples a chip and the Doppler it starts at. Fast math is off, so the result does not depend on the compiler. Its Python face waits on just-makeit#2755 (a module function returning one record).
+`spc` and `start_hz` are the scene's choices, not the point's: the emitter's samples a chip and the Doppler it starts at. Fast math is off, so the result does not depend on the compiler. Its Python face is `doppler.ccsds.ccsds415_scene()`, which returns a `Ccsds415Scene` record ([**dp\_ccsds415\_scene()**](ccsds__core_8h.md#function-dp_ccsds415_scene) in `doppler/ccsds/ccsds_core.h`).
 
 
 

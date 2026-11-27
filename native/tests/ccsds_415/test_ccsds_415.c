@@ -37,15 +37,12 @@ test_the_chip_rate_is_the_tables_formula (void)
   return 0;
 }
 
-/* The scene's numbers are bit for bit the literals the spec demo and its
-   Python twin used before the helper existed. The C demo now reads the
-   helper; the Python twin still TYPES these (it reads the helper when
-   just-makeit#2755 binds a module function returning one record, and then
-   this interim pin goes with the literals). So a change to the helper that
-   would leave the twin behind turns this red, as does the pair test, which
-   compares the twins' printed %a lines. Rejects the fast-math arithmetic:
-   under Clang's -ffast-math, start_ppm at 2.2 GHz is
-   -0.0062500000000000003, not -0.0062499999999999995. */
+/* The scene's numbers are bit for bit the IEEE values of their definitions,
+   the bits the header promises every compiler gives (both twins now read
+   the helper itself: the C spec demo directly, the Python one through
+   doppler.ccsds.ccsds415_scene). Rejects the fast-math arithmetic: under
+   Clang's -ffast-math, start_ppm at 2.2 GHz is -0.0062500000000000003, not
+   -0.0062499999999999995. */
 static int
 test_the_scene_is_the_twins_literals (void)
 {

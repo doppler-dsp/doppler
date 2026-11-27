@@ -28,6 +28,14 @@ class TestCcsdsFunctions(unittest.TestCase):
         else:
             self.assertIsInstance(result, float)
 
+    def test_ccsds415_scene_contract(self):
+        try:
+            result = module.ccsds415_scene(fc=1.0, spc=1.0, start_hz=1.0)
+        except (ValueError, RuntimeError, OverflowError) as e:
+            self.skipTest(f"the kernel refused the synthetic arguments: {e}")
+        else:
+            self.assertIsInstance(result, module.Ccsds415Scene)
+
     def test_ccsds415_cn0_contract(self):
         try:
             result = module.ccsds415_cn0(esn0_db=1.0)

@@ -10,6 +10,7 @@
 
 _CCSDS 131.0-B's published literals, as a Python-facing component._ [More...](#detailed-description)
 
+* `#include "doppler/ccsds/ccsds_415.h"`
 * `#include "doppler/clib_common.h"`
 
 
@@ -55,6 +56,7 @@ _CCSDS 131.0-B's published literals, as a Python-facing component._ [More...](#d
 |  void | [**dp\_asm\_bits**](#function-dp_asm_bits) (uint8\_t \* out) <br>_The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits._  |
 |  double | [**dp\_ccsds415\_chip\_rate**](#function-dp_ccsds415_chip_rate) (double fc) <br>_Chips a second at carrier_ `fc` _at the CCSDS 415.1-B-1 point: F\_fwd x 31 / (221 x 96), table 4-1. IEEE arithmetic with fast math off, so every compiler, and the Python face, give the same bits._ |
 |  double | [**dp\_ccsds415\_cn0**](#function-dp_ccsds415_cn0) (double esn0\_db) <br>_C/N0, dB-Hz, of an Es/N0 at the 415.1-B-1 point's 3,000 symbols a second:_ `esn0_db + 10 log10(3000)` _. An alias over_[_**dp\_ccsds\_415\_cn0()**_](ccsds__415_8h.md#function-dp_ccsds_415_cn0) _._ |
+|  [**dp\_ccsds\_415\_scene\_t**](structdp__ccsds__415__scene__t.md) | [**dp\_ccsds415\_scene**](#function-dp_ccsds415_scene) (double fc, double spc, double start\_hz) <br>_The numbers a scene at the 415.1-B-1 point is built from, at carrier_ `fc:` _the chip rate, the rate converter's ratio to the capture, and the Doppler's start and rate in ppm of the carrier. An alias over_[_**dp\_ccsds\_415\_scene()**_](ccsds__415_8h.md#function-dp_ccsds_415_scene) _, which owns the arithmetic (fast math off, so the Python face reads the same bits)._ |
 
 
 
@@ -210,6 +212,49 @@ double dp_ccsds415_cn0 (
 C/N0, dB-Hz. 
 ```C++
 printf ("%.4f\n", dp_ccsds415_cn0 (4.0));   // 38.7712
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ccsds415\_scene 
+
+_The numbers a scene at the 415.1-B-1 point is built from, at carrier_ `fc:` _the chip rate, the rate converter's ratio to the capture, and the Doppler's start and rate in ppm of the carrier. An alias over_[_**dp\_ccsds\_415\_scene()**_](ccsds__415_8h.md#function-dp_ccsds_415_scene) _, which owns the arithmetic (fast math off, so the Python face reads the same bits)._
+```C++
+dp_ccsds_415_scene_t dp_ccsds415_scene (
+    double fc,
+    double spc,
+    double start_hz
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `fc` The carrier, F\_fwd, Hz. 
+* `spc` The emitter's samples a chip, &gt; 0. 
+* `start_hz` The Doppler at the scene's first sample, Hz. 
+
+
+
+**Returns:**
+
+The scene's numbers, a [**dp\_ccsds\_415\_scene\_t**](structdp__ccsds__415__scene__t.md). 
+```C++
+dp_ccsds_415_scene_t s = dp_ccsds415_scene (2.2e9, 2.0, -13.75);
+printf ("%.17g\n", s.ratio);   // 1.7109677419354838
 ```
  
 

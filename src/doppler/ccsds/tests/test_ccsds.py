@@ -27,9 +27,35 @@ def test_all_is_exactly_the_published_surface() -> None:
     code, the randomiser, the inner code — are reached by describing a CADU
     through `doppler.wfm.FrameDesc`, and this module growing a second door
     to them is exactly what docs/design/frame-description.md rules out. The
-    415.1-B-1 point's chip rate and C/N0 are its numbers, not a transform.
+    415.1-B-1 point's chip rate, C/N0 and scene record are its numbers, not
+    a transform.
     """
-    assert c.__all__ == ["asm_bits", "ccsds415_chip_rate", "ccsds415_cn0"]
+    assert c.__all__ == [
+        "asm_bits",
+        "ccsds415_chip_rate",
+        "ccsds415_cn0",
+        "Ccsds415Scene",
+        "ccsds415_scene",
+    ]
+
+
+def test_ccsds415_scene_is_the_points_arithmetic() -> None:
+    """Each field is the C function's, bit for bit, in its own place.
+
+    The expected values are the definitions in ``dp_ccsds_415_scene()``'s
+    order of operations (IEEE, fast math off), so a field returned in the
+    wrong slot or a conversion that loses a bit fails, at both carriers.
+    """
+    fs, r_env = 11e6, 11.0  # DP_CCSDS_415_FS, DP_CCSDS_415_R_ENV_HZ_S
+    for fc, spc, start_hz in ((2.2e9, 2.0, -13.75), (2.8e9, 4.0, 55.0)):
+        s = c.ccsds415_scene(fc, spc, start_hz)
+        assert isinstance(s, c.Ccsds415Scene)
+        chip = c.ccsds415_chip_rate(fc)
+        assert s.chip_rate == chip
+        assert s.ratio == fs / (spc * chip)
+        assert s.start_ppm == start_hz / fc * 1e6
+        assert s.rate_ppm_s == r_env / fc * 1e6
+        assert tuple(s) == (s.chip_rate, s.ratio, s.start_ppm, s.rate_ppm_s)
 
 
 def test_asm_bits_is_the_marker() -> None:

@@ -1058,9 +1058,9 @@ typedef enum
    *                the pull-in's, not the budget's (the design page, §2.3).
    *                False is sized on the nearer row: it is accepted only
    *                while half the search's Doppler row, `chip_rate /
-   *                (code_len * coherent_bins)`, is inside the carrier loop's
-   *                acquisition bound, ASYNC_DSSS_RX_CARRIER_PULLIN_HZ: that
-   *                is
+   *                (2 * code_len * coherent_bins)`, is inside the carrier
+   *                loop's acquisition bound,
+   *                ASYNC_DSSS_RX_CARRIER_PULLIN_HZ: that is
    *                `coherent_bins >= ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn)`,
    *                with `bn` the receiver's carrier bandwidth
    *                (dp_async_dsss_receiver_carrier_bn()): 25 at 0.04, at any
@@ -2139,8 +2139,12 @@ typedef enum
    * This is the flag 415.1-B-1 §7.4.1's "short-code PN lock" names: its
    * acquisition requirement, PN lock with probability at least 0.9 within
    * 20 s of the signal's arrival, anywhere in +/-1,500 Hz of best lock, is
-   * read on it (validate_async_dsss_receiver_pullin, whose cells assert the
-   * requirement is not refuted at 95%).
+   * read on it (validate_async_dsss_receiver_pullin). Its full sweep
+   * (docs/design/async-dsss-receiver-measurements/final-9ce208250/) locks
+   * every draw within 20 s: in the static cells, 60 of 60, a 95% Wilson
+   * lower limit of 0.94, so the requirement is demonstrated there; in the
+   * +/-11 Hz/s cells, 26 to 34 of as many, lower limits 0.87 to 0.90, so
+   * it is not refuted. Its `--check` asserts not refuted, on one draw.
    * @param state  Must be non-NULL.
    * @return 1 while code lock is declared, else 0. */
   int dp_async_dsss_receiver_get_code_locked (

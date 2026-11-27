@@ -915,6 +915,7 @@ dp_dsss_receiver_get_lock function
 dp_dsss_receiver_get_n function
 dp_dsss_receiver_get_norm_freq function
 dp_dsss_receiver_get_segments function
+dp_dsss_receiver_get_settle_time function
 dp_dsss_receiver_get_sps function
 dp_dsss_receiver_get_state function
 dp_dsss_receiver_get_tracking function

@@ -111,6 +111,17 @@ _test_arg_validation (void)
       DP_CHECK (dp_dsss_receiver_get_n (rx) == MPSK_RX_M_OUT_DEFAULT);
       DP_CHECK (dp_dsss_receiver_get_chip_phase (rx) == 0.0);
       DP_CHECK (dp_dsss_receiver_get_code_rate (rx) == 1.0);
+      /* settle_time is the demodulator's, at the bandwidths this receiver
+         builds it with: the header's 778.5 symbols. Sabotaged by returning
+         half of it. */
+      DP_CHECK (dp_dsss_receiver_get_settle_time (rx)
+                == dp_loop_filter_settle_time (DSSS_RX_DEMOD_BN_TIMING,
+                                               DSSS_RX_DEMOD_ZETA,
+                                               DP_LOOP_FILTER_SETTLE_EPS)
+                       + dp_loop_filter_settle_time (
+                           DSSS_RX_DEMOD_BN_CARRIER, DSSS_RX_DEMOD_ZETA,
+                           DP_LOOP_FILTER_SETTLE_EPS));
+      DP_CHECK_NEAR (dp_dsss_receiver_get_settle_time (rx), 778.47, 0.01);
       dp_dsss_receiver_destroy (rx);
     }
   return 0;

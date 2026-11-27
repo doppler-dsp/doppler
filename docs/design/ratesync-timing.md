@@ -583,7 +583,8 @@ stateDiagram-v2
     ACQUIRING --> TRACKING: quality passes, loop seeded
     TRACKING --> COASTING: symbol lock drops, code and carrier lock up
     TRACKING --> ACQUIRING: n_down decisions missed in a row, otherwise
-    COASTING --> TRACKING: symbol lock declared
+    COASTING --> COASTING: quality below threshold
+    COASTING --> TRACKING: quality passes, loop seeded, rate kept
     COASTING --> ACQUIRING: code or carrier lock drops
 ```
 
@@ -596,7 +597,7 @@ enters `ACQUIRING`.
 | ----------- | ---------------------------------------------------------- | ------------------------ | -------------------------------------------- |
 | `ACQUIRING` | the estimator, on its own matched filter; the loop is open | 0                        | its lead-in, then `L` symbols an attempt     |
 | `TRACKING`  | the loop, closed                                           | the lock detector's flag | nothing while the lock decisions keep coming |
-| `COASTING`  | the loop, held at its rate; the lock detector              | 0                        | the code lock and the carrier lock (open)    |
+| `COASTING`  | the estimator; the symbol clock runs on at the held rate   | 0                        | `L` symbols an attempt                       |
 
 A loop with no estimator beside it starts in `TRACKING`, which is the
 loop as it is today.
@@ -604,14 +605,17 @@ loop as it is today.
 **Coasting is the signal present and the symbol clock not declared.**
 The state is `code_lock and carrier_lock and not symbol_lock`, entered
 from `TRACKING` when a symbol lock that had declared drops. The code and
-carrier locks say the signal is still there, so there is nothing to
-acquire again: the loop is held, as `dp_dll_set_coast()` holds the Dll,
-its filter takes no update and the symbol clock runs on at the rate it
-had. The lock detector keeps reading the held clock's outputs, and its
-declaring returns the loop to `TRACKING` with no seed and no step in the
-symbol count. Either of the other two locks dropping ends the coast in
-`ACQUIRING`. A symbol lock that drops without them, or `n_down` missed
-decisions on a loop that never declared, goes to `ACQUIRING` directly.
+carrier locks say the signal is still there, so the symbol clock is
+worth keeping: the loop is held, as `dp_dll_set_coast()` holds the Dll,
+its filter takes no update and the clock runs on at the rate it had.
+The estimator starts at once, as in `ACQUIRING`, and the first estimate
+whose quality passes seeds the loop into `TRACKING` with the held rate
+kept. A coast is therefore acquisition with the rate remembered, and it
+is bounded the same way. A stretch with no transitions passes no
+estimate and coasts until they return. Either of the other two locks
+dropping ends the coast in `ACQUIRING`, where the rate starts from zero.
+A symbol lock that drops without them, or `n_down` missed decisions on a
+loop that never declared, goes to `ACQUIRING` directly.
 
 The two flags are the owner's, not the loop's. The loop takes them as
 one presence input, which a loop with no code or carrier lock beside it
@@ -681,12 +685,6 @@ Open, and settled before the seed is built:
 - **Four samples a symbol with nothing ahead of the bank.** The
     derivative detector's error has extra zeros there (§2); that geometry
     is refused or its zeros are mapped.
-- **How long a coast may run.** The held rate carries the loop's rate
-    error at the moment it was held, and the symbol clock drifts on it. A
-    coast that has drifted past the detector's monotone range can no
-    longer declare on its own and has to end in `ACQUIRING`. That length
-    follows from the rate state's variance at `bn` and is not derived
-    yet.
 - **What `MpskReceiver` supplies.** It has a carrier lock and no code
     lock, and its carrier lock is formed on the symbols the timing loop
     emits, so it is not evidence apart from the symbol clock. Until that

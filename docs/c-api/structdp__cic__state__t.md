@@ -193,7 +193,7 @@ uint64_t dp_cic_state_t::integ_re[CIC_N];
 
 
 
-Integrator accumulators, real path (UQ16 input, wrapping mod 2^64); running state. 
+Integrator accumulators, real path (the Q15 sample, wrapping mod 2^64); running state. 
 
 
         

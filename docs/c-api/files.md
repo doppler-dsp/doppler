@@ -95,7 +95,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md) _The CCSDS frame assembler — where the ASM goes, and the one place the stages' disagreements about what they cover become visible._     
                 * **file** [**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md) _CCSDS Reed-Solomon (255,223) — the outer code as a CONFIGURATION, and the conventions that only a published value catches._     
             * **dir** [**cic**](dir_b18ea702eaae2e8004fd6583c8b1e641.md)     
-                * **file** [**cic\_core.h**](cic__core_8h.md) _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._     
+                * **file** [**cic\_core.h**](cic__core_8h.md) _CIC decimation filter — 4-stage, M=1, 16-bit integer pipeline._     
             * **dir** [**coding**](dir_69d8a89cba5242a3dfe9624bc2e7c6f6.md)     
                 * **file** [**coding\_core.h**](coding__core_8h.md) _Coding module — public C API._ 
             * **dir** [**conv**](dir_dadcb1d47e07452fac6fef665f736671.md)     

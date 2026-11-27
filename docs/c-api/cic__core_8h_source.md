@@ -22,6 +22,8 @@ extern "C" {
 
 #define CIC_N 4
 
+#define CIC_OFFSET ((uint64_t)32768)
+
 #define CIC_R_MAX 2048u
 
 typedef struct {
@@ -52,7 +54,7 @@ void dp_cic_reset(dp_cic_state_t *state);
 /* Standard bytes interface (see dp_state.h): [dp_state_hdr_t][u32 R]
  * [integ_re/im, comb_re/im (CIC_N u64 each)][u32 phase][u8 clipped]. */
 #define CIC_STATE_MAGIC DP_FOURCC ('C', 'I', 'C', '_')
-#define CIC_STATE_VERSION 3u
+#define CIC_STATE_VERSION 4u
 
 #define CIC_PAPR_HEADROOM 2.0f
 
@@ -77,18 +79,26 @@ dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
     int    clip  = 0;   /* accumulated in a register; folded in once below */
 
     for (size_t i = 0; i < n_in; i++) {
-        /* CF32 → UQ16: saturate to Q15, shift to offset-binary [0, 65535].
-           The four comparisons run regardless, so noting that one fired
-           costs a register OR — which is the whole reason `clipped` exists
-           rather than a line of documentation asking callers to be careful. */
+        /* CF32 → Q15, saturated. The four comparisons run regardless, so
+           noting that one fired costs a register OR — which is the whole
+           reason `clipped` exists rather than a line of documentation
+           asking callers to be careful. The upper one is written as
+           "not at or under", so a NaN, which fails every comparison, lands
+           on the top of the range and is counted as a clip: the conversion
+           to an integer below is never handed a value it cannot hold. */
         float sr = crealf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
         float si = cimagf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
-        if (sr >  32767.0f) { sr =  32767.0f; clip = 1; }
-        if (sr < -32768.0f) { sr = -32768.0f; clip = 1; }
-        if (si >  32767.0f) { si =  32767.0f; clip = 1; }
-        if (si < -32768.0f) { si = -32768.0f; clip = 1; }
-        uint64_t re = (uint64_t)((int32_t)(int16_t)sr + 32768);
-        uint64_t im = (uint64_t)((int32_t)(int16_t)si + 32768);
+        if (!(sr <=  32767.0f)) { sr =  32767.0f; clip = 1; }
+        if (sr < -32768.0f)     { sr = -32768.0f; clip = 1; }
+        if (!(si <=  32767.0f)) { si =  32767.0f; clip = 1; }
+        if (si < -32768.0f)     { si = -32768.0f; clip = 1; }
+        /* Into the unsigned registers as the value itself, modulo 2^64:
+           through offset binary, which is never negative, and the offset
+           straight back off in unsigned arithmetic. No register here is
+           signed. A zero sample is a zero word, so a filter that has only
+           seen silence holds zeros. */
+        uint64_t re = (uint64_t)((int32_t)(int16_t)sr + 32768) - CIC_OFFSET;
+        uint64_t im = (uint64_t)((int32_t)(int16_t)si + 32768) - CIC_OFFSET;
 
         /* 4 integrators — unsigned wrap-around is intentional. */
         re = state->integ_re[0] += re;
@@ -122,13 +132,19 @@ dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
         if (n_out >= max_out)
             continue;
 
-        /* UQ16 → CF32: right-shift to normalise, remove offset-binary bias,
-           and undo the encoder's PAPR headroom. The offset is NOT scaled by
-           it — it is the offset-binary midpoint, not signal. */
+        /* → CF32. The registers hold the filtered sum modulo 2^64, which
+           is negative as often as not. Adding the offset at the pipeline's
+           gain makes it the offset-binary sum, in [0, 2^16 * R^N), which
+           fits; the right shift then normalises it and floors it, an
+           unsigned shift of a non-negative value. The offset comes off in
+           floating point, and the encoder's PAPR headroom is undone. The
+           offset is NOT scaled by the headroom — it is the midpoint, not
+           signal. */
+        const uint64_t bias = CIC_OFFSET << shift;
         out[n_out++] = CMPLXF(
-            ((float)(uint16_t)(re >> shift) - 32768.0f)
+            ((float)(uint16_t)((re + bias) >> shift) - 32768.0f)
                 * (CIC_PAPR_HEADROOM / 32768.0f),
-            ((float)(uint16_t)(im >> shift) - 32768.0f)
+            ((float)(uint16_t)((im + bias) >> shift) - 32768.0f)
                 * (CIC_PAPR_HEADROOM / 32768.0f));
     }
     state->clipped |= (uint8_t)clip;   /* sticky; cleared by reset() */

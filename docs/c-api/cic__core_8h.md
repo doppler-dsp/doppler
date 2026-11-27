@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](cic__core_8h_source.md)
 
-_CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#detailed-description)
+_CIC decimation filter — 4-stage, M=1, 16-bit integer pipeline._ [More...](#detailed-description)
 
 * `#include "doppler/clib_common.h"`
 * `#include "doppler/dp_state.h"`
@@ -61,7 +61,7 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 | ---: | :--- |
 |  [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* | [**dp\_cic\_create**](#function-dp_cic_create) (uint32\_t R) <br>_Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC\_N \* log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM. Input amplitude is bounded: \|Re\| and \|Im\| &lt;= 2.0. A component beyond +-2.0 is clipped at the boundary before any filtering; the sample stream gives no sign of it, so check the sticky_ `clipped` _flag. Unlike doppler's floating-point blocks this one is not scale-free_ _scale the input into range first._ |
 |  double | [**dp\_cic\_dc\_gain**](#function-dp_cic_dc_gain) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_The filter's response to a constant input, from its own geometry._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**dp\_cic\_decimate**](#function-dp_cic_decimate) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**dp\_cic\_decimate**](#function-dp_cic_decimate) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to 16-bit Q15, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. A fresh or reset filter starts from silence: its first CIC\_N - 1 outputs are the filter filling with the input, and silence in gives exact zeros out from the first one. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
 |  size\_t | [**dp\_cic\_decimate\_max\_out**](#function-dp_cic_decimate_max_out) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
 |  void | [**dp\_cic\_destroy**](#function-dp_cic_destroy) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Free the filter state._  |
 |  double | [**dp\_cic\_get\_group\_delay**](#function-dp_cic_get_group_delay) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_The decimator's group delay, in its INPUT samples: where in the input timeline an output sample's content sits._  |
@@ -102,10 +102,11 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 | Type | Name |
 | ---: | :--- |
 | define  | [**CIC\_N**](cic__core_8h.md#define-cic_n)  `4`<br> |
+| define  | [**CIC\_OFFSET**](cic__core_8h.md#define-cic_offset)  `((uint64\_t)32768)`<br> |
 | define  | [**CIC\_PAPR\_HEADROOM**](cic__core_8h.md#define-cic_papr_headroom)  `2.0f`<br>_Peak-to-average headroom the input encoding reserves, as a voltage ratio (2.0 = 6 dB)._  |
 | define  | [**CIC\_R\_MAX**](cic__core_8h.md#define-cic_r_max)  `2048u`<br>_Largest decimation ratio a CIC will be built at._  |
 | define  | [**CIC\_STATE\_MAGIC**](cic__core_8h.md#define-cic_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C', 'I', 'C', '\_')`<br> |
-| define  | [**CIC\_STATE\_VERSION**](cic__core_8h.md#define-cic_state_version)  `3u`<br> |
+| define  | [**CIC\_STATE\_VERSION**](cic__core_8h.md#define-cic_state_version)  `4u`<br> |
 
 ## Detailed Description
 
@@ -125,13 +126,13 @@ The bound is `CIC_PAPR_HEADROOM` (2.0, i.e. 6 dB) and not 1.0 because that headr
 Fixed design parameters: N = 4 stages (~77 dB alias rejection at f\_p = 0.1 \* f\_out) M = 1 (differential delay — one-sample comb) R = power-of-two decimation ratio (enforced at create time)
 
 
-Input/output boundary: CF32 (`float _Complex`), matching the doppler default signal type. Internally, each sample is converted to UQ16 — offset-binary: v\_q15 + 32768 → `[0, 65535]` in a uint64\_t — giving 48 bits of headroom for the pipeline gain of N \* log2(R) bits. At the cap `CIC_R_MAX` (2048, log2 = 11) the gain is 44 bits; max accumulation = 65535 \* R^N = (2^16 - 1) \* 2^44, which is 16x inside 2^64. R = 4096 also fits, but to within one part in 65536 — see CIC\_R\_MAX for why the cap is a halving below it.
+Input/output boundary: CF32 (`float _Complex`), matching the doppler default signal type. Internally, each sample is a 16-bit Q15 value held in a uint64\_t modulo 2^64, giving 48 bits of headroom for the pipeline gain of N \* log2(R) bits. At the cap `CIC_R_MAX` (2048, log2 = 11) the gain is 44 bits; the largest sum the output decode forms is 65535 \* R^N = (2^16 - 1) \* 2^44, which is 16x inside 2^64. R = 4096 also fits, but to within one part in 65536 — see CIC\_R\_MAX for why the cap is a halving below it.
 
 
-All arithmetic is unsigned: inputs are non-negative `[0, 65535]`, wrapping is defined (mod 2^64), and the output decode subtracts the offset in floating-point — no signed integer casts anywhere in the hot path.
+**Every register is unsigned**, because the pipeline depends on its registers wrapping and in C only an unsigned type promises that: a signed one that overflows is undefined. The sample goes in as its value modulo 2^64 (offset binary, then the offset off again, both unsigned), and comes out by adding the offset back at the pipeline's gain before the normalising shift, so what is shifted is never negative. The offset is carried around the pipeline and not through it, which is why a filter that has only seen silence holds zeros and gives zeros: its first outputs after create or reset are the filter filling with the input, and nothing else.
 
 
-The unsigned modular-arithmetic CIC property guarantees exact outputs: every intermediate overflow in the integrators cancels in the comb stages, provided the true result fits in 64 bits. So the integrator/comb pipeline itself needs no saturation, no range checks and no floating-point — the one saturation in the block is at the CF32 encoder, and it is the +-2.0 input bound described at the top of this file, not an arithmetic guard.
+The unsigned modular-arithmetic CIC property guarantees exact outputs: every intermediate overflow in the integrators cancels in the comb stages, provided the true result fits in 64 bits. So the integrator/comb pipeline itself needs no saturation, no range checks and no floating-point — the one saturation in the block is at the CF32 encoder, and it is the +-2.0 input bound described at the top of this file, not an arithmetic guard. A NaN component is taken as over the bound: it reads as the top of the range and raises `clipped`.
 
 
 With M=1 and N fixed, the entire comb state is four uint64\_t values per channel — no heap allocation beyond the state struct itself.
@@ -241,7 +242,7 @@ dp_cic_destroy (c);
 
 ### function dp\_cic\_decimate 
 
-_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._ 
+_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to 16-bit Q15, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. A fresh or reset filter starts from silence: its first CIC\_N - 1 outputs are the filter filling with the input, and silence in gives exact zeros out from the first one. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._ 
 ```C++
 JM_FORCEINLINE  JM_HOT size_t dp_cic_decimate (
     dp_cic_state_t * state,
@@ -284,11 +285,12 @@ Number of CF32 samples written to `out:` min(floor((phase + n\_in) / R), max\_ou
 >>> from doppler.resample import CIC
 >>> import numpy as np
 >>> cic = CIC(R=16)
->>> for _ in range(4):
-...     _ = cic.decimate(np.zeros(16, dtype=np.complex64))
->>> y = cic.decimate(np.zeros(16, dtype=np.complex64))
->>> y.tolist(), y.dtype
-([0j], dtype('complex64'))
+>>> y = cic.decimate(np.zeros(64, dtype=np.complex64))
+>>> y.tolist(), y.dtype                 # silence in, zeros from the first
+([0j, 0j, 0j, 0j], dtype('complex64'))
+>>> ones = cic.decimate(np.ones(96, dtype=np.complex64))
+>>> [round(float(v.real), 3) for v in ones]  # then the filter fills
+[0.059, 0.562, 0.972, 1.0, 1.0, 1.0]
 ```
  
 
@@ -600,6 +602,23 @@ Fixed stage count. Alias rejection ~19.2 dB/stage at f\_p=0.1.
 
 
 
+### define CIC\_OFFSET 
+
+```C++
+#define CIC_OFFSET `((uint64_t)32768)`
+```
+
+
+
+The offset-binary midpoint of the 16-bit sample: what makes a Q15 value non-negative. It is taken off again before the pipeline and put back, at the pipeline's gain, after it ([**dp\_cic\_decimate()**](cic__core_8h.md#function-dp_cic_decimate)). 
+
+
+        
+
+<hr>
+
+
+
 ### define CIC\_PAPR\_HEADROOM 
 
 _Peak-to-average headroom the input encoding reserves, as a voltage ratio (2.0 = 6 dB)._ 
@@ -665,12 +684,12 @@ FourCC type tag ("CIC\_") stamped in a CIC state blob's header.
 ### define CIC\_STATE\_VERSION 
 
 ```C++
-#define CIC_STATE_VERSION `3u`
+#define CIC_STATE_VERSION `4u`
 ```
 
 
 
-Layout version of the CIC state blob (2 added `clipped`, 3 added R). 
+Layout version of the CIC state blob (2 added `clipped`, 3 added R; 4: the registers hold the sample without its offset). 
 
 
         

@@ -872,12 +872,14 @@ class CIC:
         out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Decimate a block of CF32 samples through the CIC pipeline. Each
-        sample is converted to offset-binary UQ16, pushed through CIC_N
-        integrators (unsigned wrapping), and when the phase counter reaches R
-        the integrated value is passed through CIC_N M=1 comb stages and
-        converted back to CF32. State persists between calls. Feeding blocks
-        that are multiples of R gives predictable output counts (exactly n_in/R
-        samples per block).
+        sample is converted to 16-bit Q15, pushed through CIC_N integrators
+        (unsigned wrapping), and when the phase counter reaches R the
+        integrated value is passed through CIC_N M=1 comb stages and converted
+        back to CF32. State persists between calls. A fresh or reset filter
+        starts from silence: its first CIC_N - 1 outputs are the filter filling
+        with the input, and silence in gives exact zeros out from the first
+        one. Feeding blocks that are multiples of R gives predictable output
+        counts (exactly n_in/R samples per block).
 
         Parameters
         ----------
@@ -905,11 +907,12 @@ class CIC:
         >>> from doppler.resample import CIC
         >>> import numpy as np
         >>> cic = CIC(R=16)
-        >>> for _ in range(4):
-        ...     _ = cic.decimate(np.zeros(16, dtype=np.complex64))
-        >>> y = cic.decimate(np.zeros(16, dtype=np.complex64))
-        >>> y.tolist(), y.dtype
-        ([0j], dtype('complex64'))
+        >>> y = cic.decimate(np.zeros(64, dtype=np.complex64))
+        >>> y.tolist(), y.dtype                 # silence in, zeros from the first
+        ([0j, 0j, 0j, 0j], dtype('complex64'))
+        >>> ones = cic.decimate(np.ones(96, dtype=np.complex64))
+        >>> [round(float(v.real), 3) for v in ones]  # then the filter fills
+        [0.059, 0.562, 0.972, 1.0, 1.0, 1.0]
 
         """
 

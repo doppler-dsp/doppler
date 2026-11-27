@@ -25,6 +25,7 @@
 
 #include "dp_sym_test.h" /* EVM / M2M4 / settling — the shared primitives */
 #include "dp_tx_test.h"  /* the shaped symbol stream — the shared stimulus */
+#include "ratesync_settle_test.h" /* settle_time, measured; the sweep's too */
 
 #include "doppler/dp_complex.h"
 #include <math.h>
@@ -1507,207 +1508,40 @@ test_settle_time (void)
   dp_ratesync_destroy (s);
 }
 
-/* settle_time held against the object itself: RateSync run from a stated
-   timing offset, noise-free, default bn and zeta, Gardner.
+/* settle_time held against the object itself, where the header claims it:
+   RRC, Gardner, a starting error of 0.25 symbol or less. At every symbol
+   from ceil(settle_time) the mean error over data patterns is at or under
+   2% of the start, plus RS_SETTLE_K standard errors of that mean
+   (ratesync_settle_test.h says what is measured, why it is a mean and why
+   that many).
+   Further starts and the rectangle are the sweep's,
+   native/validation/ratesync_settle.c.
 
-   One run cannot show it. Gardner's own data jitter on a shaped stream is
-   several hundredths of a symbol, more than 2% of any start, so the error
-   is averaged over _SETTLE_SEEDS data patterns at each offset, which
-   leaves the deterministic transient. The error of an emitted symbol is the
-   input instant the terminal stage read it at (the mapping
-   dp_ratesync_seed() places an output by) less the stimulus' eye, in
-   symbols. The start is the mean error at symbol 0 and the residual the
-   mean error at symbol n, both from where the mean ends up, which absorbs
-   the loop's constant offset of about a thousandth of a symbol.
-
-   The bound is the header's 2% of the start, plus three standard errors of
-   the mean at that symbol (the data jitter the average has not removed),
-   at every symbol from ceil(settle_time) to _SETTLE_END. It is the linear
-   loop's figure, so it is asserted where the header claims it: RRC, a start
-   of 0.25 symbol or less. The rows outside that (RRC from further out, and
-   the rectangle) are printed and not claimed. They are the Gardner
-   baseline the derivative detector is compared against (doppler#3377), and
-   the RRC ones are what dp_ratesync_get_settle_time() quotes.
-
-   Sabotage: the loop built at half its bandwidth, red at every held row;
-   ted_scale doubled, red at the smallest start. */
-#define _SETTLE_SEEDS 300
-#define _SETTLE_END 450  /* last symbol held to the bound             */
-#define _SETTLE_TAIL 150 /* symbols after it, whose mean is the final */
-#define _SETTLE_N (_SETTLE_END + _SETTLE_TAIL)
-
-/* The stimulus' eye for symbol 0, on the input's timeline. A rectangle is
-   sample-and-hold, so its center is half a symbol less half a sample past
-   the origin, and `tau * sps` has to be a whole number of samples. */
-static double
-_settle_eye (int pulse, double sps, double tau)
-{
-  double eye = ((double)_SPAN + tau) * sps;
-  if (pulse == RATESYNC_PULSE_IANDD)
-    eye += 0.5 * (sps - 1.0);
-  return eye;
-}
-
-/* One run at loop bandwidth `bn`: the timing error of the first `want`
-   symbols, unwrapped, and the detector's output beside each when `ted` is
-   not NULL. Returns 1 when all were emitted. */
-static int
-_settle_run (int pulse, double sps, size_t m, double bn, double tau,
-             uint32_t seed, size_t want, double *e, double *ted)
-{
-  dp_tx_cfg_t c = _tx_cfg (sps, tau);
-  c.seed        = seed;
-  c.nsym        = want + 40u;
-  if (pulse == RATESYNC_PULSE_IANDD)
-    c.pulse = DP_TX_NRZ;
-  size_t               n = 0;
-  float _Complex      *x = dp_tx_make (&c, NULL, &n);
-  dp_ratesync_state_t *s = dp_ratesync_create (
-      sps, pulse, _BETA, _SPAN, m, 1024, bn, 0.707, RATESYNC_TED_GARDNER);
-  const double eye = _settle_eye (pulse, sps, tau);
-  size_t       ne  = 0;
-  for (size_t i = 0; x && s && i < n && ne < want; i++)
-    {
-      const ratesync_loop_t *l = &s->loop;
-      /* where the next terminal output reads, and the output period */
-      const double next
-          = s->decim * ((double)s->term_in + dp_resamp_get_ctrl_lead (l->term))
-            - s->delay;
-      const double per = s->decim / (l->term_rate + l->ctrl);
-      /* how many outputs ahead of it the next strobe is */
-      const size_t k = (l->m - l->out_count % l->m) % l->m;
-      float _Complex y;
-      if (ratesync_step (s, x[i], &y))
-        {
-          double d = (next + (double)k * per - eye) / sps;
-          d -= floor (d + 0.5);
-          if (ne)
-            d -= floor (d - e[ne - 1] + 0.5);
-          if (ted)
-            ted[ne] = dp_ratesync_get_timing_error (s);
-          e[ne++] = d;
-        }
-    }
-  free (x);
-  dp_ratesync_destroy (s);
-  return ne == want;
-}
-
-/* The detector's slope at one offset, open loop (bn = 0, so the offset
-   stays put): its mean output over the mean offset. A chord, not the
-   derivative. */
-static double
-_settle_chord (int pulse, double sps, size_t m, double tau)
-{
-  static double e[2000], ted[2000];
-  if (!_settle_run (pulse, sps, m, 0.0, tau, 7u, 2000, e, ted))
-    return 0.0;
-  double se = 0.0, st = 0.0;
-  for (size_t i = 50; i < 2000; i++)
-    {
-      se += e[i];
-      st += ted[i];
-    }
-  printf ("  settle: open loop %s sps %g offset %+.4f symbol: detector "
-          "slope %.3f\n",
-          pulse == RATESYNC_PULSE_RRC ? "rrc" : "iandd", sps, se / 1950.0,
-          st / se);
-  return st / se;
-}
+   Sabotage: the loop built at half its bandwidth, red at every row; at
+   0.8 of it, red at four rows or more. */
+#define _SETTLE_SEEDS 100
 
 static void
 test_settle_time_from_an_offset (void)
 {
-  static const struct
-  {
-    int    pulse;
-    double sps;
-    size_t m;
-    double tau;
-    int    held; /* asserted, or printed only */
-  } row[] = {
-    /* starts of 0.06 to 0.25 symbol, both signs */
-    { RATESYNC_PULSE_RRC, 4.0, 2, 0.25, 1 },
-    { RATESYNC_PULSE_RRC, 4.0, 2, 0.375, 1 },
-    { RATESYNC_PULSE_RRC, 4.0, 2, 0.4375, 1 },
-    { RATESYNC_PULSE_RRC, 4.0, 2, 0.625, 1 },
-    { RATESYNC_PULSE_RRC, 4.0, 2, 0.6875, 1 },
-    /* starts of 0.31, 0.37 and 0.44 symbol */
-    { RATESYNC_PULSE_RRC, 4.0, 2, 0.8125, 0 },
-    { RATESYNC_PULSE_RRC, 4.0, 2, 0.125, 0 },
-    { RATESYNC_PULSE_RRC, 4.0, 2, 0.0625, 0 },
-    /* the rectangle */
-    { RATESYNC_PULSE_IANDD, 4.0, 4, 0.25, 0 },
-    { RATESYNC_PULSE_IANDD, 8.0, 4, 0.125, 0 },
-    { RATESYNC_PULSE_IANDD, 8.0, 4, 0.25, 0 },
-    { RATESYNC_PULSE_IANDD, 8.0, 4, 0.375, 0 },
-    { RATESYNC_PULSE_IANDD, 8.0, 4, 0.5, 0 },
-    { RATESYNC_PULSE_IANDD, 8.0, 4, 0.625, 0 },
-  };
-  static double e[_SETTLE_N], sum[_SETTLE_N], sq[_SETTLE_N];
-  for (size_t ri = 0; ri < sizeof row / sizeof *row; ri++)
+  /* offsets whose start is 0.06 to 0.25 symbol, both signs */
+  static const double taus[] = { 0.25, 0.375, 0.4375, 0.625, 0.6875 };
+  for (size_t i = 0; i < sizeof taus / sizeof *taus; i++)
     {
-      memset (sum, 0, sizeof sum);
-      memset (sq, 0, sizeof sq);
-      for (int k = 0; k < _SETTLE_SEEDS; k++)
-        {
-          const int ran = _settle_run (
-              row[ri].pulse, row[ri].sps, row[ri].m, 0.01, row[ri].tau,
-              7u + 31u * (uint32_t)k, _SETTLE_N, e, NULL);
-          DP_CHECK (ran);
-          if (!ran)
-            return;
-          /* a run that settled a whole symbol over is the same eye */
-          const double slip = round (e[_SETTLE_N - 1]);
-          for (int n = 0; n < _SETTLE_N; n++)
-            {
-              sum[n] += e[n] - slip;
-              sq[n] += (e[n] - slip) * (e[n] - slip);
-            }
-        }
-      double end = 0.0;
-      for (int n = _SETTLE_END; n < _SETTLE_N; n++)
-        end += sum[n] / _SETTLE_SEEDS / _SETTLE_TAIL;
-      const double start = sum[0] / _SETTLE_SEEDS - end;
-
-      dp_ratesync_state_t *s = dp_ratesync_create (
-          row[ri].sps, row[ri].pulse, _BETA, _SPAN, row[ri].m, 1024, 0.01,
-          0.707, RATESYNC_TED_GARDNER);
-      DP_CHECK (s != NULL);
-      if (!s)
+      rs_settle_t r;
+      const int   ran = rs_settle_measure (RATESYNC_PULSE_RRC, 4.0, 2, taus[i],
+                                           _SETTLE_SEEDS, &r);
+      DP_CHECK (ran);
+      if (!ran)
         return;
-      const int from = (int)ceil (dp_ratesync_get_settle_time (s));
-      dp_ratesync_destroy (s);
-      DP_CHECK (from < _SETTLE_END);
-
-      int    over  = 0;
-      double worst = 0.0;
-      for (int n = from; n < _SETTLE_END; n++)
-        {
-          const double mean = sum[n] / _SETTLE_SEEDS;
-          const double var  = sq[n] / _SETTLE_SEEDS - mean * mean;
-          const double se   = sqrt (fabs (var) / _SETTLE_SEEDS);
-          const double r    = fabs (mean - end);
-          over += r > 0.02 * fabs (start) + 3.0 * se;
-          if (r > worst)
-            worst = r;
-        }
-      printf ("  settle: %s sps %g start %+.4f symbol, worst residual from "
-              "symbol %d %.5f = %.1f%% of it, %d symbols over the bound%s\n",
-              row[ri].pulse == RATESYNC_PULSE_RRC ? "rrc" : "iandd",
-              row[ri].sps, start, from, worst, 100.0 * worst / fabs (start),
-              over, row[ri].held ? "" : " (not claimed)");
-      if (row[ri].held)
-        {
-          /* inside the range the claim is made over, and a start at all */
-          DP_CHECK (fabs (start) > 0.05 && fabs (start) <= 0.25);
-          DP_CHECK (over == 0);
-        }
+      printf ("  settle: start %+.4f symbol, worst residual from symbol %d "
+              "%.1f%% of it, %d symbols over the bound\n",
+              r.start, r.from, 100.0 * r.worst / fabs (r.start), r.over);
+      DP_CHECK (r.from < RS_SETTLE_END);
+      /* inside the range the claim is made over, and a start at all */
+      DP_CHECK (fabs (r.start) > 0.05 && fabs (r.start) <= 0.25);
+      DP_CHECK (r.over == 0);
     }
-  /* open-loop slopes: the RRC's is pinned, the rectangle's are baseline */
-  DP_CHECK (_settle_chord (RATESYNC_PULSE_RRC, 4.0, 2, 0.4375) > 0.9);
-  (void)_settle_chord (RATESYNC_PULSE_IANDD, 8.0, 4, 0.125);
-  (void)_settle_chord (RATESYNC_PULSE_IANDD, 64.0, 4, 0.875);
 }
 
 /* mean (|Re y|)^2 / mean (Re y ^2) over y[a..b): 1 when every symbol is

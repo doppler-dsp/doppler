@@ -1639,6 +1639,7 @@
 * **dp\_ratesync\_state\_bytes** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **dp\_ratesync\_steps** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **dp\_ratesync\_steps\_max\_out** ([**ratesync\_core.h**](ratesync__core_8h.md))
+* **dp\_ratesync\_next\_read** ([**ratesync\_private.h**](ratesync__private_8h.md))
 * **dp\_resamp\_consumed** ([**resamp\_core.h**](resamp__core_8h.md))
 * **dp\_resamp\_create** ([**resamp\_core.h**](resamp__core_8h.md))
 * **dp\_resamp\_create\_custom** ([**resamp\_core.h**](resamp__core_8h.md))

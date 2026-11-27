@@ -956,7 +956,7 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
           {
             mk.sym = NULL;
             mk.n   = DP_BER_SYNC_SYMS;
-            mk.t0  = dp_ber_marker_place (truth, nsym, pt->m,
+            mk.t0  = dp_ber_marker_place (truth, nsym, out, n, pt->m,
                                           settle + (size_t)DP_BER_LAG_SPAN, 0,
                                           DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
             if (mk.t0 == SIZE_MAX)

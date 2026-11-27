@@ -243,6 +243,69 @@ _test_two_emitters_two_holders (void)
   return 0;
 }
 
+/* The controller's seeding and its levers, read at every control step
+   (#3267, P19, P20). One push of a whole group is one control step. After
+   each:
+   - the receivers just seeded (idle before, holding now) are the lowest
+     indices of those that were idle, and their seed C/N0 falls with the
+     index: the picks go strongest first, into the idle receivers in index
+     order;
+   - the search's pick count is the receivers left idle (one when none
+     is: the search is not fed then).
+   The scene seeds both emitters in one step, so the order is exercised:
+   A is 3 dB over B. Sabotage: seed the idle receivers from the highest
+   index down -> red on the index rule; take the picks weakest first -> red
+   on the C/N0 order; set the pick count to the holders -> red. */
+static int
+_test_seeds_go_strongest_first_in_index_order (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t                      n;
+  float _Complex             *x = _two_emitters (code, &n);
+  dp_async_dsss_pool_state_t *p = _pool (code, 3, 0.0, 1);
+  DP_REQUIRE (p && x);
+  async_dsss_receiver_status_t was[3], now[3];
+  for (size_t i = 0; i < 3; i++)
+    was[i] = dp_async_dsss_pool_status (p, i);
+  size_t most_in_a_step = 0;
+  int    lowest = 1, by_cn0 = 1, picks = 1;
+  for (size_t pos = 0; pos + POOL_GROUP <= n; pos += POOL_GROUP)
+    {
+      (void)dp_async_dsss_pool_push (p, x + pos, POOL_GROUP);
+      size_t seeded = 0, idle = 0, idle_before = 0;
+      double last_cn0 = INFINITY;
+      for (size_t i = 0; i < 3; i++)
+        {
+          now[i]              = dp_async_dsss_pool_status (p, i);
+          const int was_idle  = was[i].state == ASYNC_DSSS_RX_IDLE;
+          const int now_holds = now[i].state == ASYNC_DSSS_RX_REFINING
+                                || now[i].state == ASYNC_DSSS_RX_TRACKING;
+          idle += now[i].state == ASYNC_DSSS_RX_IDLE;
+          if (was_idle && now_holds)
+            {
+              /* Every receiver idle before this one was seeded too. */
+              lowest &= seeded == idle_before;
+              by_cn0 &= now[i].cn0_dbhz_est <= last_cn0;
+              last_cn0 = now[i].cn0_dbhz_est;
+              seeded++;
+            }
+          idle_before += was_idle;
+        }
+      picks &= p->search->pick_want == (idle ? idle : 1);
+      most_in_a_step = seeded > most_in_a_step ? seeded : most_in_a_step;
+      memcpy (was, now, sizeof was);
+    }
+  DP_REQUIRE_MSG (most_in_a_step >= 2,
+                  "the scene seeds two receivers in one step");
+  DP_CHECK_MSG (lowest, "seeds go to the lowest-index idle receivers");
+  DP_CHECK_MSG (by_cn0, "the stronger pick goes to the lower index");
+  DP_CHECK_MSG (picks, "the search's pick count is the receivers idle");
+  dp_async_dsss_pool_destroy (p);
+  free (x);
+  return 0;
+}
+
 /* A period that is not a whole number of samples (#3063). The two emitters
    are taken to `ratio` times the design rate, so a code period is
    2046 * ratio samples. The live chain runs whole periods of tsamps samples
@@ -2225,6 +2288,7 @@ main (void)
   DP_CHECK (_test_telemetry_one_producer () == 0);
   DP_CHECK (_test_lost_is_released () == 0);
   DP_CHECK (_test_two_emitters_two_holders () == 0);
+  DP_CHECK (_test_seeds_go_strongest_first_in_index_order () == 0);
   DP_CHECK (_test_fractional_period_phase (1.1) == 0);
   DP_CHECK (_test_fractional_period_phase (1.05) == 0);
   DP_CHECK (_test_zone_keeps_the_outcome () == 0);

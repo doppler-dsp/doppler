@@ -13,8 +13,12 @@ run.
 
 from __future__ import annotations
 
+import re
+import shutil
 import stat
 import subprocess
+import sys
+import sysconfig
 from pathlib import PurePath
 from typing import TYPE_CHECKING
 
@@ -133,3 +137,78 @@ def test_an_explicit_interpreter_wins_over_a_refusing_uv(
         env={"JUST_BUILDIT_PYTHON": "/opt/jb/python"},
     )
     assert jb.returncode == 0, jb.stdout + jb.stderr
+
+
+@pytest.mark.parametrize("target", ["pyext", "test-example-downstream-python"])
+def test_a_configure_probes_the_interpreter_again(
+    tmp_path: Path, target: str
+) -> None:
+    # The flag rides with the interpreter on every configure that names one.
+    uv = _fake_uv(tmp_path, 'echo "/fake/venv/bin/python"\n')
+    r = _make("-n", target, f"UV={uv}")
+    hits = re.findall(
+        r"-DPython3_EXECUTABLE=/fake/venv/bin/python\s+(?:\\\s+)?(\S+ \S+)",
+        r.stdout,
+    )
+    assert hits, r.stdout + r.stderr
+    assert all(h == "-U '_Python3_*'" for h in hits), hits
+
+
+_CMAKELISTS = """\
+cmake_minimum_required(VERSION 3.16)
+project(probe NONE)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+file(WRITE "${CMAKE_BINARY_DIR}/soabi.txt" "${Python3_SOABI}")
+"""
+
+
+def test_the_flag_is_what_makes_cmake_probe_again(tmp_path: Path) -> None:
+    """What the flag buys, on CMake itself, with one interpreter.
+
+    FindPython keys its cache on the interpreter's path, so a venv rebuilt
+    on another Python is never probed again and the tree keeps the old
+    ABI tag, the one an extension's file name carries. Stood in for here by
+    a cache whose recorded tag is made wrong after the first configure:
+    without the flag the next configure reports the wrong tag, with it the
+    interpreter's own. (The version alone would not show it: FindPython
+    reads that from the interpreter every time.)
+    """
+    cmake = shutil.which("cmake")
+    real = sysconfig.get_config_var("SOABI")
+    if cmake is None or not real:
+        pytest.skip("no cmake on PATH, or an interpreter with no SOABI")
+    src, build = tmp_path / "src", tmp_path / "build"
+    src.mkdir()
+    (src / "CMakeLists.txt").write_text(_CMAKELISTS, encoding="utf-8")
+    exe = PurePath(sys.executable).as_posix()
+    fake = "cpython-301-" + real.split("-", 2)[-1]
+
+    def configure(*flags: str) -> str:
+        r = subprocess.run(
+            [
+                cmake,
+                "-S",
+                str(src),
+                "-B",
+                str(build),
+                f"-DPython3_EXECUTABLE={exe}",
+                *flags,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
+        return (build / "soabi.txt").read_text(encoding="utf-8")
+
+    def poison() -> None:
+        cache = build / "CMakeCache.txt"
+        text = cache.read_text(encoding="utf-8")
+        assert f";{real};" in text, "FindPython's cache does not hold the tag"
+        cache.write_text(
+            text.replace(f";{real};", f";{fake};"), encoding="utf-8"
+        )
+
+    assert configure() == real
+    poison()
+    assert configure() == fake, "the cache was not believed"
+    assert configure("-U", "_Python3_*") == real

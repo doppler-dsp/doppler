@@ -1134,8 +1134,17 @@ CCACHE_FLAGS := $(if $(CCACHE_BIN),-DCMAKE_C_COMPILER_LAUNCHER=ccache,)
 # Only when there is one (#2364): an empty -DPython3_EXECUTABLE= would make
 # CMake search PATH and pick the system Python silently, which is the very
 # swap this guards against. Absent, a configured tree keeps its cached one.
+#
+# `-U '_Python3_*'` drops what FindPython cached about that interpreter, so
+# every configure probes it again. FindPython keys its cache on the
+# interpreter's PATH: a venv rebuilt on another Python keeps its path
+# (.venv/bin/python), so a configured tree went on building for the old
+# version's include directory and ABI tag, and the extension it produced
+# (capture.cpython-313-*.so) could not be imported by the interpreter it was
+# built for (3.14). The probe is the interpreter run once.
 PY_CMAKE_FLAG = $(if $(PYTHON_EXECUTABLE),\
-                    -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE))
+                    -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \
+                    -U '_Python3_*')
 CMAKE_FLAGS = -DCMAKE_EXPORT_COMPILE_COMMANDS=ON $(PY_CMAKE_FLAG) \
               $(CCACHE_FLAGS) $(CMAKE_ARGS)
 

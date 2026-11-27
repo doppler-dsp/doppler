@@ -186,11 +186,11 @@ ______________________________________________________________________
 
 Independent of `R`:
 
-| property         | value                         |
-| ---------------- | ----------------------------- |
-| alias rejection  | ~77 dB at `f_p = 0.1·f_out`   |
-| passband droop   | ~0.57 dB at `f_p = 0.1·f_out` |
-| output precision | the input word's              |
+| property         | value                               |
+| ---------------- | ----------------------------------- |
+| alias rejection  | ~77 dB at `f_p = 0.1·f_out`         |
+| passband droop   | ~0.57 dB at `f_p = 0.1·f_out`       |
+| output precision | CF32: a float's 24 bits of the word |
 
 The droop is real and is why `RateConverter` folds a compensator into the
 terminal stage's polyphase bank when a CIC precedes it — same tap grid, so the

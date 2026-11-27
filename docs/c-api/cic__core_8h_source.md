@@ -32,6 +32,12 @@ extern "C" {
 #define CIC_HEADROOM_BITS_WIDE 2u
 #define CIC_PAPR_16 ((float)(1u << CIC_HEADROOM_BITS_16))
 #define CIC_PAPR_WIDE ((float)(1u << CIC_HEADROOM_BITS_WIDE))
+#define CIC_WORD_TOP(b)                                                    \
+    ((b) <= 25 ? (float)((1ull << ((b) - 1)) - 1u)                         \
+               : (float)(1ull << ((b) - 1)) * (1.0f - 0x1p-24f))
+#define CIC_WORD_BOTTOM(b) (-(float)(1ull << ((b) - 1)))
+#define CIC_WORD_WIDTHS(X)                                                 \
+    X(16) X(20) X(24) X(28) X(32) X(36) X(40) X(44) X(48) X(52) X(56) X(60)
 #define CIC_FRACTION_BITS_MIN 1u
 #define CIC_HEADROOM_BITS_MAX (CIC_PRECISION_16 - 1u - CIC_FRACTION_BITS_MIN)
 #define CIC_R_MAX 2048u
@@ -49,8 +55,6 @@ typedef struct {
     uint32_t bits;            
     uint64_t offset;          
     float    in_scale;        
-    float    in_hi;           
-    float    in_lo;           
     float    out_scale;       
     uint8_t  clipped;         
 } dp_cic_state_t;
@@ -78,6 +82,8 @@ void dp_cic_reset(dp_cic_state_t *state);
 #define CIC_STATE_VERSION 5u
 
 int dp_cic_precision_ok(uint32_t precision);
+
+uint32_t dp_cic_precision_headroom(uint32_t precision);
 
 int dp_cic_headroom_bits_ok(uint32_t bits);
 
@@ -107,17 +113,36 @@ double dp_cic_get_group_delay(const dp_cic_state_t *state);
 
 #ifndef __cplusplus
 JM_FORCEINLINE JM_HOT size_t
-dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
-             size_t n_in, float _Complex *out, size_t max_out)
+cic_decimate_word(dp_cic_state_t *state, const float _Complex *in,
+                  size_t n_in, float _Complex *out, size_t max_out,
+                  const unsigned b)
 {
     const uint32_t R      = state->R;
     const uint32_t shift  = state->shift;
     const float    scale  = state->in_scale;
-    const float    hi     = state->in_hi;
-    const float    lo     = state->in_lo;
-    const uint64_t offset = state->offset;
+    const float    hi     = CIC_WORD_TOP(b);
+    const float    lo     = CIC_WORD_BOTTOM(b);
+    const uint64_t offset = (uint64_t)1 << (b - 1u);
+    /* Read once: `out` is a float array and the compiler must otherwise
+       assume each output it stores could be this field, and reload it. */
+    const float    step   = state->out_scale;
+    const uint64_t bias   = offset << shift;
     size_t n_out = 0;
     int    clip  = 0;   /* accumulated in a register; folded in once below */
+    /* The filter's registers, in locals for the whole call and written back
+       once at the end: the loop then touches no memory but the input and
+       the output, so where the state sits beside the buffers cannot slow
+       it (measured: storing them every sample, one benchmark program ran
+       the converter's CIC plan a quarter slower than another with the
+       same objects). */
+    uint64_t ir[CIC_N], ii[CIC_N], cr[CIC_N], ci[CIC_N];
+    for (int k = 0; k < CIC_N; k++) {
+        ir[k] = state->integ_re[k];
+        ii[k] = state->integ_im[k];
+        cr[k] = state->comb_re[k];
+        ci[k] = state->comb_im[k];
+    }
+    uint32_t phase = state->phase;
 
     for (size_t i = 0; i < n_in; i++) {
         /* CF32 → the word, saturated. The four comparisons run regardless,
@@ -136,29 +161,28 @@ dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
         /* Into the unsigned registers as the value itself, modulo 2^64:
            through offset binary, which is never negative (the word is
            under CIC_REG_BITS - 1 bits, so the sum cannot leave an int64),
-           and the offset
-           straight back off in unsigned arithmetic. No register here is
-           signed. A zero sample is a zero word, so a filter that has only
-           seen silence holds zeros. */
+           and the offset straight back off in unsigned arithmetic. No
+           register here is signed. A zero sample is a zero word, so a
+           filter that has only seen silence holds zeros. */
         uint64_t re = (uint64_t)((int64_t)sr + (int64_t)offset) - offset;
         uint64_t im = (uint64_t)((int64_t)si + (int64_t)offset) - offset;
 
         /* CIC_N integrators — unsigned wrap-around is intentional. The
            count is a constant, so the loops below unroll. */
         for (int k = 0; k < CIC_N; k++) {
-            re = state->integ_re[k] += re;
-            im = state->integ_im[k] += im;
+            re = ir[k] += re;
+            im = ii[k] += im;
         }
 
-        if (++state->phase < R)
+        if (++phase < R)
             continue;
-        state->phase = 0;
+        phase = 0;
 
         /* CIC_N one-sample combs: y = x - prev; prev = x. */
         for (int k = 0; k < CIC_N; k++) {
             uint64_t t;
-            t = state->comb_re[k]; state->comb_re[k] = re; re -= t;
-            t = state->comb_im[k]; state->comb_im[k] = im; im -= t;
+            t = cr[k]; cr[k] = re; re -= t;
+            t = ci[k]; ci[k] = im; im -= t;
         }
 
         /* Capacity reached: keep running the filter (the integrator and
@@ -170,21 +194,46 @@ dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
 
         /* → CF32. The registers hold the filtered sum modulo 2^64, which
            is negative as often as not. Adding the offset at the pipeline's
-           gain makes it the offset-binary sum, in [0, 2^bits * R^CIC_N),
-           which fits; the right
-           shift then normalises it and floors it, an unsigned shift of a
-           non-negative value. What is left is a word, so it and the
-           offset are both in an int64 and their difference is the sample. */
-        const uint64_t bias = offset << shift;
+           gain makes it the offset-binary sum, in [0, 2^b * R^CIC_N),
+           which fits; the right shift then normalises it and floors it,
+           an unsigned shift of a non-negative value. What is left is a
+           word, so it and the offset are both in an int64 and their
+           difference is the sample. */
         out[n_out++] = CMPLXF(
             (float)((int64_t)((re + bias) >> shift) - (int64_t)offset)
-                * state->out_scale,
+                * step,
             (float)((int64_t)((im + bias) >> shift) - (int64_t)offset)
-                * state->out_scale);
+                * step);
     }
+    for (int k = 0; k < CIC_N; k++) {
+        state->integ_re[k] = ir[k];
+        state->integ_im[k] = ii[k];
+        state->comb_re[k]  = cr[k];
+        state->comb_im[k]  = ci[k];
+    }
+    state->phase = phase;
     state->clipped |= (uint8_t)clip;   /* sticky; cleared by reset() */
     return n_out;
 }
+
+#define CIC_WORD_CASE(b)                                                   \
+    case b:                                                                \
+        return cic_decimate_word(state, in, n_in, out, max_out, b);
+
+JM_FORCEINLINE JM_HOT size_t
+dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
+             size_t n_in, float _Complex *out, size_t max_out)
+{
+    /* One call of the kernel for each width, each with its width as a
+       literal: a width the switch does not name is one no filter has
+       (CIC_WORD_WIDTHS() is every one derive() can give). */
+    switch (state->bits) {
+        CIC_WORD_WIDTHS(CIC_WORD_CASE)
+    default:
+        return 0;
+    }
+}
+#undef CIC_WORD_CASE
 #else
 /* From C++ this is a call into the library's out-of-line copy, which
    cic_core.c emits from the inlined definition above (the `extern` idiom

@@ -42,8 +42,6 @@ _CIC filter state._ [More...](#detailed-description)
 |  uint64\_t | [**comb\_im**](#variable-comb_im)  <br> |
 |  uint64\_t | [**comb\_re**](#variable-comb_re)  <br> |
 |  uint32\_t | [**headroom\_bits**](#variable-headroom_bits)  <br> |
-|  float | [**in\_hi**](#variable-in_hi)  <br> |
-|  float | [**in\_lo**](#variable-in_lo)  <br> |
 |  float | [**in\_scale**](#variable-in_scale)  <br> |
 |  uint64\_t | [**integ\_im**](#variable-integ_im)  <br> |
 |  uint64\_t | [**integ\_re**](#variable-integ_re)  <br> |
@@ -210,40 +208,6 @@ Bits of the input word above unit amplitude; config, set with the precision and 
 
 
 
-### variable in\_hi 
-
-```C++
-float dp_cic_state_t::in_hi;
-```
-
-
-
-The largest sample the word holds, as a float: the float under `2^(bits - 1)`; derived. 
-
-
-        
-
-<hr>
-
-
-
-### variable in\_lo 
-
-```C++
-float dp_cic_state_t::in_lo;
-```
-
-
-
-The smallest, `-2^(bits - 1)`; derived. 
-
-
-        
-
-<hr>
-
-
-
 ### variable in\_scale 
 
 ```C++
@@ -320,7 +284,7 @@ float dp_cic_state_t::out_scale;
 
 
 
-`1 / in_scale`; derived. 
+`1 / in_scale`, the step; derived. 
 
 
         

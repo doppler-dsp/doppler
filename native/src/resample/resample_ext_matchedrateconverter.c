@@ -867,7 +867,9 @@ MatchedRateConverter_setprop_cic_headroom_bits (
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "RateConverter: cic_headroom_bits is 0 to 14",
+                    "RateConverter: cic_headroom_bits is outside what "
+                    "dp_cic_headroom_bits_ok() accepts (0 to "
+                    "CIC_HEADROOM_BITS_MAX)",
                     (long long)_rc);
       return -1;
     }
@@ -1013,15 +1015,16 @@ static PyGetSetDef MatchedRateConverter_getset[] = {
     "2**cic_headroom_bits when the plan has a CIC, and `step` doubles with "
     "each bit. Setting `cic_precision` puts it back to that precision's own. "
     "Setting it resets the converter. Raises ValueError, changing nothing, "
-    "outside 0 to 14.\n"
+    "outside 0 to CIC_HEADROOM_BITS_MAX.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    On assignment, if ``dp_RateConverter_set_cic_headroom_bits``\n"
     "    refuses the value by returning non-zero. The exception message is\n"
-    "    ``RateConverter: cic_headroom_bits is 0 to 14``, with the return\n"
-    "    code appended.\n",
+    "    ``RateConverter: cic_headroom_bits is outside what\n"
+    "    dp_cic_headroom_bits_ok() accepts (0 to CIC_HEADROOM_BITS_MAX)``,\n"
+    "    with the return code appended.\n",
     NULL },
   { "full_scale", (getter)MatchedRateConverter_getprop_full_scale, NULL,
     "The input bound of this plan: a component at or beyond it is clipped. "

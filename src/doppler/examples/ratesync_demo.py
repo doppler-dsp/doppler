@@ -371,8 +371,7 @@ def main(out_path="ratesync_demo.png"):
     # bound).
     if sync.clipped:
         print(
-            "note: CIC clipped on noise crests -- expected at "
-            f"{ES_N0_DB:.0f} dB Es/N0 and {SPS:.2f} samples/symbol; "
+            "note: the CIC clipped on a noise crest past its full scale; "
             "the EVM bound below is the check that matters"
         )
     # The loop found the true rate, which is 200 ppm off the nominal it was

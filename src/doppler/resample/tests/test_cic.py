@@ -226,7 +226,7 @@ class TestSpectralQuality:
 # this, not 1.0 -- see docs/design/cic.md. A pulse-shaped stream peaks well
 # above its symbol amplitude (1.582x for RRC), and budgeting that here is what
 # lets a caller present a signal at its natural level.
-_CIC_HEADROOM = 2.0
+_CIC_HEADROOM = CIC(R=16).full_scale  # the bound as built, 4.0
 
 
 def test_input_beyond_full_scale_is_clipped_silently():
@@ -289,7 +289,7 @@ def test_clipped_survives_state_round_trip():
     # `clipped` is running state, not a side-channel diagnostic: a resumed
     # stream that forgot it had clipped would answer the question wrongly.
     a = CIC(R=16)
-    a.decimate(np.full(256, 3.0, dtype=np.complex64))
+    a.decimate(np.full(256, 1.5 * a.full_scale, dtype=np.complex64))
     assert a.clipped is True
     b = CIC(R=16)
     assert b.clipped is False
@@ -318,3 +318,86 @@ def test_state_carries_r_from_reconfigure():
     assert dst.R == 64
     assert dst.shift == src.shift
     np.testing.assert_array_equal(dst.decimate(x[333:]), want)
+
+
+# ------------------------------------------------------------------ #
+# The input word: precision, headroom, step                            #
+# ------------------------------------------------------------------ #
+
+
+def test_a_cic_is_built_with_the_widest_word():
+    # 64: all the register has left after the pipeline's 4*log2(R) bits of
+    # gain, at full scale 4.0. The C test (test_the_word) holds the word's
+    # arithmetic; this is the binding.
+    c = CIC(R=64)
+    assert (c.precision, c.bits, c.headroom_bits) == (64, 40, 2)
+    assert c.full_scale == 4.0
+    assert c.step == 4.0 / 2**39
+    c.precision = 32
+    assert (c.bits, c.full_scale, c.step) == (32, 4.0, 4.0 / 2**31)
+    c.precision = 16  # the filter as it was: a 16-bit word at 2.0
+    assert (c.bits, c.headroom_bits, c.full_scale) == (16, 1, 2.0)
+    assert c.step == 2.0 / 2**15
+    # past R = 256 the register has under 32 bits left
+    assert CIC(R=1024).bits == 24
+
+
+def test_headroom_trades_range_for_step():
+    c = CIC(R=64)
+    step = c.step
+    c.headroom_bits = 4
+    assert c.full_scale == 16.0 and c.step == 4 * step
+    c.decimate(np.full(256, 10.0, dtype=np.complex64))
+    assert c.clipped is False  # 10 of 16
+    c.precision = 64  # a precision puts its own headroom back
+    assert c.headroom_bits == 2 and c.full_scale == 4.0
+    c.decimate(np.full(256, 10.0, dtype=np.complex64))
+    assert c.clipped is True  # 10 of 4
+
+
+@pytest.mark.parametrize("bad", [0, 8, 24, 33, 128])
+def test_a_precision_no_filter_has_is_refused(bad):
+    c = CIC(R=16)
+    with pytest.raises(ValueError, match="precision is 16, 32 or 64"):
+        c.precision = bad
+    assert c.precision == 64
+    with pytest.raises(ValueError, match="headroom_bits is 0 to 14"):
+        c.headroom_bits = 15
+    assert c.headroom_bits == 2
+
+
+def test_the_step_is_the_floor():
+    # A tone a sixth of a 16-bit step in amplitude: the 16-bit word reads
+    # it as silence, and the default word passes it at its own amplitude.
+    amp = 1e-5
+    x = (amp * np.exp(2j * np.pi * np.arange(16 * 400) / (512 * 16))).astype(
+        np.complex64
+    )
+    wide, narrow = CIC(R=16), CIC(R=16)
+    narrow.precision = 16
+    assert amp < narrow.step < 10 * amp
+    y16 = np.array(narrow.decimate(x))[8:]
+    y64 = np.array(wide.decimate(x))[8:]
+    assert np.all(y16 == 0)
+    assert np.max(np.abs(np.abs(y64) - amp)) < 1e-3 * amp
+
+
+def test_settings_reset_the_filter_and_travel_in_the_blob():
+    a = CIC(R=16)
+    a.decimate(np.full(64, 100.0, dtype=np.complex64))
+    assert a.clipped is True
+    a.precision = 32  # a new word: the registers hold the old one's samples
+    assert a.clipped is False
+    a.headroom_bits = 5
+    x = (
+        np.random.default_rng(4).standard_normal(320)
+        + 1j * np.random.default_rng(5).standard_normal(320)
+    ).astype(np.complex64)
+    a.decimate(x[:173])
+    b = CIC(R=16)  # built with nothing set
+    b.set_state(a.get_state())
+    assert (b.precision, b.headroom_bits, b.full_scale) == (32, 5, 32.0)
+    assert (
+        np.array(a.decimate(x[173:])).tobytes()
+        == np.array(b.decimate(x[173:])).tobytes()
+    )

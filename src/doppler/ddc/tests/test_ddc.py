@@ -219,8 +219,8 @@ def _rrc_bpsk(
     -- wrong by the full tap value at four points of every pulse.
 
     Amplitude 0.25 is inherited and is NOT the object's contract: the CIC's
-    input bound is 2.0 (``CIC_PAPR_HEADROOM`` reserves the 6 dB an RRC's
-    1.582 peak needs), and the C twin of this suite hard-codes the same
+    input bound is 4.0 as built (an RRC's peak is 1.582), and the C twin
+    of this suite hard-codes the same
     0.25, so the two paths agree with each other and with nothing else.
     This suite measures matched-filter EVM open loop, where amplitude costs
     only quantisation SNR rather than loop gain, so it is left alone here
@@ -379,7 +379,8 @@ def test_carrier_loop_pulls_in_through_the_freq_port():
 def test_clipped_forwards_from_the_cascade():
     """The CIC's silent input bound survives the composition: a DDC that
     plans a CIC inherits it, and nothing in the samples says so."""
-    x = (2.0 * np.cos(0.11 * np.arange(1024))).astype(np.complex64)
+    # twice the CIC's full scale as built (4.0)
+    x = (8.0 * np.cos(0.11 * np.arange(1024))).astype(np.complex64)
 
     d = MatchedDDC(0.0, 2 / 64, pulse="rrc")  # plans CIC(32)
     assert d.clipped is False

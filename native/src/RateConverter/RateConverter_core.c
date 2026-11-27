@@ -753,6 +753,10 @@ rc_build_stages (dp_RateConverter_state_t *s, const rc_plan_entry_t *plan,
                 free (cs);
                 goto fail;
               }
+            /* the word this converter gives its CIC stages; both were
+               checked when they were set */
+            (void)dp_cic_set_precision (cs->cic, s->cic_precision);
+            (void)dp_cic_set_headroom_bits (cs->cic, s->cic_headroom_bits);
             if (plan[i].compensate)
               {
                 /* 7-tap CIC droop compensator at the decimated rate. */
@@ -899,9 +903,11 @@ dp_RateConverter_create (double rate, int compensate)
 
   /* NOT the calloc default: RC_PULSE_NONE is 2 so that 0/1 line up with the
      receiver's IANDD/RRC vocabulary. */
-  s->pulse      = RC_PULSE_NONE;
-  s->rate       = rate;
-  s->compensate = compensate;
+  s->pulse             = RC_PULSE_NONE;
+  s->rate              = rate;
+  s->compensate        = compensate;
+  s->cic_precision     = CIC_PRECISION_DEFAULT;
+  s->cic_headroom_bits = CIC_HEADROOM_BITS_WIDE;
 
   rc_plan_entry_t plan[RC_MAX_STAGES];
   int             n = rc_plan (rate, compensate, 0, plan);
@@ -934,13 +940,15 @@ dp_RateConverter_create_matched (double rate, int compensate, int pulse,
   if (!s)
     return NULL;
 
-  s->rate       = rate;
-  s->compensate = compensate;
-  s->pulse      = pulse;
-  s->beta       = beta;
-  s->span       = span;
-  s->pulse_sps  = pulse_sps;
-  s->num_phases = num_phases;
+  s->rate              = rate;
+  s->compensate        = compensate;
+  s->cic_precision     = CIC_PRECISION_DEFAULT;
+  s->cic_headroom_bits = CIC_HEADROOM_BITS_WIDE;
+  s->pulse             = pulse;
+  s->beta              = beta;
+  s->span              = span;
+  s->pulse_sps         = pulse_sps;
+  s->num_phases        = num_phases;
   /* The rectangle is exactly one symbol wide, so its matched filter is a
      boxcar of pulse_sps taps — a 2-3 tap sum below four samples per symbol. */
   s->narrow_pulse = (pulse == RC_PULSE_IANDD && pulse_sps < 4.0);
@@ -1042,6 +1050,84 @@ dp_RateConverter_get_clipped (const dp_RateConverter_state_t *s)
   return 0;
 }
 
+/* The plan's first CIC stage, or NULL: every CIC a plan has is given the
+   same word. */
+static const dp_cic_state_t *
+rc_first_cic (const dp_RateConverter_state_t *s)
+{
+  for (int i = 0; i < s->n_stages; i++)
+    if (s->stage_types[i] == RC_STAGE_CIC)
+      return ((const rc_cic_stage_t *)s->stage_ptrs[i])->cic;
+  return NULL;
+}
+
+/* Give every CIC stage the stored word, and start the converter over: a
+   CIC whose word changed has been reset, and a cascade with one stage
+   reset and the rest not is no stream at all. */
+static void
+rc_apply_cic_word (dp_RateConverter_state_t *s)
+{
+  for (int i = 0; i < s->n_stages; i++)
+    if (s->stage_types[i] == RC_STAGE_CIC)
+      {
+        dp_cic_state_t *c = ((rc_cic_stage_t *)s->stage_ptrs[i])->cic;
+        (void)dp_cic_set_precision (c, s->cic_precision);
+        (void)dp_cic_set_headroom_bits (c, s->cic_headroom_bits);
+      }
+  dp_RateConverter_reset (s);
+}
+
+int
+dp_RateConverter_set_cic_precision (dp_RateConverter_state_t *s,
+                                    uint32_t                  precision)
+{
+  if (!dp_cic_precision_ok (precision))
+    return DP_ERR_INVALID;
+  s->cic_precision     = precision;
+  s->cic_headroom_bits = precision == CIC_PRECISION_16
+                             ? CIC_HEADROOM_BITS_16
+                             : CIC_HEADROOM_BITS_WIDE;
+  rc_apply_cic_word (s);
+  return DP_OK;
+}
+
+uint32_t
+dp_RateConverter_get_cic_precision (const dp_RateConverter_state_t *s)
+{
+  return s->cic_precision;
+}
+
+int
+dp_RateConverter_set_cic_headroom_bits (dp_RateConverter_state_t *s,
+                                        uint32_t                  bits)
+{
+  if (!dp_cic_headroom_bits_ok (bits))
+    return DP_ERR_INVALID;
+  s->cic_headroom_bits = bits;
+  rc_apply_cic_word (s);
+  return DP_OK;
+}
+
+uint32_t
+dp_RateConverter_get_cic_headroom_bits (const dp_RateConverter_state_t *s)
+{
+  return s->cic_headroom_bits;
+}
+
+double
+dp_RateConverter_get_full_scale (const dp_RateConverter_state_t *s)
+{
+  const dp_cic_state_t *c = rc_first_cic (s);
+  return c ? dp_cic_get_full_scale (c) : INFINITY;
+}
+
+double
+dp_RateConverter_get_step (const dp_RateConverter_state_t *s)
+{
+  const dp_cic_state_t *c = rc_first_cic (s);
+  return c ? dp_cic_get_step (c) : 0.0;
+}
+
 void
 dp_RateConverter_destroy (dp_RateConverter_state_t *s)
 {
@@ -1073,11 +1159,15 @@ dp_RateConverter_reset (dp_RateConverter_state_t *s)
    mid-seed, and a round-trip that splits after it cannot see them. */
 #define DP_RC_AGC_SCALARS (sizeof (double) + sizeof (uint32_t))
 
+/* The converter's own words in the blob: cic_precision, cic_headroom_bits. */
+#define RC_OWN_U32S (2u * sizeof (uint32_t))
+
 size_t
 dp_RateConverter_state_bytes (const dp_RateConverter_state_t *s)
 {
-  /* The rate rides ahead of the stages as a reject key (v3). */
-  size_t b = sizeof (dp_state_hdr_t) + sizeof (double);
+  /* The rate rides ahead of the stages as a reject key (v3), then the
+     word the CIC stages are given (v4). */
+  size_t b = sizeof (dp_state_hdr_t) + sizeof (double) + RC_OWN_U32S;
   for (int i = 0; i < s->n_stages; i++)
     b += rc_stage_state_bytes (s->stage_types[i], s->stage_ptrs[i]);
   if (s->agc)
@@ -1092,7 +1182,9 @@ dp_RateConverter_get_state (const dp_RateConverter_state_t *s, void *blob)
   dp_w_hdr (&w, RC_STATE_MAGIC, RC_STATE_VERSION,
             dp_RateConverter_state_bytes (s));
   dp_w_f64 (&w, s->rate);
-  char *p = (char *)blob + sizeof (dp_state_hdr_t) + sizeof (double);
+  dp_w_u32 (&w, s->cic_precision);
+  dp_w_u32 (&w, s->cic_headroom_bits);
+  char *p = (char *)blob + w.off;
   for (int i = 0; i < s->n_stages; i++)
     p = rc_stage_get_state (s->stage_types[i], s->stage_ptrs[i], p);
   if (s->agc)
@@ -1116,8 +1208,12 @@ dp_RateConverter_set_state (dp_RateConverter_state_t *s, const void *blob)
           sizeof blob_rate);
   if (blob_rate != s->rate)
     return DP_ERR_INVALID;
-  const char *p
-      = (const char *)blob + sizeof (dp_state_hdr_t) + sizeof (double);
+  dp_reader_t r = dp_reader_init (blob, dp_RateConverter_state_bytes (s));
+  r.off         = sizeof (dp_state_hdr_t) + sizeof (double);
+  const uint32_t precision = dp_r_u32 (&r), headroom = dp_r_u32 (&r);
+  if (!dp_cic_precision_ok (precision) || !dp_cic_headroom_bits_ok (headroom))
+    return DP_ERR_INVALID;
+  const char *p = (const char *)blob + r.off;
   for (int i = 0; i < s->n_stages; i++)
     {
       rc = rc_stage_set_state (s->stage_types[i], s->stage_ptrs[i], &p);
@@ -1125,7 +1221,15 @@ dp_RateConverter_set_state (dp_RateConverter_state_t *s, const void *blob)
         return rc;
     }
   if (s->agc)
-    return dp_agc_set_state (s->agc, p);
+    {
+      rc = dp_agc_set_state (s->agc, p);
+      if (rc != DP_OK)
+        return rc;
+    }
+  /* each CIC stage took its word from its own sub-blob; this is the copy
+     a re-plan builds from */
+  s->cic_precision     = precision;
+  s->cic_headroom_bits = headroom;
   return DP_OK;
 }
 

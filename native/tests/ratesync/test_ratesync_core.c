@@ -46,7 +46,7 @@
  * supply: a unit-amplitude symbol stream drives the loop at exactly the
  * bandwidth `bn` names, and anything smaller under-drives it by A^2. The
  * stream peaks at 1.582x its symbol amplitude — a pulse property — which the
- * CIC's input encoding budgets for explicitly (CIC_PAPR_HEADROOM), so this
+ * CIC's input word budgets for explicitly (its headroom), so this
  * does not have to be backed off to avoid clipping the way it used to.
  * `clipped == 0` is asserted below and is the live check on that. */
 static dp_tx_cfg_t

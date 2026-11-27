@@ -1,22 +1,35 @@
 /**
  * @file cic_core.h
- * @brief CIC decimation filter — 4-stage, M=1, 16-bit integer pipeline.
+ * @brief CIC decimation filter — CIC_N stages, one-sample combs, an integer
+ *        pipeline in CIC_REG_BITS-bit registers.
  *
- * **INPUT AMPLITUDE IS BOUNDED: |Re| and |Im| <= 2.0.** A component beyond
- * that is CLIPPED at the boundary, before any filtering happens.  Unlike the
- * library's floating-point blocks this one is not scale-free — it is the one
- * place where turning the input gain up changes the answer — and the clip is
- * silent in the sample stream: no error, no NaN, just a degraded output that
- * looks plausible.  Measured cost: an RRC-BPSK waveform driven into the clip
- * matched-filters to -25 dB EVM where the same waveform well inside it
- * reaches -50 dB.
+ * **INPUT AMPLITUDE IS BOUNDED** by the filter's full scale,
+ * dp_cic_get_full_scale(): CIC_PAPR_WIDE times unit amplitude as built. A
+ * component at or beyond it is CLIPPED at the boundary, before any
+ * filtering happens.  Unlike the library's floating-point blocks this one is
+ * not scale-free — it is the one place where turning the input gain up
+ * changes the answer — and the clip is silent in the sample stream: no
+ * error, no NaN, just a degraded output that looks plausible.
  *
- * The bound is `CIC_PAPR_HEADROOM` (2.0, i.e. 6 dB) and not 1.0 because that
- * headroom is exactly what it buys: the encode scale is
- * `32768 / CIC_PAPR_HEADROOM`, so full scale sits 6 dB above unity amplitude
- * and a signal whose PEAKS exceed its unit average — every pulse-shaped
- * waveform — has somewhere to put them.  Budgeting the DC gain alone left
- * the peaks clipping against a bound the average never approached.
+ * The input is an integer word with two ends, and a filter's **precision**
+ * (dp_cic_set_precision()) names the word:
+ *
+ * | precision                    | word                                  | full scale, as built |
+ * | ---------------------------- | ------------------------------------- | -------------------- |
+ * | CIC_PRECISION_16             | CIC_PRECISION_16 bits                 | CIC_PAPR_16          |
+ * | CIC_PRECISION_32             | CIC_PRECISION_32 bits, or what fits   | CIC_PAPR_WIDE        |
+ * | CIC_PRECISION_64 (as built)  | all the register has left             | CIC_PAPR_WIDE        |
+ *
+ * - **The top is the headroom.** Full scale is a power of two above unit
+ *   amplitude (dp_cic_set_headroom_bits()), because a signal's peaks are
+ *   above its average: by 4 dB for a root-raised-cosine symbol stream and
+ *   by 10 to 12 dB for a multi-carrier one.
+ * - **The bottom is the step,** dp_cic_get_step(): a component smaller than
+ *   one step reads zero. The register holds the word and the pipeline's
+ *   gain of `CIC_N * log2(R)` bits, so the widest word is `CIC_REG_BITS -
+ *   CIC_N * log2(R)` bits; a precision that asks for more gets that. What
+ *   the headroom does not take is precision, so each bit of headroom
+ *   doubles the step.
  *
  * **So check @c clipped** — a sticky flag raised by any saturating component
  * and cleared by dp_cic_reset(), following the same convention as the
@@ -26,53 +39,51 @@
  * checking it at least once against real input.
  *
  * (Why the input is bounded at all: the pipeline is integer, so the CF32
- * boundary is quantized.  That is an implementation detail — the input
- * constraint above is the whole of what a caller needs.  See
- * `docs/design/QUANTIZATION.md` for the encoding and the headroom budget.)
+ * boundary is quantized.  `docs/design/cic.md` is the budget.)
  *
  * Fixed design parameters:
- *   N = 4 stages  (~77 dB alias rejection at f_p = 0.1 * f_out)
- *   M = 1         (differential delay — one-sample comb)
- *   R = power-of-two decimation ratio (enforced at create time)
+ *   CIC_N stages   (~19.2 dB of alias rejection a stage at f_p = 0.1 * f_out)
+ *   one-sample combs (differential delay 1)
+ *   R = power-of-two decimation ratio, up to CIC_R_MAX (enforced at create)
  *
  * Input/output boundary: CF32 (`float _Complex`), matching the doppler
- * default signal type.  Internally, each sample is a 16-bit Q15 value held
- * in a uint64_t modulo 2^64, giving 48 bits of headroom for the pipeline
- * gain of N * log2(R) bits.  At the cap `CIC_R_MAX` (2048, log2 = 11) the
- * gain is 44 bits; the largest sum the output decode forms is
- * 65535 * R^N = (2^16 - 1) * 2^44, which is 16x inside 2^64.  R = 4096 also
- * fits, but to within one part in 65536 — see CIC_R_MAX for why the cap is
- * a halving below it.
+ * default signal type.  Internally each sample is a signed integer, the
+ * word above, held in a register modulo 2^CIC_REG_BITS.  The pipeline's
+ * gain is `CIC_N * log2(R)` bits, and the largest sum the output decode
+ * forms is `(2^word - 1) * R^CIC_N`, which is under 2^CIC_REG_BITS for
+ * every word a precision gives.  At CIC_PRECISION_64 the word and the gain
+ * are the register exactly: nothing is left over, and nothing needs to be,
+ * since the pipeline is exact while the true result fits, and it does.
  *
  * **Every register is unsigned**, because the pipeline depends on its
- * registers wrapping and in C only an unsigned type promises that: a
- * signed one that overflows is undefined. The sample goes in as its value
- * modulo 2^64 (offset binary, then the offset off again, both unsigned),
- * and comes out by adding the offset back at the pipeline's gain before
- * the normalising shift, so what is shifted is never negative. The offset
- * is carried around the pipeline and not through it, which is why a filter
- * that has only seen silence holds zeros and gives zeros: its first
- * outputs after create or reset are the filter filling with the input,
- * and nothing else.
+ * registers wrapping and in C only an unsigned type promises that (C99
+ * 6.2.5p9): a signed one that overflows is undefined. The sample goes in as
+ * its value modulo 2^CIC_REG_BITS (offset binary, then the offset off again, both
+ * unsigned), and comes out by adding the offset back at the pipeline's gain
+ * before the normalising shift, so what is shifted is never negative. The
+ * offset is carried around the pipeline and not through it, which is why a
+ * filter that has only seen silence holds zeros and gives zeros: its first
+ * outputs after create or reset are the filter filling with the input, and
+ * nothing else.
  *
  * The unsigned modular-arithmetic CIC property guarantees exact outputs:
  * every intermediate overflow in the integrators cancels in the comb
- * stages, provided the true result fits in 64 bits.  So the integrator/comb
+ * stages, provided the true result fits in the register.  So the integrator/comb
  * pipeline itself needs no saturation, no range checks and no
  * floating-point — the one saturation in the block is at the CF32 encoder,
- * and it is the +-2.0 input bound described at the top of this file, not an
+ * and it is the input bound described at the top of this file, not an
  * arithmetic guard. A NaN component is taken as over the bound: it reads as
  * the top of the range and raises @c clipped.
  *
- * With M=1 and N fixed, the entire comb state is four uint64_t values
- * per channel — no heap allocation beyond the state struct itself.
+ * With one-sample combs and CIC_N fixed, the entire comb state is CIC_N
+ * registers per channel — no heap allocation beyond the state struct itself.
  *
- * Alias rejection : ~77 dB at f_p = 0.1 * f_out (independent of R)
+ * Alias rejection : ~77 dB at f_p = 0.1 * f_out, CIC_N stages (independent of R)
  * Passband droop  : ~0.57 dB at f_p = 0.1 * f_out (independent of R)
- * Output precision: 16-bit Q15 (independent of R and N)
+ * Output precision: the input word's (dp_cic_get_bits())
  *
  * @code
- * dp_cic_state_t *cic = dp_cic_create(16);   // R=16, N=4, M=1
+ * dp_cic_state_t *cic = dp_cic_create(16);   // R = 16
  * float _Complex  in[1024] = { 0 }, out[64];
  * size_t n_out = dp_cic_decimate(cic, in, 1024, out, 64);   // 64
  * dp_cic_destroy(cic);
@@ -92,26 +103,52 @@ extern "C" {
 /** Fixed stage count.  Alias rejection ~19.2 dB/stage at f_p=0.1. */
 #define CIC_N 4
 
-/** The offset-binary midpoint of the 16-bit sample: what makes a Q15 value
- *  non-negative. It is taken off again before the pipeline and put back,
- *  at the pipeline's gain, after it (dp_cic_decimate()). */
-#define CIC_OFFSET ((uint64_t)32768)
+/** Bits in a pipeline register: the input word and the pipeline's gain of
+ *  `CIC_N * log2(R)` bits both come out of these. */
+#define CIC_REG_BITS 64u
+
+/** @name Precisions: the input word a filter is built for.
+ *  @{ */
+/** A 16-bit word at every ratio. With CIC_PAPR_16 it is the filter this
+ *  one was before it had a precision, output for output. */
+#define CIC_PRECISION_16 16u
+/** A 32-bit word, or the widest the register has left when the ratio's
+ *  gain leaves less than that (past R = 256). */
+#define CIC_PRECISION_32 32u
+/** The widest word the register has left: `CIC_REG_BITS - CIC_N *
+ *  log2(R)` bits. What dp_cic_create() builds. */
+#define CIC_PRECISION_64 64u
+/** The precision dp_cic_create() builds. */
+#define CIC_PRECISION_DEFAULT CIC_PRECISION_64
+/** @} */
+
+/** @name Headroom: full scale over unit amplitude, a power of two.
+ *  @{ */
+/** Bits of headroom CIC_PRECISION_16 starts with: full scale CIC_PAPR_16. */
+#define CIC_HEADROOM_BITS_16 1u
+/** Bits of headroom CIC_PRECISION_32 and CIC_PRECISION_64 start with:
+ *  full scale CIC_PAPR_WIDE, 12 dB, a multi-carrier signal's peaks. */
+#define CIC_HEADROOM_BITS_WIDE 2u
+/** Full scale at CIC_HEADROOM_BITS_16, as a voltage ratio. */
+#define CIC_PAPR_16 ((float)(1u << CIC_HEADROOM_BITS_16))
+/** Full scale at CIC_HEADROOM_BITS_WIDE, as a voltage ratio. */
+#define CIC_PAPR_WIDE ((float)(1u << CIC_HEADROOM_BITS_WIDE))
+/** A word keeps its sign and at least this many bits under unity. */
+#define CIC_FRACTION_BITS_MIN 1u
+/** The most headroom any word takes: the narrowest word, CIC_PRECISION_16
+ *  bits, less its sign and CIC_FRACTION_BITS_MIN. */
+#define CIC_HEADROOM_BITS_MAX (CIC_PRECISION_16 - 1u - CIC_FRACTION_BITS_MIN)
+/** @} */
 
 /**
  * @brief Largest decimation ratio a CIC will be built at.
  *
- * The 64-bit accumulator holds `65535 * R^CIC_N`. At R = 4096 that is
- * `(2^16 - 1) * 2^48 = 2^64 - 2^48` — it fits, and fills the accumulator to
- * **within one part in 65536**. "Fits exactly" is not headroom: it is the
- * value at which any further term overflows, and the CIC's exactness argument
- * (every intermediate overflow cancels in the combs) holds only while the
- * TRUE result fits in 64 bits.
- *
- * 2048 gives `2^60 - 2^44` — **16x margin** — for one halving of the largest
- * single-stage ratio. Nothing in the tree asked for more: the planner is the
- * only thing that can reach the cap, and past it it already hands the residual
- * to the resampler stage, so a lower cap costs a slightly larger residual and
- * nothing else.
+ * The register is CIC_REG_BITS bits and the pipeline's gain takes `CIC_N *
+ * log2(R)` of them. At the cap that leaves a word of CIC_REG_BITS -
+ * CIC_N * log2(CIC_R_MAX) bits, still wider than CIC_PRECISION_16; one
+ * doubling further it would be CIC_PRECISION_16 exactly, with nothing for
+ * the wider precisions to add. Past the cap the planner hands the residual
+ * to the resampler stage.
  */
 #define CIC_R_MAX 2048u
 
@@ -123,7 +160,7 @@ extern "C" {
  */
 typedef struct {
     uint64_t integ_re[CIC_N]; /**< Integrator accumulators, real path
-                                   (the Q15 sample, wrapping mod 2^64);
+                                   (the sample, wrapping mod 2^64);
                                    running state. */
     uint64_t integ_im[CIC_N]; /**< Integrator accumulators, imag path;
                                    running state. */
@@ -138,26 +175,48 @@ typedef struct {
                                    0..R-1; running state. */
     uint32_t shift;           /**< Normalizing right-shift in bits,
                                    `CIC_N * log2(R)`; derived from R. */
+    uint32_t precision;       /**< CIC_PRECISION_16, _32 or _64; config,
+                                   set by create (CIC_PRECISION_DEFAULT)
+                                   and dp_cic_set_precision(). */
+    uint32_t headroom_bits;   /**< Bits of the input word above unit
+                                   amplitude; config, set with the
+                                   precision and by
+                                   dp_cic_set_headroom_bits(). */
+    uint32_t bits;            /**< The input word's width, sign included:
+                                   the precision, or `CIC_REG_BITS - shift`
+                                   when that is less; derived. */
+    uint64_t offset;          /**< The word's offset-binary midpoint,
+                                   `2^(bits - 1)`; derived. */
+    float    in_scale;        /**< Unit amplitude as an integer,
+                                   `2^(bits - 1 - headroom_bits)`; derived. */
+    float    in_hi;           /**< The largest sample the word holds, as a
+                                   float: the float under `2^(bits - 1)`;
+                                   derived. */
+    float    in_lo;           /**< The smallest, `-2^(bits - 1)`; derived. */
+    float    out_scale;       /**< `1 / in_scale`; derived. */
     uint8_t  clipped;         /**< Sticky: 1 once an input component
-                                   exceeded +-2.0 (CIC_PAPR_HEADROOM);
+                                   reached the bound
+                                   (dp_cic_get_full_scale());
                                    cleared by reset/reconfigure, and
                                    overwritten by set_state(). */
 } dp_cic_state_t;
 
 /**
- * @brief Create a 4-stage, M=1 CIC decimation filter.
+ * @brief Create a CIC decimation filter of CIC_N stages.
  * Allocates the state struct on the heap and pre-computes the
  * normalisation right-shift (CIC_N * log2(R) bits). All integrator
  * and comb accumulators are zeroed; the first output arrives after
  * R input samples. Returns NULL for invalid R or OOM.
- * Input amplitude is bounded: |Re| and |Im| <= 2.0. A component beyond
- * +-2.0 is clipped at the boundary before any filtering; the sample
+ * The filter is built at CIC_PRECISION_DEFAULT with that precision's
+ * headroom, so its input is bounded at CIC_PAPR_WIDE
+ * (dp_cic_set_precision(), dp_cic_set_headroom_bits()). A component at or
+ * beyond it is clipped at the boundary before any filtering; the sample
  * stream gives no sign of it, so check the sticky @c clipped flag.
  * Unlike doppler's floating-point blocks this one is not scale-free --
  * scale the input into range first.
  *
- * @param R  Decimation ratio.  Must be a power of two in `[2, 2048]`
- *           (`CIC_R_MAX`).  Returns NULL for R=0, non-power-of-two, or a
+ * @param R  Decimation ratio.  Must be a power of two from 2 to
+ *           CIC_R_MAX.  Returns NULL for R=0, non-power-of-two, or a
  *           ratio above that cap.
  * @return   Heap-allocated state, or NULL on invalid R or OOM.
  *
@@ -196,45 +255,134 @@ void dp_cic_destroy(dp_cic_state_t *state);
 void dp_cic_reset(dp_cic_state_t *state);
 
 /* Serializable state (reusable elastic-resume convention): the decimation
- * rate R, the integrator and comb accumulators, the decimation phase counter
- * and the sticky clip flag.  R travels because dp_cic_reconfigure() changes
- * it (#2022's rule, doppler#2642); shift is derived from it on restore, so
- * the two cannot disagree.  `clipped` is
+ * rate R, the precision and the headroom, the integrator and comb
+ * accumulators, the decimation phase counter and the sticky clip flag.  R,
+ * the precision and the headroom travel because dp_cic_reconfigure(),
+ * dp_cic_set_precision() and dp_cic_set_headroom_bits() change
+ * them (#2022's rule, doppler#2642); the shift, the word and its scales are
+ * derived from the three on restore, so they cannot disagree.  `clipped` is
  * running state, not a diagnostic bolted on the side: a resumed stream that
  * silently forgot it had clipped would answer the question wrongly. */
 
 /* Standard bytes interface (see dp_state.h): [dp_state_hdr_t][u32 R]
- * [integ_re/im, comb_re/im (CIC_N u64 each)][u32 phase][u8 clipped]. */
+ * [u32 precision][u32 headroom_bits][integ_re/im, comb_re/im (CIC_N u64
+ * each)][u32 phase][u8 clipped]. */
 /** FourCC type tag ("CIC_") stamped in a CIC state blob's header. */
 #define CIC_STATE_MAGIC DP_FOURCC ('C', 'I', 'C', '_')
 /** Layout version of the CIC state blob (2 added @c clipped, 3 added R; 4:
- *  the registers hold the sample without its offset). */
-#define CIC_STATE_VERSION 4u
+ *  the registers hold the sample without its offset; 5: the precision and
+ *  the headroom travel, and the word is theirs). */
+#define CIC_STATE_VERSION 5u
 
 /**
- * @brief Peak-to-average headroom the input encoding reserves, as a voltage
- *        ratio (2.0 = 6 dB).
- *
- * A fixed-point CIC has TWO input-budget terms, and only one of them is the
- * accumulator's. The **DC gain** `R^N` is budgeted there — 16-bit input plus
- * 48 bits of pipeline gain would fill the 64-bit accumulator exactly at
- * R = 4096, which is why CIC_R_MAX sits a halving below it.
- * The **PAPR** is budgeted here, at the encoder, because a signal's peak is
- * not its symbol amplitude: a root-raised-cosine symbol stream peaks at
- * **1.582x** its symbol amplitude (measured, and a pulse property — identical
- * at every samples-per-symbol).
- *
- * Encoding at full scale therefore clipped any signal presented at its
- * natural amplitude, and the caller had to back off by the PAPR — 4 dB that
- * nothing downstream restored, leaving a timing loop under-driven by the
- * square of it, 2.5x. Reserving the headroom here instead lets a unit-
- * amplitude signal through unclipped and costs 2 dB of quantisation SNR
- * against a caller who backs off perfectly, which no caller did.
- *
- * This changes only the encode/decode scale PAIR, never the normalising
- * shift, so the DC gain stays exactly one — see dp_cic_dc_gain().
+ * @brief Is this a precision: CIC_PRECISION_16, CIC_PRECISION_32 or
+ *        CIC_PRECISION_64.
+ * @param precision  The candidate.
+ * @return 1 for one of the three, 0 otherwise.
  */
-#define CIC_PAPR_HEADROOM 2.0f
+int dp_cic_precision_ok(uint32_t precision);
+
+/**
+ * @brief Is this a headroom a CIC takes: 0 to CIC_HEADROOM_BITS_MAX bits.
+ *
+ * The ONE predicate: dp_cic_set_headroom_bits() and dp_cic_set_state()
+ * refuse outside it, and a composition that takes the figure from a caller
+ * checks it first.
+ *
+ * @param bits  Bits of the input word above unit amplitude.
+ * @return 1 inside the domain, 0 outside it.
+ */
+int dp_cic_headroom_bits_ok(uint32_t bits);
+
+/**
+ * @brief Choose the input word, with that word's headroom, and reset the
+ *        filter.
+ *
+ * CIC_PRECISION_16 is a 16-bit word with full scale CIC_PAPR_16: the filter
+ * as it was before it had a precision, output for output.
+ * CIC_PRECISION_32 is a 32-bit word and CIC_PRECISION_64 the widest the
+ * register has left, both with full scale CIC_PAPR_WIDE; where the ratio's
+ * gain leaves less than 32 bits the two are the same word
+ * (dp_cic_get_bits()). The headroom is then dp_cic_set_headroom_bits()'s to
+ * change.
+ *
+ * The registers hold samples at the old scale, so the filter is reset, as
+ * dp_cic_reconfigure() resets it. A @p precision that is not one of the
+ * three is refused and nothing changes.
+ *
+ * @param state      Pointer to a valid dp_cic_state_t.
+ * @param precision  CIC_PRECISION_16, CIC_PRECISION_32 or CIC_PRECISION_64.
+ * @return DP_OK, or DP_ERR_INVALID with nothing changed.
+ *
+ * @code
+ * >>> from doppler.resample import CIC
+ * >>> cic = CIC(R=64)
+ * >>> cic.precision, cic.bits, cic.full_scale, cic.step
+ * (64, 40, 4.0, 7.275957614183426e-12)
+ * >>> cic.precision = 32
+ * >>> cic.bits, cic.full_scale, cic.step
+ * (32, 4.0, 1.862645149230957e-09)
+ * >>> cic.precision = 16
+ * >>> cic.bits, cic.full_scale, cic.step
+ * (16, 2.0, 6.103515625e-05)
+ * @endcode
+ */
+int dp_cic_set_precision(dp_cic_state_t *state, uint32_t precision);
+
+/** @brief The precision in use.
+ *  @param state  Pointer to a valid dp_cic_state_t.
+ *  @return CIC_PRECISION_16, CIC_PRECISION_32 or CIC_PRECISION_64. */
+uint32_t dp_cic_get_precision(const dp_cic_state_t *state);
+
+/** @brief The input word's width in bits, sign included.
+ *  @param state  Pointer to a valid dp_cic_state_t.
+ *  @return The precision, or `CIC_REG_BITS - CIC_N * log2(R)` when the
+ *          register has less than that left. */
+uint32_t dp_cic_get_bits(const dp_cic_state_t *state);
+
+/**
+ * @brief Set how much of the input word is headroom, and reset the filter.
+ *
+ * @p bits of the word sit above unit amplitude, so full scale is `2^bits`
+ * (dp_cic_get_full_scale()), and the rest is precision, so the step is
+ * `2^bits / 2^(word - 1)` (dp_cic_get_step()): every bit of headroom is
+ * 6 dB more room for peaks and 6 dB more of step. dp_cic_set_precision()
+ * puts it back to the precision's own.
+ *
+ * The registers hold samples at the old scale, so the filter is reset. A
+ * @p bits outside dp_cic_headroom_bits_ok() is refused and nothing changes.
+ *
+ * @param state  Pointer to a valid dp_cic_state_t.
+ * @param bits   Bits of headroom, 0 to CIC_HEADROOM_BITS_MAX.
+ * @return DP_OK, or DP_ERR_INVALID with nothing changed.
+ *
+ * @code
+ * >>> from doppler.resample import CIC
+ * >>> cic = CIC(R=64)
+ * >>> cic.headroom_bits, cic.full_scale
+ * (2, 4.0)
+ * >>> cic.headroom_bits = 4       # 24 dB
+ * >>> cic.full_scale, cic.step
+ * (16.0, 2.9103830456733704e-11)
+ * @endcode
+ */
+int dp_cic_set_headroom_bits(dp_cic_state_t *state, uint32_t bits);
+
+/** @brief The headroom in use, in bits.
+ *  @param state  Pointer to a valid dp_cic_state_t.
+ *  @return Bits of the input word above unit amplitude. */
+uint32_t dp_cic_get_headroom_bits(const dp_cic_state_t *state);
+
+/** @brief The input bound: a component at or beyond it is clipped.
+ *  @param state  Pointer to a valid dp_cic_state_t.
+ *  @return `2^headroom_bits`, as a voltage ratio over unit amplitude. */
+double dp_cic_get_full_scale(const dp_cic_state_t *state);
+
+/** @brief The input's step: a component smaller than this reads zero, and
+ *         the output is a whole number of them.
+ *  @param state  Pointer to a valid dp_cic_state_t.
+ *  @return `full_scale / 2^(bits - 1)`, in the input's units. */
+double dp_cic_get_step(const dp_cic_state_t *state);
 
 /**
  * @brief Bytes dp_cic_get_state() writes (envelope + payload).
@@ -327,7 +475,7 @@ double dp_cic_get_group_delay(const dp_cic_state_t *state);
  * @brief Decimate a block of CF32 samples through the CIC pipeline.
  * Each sample is converted to 16-bit Q15, pushed through CIC_N
  * integrators (unsigned wrapping), and when the phase counter reaches R
- * the integrated value is passed through CIC_N M=1 comb stages and
+ * the integrated value is passed through CIC_N one-sample combs and
  * converted back to CF32.  State persists between calls. A fresh or reset
  * filter starts from silence: its first CIC_N - 1 outputs are the filter
  * filling with the input, and silence in gives exact zeros out from the
@@ -371,57 +519,56 @@ JM_FORCEINLINE JM_HOT size_t
 dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
              size_t n_in, float _Complex *out, size_t max_out)
 {
-    const uint32_t R     = state->R;
-    const uint32_t shift = state->shift;
+    const uint32_t R      = state->R;
+    const uint32_t shift  = state->shift;
+    const float    scale  = state->in_scale;
+    const float    hi     = state->in_hi;
+    const float    lo     = state->in_lo;
+    const uint64_t offset = state->offset;
     size_t n_out = 0;
     int    clip  = 0;   /* accumulated in a register; folded in once below */
 
     for (size_t i = 0; i < n_in; i++) {
-        /* CF32 → Q15, saturated. The four comparisons run regardless, so
-           noting that one fired costs a register OR — which is the whole
+        /* CF32 → the word, saturated. The four comparisons run regardless,
+           so noting that one fired costs a register OR — which is the whole
            reason `clipped` exists rather than a line of documentation
-           asking callers to be careful. The upper one is written as
-           "not at or under", so a NaN, which fails every comparison, lands
-           on the top of the range and is counted as a clip: the conversion
-           to an integer below is never handed a value it cannot hold. */
-        float sr = crealf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
-        float si = cimagf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
-        if (!(sr <=  32767.0f)) { sr =  32767.0f; clip = 1; }
-        if (sr < -32768.0f)     { sr = -32768.0f; clip = 1; }
-        if (!(si <=  32767.0f)) { si =  32767.0f; clip = 1; }
-        if (si < -32768.0f)     { si = -32768.0f; clip = 1; }
+           asking callers to be careful. The upper one is written as "not
+           at or under", so a NaN, which fails every comparison, lands on
+           the top of the range and is counted as a clip: the conversion to
+           an integer below is never handed a value it cannot hold. */
+        float sr = crealf(in[i]) * scale;
+        float si = cimagf(in[i]) * scale;
+        if (!(sr <= hi)) { sr = hi; clip = 1; }
+        if (sr < lo)     { sr = lo; clip = 1; }
+        if (!(si <= hi)) { si = hi; clip = 1; }
+        if (si < lo)     { si = lo; clip = 1; }
         /* Into the unsigned registers as the value itself, modulo 2^64:
-           through offset binary, which is never negative, and the offset
+           through offset binary, which is never negative (the word is
+           under CIC_REG_BITS - 1 bits, so the sum cannot leave an int64),
+           and the offset
            straight back off in unsigned arithmetic. No register here is
            signed. A zero sample is a zero word, so a filter that has only
            seen silence holds zeros. */
-        uint64_t re = (uint64_t)((int32_t)(int16_t)sr + 32768) - CIC_OFFSET;
-        uint64_t im = (uint64_t)((int32_t)(int16_t)si + 32768) - CIC_OFFSET;
+        uint64_t re = (uint64_t)((int64_t)sr + (int64_t)offset) - offset;
+        uint64_t im = (uint64_t)((int64_t)si + (int64_t)offset) - offset;
 
-        /* 4 integrators — unsigned wrap-around is intentional. */
-        re = state->integ_re[0] += re;
-        re = state->integ_re[1] += re;
-        re = state->integ_re[2] += re;
-        re = state->integ_re[3] += re;
-        im = state->integ_im[0] += im;
-        im = state->integ_im[1] += im;
-        im = state->integ_im[2] += im;
-        im = state->integ_im[3] += im;
+        /* CIC_N integrators — unsigned wrap-around is intentional. The
+           count is a constant, so the loops below unroll. */
+        for (int k = 0; k < CIC_N; k++) {
+            re = state->integ_re[k] += re;
+            im = state->integ_im[k] += im;
+        }
 
         if (++state->phase < R)
             continue;
         state->phase = 0;
 
-        /* 4 comb stages — M=1: y = x - prev; prev = x. */
-        uint64_t t;
-        t = state->comb_re[0]; state->comb_re[0] = re; re -= t;
-        t = state->comb_re[1]; state->comb_re[1] = re; re -= t;
-        t = state->comb_re[2]; state->comb_re[2] = re; re -= t;
-        t = state->comb_re[3]; state->comb_re[3] = re; re -= t;
-        t = state->comb_im[0]; state->comb_im[0] = im; im -= t;
-        t = state->comb_im[1]; state->comb_im[1] = im; im -= t;
-        t = state->comb_im[2]; state->comb_im[2] = im; im -= t;
-        t = state->comb_im[3]; state->comb_im[3] = im; im -= t;
+        /* CIC_N one-sample combs: y = x - prev; prev = x. */
+        for (int k = 0; k < CIC_N; k++) {
+            uint64_t t;
+            t = state->comb_re[k]; state->comb_re[k] = re; re -= t;
+            t = state->comb_im[k]; state->comb_im[k] = im; im -= t;
+        }
 
         /* Capacity reached: keep running the filter (the integrator and
            comb state must stay in step with the input stream) but stop
@@ -432,18 +579,17 @@ dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
 
         /* → CF32. The registers hold the filtered sum modulo 2^64, which
            is negative as often as not. Adding the offset at the pipeline's
-           gain makes it the offset-binary sum, in [0, 2^16 * R^N), which
-           fits; the right shift then normalises it and floors it, an
-           unsigned shift of a non-negative value. The offset comes off in
-           floating point, and the encoder's PAPR headroom is undone. The
-           offset is NOT scaled by the headroom — it is the midpoint, not
-           signal. */
-        const uint64_t bias = CIC_OFFSET << shift;
+           gain makes it the offset-binary sum, in [0, 2^bits * R^CIC_N),
+           which fits; the right
+           shift then normalises it and floors it, an unsigned shift of a
+           non-negative value. What is left is a word, so it and the
+           offset are both in an int64 and their difference is the sample. */
+        const uint64_t bias = offset << shift;
         out[n_out++] = CMPLXF(
-            ((float)(uint16_t)((re + bias) >> shift) - 32768.0f)
-                * (CIC_PAPR_HEADROOM / 32768.0f),
-            ((float)(uint16_t)((im + bias) >> shift) - 32768.0f)
-                * (CIC_PAPR_HEADROOM / 32768.0f));
+            (float)((int64_t)((re + bias) >> shift) - (int64_t)offset)
+                * state->out_scale,
+            (float)((int64_t)((im + bias) >> shift) - (int64_t)offset)
+                * state->out_scale);
     }
     state->clipped |= (uint8_t)clip;   /* sticky; cleared by reset() */
     return n_out;

@@ -719,7 +719,7 @@ per-decision false-transition budget of 1e-6, and
 Judge lock by `lock_stat` / `locked` rather than by an error-vector magnitude:
 a single cycle slip during acquisition drags a windowed EVM by 20 dB while the
 eye is wide open. And check `clipped` at least once against real input — the
-cascade inherits its CIC's ±2.0 input bound, and overdriving it costs ~25 dB
+cascade inherits its CIC's input bound (4.0 as built), and overdriving it costs ~25 dB
 with a perfectly healthy lock.
 
 From C the lifecycle is create, feed, read the lock, destroy. This is

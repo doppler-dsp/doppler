@@ -88,28 +88,31 @@ that intermediate overflow is defined and cancels exactly across the N stages.
 
 ### 2.4 Cast chains used in this codebase
 
-**Q15 encode (CIC encoder)**
+**CIC encode**
 
 ```
-float x → sr = x · (32768 / CIC_PAPR_HEADROOM)
-        → [saturate to [-32768, 32767], a NaN to the top] → (int16_t)sr
-        → (int32_t)sr + 32768 → (uint64_t) → − 32768  (mod 2⁶⁴)
+float x → s = x · 2^(word − 1 − headroom_bits)
+        → [saturate to the word, a NaN to the top] → (int64_t)s
+        → + offset → (uint64_t) → − offset  (mod 2⁶⁴),   offset = 2^(word − 1)
 ```
 
-`CIC_PAPR_HEADROOM` is 2.0 (6 dB): full scale sits above unity amplitude so
-a pulse-shaped signal's peaks have somewhere to go.
+The word is the CIC's precision, 16 or 32 bits or all the register has left
+after the pipeline's gain (64, the default), and its top `headroom_bits` are
+headroom: full scale is 4.0 as built, 2.0 at 16 bits
+([CIC](cic.md) is the budget).
 
-> **What this means for a caller: the CIC's input amplitude is bounded to
-> `|Re|, |Im| <= 2.0`.** That saturation step is a cast-safety measure
-> here, but from outside the block it is a hard amplitude boundary — a
-> component past ±2.0 is clipped before any filtering, with no exception and
-> no NaN. The CIC is the one block in doppler that is not scale-free, and it
-> is inherited by anything that plans one: `resample.RateConverter` uses a CIC
+> **What this means for a caller: the CIC's input amplitude is bounded** by
+> its full scale. That saturation step is a cast-safety measure here, but
+> from outside the block it is a hard amplitude boundary — a component at
+> or past it is clipped before any filtering, with no exception and no NaN.
+> The CIC is the one block in doppler that is not scale-free, and it is
+> inherited by anything that plans one: `resample.RateConverter` uses a CIC
 > for **any decimation by 8 or more**, so `RateConverter(rate=0.1)` carries
-> the same bound without ever mentioning a CIC. Read `stages` to tell — a plan
-> naming `CIC(...)` is bounded, every other plan is scale-free. Measured cost
-> of ignoring it: an RRC-BPSK waveform driven into the clip matched-filters to
-> −25 dB EVM where the same waveform well inside it reaches −50 dB.
+> the same bound without ever mentioning a CIC. Read `stages` to tell — a
+> plan naming `CIC(...)` is bounded, every other plan is scale-free — or
+> read `full_scale`, which is `inf` for a plan with no bound. Measured cost
+> of ignoring it: an RRC-BPSK waveform driven into the clip matched-filters
+> to −25 dB EVM where the same waveform well inside it reaches −50 dB.
 >
 > Both blocks therefore expose a sticky **`clipped`** flag — `CIC.clipped` and
 > `RateConverter.clipped`, cleared by `reset()`, following the same convention
@@ -118,30 +121,30 @@ a pulse-shaped signal's peaks have somewhere to go.
 > result, so the flag is strictly free information about something the sample
 > stream cannot tell you.
 
-1. Saturation makes the `(int16_t)` cast defined (§6.3.1.4 safe zone).
-1. Widen to `int32_t` before adding 32768: range `[-32768+32768, 32767+32768] = [0, 65535]` — no signed overflow (§6.5).
-1. `(uint64_t)` from `int32_t` in `[0, 65535]`: always defined (§6.3.1.3).
-    What is converted is never negative, so there is no sign extension.
+1. Saturation makes the `(int64_t)` cast defined (§6.3.1.4 safe zone). Its
+    upper comparison is "not at or under", so a NaN, which fails every
+    comparison, is taken as over the bound and never reaches the cast.
+1. The word is under 63 bits, so adding its offset in `int64_t` cannot
+    overflow (§6.5), and the sum is never negative.
+1. `(uint64_t)` from a non-negative `int64_t`: always defined (§6.3.1.3),
+    with no sign extension.
 1. The offset comes straight back off in `uint64_t`, which wraps: the
-    register holds the Q15 value modulo 2⁶⁴, and a zero sample is a zero
+    register holds the sample modulo 2⁶⁴, and a zero sample is a zero
     word. No register is signed, because only an unsigned one may overflow.
-1. The saturation's upper comparison is "not at or under", so a NaN, which
-    fails every comparison, is taken as over the bound and never reaches
-    the cast.
 
-**Q15 decode (CIC decoder)**
+**CIC decode**
 
 ```
-(uint64_t re + (32768 << shift)) >> shift → (uint16_t) → float - 32768.0f → · (1/32768)
+(uint64_t re + (offset << shift)) >> shift → (int64_t) − (int64_t)offset → float → · 2^−(word − 1 − headroom_bits)
 ```
 
 1. The offset goes back on at the pipeline's gain, in `uint64_t`: the sum
-    is the offset-binary result, in `[0, 2¹⁶ · R^N)`, never negative.
+    is the offset-binary result, in `[0, 2^word · R^N)`, never negative.
 1. Right-shift of `uint64_t`: defined (logical, zero-fills high bits), and
     a floor because the value is not negative.
-1. `uint64_t → uint16_t`: always defined; truncates to bits 15:0.
-1. Subtract 32768.0f in floating-point: removes the offset-binary bias;
-    no signed integer cast, no implementation-defined behaviour.
+1. What is left is a word, so it and the offset both fit an `int64_t` and
+    their difference is the sample: no out-of-range conversion, no
+    implementation-defined behaviour.
 
 **UQ15 encode (offset-binary)**
 
@@ -311,8 +314,8 @@ x = -1.0  →  uint64  0x0000000000008000
 ```
 
 The CIC decimator (`resample.CIC`) does **not** consume this format: it
-takes complex64 and encodes each component to Q15 internally, held modulo
-2⁶⁴ (§2.4, §8), with the 48 bits above it absorbing the `N · log₂(R)` bits of
+takes complex64 and encodes each component to its own word internally, held
+modulo 2⁶⁴ (§2.4, §8), with the 48 bits above it absorbing the `N · log₂(R)` bits of
 bit-growth — 44 at the cap `R = CIC_R_MAX = 2048`.
 
 ______________________________________________________________________
@@ -380,40 +383,31 @@ ______________________________________________________________________
 
 ## 8. Headroom budget for the CIC pipeline
 
-The CIC decimator's integrators accumulate Q15 samples, held modulo 2⁶⁴, in
-`uint64_t` accumulators using modular (wrapping) unsigned arithmetic. The
-bound below is on the sum the decoder forms once the offset is back on,
-which is the largest value that has to fit. The unsigned
-modular-arithmetic CIC property guarantees that every intermediate overflow
-in the N integrator stages cancels exactly in the N comb stages, provided
-the **true result** of each comb difference fits within 64 bits.
+The CIC decimator's integrators accumulate its input words, held modulo
+2⁶⁴, in `uint64_t` accumulators using modular (wrapping) unsigned
+arithmetic. The unsigned modular-arithmetic CIC property guarantees that
+every intermediate overflow in the N integrator stages cancels exactly in
+the N comb stages, provided the **true result** fits within 64 bits.
 
-For N = 4 stages, M = 1 (one-sample comb delay), and R-to-1 decimation:
-
-```
-max comb output = max sum of R consecutive UQ16 inputs
-               ≤ 65535 · R                          (per comb stage)
-               ≤ 65535 · 2048   for R_max = CIC_R_MAX = 2048
-               < 2²⁷            (27 bits)
-```
-
-After N = 4 comb stages accumulate:
+For N = 4 stages, one-sample combs, and R-to-1 decimation, the largest
+value that has to fit is the sum the decoder forms once the offset is back
+on:
 
 ```
-max output ≤ 65535 · R^N = (2¹⁶ − 1) · 2^(4·11) = 2⁶⁰ − 2⁴⁴
+max output ≤ (2^word − 1) · R^N
 ```
 
-This fits in 60 bits — 16x inside the 64-bit uint64, so the modular
-arithmetic gives exact results for all `R ≤ 2048`. (`R = 4096` would fit
-too, but to within one part in 65536, which is why the cap sits a halving
-below it.) The output
+and the word is at most `64 − N · log₂(R)` bits, so this is under 2⁶⁴ at
+every ratio and every precision: 16 or 32 bits where the register has room
+for them, and all it has left otherwise. The register is the word and the
+gain exactly; nothing is left over and nothing needs to be. The output
 is right-shifted by `shift = N · log₂(R)` bits before conversion back to
 CF32, restoring unit gain for DC.
 
 Note what this budget does and does not promise. It says the *pipeline* never
 loses a bit for any `R ≤ 2048` — the accumulators are exact. It says nothing
 about the signal arriving intact, because the input was already bounded to
-`|Re|, |Im| ≤ 2.0` at the encoder (§2.4). "No overflow occurs" is a statement
+the word's full scale at the encoder (§2.4). "No overflow occurs" is a statement
 about the integer arithmetic, not a licence to feed the block whatever
 amplitude you have.
 
@@ -426,7 +420,7 @@ ______________________________________________________________________
 | CF32 compute path        | 23-bit mantissa + sign  | ~138 dB         |
 | Q15 quantization         | 15-bit magnitude + sign | ~92 dB          |
 | CIC accumulator (uint64) | 15 + 48 bits headroom   | exact (modular) |
-| CIC output (after shift) | Q15 (15 bits)           | ~92 dB          |
+| CIC output (after shift) | the input word          | ~92 dB at 16    |
 
 ______________________________________________________________________
 

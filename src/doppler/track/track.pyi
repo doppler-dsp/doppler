@@ -3707,10 +3707,10 @@ class RateSync:
     @property
     def clipped(self) -> bool:
         """True if the cascade's CIC stage has clipped its input since the last
-        reset(). A CIC bounds its input to +-2.0 and clips silently past that,
-        which no timing metric reveals -- an overdriven front end degrades EVM
-        by 25 dB with a perfectly healthy lock. Always False when the plan
-        contains no CIC stage.
+        reset(). A CIC bounds its input to its full scale (4.0 as built) and
+        clips silently at and past that, which no timing metric reveals -- an
+        overdriven front end degrades EVM by 25 dB with a perfectly healthy
+        lock. Always False when the plan contains no CIC stage.
         """
 
     def destroy(self) -> None:
@@ -5287,10 +5287,10 @@ class MpskReceiver:
     @property
     def clipped(self) -> int:
         """Has the cascade's CIC stage clipped its input since the last reset?
-        A CIC bounds its input to |Re|, |Im| <= 2.0 and clips silently past
-        that -- the output stays finite and plausible, merely distorted, at a
-        cost of ~25 dB of EVM that no lock metric reveals. Always 0 for a plan
-        with no CIC stage.
+        A CIC bounds its input to its full scale (|Re|, |Im| under 4.0 as
+        built) and clips silently at and past that -- the output stays finite
+        and plausible, merely distorted, at a cost of ~25 dB of EVM that no
+        lock metric reveals. Always 0 for a plan with no CIC stage.
         """
 
     def destroy(self) -> None:
@@ -5878,10 +5878,10 @@ class BpskReceiver:
     @property
     def clipped(self) -> int:
         """Has the cascade's CIC stage clipped its input since the last reset?
-        A CIC bounds its input to |Re|, |Im| <= 2.0 and clips silently past
-        that -- the output stays finite and plausible, merely distorted, at a
-        cost of ~25 dB of EVM that no lock metric reveals. Always 0 for a plan
-        with no CIC stage.
+        A CIC bounds its input to its full scale (|Re|, |Im| under 4.0 as
+        built) and clips silently at and past that -- the output stays finite
+        and plausible, merely distorted, at a cost of ~25 dB of EVM that no
+        lock metric reveals. Always 0 for a plan with no CIC stage.
         """
 
     def destroy(self) -> None:
@@ -6524,10 +6524,10 @@ class MpskReceiverR:
     @property
     def clipped(self) -> int:
         """Has the cascade's CIC stage clipped its input since the last reset?
-        A CIC bounds its input to |Re|, |Im| <= 2.0 and clips silently past
-        that -- the output stays finite and plausible, merely distorted, at a
-        cost of ~25 dB of EVM that no lock metric reveals. Always 0 for a plan
-        with no CIC stage.
+        A CIC bounds its input to its full scale (|Re|, |Im| under 4.0 as
+        built) and clips silently at and past that -- the output stays finite
+        and plausible, merely distorted, at a cost of ~25 dB of EVM that no
+        lock metric reveals. Always 0 for a plan with no CIC stage.
         """
 
     def destroy(self) -> None:

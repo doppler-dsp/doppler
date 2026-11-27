@@ -1,14 +1,16 @@
 /**
  * @file cic_core.c
- * @brief CIC decimation filter — 4-stage, M=1, 16-bit integer pipeline.
+ * @brief CIC decimation filter — CIC_N stages, one-sample combs, integer
+ * pipeline.
  *
- * Input amplitude is bounded: |Re| and |Im| < CIC_PAPR_HEADROOM (2.0),
- * clipped beyond that (see cic_core.h — that constraint is the caller-facing
- * contract; what follows is how it arises).
+ * Input amplitude is bounded: |Re| and |Im| under 2^headroom_bits
+ * (CIC_PAPR_WIDE as built), clipped at and beyond that (see cic_core.h — that
+ * constraint is the caller-facing contract; what follows is how it arises).
  *
- * Input samples (CF32) are scaled by 32768 / CIC_PAPR_HEADROOM, saturated to
- * Q15 and held modulo 2^64 in a uint64_t. The upper 48 bits provide
- * accumulation headroom for the pipeline gain of CIC_N * log2(R) bits. The
+ * Input samples (CF32) are scaled to a signed integer word, saturated, and
+ * held modulo 2^CIC_REG_BITS in a register: the word is what the precision
+ * names, or the CIC_REG_BITS - CIC_N * log2(R) bits the pipeline's gain
+ * leaves when that is less. The
  * offset-binary midpoint is added after the combs, at the pipeline's gain,
  * so the normalising shift is of a non-negative value and no register is
  * signed.
@@ -19,7 +21,7 @@
  * no range checks and no floating-point.  Saturation happens once, at the
  * encoder above, and is the bound the caller sees.
  *
- * The hot path is fully unrolled (CIC_N=4 stages, M=1 comb).
+ * The hot path loops over CIC_N, a constant, so the compiler unrolls it.
  */
 
 #include "doppler/cic/cic_core.h"
@@ -57,9 +59,52 @@ log2_pow2 (uint32_t x)
 static int
 valid_R (uint32_t R)
 {
-  /* Power of two in [2, CIC_R_MAX]: CIC_N * log2(R) <= 44, which is 16x
-     inside the 64-bit accumulator. See CIC_R_MAX. */
+  /* Power of two from 2 to CIC_R_MAX, whose gain still leaves the register
+     a word wider than CIC_PRECISION_16. See CIC_R_MAX. */
   return R >= 2 && R <= CIC_R_MAX && (R & (R - 1)) == 0;
+}
+
+int
+dp_cic_precision_ok (uint32_t precision)
+{
+  return precision == CIC_PRECISION_16 || precision == CIC_PRECISION_32
+         || precision == CIC_PRECISION_64;
+}
+
+int
+dp_cic_headroom_bits_ok (uint32_t bits)
+{
+  return bits <= CIC_HEADROOM_BITS_MAX;
+}
+
+/* The headroom a precision starts with. */
+static uint32_t
+precision_headroom (uint32_t precision)
+{
+  return precision == CIC_PRECISION_16 ? CIC_HEADROOM_BITS_16
+                                       : CIC_HEADROOM_BITS_WIDE;
+}
+
+/* Everything R, the precision and the headroom decide, from the three. */
+static void
+derive (dp_cic_state_t *s)
+{
+  s->shift = CIC_N * log2_pow2 (s->R);
+  /* the word: what the precision names, or all the register has left */
+  const uint32_t room = CIC_REG_BITS - s->shift;
+  s->bits             = s->precision < room ? s->precision : room;
+  s->offset           = (uint64_t)1 << (s->bits - 1u);
+  /* unit amplitude as an integer, a power of two, so the scaling is exact */
+  const int unit = (int)(s->bits - 1u - s->headroom_bits);
+  s->in_scale    = ldexpf (1.0f, unit);
+  s->out_scale   = ldexpf (1.0f, -unit);
+  /* The word holds [-offset, offset - 1]. The top as a float is the
+     largest float at or under offset - 1: that value itself while a float
+     can hold it, and the float under offset once it rounds up to it. */
+  s->in_lo = -(float)s->offset;
+  s->in_hi = (float)(s->offset - 1u);
+  if (s->in_hi >= (float)s->offset)
+    s->in_hi = nextafterf ((float)s->offset, 0.0f);
 }
 
 /* ── lifecycle ─────────────────────────────────────────────────────────── */
@@ -74,8 +119,10 @@ dp_cic_create (uint32_t R)
   if (!s)
     return NULL;
 
-  s->R     = R;
-  s->shift = CIC_N * log2_pow2 (R);
+  s->R             = R;
+  s->precision     = CIC_PRECISION_DEFAULT;
+  s->headroom_bits = precision_headroom (s->precision);
+  derive (s);
   return s;
 }
 
@@ -97,15 +144,16 @@ dp_cic_reset (dp_cic_state_t *state)
 }
 
 /* ── Serializable state — standard envelope (see dp_state.h) ─────────────────
- * Order: R, integ_re, integ_im, comb_re, comb_im (each CIC_N u64), phase,
- * clipped. R travels because reconfigure() changes it (doppler#2642); shift
- * is derived from it. */
+ * Order: R, precision, headroom_bits, integ_re, integ_im, comb_re, comb_im
+ * (each CIC_N u64), phase, clipped. R, the precision and the headroom travel
+ * because reconfigure(), set_precision() and set_headroom_bits() change them
+ * (doppler#2642); the rest of the config is derived from the three. */
 
 size_t
 dp_cic_state_bytes (const dp_cic_state_t *state)
 {
   (void)state;
-  return sizeof (dp_state_hdr_t) + sizeof (uint32_t)
+  return sizeof (dp_state_hdr_t) + 3 * sizeof (uint32_t)
          + 4 * CIC_N * sizeof (uint64_t) + sizeof (uint32_t)
          + sizeof (uint8_t);
 }
@@ -118,6 +166,8 @@ dp_cic_get_state (const dp_cic_state_t *state, void *blob)
   dp_w_hdr (&w, CIC_STATE_MAGIC, CIC_STATE_VERSION,
             dp_cic_state_bytes (state));
   dp_w_u32 (&w, state->R);
+  dp_w_u32 (&w, state->precision);
+  dp_w_u32 (&w, state->headroom_bits);
   dp_w_bytes (&w, state->integ_re, ab);
   dp_w_bytes (&w, state->integ_im, ab);
   dp_w_bytes (&w, state->comb_re, ab);
@@ -141,16 +191,19 @@ dp_cic_set_state (dp_cic_state_t *state, const void *blob)
      before anything is written. */
   dp_cic_state_t t = *state;
   t.R              = dp_r_u32 (&r);
+  t.precision      = dp_r_u32 (&r);
+  t.headroom_bits  = dp_r_u32 (&r);
   dp_r_bytes (&r, t.integ_re, ab);
   dp_r_bytes (&r, t.integ_im, ab);
   dp_r_bytes (&r, t.comb_re, ab);
   dp_r_bytes (&r, t.comb_im, ab);
   t.phase = dp_r_u32 (&r);
   dp_r_bytes (&r, &t.clipped, sizeof t.clipped);
-  if (!valid_R (t.R) || t.phase >= t.R)
+  if (!valid_R (t.R) || t.phase >= t.R || !dp_cic_precision_ok (t.precision)
+      || !dp_cic_headroom_bits_ok (t.headroom_bits))
     return DP_ERR_INVALID;
-  t.shift = CIC_N * log2_pow2 (t.R);
-  *state  = t;
+  derive (&t);
+  *state = t;
   return DP_OK;
 }
 
@@ -187,7 +240,60 @@ dp_cic_reconfigure (dp_cic_state_t *state, uint32_t R)
 {
   if (!valid_R (R))
     return;
-  state->R     = R;
-  state->shift = CIC_N * log2_pow2 (R);
+  state->R = R;
+  derive (state);
   dp_cic_reset (state);
+}
+
+int
+dp_cic_set_precision (dp_cic_state_t *state, uint32_t precision)
+{
+  if (!dp_cic_precision_ok (precision))
+    return DP_ERR_INVALID;
+  state->precision     = precision;
+  state->headroom_bits = precision_headroom (precision);
+  derive (state);
+  dp_cic_reset (state);
+  return DP_OK;
+}
+
+uint32_t
+dp_cic_get_precision (const dp_cic_state_t *state)
+{
+  return state->precision;
+}
+
+uint32_t
+dp_cic_get_bits (const dp_cic_state_t *state)
+{
+  return state->bits;
+}
+
+int
+dp_cic_set_headroom_bits (dp_cic_state_t *state, uint32_t bits)
+{
+  if (!dp_cic_headroom_bits_ok (bits))
+    return DP_ERR_INVALID;
+  state->headroom_bits = bits;
+  derive (state);
+  dp_cic_reset (state);
+  return DP_OK;
+}
+
+uint32_t
+dp_cic_get_headroom_bits (const dp_cic_state_t *state)
+{
+  return state->headroom_bits;
+}
+
+double
+dp_cic_get_full_scale (const dp_cic_state_t *state)
+{
+  return ldexp (1.0, (int)state->headroom_bits);
+}
+
+double
+dp_cic_get_step (const dp_cic_state_t *state)
+{
+  return ldexp (1.0, (int)state->headroom_bits - (int)(state->bits - 1u));
 }

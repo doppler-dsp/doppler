@@ -349,6 +349,129 @@ CIC_getprop_shift (CICObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLong ((unsigned long)self->handle->shift);
 }
 static PyObject *
+CIC_getprop_precision (CICObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLong (
+      (unsigned long)dp_cic_get_precision (self->handle));
+}
+static int
+CIC_setprop_precision (CICObject *self, PyObject *value,
+                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  long long v_raw = 0LL;
+  if (!PyArg_Parse (value, "L", &v_raw))
+    return -1;
+  if (v_raw < 0 || v_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "precision: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)v_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t v = (uint32_t)v_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  int _rc = dp_cic_set_precision (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "CIC: precision is 16, 32 or 64", (long long)_rc);
+      return -1;
+    }
+  return 0;
+}
+static PyObject *
+CIC_getprop_headroom_bits (CICObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLong (
+      (unsigned long)dp_cic_get_headroom_bits (self->handle));
+}
+static int
+CIC_setprop_headroom_bits (CICObject *self, PyObject *value,
+                           void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  long long v_raw = 0LL;
+  if (!PyArg_Parse (value, "L", &v_raw))
+    return -1;
+  if (v_raw < 0 || v_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "headroom_bits: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)v_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t v = (uint32_t)v_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  int _rc = dp_cic_set_headroom_bits (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "CIC: headroom_bits is 0 to 14", (long long)_rc);
+      return -1;
+    }
+  return 0;
+}
+static PyObject *
+CIC_getprop_bits (CICObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLong (
+      (unsigned long)dp_cic_get_bits (self->handle));
+}
+static PyObject *
+CIC_getprop_full_scale (CICObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dp_cic_get_full_scale (self->handle));
+}
+static PyObject *
+CIC_getprop_step (CICObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dp_cic_get_step (self->handle));
+}
+static PyObject *
 CIC_getprop_clipped (CICObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -367,12 +490,55 @@ static PyGetSetDef CIC_getset[] = {
   { "shift", (getter)CIC_getprop_shift, NULL,
     "Normalizing right-shift in bits, `CIC_N * log2(R)`; derived from R.\n",
     NULL },
+  { "precision", (getter)CIC_getprop_precision, (setter)CIC_setprop_precision,
+    "The input word the filter is built for: 16 (a 16-bit word, full scale "
+    "2.0: the filter as it was before it had a precision), 32 (a 32-bit word, "
+    "or the widest the register has left past R = 256) or 64 (the widest the "
+    "register has left, the default); 32 and 64 start with full scale 4.0. "
+    "Setting it sets that precision's headroom and resets the filter. Raises "
+    "ValueError, changing nothing, for any other value.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_cic_set_precision`` refuses the value by\n"
+    "    returning non-zero. The exception message is ``CIC: precision is\n"
+    "    16, 32 or 64``, with the return code appended.\n",
+    NULL },
+  { "headroom_bits", (getter)CIC_getprop_headroom_bits,
+    (setter)CIC_setprop_headroom_bits,
+    "Bits of the input word above unit amplitude: full scale is "
+    "2**headroom_bits. The rest of the word is precision, so each bit of "
+    "headroom doubles `step`. Setting `precision` puts it back to that "
+    "precision's own (1 at 16, 2 at 32 and 64). Setting it resets the filter. "
+    "Raises ValueError, changing nothing, outside 0 to 14.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_cic_set_headroom_bits`` refuses the value by\n"
+    "    returning non-zero. The exception message is ``CIC: headroom_bits\n"
+    "    is 0 to 14``, with the return code appended.\n",
+    NULL },
+  { "bits", (getter)CIC_getprop_bits, NULL,
+    "The input word's width in bits, sign included: the precision, or 64 - "
+    "4*log2(R) when the register has less than that left.\n",
+    NULL },
+  { "full_scale", (getter)CIC_getprop_full_scale, NULL,
+    "The input bound, 2**headroom_bits: a component at or beyond it is "
+    "clipped.\n",
+    NULL },
+  { "step", (getter)CIC_getprop_step, NULL,
+    "The input's step: a component smaller than this reads zero. full_scale / "
+    "2**(bits - 1).\n",
+    NULL },
   { "clipped", (getter)CIC_getprop_clipped, NULL,
-    "True if any input component has exceeded the +-2.0 bound since the last "
-    "reset(). Sticky, and free to read: the CIC's boundary comparisons run on "
-    "every sample anyway, so it records something the sample stream cannot "
-    "tell you -- a clipped stream still looks entirely plausible (finite, no "
-    "NaN, merely distorted), so this flag is the only reliable check.\n",
+    "True if any input component has reached the bound (`full_scale`) since "
+    "the last reset(). Sticky, and free to read: the CIC's boundary "
+    "comparisons run on every sample anyway, so it records something the "
+    "sample stream cannot tell you -- a clipped stream still looks entirely "
+    "plausible (finite, no NaN, merely distorted), so this flag is the only "
+    "reliable check.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -453,7 +619,7 @@ static PyMethodDef CICObj_methods[] = {
     "Decimate a block of CF32 samples through the CIC pipeline. Each\n"
     "sample is converted to 16-bit Q15, pushed through CIC_N integrators\n"
     "(unsigned wrapping), and when the phase counter reaches R the\n"
-    "integrated value is passed through CIC_N M=1 comb stages and converted\n"
+    "integrated value is passed through CIC_N one-sample combs and converted\n"
     "back to CF32. State persists between calls. A fresh or reset filter\n"
     "starts from silence: its first CIC_N - 1 outputs are the filter filling\n"
     "with the input, and silence in gives exact zeros out from the first\n"
@@ -603,26 +769,30 @@ static PyTypeObject CICObjType = {
   .tp_dealloc                             = (destructor)CICObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct\n"
-    "on the heap and pre-computes the normalisation right-shift (CIC_N * "
-    "log2(R)\n"
-    "bits). All integrator and comb accumulators are zeroed; the first "
-    "output\n"
-    "arrives after R input samples. Returns NULL for invalid R or OOM. Input\n"
-    "amplitude is bounded: |Re| and |Im| <= 2.0. A component beyond +-2.0 is\n"
-    "clipped at the boundary before any filtering; the sample stream gives "
-    "no\n"
-    "sign of it, so check the sticky clipped flag. Unlike doppler's\n"
-    "floating-point blocks this one is not scale-free -- scale the input "
-    "into\n"
-    "range first.\n"
+  = "Create a CIC decimation filter of CIC_N stages. Allocates the state\n"
+    "struct on the heap and pre-computes the normalisation right-shift (CIC_N "
+    "*\n"
+    "log2(R) bits). All integrator and comb accumulators are zeroed; the "
+    "first\n"
+    "output arrives after R input samples. Returns NULL for invalid R or "
+    "OOM.\n"
+    "The filter is built at CIC_PRECISION_DEFAULT with that precision's\n"
+    "headroom, so its input is bounded at CIC_PAPR_WIDE "
+    "(dp_cic_set_precision(),\n"
+    "dp_cic_set_headroom_bits()). A component at or beyond it is clipped at "
+    "the\n"
+    "boundary before any filtering; the sample stream gives no sign of it, "
+    "so\n"
+    "check the sticky clipped flag. Unlike doppler's floating-point blocks "
+    "this\n"
+    "one is not scale-free -- scale the input into range first.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "R : int, default 16\n"
-    "    Decimation ratio. Must be a power of two in `[2, 2048]` "
-    "(`CIC_R_MAX`).\n"
-    "    Returns NULL for R=0, non-power-of-two, or a ratio above that cap.\n"
+    "    Decimation ratio. Must be a power of two from 2 to CIC_R_MAX. "
+    "Returns\n"
+    "    NULL for R=0, non-power-of-two, or a ratio above that cap.\n"
     "\n"
     "Examples\n"
     "--------\n"

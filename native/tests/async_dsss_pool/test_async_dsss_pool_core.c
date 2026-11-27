@@ -2055,11 +2055,11 @@ _test_ghost_parent_is_the_stronger (void)
    over the validator (doppler#3263).
    Sabotage: drop the ghost pass -> the k = 2 ghost holds to the end; let
    the carrier test take k = 0 -> the 55 dB-Hz one leaves as a ghost; drop the
-   pool's reset of a lost receiver -> the 55 dB-Hz one is never freed. Not
-   pinned here: hist_clear on the ghost release. The search reseeds the
-   freed receiver in the same control step, and the next group's record
-   (not tracking) clears the ring first, so dropping it changes nothing
-   this scene can see. */
+   pool's reset of a lost receiver -> the 55 dB-Hz one is never freed. The
+   freed receiver reads idle after its release step: the search was not
+   fed while both held, so it has no pick to seed it with then. Whether a
+   later dwell seeds the ghost's cell again is a rate over the sidelobe
+   rule (doppler#3263), not pinned here. */
 static int
 _test_ghost_is_released (void)
 {

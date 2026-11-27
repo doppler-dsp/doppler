@@ -476,11 +476,11 @@ code-rate ramp. Its definition, its two schedules and its one rule
 
 The search serves two applications, each with its own design point:
 
-| application                                 | rate                                                                                                                                       | grid                                           | where it runs                                  |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- | ---------------------------------------------- |
-| #2457's point, where §9.1–9.4 were measured | 3.069 Mcps at 2 samples a chip, 6.138 MSa/s                                                                                                | ±3 kHz, 3 tiles, $D = 90$, $N = 2046$          | the dev and bench boxes                        |
-| a burst preamble on the UNO Q               | 5 MSa/s captured, down-converted to 655.36 kSa/s                                                                                           | ±50 kHz, ±1 kHz/s, 1 tile, $D = 64$, $N = 512$ | four Cortex-A53 cores (Arduino UNO Q, QRB2210) |
-| `AsyncDsssPool`                             | 5 Mcps, 11 MSa/s resampled to 2,048 a period ([async-dsss-receiver §1.2](async-dsss-receiver.md#12-the-sample-rate-is-derived-not-chosen)) | ±50 kHz, 21 tiles, $D = 150$                   | the dev and bench boxes                        |
+| application                                 | rate                                                                                                                                       | grid                                                   | where it runs                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ---------------------------------------------- |
+| #2457's point, where §9.1–9.4 were measured | 3.069 Mcps at 2 samples a chip, 6.138 MSa/s                                                                                                | ±3 kHz, 3 Doppler rolls, $D = 90$, $N = 2046$          | the dev and bench boxes                        |
+| a burst preamble on the UNO Q               | 5 MSa/s captured, down-converted to 655.36 kSa/s                                                                                           | ±50 kHz, ±1 kHz/s, 1 Doppler roll, $D = 64$, $N = 512$ | four Cortex-A53 cores (Arduino UNO Q, QRB2210) |
+| `AsyncDsssPool`                             | 5 Mcps, 11 MSa/s resampled to 2,048 a period ([async-dsss-receiver §1.2](async-dsss-receiver.md#12-the-sample-rate-is-derived-not-chosen)) | ±50 kHz, 21 Doppler rolls, $D = 150$                   | the dev and bench boxes                        |
 
 The burst's preamble is a 512-sample linear chirp (±240 kHz) repeated 64
 times, 50 ms, at a C/N0 of 32 dB-Hz

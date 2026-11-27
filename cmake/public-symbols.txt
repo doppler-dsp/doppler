@@ -78,6 +78,8 @@ dp_RateConverter_get_state function
 dp_RateConverter_num_bank_shape function
 dp_RateConverter_num_stages function
 dp_RateConverter_reset function
+dp_RateConverter_response function
+dp_RateConverter_response_len function
 dp_RateConverter_set_rate function
 dp_RateConverter_set_state function
 dp_RateConverter_set_telemetry function

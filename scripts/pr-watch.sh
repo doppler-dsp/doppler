@@ -130,7 +130,7 @@ gh_failed() {
       echo "  Waiting cannot fix this; see \`gh auth status\`."
       exit 2 ;;
     *"unknown flag: "*)
-      version=$("${GH:-gh}" --version 2>/dev/null | head -n 1)
+      version=$("${GH:-gh}" --version 2>/dev/null | sed -n 1p)
       echo "::error:: gh rejected a flag this script needs: $said"
       echo "  Installed: ${version:-gh (version unreadable)}"
       echo "  Needed:    gh >= 2.50.0, the first with \`gh pr checks --json\`"

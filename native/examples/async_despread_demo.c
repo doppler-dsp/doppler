@@ -10,9 +10,9 @@
  *
  *   - dp_dll_create() takes the loop's damping and its early/late spacing
  *     too. The Python defaults, 0.707 and half a chip, are named here.
- *   - dp_dll_steps() writes into a buffer the CALLER owns.
- *     dp_dll_steps_max_out() returns 0, which means "allocate x_len": a push
- *     of one code period emits at most that many samples.
+ *   - dp_dll_steps() writes into a buffer the CALLER owns, sized by
+ *     dp_dll_steps_max_out() for the push length: a push of one code period
+ *     emits a few samples per segment, far fewer than it takes in.
  *   - the channel takes at most DOPPLER_CHANNEL_MAX_BLOCK samples a call, and
  *     its output length varies by a sample from call to call. That variation
  *     is the dilation itself.
@@ -218,7 +218,8 @@ track (const uint8_t *code, const float complex *x, size_t n_push,
                                             zeta, spacing, segments);
   dp_lo_state_t  *lo       = dp_lo_create (-carrier_estimate_hz / FS);
   float complex  *wiped    = malloc ((size_t)TE * sizeof *wiped);
-  float complex  *despread = malloc ((size_t)TE * sizeof *despread);
+  const size_t    cap      = dll ? dp_dll_steps_max_out (dll, TE) : 0;
+  float complex  *despread = malloc (cap * sizeof *despread);
   CHECK (dll && lo && wiped && despread, "the loop and its buffers open");
 
   CHECK (dp_dll_set_symbol_period (dll, SEGMENTS * CHIP_RATE
@@ -246,7 +247,7 @@ track (const uint8_t *code, const float complex *x, size_t n_push,
       dp_lo_steps (lo, TE, wiped, TE);
       for (size_t i = 0; i < TE; i++)
         wiped[i] *= x[k * TE + i];
-      size_t m = dp_dll_steps (dll, wiped, TE, despread, TE);
+      size_t m = dp_dll_steps (dll, wiped, TE, despread, cap);
       for (size_t i = 0; i < m && *stream_len < stream_cap; i++)
         stream[(*stream_len)++] = despread[i];
       rows[k].locked     = dp_dll_get_locked (dll);

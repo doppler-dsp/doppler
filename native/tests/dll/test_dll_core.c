@@ -1995,10 +1995,12 @@ the_remainders_upper_edge_is_produced_and_accepted (void)
  * segments x min(x_len, floor(2 x_len / P) + 1). A one-sample call that
  * completes a carried period at segments 4 emits all four partials, and what
  * a stream emits does not depend on how its calls are cut: fed in random
- * lengths, each into a buffer of exactly its bound, the partials are the
- * ones a single call into an ample buffer makes, bit for bit. Sabotaged: the
- * old bound (the call's length, so one slot for one sample) -- the one-sample
- * call drops three partials, and every cut stream differs from the reference.
+ * lengths, no call emits more than its bound (each is given the hard ceiling,
+ * segments x len, so one that did would show), and the partials are the ones
+ * a single call into an ample buffer makes, bit for bit. Sabotaged: the old
+ * bound (the call's length, so one slot for one sample) -- the one-sample call
+ * drops three partials, and every cut stream differs from the reference; a
+ * headroom of 1 in place of 2 -- a cut call emits past its bound.
  */
 static int
 a_one_sample_call_that_completes_a_carried_period_keeps_every_partial (void)

@@ -971,6 +971,10 @@ void dp_dll_reset(dp_dll_state_t *state);
  * the bound, or a loop past the headroom -- stops there without writing out
  * of range and drops the rest: with the bound it is the caller's error, and
  * past the headroom it is the price of a rate the bound does not assume.
+ * A Debug build (no `NDEBUG`) tells the two apart: an emission refused when
+ * @p max_out is at least this bound and the loop's code rate has stayed
+ * within twice nominal all call means the bound itself is wrong, and
+ * aborts (#3282). A Release build compiles the check away.
  *
  * Held by test_dll_core.c: a one-sample call that completes a carried
  * period at `segments` 4 emits all four partials, random call lengths at

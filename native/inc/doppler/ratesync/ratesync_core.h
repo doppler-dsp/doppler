@@ -487,9 +487,9 @@ extern "C"
    *  under 2% of it from that symbol on. An index into the symbols the loop
    *  emits, so the outputs dropped while the cascade fills are not in it.
    *  It follows dp_ratesync_loop_configure(). It is the linear loop's
-   *  figure: the detector's slope at lock is taken as 1 (what `ted_scale`
-   *  delivers for the bound pulse), and a clock offset's own transient is
-   *  not counted.
+   *  figure: the detector's slope at lock is taken as 1, and a clock
+   *  offset's own transient is not counted. Where that holds, and where it
+   *  does not, is stated at dp_ratesync_get_settle_time().
    *  @param l  Must be non-NULL.
    *  @return Symbols; infinity at `bn = 0`, a loop that does not steer. */
   double dp_ratesync_loop_settle_time (const ratesync_loop_t *l);
@@ -1082,6 +1082,19 @@ extern "C"
    *  (dp_ratesync_configure_acquisition()) one attempt is added ahead of
    *  it: the estimator's lead-in, the block, and the two symbols a seed
    *  keeps the loop open.
+   *
+   *  It is a linear loop's figure, so it holds for a starting error inside
+   *  the detector's near-linear range: on the RRC with Gardner, 0.25 symbol
+   *  or less, where the mean error over data patterns is under 2% of the
+   *  start (plus three standard errors of that mean) from this symbol on
+   *  (test_ratesync_core.c, `test_settle_time_from_an_offset`, which also
+   *  prints the rows below). Further out the S-curve, a sinusoid, has less
+   *  gain and the loop takes longer: at this symbol 4.5% of a 0.37 symbol
+   *  start is left, and 9.1% of 0.44. On the rectangle the Gardner loop
+   *  settles more slowly than this figure, and is what the derivative
+   *  detector replaces (docs/design/ratesync-timing.md section 9.2;
+   *  doppler#3377 is the baseline). One run does not show any of this:
+   *  Gardner's data jitter on a shaped stream is larger than 2%.
    *
    *  Example (Python):
    *  >>> from doppler.track import RateSync

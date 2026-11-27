@@ -261,42 +261,43 @@ not use these.
 ## Names
 
 A count is `n_` and what it counts; a length carries its unit as a suffix.
-`n_noncoh` is the non-coherent count's name and keeps it. The table is the
-whole list of renames agreed on 2026-11-23 and not yet merged; a row leaves
-when its rename merges.
+`n_noncoh` is the non-coherent count's name and keeps it. The tables are the
+whole list of renames agreed on 2026-11-23 and not yet merged, one per issue
+that carries them; a row leaves when its rename merges. Every name below has
+shipped in a release, so a public one's rename is breaking: it gets a row in
+the retired-names table and a breaking changelog entry, with no alias.
 
-**In the async receiver PR**, the names as the branch spells them. Shipped
-in a release, so retired by name and declared breaking:
+**The lock's names ([#3381](https://github.com/doppler-dsp/doppler/issues/3381))**:
 
-| name         | becomes                 | where                                                                                                                                                                                                  |
-| ------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `n_looks`    | `n_noncoh`              | the Dll's field and its `configure_lock` and `configure_lock_raw` parameter; the Despreader's, DsssReceiver's and AsyncDsssReceiver's `configure_lock` or `configure_lock_raw` parameter; C and Python |
-| `p_look`     | `p_decision`            | the first parameter of `det_verify_count` and `det_verify_delay`, C and Python                                                                                                                         |
-| `lattice_hz` | `ambiguity_interval_hz` | AsyncDsssPool's state field                                                                                                                                                                            |
+| name                               | becomes                             | where                                                                                                                                                                                                  |
+| ---------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `n_looks`                          | `n_noncoh`                          | the Dll's field and its `configure_lock` and `configure_lock_raw` parameter; the Despreader's, DsssReceiver's and AsyncDsssReceiver's `configure_lock` or `configure_lock_raw` parameter; C and Python |
+| `p_look`                           | `p_decision`                        | the first parameter of `det_verify_count` and `det_verify_delay`, C and Python                                                                                                                         |
+| `set_block_lock`                   | `set_ratio_lock`                    | CarrierNda, C and Python                                                                                                                                                                               |
+| `get_block_thresh`, `block_thresh` | `get_ratio_thresh`, `ratio_thresh`  | CarrierNda, C and the Python property                                                                                                                                                                  |
+| `blk_len`                          | `n_noncoh`                          | CarrierNda's field                                                                                                                                                                                     |
+| `blk_thr`, `blk_pfa`               | `ratio_thr`, `ratio_pfa`            | CarrierNda's fields                                                                                                                                                                                    |
+| `blk_n`, `blk_num`, `blk_den`      | `ratio_n`, `ratio_num`, `ratio_den` | CarrierNda's running sums                                                                                                                                                                              |
+| `CARRIER_NDA_BLOCK_MAX_LEN`        | `CARRIER_NDA_LOCK_MAX_N_NONCOH`     | CarrierNda's macro                                                                                                                                                                                     |
+| `det_ratio_block_len`              | `det_ratio_n_noncoh`                | detection, C and Python                                                                                                                                                                                |
+| `car_blk`                          | `car_n_noncoh`                      | AsyncDsssReceiver's field; `carrier_lock_n_noncoh` keeps its name                                                                                                                                      |
+| `blocks`                           | `n_noncoh`                          | the fine design's output field                                                                                                                                                                         |
+| `block_s`                          | `coherent_dwell_s`                  | the fine design's parameter                                                                                                                                                                            |
+| `max_blocks`                       | `max_n_noncoh`                      | the fine design's parameter                                                                                                                                                                            |
+| `look_prompt_amp`                  | `lock_prompt_amp`                   | the Dll's field; its probe stays `prompt_amp`                                                                                                                                                          |
+| `look_offset_pwr`                  | `lock_offset_pwr`                   | the Dll's field; its probe stays `offset_pwr`                                                                                                                                                          |
+| `lock_look`                        | `lock_accumulate`                   | the Dll's internal function                                                                                                                                                                            |
+| `block_ms`                         | `coherent_dwell_ms`                 | the pull-in validator's `# search` column                                                                                                                                                              |
 
-New on that branch:
+**The pool's ambiguity names ([#3382](https://github.com/doppler-dsp/doppler/issues/3382))**:
 
 | name                                   | becomes                                                  | where                                                                  |
 | -------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `set_block_lock`                       | `set_ratio_lock`                                         | CarrierNda, C and Python                                               |
-| `get_block_thresh`, `block_thresh`     | `get_ratio_thresh`, `ratio_thresh`                       | CarrierNda, C and the Python property                                  |
-| `blk_len`                              | `n_noncoh`                                               | CarrierNda's field                                                     |
-| `blk_thr`, `blk_pfa`                   | `ratio_thr`, `ratio_pfa`                                 | CarrierNda's fields                                                    |
-| `blk_n`, `blk_num`, `blk_den`          | `ratio_n`, `ratio_num`, `ratio_den`                      | CarrierNda's running sums                                              |
-| `CARRIER_NDA_BLOCK_MAX_LEN`            | `CARRIER_NDA_LOCK_MAX_N_NONCOH`                          | CarrierNda's macro                                                     |
-| `det_ratio_block_len`                  | `det_ratio_n_noncoh`                                     | detection, C and Python                                                |
-| `car_blk`                              | `car_n_noncoh`                                           | AsyncDsssReceiver's field; `carrier_lock_n_noncoh` keeps its name      |
-| `blocks`                               | `n_noncoh`                                               | the fine design's output field                                         |
-| `block_s`                              | `coherent_dwell_s`                                       | the fine design's parameter                                            |
-| `max_blocks`                           | `max_n_noncoh`                                           | the fine design's parameter                                            |
-| `look_prompt_amp`                      | `lock_prompt_amp`                                        | the Dll's field; its probe stays `prompt_amp`                          |
-| `look_offset_pwr`                      | `lock_offset_pwr`                                        | the Dll's field; its probe stays `offset_pwr`                          |
-| `lock_look`                            | `lock_accumulate`                                        | the Dll's internal function                                            |
+| `lattice_hz`                           | `ambiguity_interval_hz`                                  | AsyncDsssPool's state field                                            |
 | `df_end_lat`, `end_b_lat`, `end_a_lat` | `df_end_intervals`, `end_b_intervals`, `end_a_intervals` | the pool's ghost validator; its committed CSV columns stay as recorded |
 | `gh_on_image`, `GH_IMAGE_TOL_HZ`       | `gh_on_ambiguity`, `GH_AMBIGUITY_TOL_HZ`                 | the pool's ghost validator                                             |
-| `block_ms`                             | `coherent_dwell_ms`                                      | the pull-in validator's `# search` column                              |
 
-**In the correlator's own PR, after the release**, all shipped:
+**The correlator's names ([#3105](https://github.com/doppler-dsp/doppler/issues/3105))**:
 
 | name                                                  | becomes                         | where                                                                   |
 | ----------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------- |
@@ -309,10 +310,10 @@ New on that branch:
 | `pd_burst`                                            | `pd_acquisition`                | the correlator                                                          |
 | `n_blocks`, `max_n_blocks`, `refine_max_n_blocks`     | not yet named                   | CarrierAcquisition, and the receiver's refine argument                  |
 
-The same PR renames the "ns a sample" table headings in correlator.md and the
+#3105 also renames the "ns a sample" table headings in correlator.md and the
 benchmarks page to processing time per sample.
 
-**In its own PR after the release (#3278)**, shipped:
+**Samples per chip ([#3278](https://github.com/doppler-dsp/doppler/issues/3278))**:
 
 | name                     | becomes | where                                           |
 | ------------------------ | ------- | ----------------------------------------------- |

@@ -2133,7 +2133,7 @@ size_t dp_dll_steps_max_out (
 The hard ceiling, which holds at any rate and in any loop state: an epoch closes at most once per input sample, so `segments x x_len` partials are never exceeded. A caller that must not lose a partial under any loop state sizes to that, and pays for it in memory: a call of 1e6 samples at 127 chips, 2 samples per chip and 8 segments is 8,000,000 partials (64 MB of complex64) against this bound's 63,000 (0.5 MB), 127 times as much.
 
 
-Sizing `max_out` from this keeps a tracking loop's call from ever having to stop. A call that must emit more than its `max_out`  a capacity below the bound, or a loop past the headroom  stops there without writing out of range and drops the rest: with the bound it is the caller's error, and past the headroom it is the price of a rate the bound does not assume.
+Sizing `max_out` from this keeps a tracking loop's call from ever having to stop. A call that must emit more than its `max_out`  a capacity below the bound, or a loop past the headroom  stops there without writing out of range and drops the rest: with the bound it is the caller's error, and past the headroom it is the price of a rate the bound does not assume. A Debug build (no `NDEBUG`) tells the two apart: an emission refused when `max_out` is at least this bound and the loop's code rate has stayed within twice nominal all call means the bound itself is wrong, and aborts (#3282). A Release build compiles the check away.
 
 
 Held by test\_dll\_core.c: a one-sample call that completes a carried period at `segments` 4 emits all four partials, random call lengths at `segments` 1, 4 and 8 and at 2, 2.2 and 3.4219 samples per chip never exceed it, and a code rate of 1.9 times nominal does not either.

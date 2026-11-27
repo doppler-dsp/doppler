@@ -244,6 +244,18 @@ dp_gnu_compile_options(validate_ratesync_pulse_model PRIVATE -O3)
 add_test(NAME validate_ratesync_pulse_model
          COMMAND validate_ratesync_pulse_model --check)
 
+# RateSync run to its own settle_time: the starts past the claimed range and
+# the Gardner baseline on the rectangle.
+add_executable(validate_ratesync_settle
+               ${CMAKE_CURRENT_SOURCE_DIR}/ratesync_settle.c)
+target_include_directories(validate_ratesync_settle
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_ratesync_settle PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_ratesync_settle PRIVATE -O3)
+add_test(NAME validate_ratesync_settle
+         COMMAND validate_ratesync_settle --check)
+
 # Gardner and the derivative-bank detector closed around each planned
 # cascade: a model of what the second would do, before it is built.
 add_executable(validate_ratesync_loop_model

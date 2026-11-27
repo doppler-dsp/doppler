@@ -2360,6 +2360,154 @@ test_count_lag_matches_the_count (void)
   return 0;
 }
 
+/* The plan's response, derived: on every kind of matched plan the outputs
+   of a random input are the response's sums over that input. One stage,
+   halfbands, a CIC with its compensator folded into the bank, whole and
+   not whole decimations, one to four outputs a symbol, both pulses.
+     The input is under the CIC's clip and far above its 16-bit step, and
+   the bound is what the response says it leaves out: single precision on
+   a plan with no CIC, the CIC's input and output steps on one with.
+     Sabotages, each shown red: the halfband's delay tap one input off; the
+   CIC with three boxcars for four; its output formed one input early; the
+   bank's taps read newest-last; the arm taken from the next output's
+   phase; the whole inputs of an output interval left out of the load. */
+static void
+test_response (void)
+{
+  static const struct
+  {
+    double sps, m;
+    int    pulse;
+  } plan[] = {
+    { 4.0, 4.0, RC_PULSE_IANDD },   { 4.0, 2.0, RC_PULSE_RRC },
+    { 5.0, 4.0, RC_PULSE_IANDD },   { 8.0, 4.0, RC_PULSE_IANDD },
+    { 8.0, 2.0, RC_PULSE_RRC },     { 17.333, 4.0, RC_PULSE_RRC },
+    { 32.0, 4.0, RC_PULSE_IANDD },  { 64.0, 4.0, RC_PULSE_RRC },
+    { 67.3, 4.0, RC_PULSE_IANDD },  { 67.3, 2.0, RC_PULSE_RRC },
+    { 300.0, 4.0, RC_PULSE_IANDD },
+  };
+  /* a plain plan has no matched terminal stage and no response here */
+  {
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.3, 1);
+    DP_CHECK (rc != NULL);
+    if (rc)
+      {
+        double  h[4] = { 7.0, 7.0, 7.0, 7.0 };
+        int64_t nw   = -7;
+        DP_CHECK (dp_RateConverter_response_len (rc) == 0);
+        DP_CHECK (dp_RateConverter_response (rc, 0, 1, h, &nw)
+                  == DP_ERR_INVALID);
+        DP_CHECK (h[0] == 7.0 && nw == -7);
+      }
+    dp_RateConverter_destroy (rc);
+  }
+  /* the header's example, as written there */
+  {
+    dp_RateConverter_state_t *rc = dp_RateConverter_create_matched (
+        4.0 / 8.0, 1, RC_PULSE_IANDD, 0.35, 8, 4.0, 1024);
+    DP_CHECK (rc != NULL);
+    if (rc)
+      {
+        double  h[64];
+        int64_t nw = 0;
+        DP_CHECK (dp_RateConverter_response_len (rc) == 48);
+        DP_CHECK (dp_RateConverter_response (rc, 100, 1, h, &nw) == DP_OK);
+        printf ("  response: the header's example reads %zu %lld\n",
+                dp_RateConverter_response_len (rc), (long long)nw);
+        DP_CHECK (nw == 199);
+      }
+    dp_RateConverter_destroy (rc);
+  }
+  for (size_t pi = 0; pi < sizeof plan / sizeof *plan; pi++)
+    {
+      const double              sps = plan[pi].sps, rate = plan[pi].m / sps;
+      dp_RateConverter_state_t *rc = dp_RateConverter_create_matched (
+          rate, 1, plan[pi].pulse, 0.35, 8, plan[pi].m, 1024);
+      DP_CHECK (rc != NULL);
+      if (!rc)
+        continue;
+      int has_cic = 0;
+      for (int i = 0; i < rc->n_stages; i++)
+        has_cic |= rc->stage_types[i] == RC_STAGE_CIC;
+      const size_t len = dp_RateConverter_response_len (rc);
+      enum
+      {
+        NK = 97 /* outputs compared: not a multiple of any arm cycle */
+      };
+      /* past the plan's own start, and far enough in for a full response */
+      const uint64_t k0
+          = (uint64_t)ceil ((dp_RateConverter_get_memory (rc) + (double)len)
+                            * rate)
+            + 8u;
+      const size_t    n_in = (size_t)((double)(k0 + NK + 8u) / rate) + 16u;
+      float _Complex *x    = malloc (n_in * sizeof *x);
+      float _Complex *y    = malloc ((size_t)(k0 + NK + 64u) * sizeof *y);
+      double         *h    = malloc ((size_t)NK * len * sizeof *h);
+      int64_t         newest[NK];
+      DP_CHECK (len > 0 && x != NULL && y != NULL && h != NULL);
+      if (len && x && y && h)
+        {
+          uint32_t st = 0x5eedu + (uint32_t)pi;
+          for (size_t i = 0; i < n_in; i++)
+            {
+              const float re = (float)(dp_xs32 (&st) / 4294967296.0 - 0.5);
+              const float im = (float)(dp_xs32 (&st) / 4294967296.0 - 0.5);
+              x[i]           = CMPLXF (re, im);
+            }
+          size_t ny = 0;
+          float _Complex o[8];
+          for (size_t i = 0; i < n_in; i++)
+            {
+              size_t g
+                  = dp_RateConverter_execute_ctrl_push (rc, x[i], 0.0, o, 8);
+              for (size_t q = 0; q < g && ny < k0 + NK + 64u; q++)
+                y[ny++] = o[q];
+            }
+          DP_CHECK (ny >= k0 + NK);
+          DP_CHECK (dp_RateConverter_response (rc, k0, NK, h, newest)
+                    == DP_OK);
+          double worst = 0.0, pw = 0.0;
+          for (size_t k = 0; k < NK && ny >= k0 + NK; k++)
+            {
+              double re = 0.0, im = 0.0;
+              DP_CHECK (newest[k] >= (int64_t)len - 1
+                        && newest[k] < (int64_t)n_in);
+              if (newest[k] < (int64_t)len - 1 || newest[k] >= (int64_t)n_in)
+                continue;
+              for (size_t j = 0; j < len; j++)
+                {
+                  re += h[k * len + j]
+                        * (double)crealf (x[(size_t)newest[k] - j]);
+                  im += h[k * len + j]
+                        * (double)cimagf (x[(size_t)newest[k] - j]);
+                }
+              double dr = re - (double)crealf (y[k0 + k]);
+              double di = im - (double)cimagf (y[k0 + k]);
+              double d  = sqrt (dr * dr + di * di);
+              pw += re * re + im * im;
+              if (d > worst)
+                worst = d;
+            }
+          double rms = sqrt (pw / (double)NK);
+          printf ("  response: sps %.3f m %.0f pulse %d, %d stage(s)%s, %zu "
+                  "taps, output off by %.2e of rms %.3f\n",
+                  sps, plan[pi].m, plan[pi].pulse, rc->n_stages,
+                  has_cic ? " with a CIC" : "", len, worst, rms);
+          DP_CHECK (rms > 0.01);
+          /* With a CIC: two of its output steps, CIC_PAPR_HEADROOM /
+             32768 each (measured 6.5e-05 to 8.4e-05, a little over one).
+             Without: single precision over the taps (measured under
+             7e-08). */
+          DP_CHECK (worst
+                    < (has_cic ? 2.0 * CIC_PAPR_HEADROOM / 32768.0 : 1e-6));
+        }
+      free (x);
+      free (y);
+      free (h);
+      dp_RateConverter_destroy (rc);
+    }
+}
+
 int
 main (void)
 {
@@ -2405,6 +2553,7 @@ main (void)
   test_agc_state_roundtrip_mid_convergence ();
   test_matched_state_roundtrip ();
   test_matched_set_rate_keeps_pulse ();
+  test_response ();
 
   DP_TEST_END ("test_RateConverter_core");
 }

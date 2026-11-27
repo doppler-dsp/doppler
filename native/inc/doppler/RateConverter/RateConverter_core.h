@@ -441,6 +441,74 @@ double dp_RateConverter_get_group_delay (const dp_RateConverter_state_t *s);
  * @endcode
  */
 double dp_RateConverter_get_memory (const dp_RateConverter_state_t *s);
+
+/**
+ * @brief Taps dp_RateConverter_response() writes for one output.
+ *
+ * @param s  Must be non-NULL.
+ * @return The length of a matched plan's response at the converter's input
+ *         rate; 0 for a plan with no matched terminal stage, which has no
+ *         response here.
+ */
+size_t dp_RateConverter_response_len (const dp_RateConverter_state_t *s);
+
+/**
+ * @brief What each of a run of outputs is, as a filter on the input: the
+ *        plan's response, from the stages' definitions.
+ *
+ * Output `k` of an unsteered stream from a fresh converter is
+ *
+ *     y[k] = sum_j h_k[j] * x[newest_k - j]
+ *
+ * and this writes `h_k` and `newest_k` for `k = k0 .. k0 + n - 1`. Nothing
+ * is run through the converter: the taps are the halfbands' coefficients,
+ * the CIC's `CIC_N` boxcars of `R` inputs, a droop compensator's taps and
+ * the terminal bank's arm, composed at the input's rate, and `newest_k`
+ * follows the instants each stage forms an output at and the terminal
+ * stage's own accumulator arithmetic. Each output has its own filter
+ * because each reads its own arm of the bank; at a whole decimation they
+ * are all one.
+ *
+ * It is the linear response at the gains the stages have. It leaves out
+ * what is not linear or not there by default: a CIC's 16-bit input and
+ * output steps and its clip at CIC_PAPR_HEADROOM, single-precision
+ * rounding, the output a CIC plan gives for silence at its start
+ * (dp_RateConverter_get_memory() says when that has passed), and a
+ * pre-terminal AGC's gain (dp_RateConverter_enable_agc()).
+ *
+ * What it is for: the noise at the output. White input noise of variance
+ * `s2` comes out with covariance `s2 * sum_j h_i[j] h_k[j + newest_k -
+ * newest_i]` between outputs `i` and `k`, which is what a threshold on a
+ * statistic of the output is derived from.
+ *
+ * Held by test_RateConverter_core.c (`test_response`): on eleven plans the
+ * outputs of a random input are the response's sums over that input.
+ *
+ * @param s       Must be non-NULL, a matched plan
+ *                (dp_RateConverter_create_matched()).
+ * @param k0      The first output's index, counted from create or reset.
+ * @param n       How many outputs.
+ * @param h       Receives `n` rows of dp_RateConverter_response_len()
+ *                taps, row-major.
+ * @param newest  Receives each output's newest input index, counted from
+ *                create or reset.
+ * @return DP_OK, or DP_ERR_INVALID for a plan with no matched terminal
+ *         stage (nothing is written).
+ * @code
+ * // the rectangle at 8 samples a symbol, to 4: a halfband, then the bank
+ * dp_RateConverter_state_t *rc =
+ *     dp_RateConverter_create_matched (4.0 / 8.0, 1, RC_PULSE_IANDD, 0.35, 8,
+ *                                   4.0, 1024);
+ * double  h[64];   // dp_RateConverter_response_len (rc) is 48
+ * int64_t newest;
+ * dp_RateConverter_response (rc, 100, 1, h, &newest);
+ * printf ("%zu %lld\n", dp_RateConverter_response_len (rc),
+ *         (long long)newest);   // 48 199
+ * dp_RateConverter_destroy (rc);
+ * @endcode
+ */
+int dp_RateConverter_response (const dp_RateConverter_state_t *s, uint64_t k0,
+                            size_t n, double *h, int64_t *newest);
 /**
  * @brief Label of stage @p i, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)".
  *

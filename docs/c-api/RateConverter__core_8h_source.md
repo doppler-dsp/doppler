@@ -99,6 +99,11 @@ double dp_RateConverter_get_count_lag (const dp_RateConverter_state_t *s);
 double dp_RateConverter_get_group_delay (const dp_RateConverter_state_t *s);
 
 double dp_RateConverter_get_memory (const dp_RateConverter_state_t *s);
+
+size_t dp_RateConverter_response_len (const dp_RateConverter_state_t *s);
+
+int dp_RateConverter_response (const dp_RateConverter_state_t *s, uint64_t k0,
+                            size_t n, double *h, int64_t *newest);
 const char *dp_RateConverter_stages_value (const dp_RateConverter_state_t *s,
                                         size_t i);
 

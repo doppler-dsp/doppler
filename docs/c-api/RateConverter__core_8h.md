@@ -98,6 +98,8 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 |  size\_t | [**dp\_RateConverter\_num\_bank\_shape**](#function-dp_rateconverter_num_bank_shape) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._ |
 |  size\_t | [**dp\_RateConverter\_num\_stages**](#function-dp_rateconverter_num_stages) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Number of planned cascade stages (backs the_ `stages` _property)._ |
 |  void | [**dp\_RateConverter\_reset**](#function-dp_rateconverter_reset) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory. An enabled AGC is reset too (back to unity gain with its detector at the reference), and the clip flag read by_ [_**dp\_RateConverter\_get\_clipped()**_](RateConverter__core_8h.md#function-dp_rateconverter_get_clipped) _is cleared with the CIC stages._ |
+|  int | [**dp\_RateConverter\_response**](#function-dp_rateconverter_response) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, uint64\_t k0, size\_t n, double \* h, int64\_t \* newest) <br>_What each of a run of outputs is, as a filter on the input: the plan's response, from the stages' definitions._  |
+|  size\_t | [**dp\_RateConverter\_response\_len**](#function-dp_rateconverter_response_len) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Taps_ [_**dp\_RateConverter\_response()**_](RateConverter__core_8h.md#function-dp_rateconverter_response) _writes for one output._ |
 |  void | [**dp\_RateConverter\_set\_rate**](#function-dp_rateconverter_set_rate) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. A matched cascade keeps its pulse and an enabled AGC survives (its reference is re-derived for the new terminal bank). The change is all or nothing: the new cascade (and AGC) is built first and committed only once it exists, so a refused rate or a failed rebuild leaves the converter exactly as it was_  _same rate, same stages, same filter memory. That includes the AGC: one that cannot be rebuilt for the new bank refuses the whole change, where it used to be dropped and the rate taken anyway._ |
 |  int | [**dp\_RateConverter\_set\_state**](#function-dp_rateconverter_set_state) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, const void \* blob) <br>_Restore active-stage state from_ `blob` _(same rate)._ |
 |  int | [**dp\_RateConverter\_set\_telemetry**](#function-dp_rateconverter_set_telemetry) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the pre-terminal AGC._  |
@@ -1455,6 +1457,107 @@ void dp_RateConverter_reset (
 0.5
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_response 
+
+_What each of a run of outputs is, as a filter on the input: the plan's response, from the stages' definitions._ 
+```C++
+int dp_RateConverter_response (
+    const dp_RateConverter_state_t * s,
+    uint64_t k0,
+    size_t n,
+    double * h,
+    int64_t * newest
+) 
+```
+
+
+
+Output `k` of an unsteered stream from a fresh converter is  and this writes `h_k` and `newest_k` for `k = k0 .. k0 + n - 1`. Nothing is run through the converter: the taps are the halfbands' coefficients, the CIC's `CIC_N` boxcars of `R` inputs, a droop compensator's taps and the terminal bank's arm, composed at the input's rate, and `newest_k` follows the instants each stage forms an output at and the terminal stage's own accumulator arithmetic. Each output has its own filter because each reads its own arm of the bank; at a whole decimation they are all one.
+
+
+It is the linear response at the gains the stages have. It leaves out what is not linear or not there by default: a CIC's 16-bit input and output steps and its clip at CIC\_PAPR\_HEADROOM, single-precision rounding, the output a CIC plan gives for silence at its start ([**dp\_RateConverter\_get\_memory()**](RateConverter__core_8h.md#function-dp_rateconverter_get_memory) says when that has passed), and a pre-terminal AGC's gain ([**dp\_RateConverter\_enable\_agc()**](RateConverter__core_8h.md#function-dp_rateconverter_enable_agc)).
+
+
+What it is for: the noise at the output. White input noise of variance `s2` comes out with covariance `s2 * sum_j h_i[j] h_k[j + newest_k - newest_i]` between outputs `i` and `k`, which is what a threshold on a statistic of the output is derived from.
+
+
+Held by test\_RateConverter\_core.c (`test_response`): on eleven plans the outputs of a random input are the response's sums over that input.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL, a matched plan ([**dp\_RateConverter\_create\_matched()**](RateConverter__core_8h.md#function-dp_rateconverter_create_matched)). 
+* `k0` The first output's index, counted from create or reset. 
+* `n` How many outputs. 
+* `h` Receives `n` rows of [**dp\_RateConverter\_response\_len()**](RateConverter__core_8h.md#function-dp_rateconverter_response_len) taps, row-major. 
+* `newest` Receives each output's newest input index, counted from create or reset. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID for a plan with no matched terminal stage (nothing is written). 
+```C++
+// the rectangle at 8 samples a symbol, to 4: a halfband, then the bank
+dp_RateConverter_state_t *rc =
+    dp_RateConverter_create_matched (4.0 / 8.0, 1, RC_PULSE_IANDD, 0.35, 8,
+                                  4.0, 1024);
+double  h[64];   // dp_RateConverter_response_len (rc) is 48
+int64_t newest;
+dp_RateConverter_response (rc, 100, 1, h, &newest);
+printf ("%zu %lld\n", dp_RateConverter_response_len (rc),
+        (long long)newest);   // 48 199
+dp_RateConverter_destroy (rc);
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_response\_len 
+
+_Taps_ [_**dp\_RateConverter\_response()**_](RateConverter__core_8h.md#function-dp_rateconverter_response) _writes for one output._
+```C++
+size_t dp_RateConverter_response_len (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The length of a matched plan's response at the converter's input rate; 0 for a plan with no matched terminal stage, which has no response here. 
+
+
+
 
 
         

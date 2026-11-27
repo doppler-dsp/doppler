@@ -196,8 +196,9 @@ static dp_ber_sync_t
 align_at (const float complex *rx, size_t n, const uint8_t *truth,
           size_t n_truth, size_t t0, int dir, dp_ber_marker_t *mk)
 {
-  size_t at  = dp_ber_marker_place (truth, n_truth, 2, t0, DP_BER_SYNC_SYMS,
-                                    DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, dir);
+  size_t at
+      = dp_ber_marker_place (truth, n_truth, rx, n, 2, t0, DP_BER_SYNC_SYMS,
+                             DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, dir);
   mk->sym    = NULL;
   mk->n      = DP_BER_SYNC_SYMS;
   mk->t0     = at == SIZE_MAX ? n_truth : at;

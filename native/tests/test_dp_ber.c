@@ -352,8 +352,8 @@ test_marker_skips_a_degenerate_stretch (void)
   DP_CHECK (!sy.ok);
 
   /* Placed: past the window, and the same detector resolves the lag. */
-  size_t t = dp_ber_marker_place (truth, NSYM, m, t_old, 0, DP_BER_LAG_SPAN,
-                                  DP_BER_SYNC_PFA, 1);
+  size_t t = dp_ber_marker_place (truth, NSYM, rx, NSYM, m, t_old, 0,
+                                  DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
   DP_CHECK (t != SIZE_MAX && t > t_old);
   mk.t0 = t;
   sy    = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
@@ -363,7 +363,7 @@ test_marker_skips_a_degenerate_stretch (void)
 
   /* Backward from the end, the same: the last frame's window is at
      5381..5655, and a marker asked for at 5400 moves earlier. */
-  t = dp_ber_marker_place (truth, NSYM, m, 5400, 0, DP_BER_LAG_SPAN,
+  t = dp_ber_marker_place (truth, NSYM, rx, NSYM, m, 5400, 0, DP_BER_LAG_SPAN,
                            DP_BER_SYNC_PFA, -1);
   DP_CHECK (t != SIZE_MAX && t < 5400);
   mk.t0 = t;
@@ -374,8 +374,8 @@ test_marker_skips_a_degenerate_stretch (void)
   /* A resolvable position is left where it is, so no caller that never sat
      in a degenerate stretch changes the symbols it measures. */
   DP_CHECK ((2881u + OFF) % FRAME == 500u); /* data either side */
-  DP_CHECK (dp_ber_marker_place (truth, NSYM, m, 2881, 0, DP_BER_LAG_SPAN,
-                                 DP_BER_SYNC_PFA, 1)
+  DP_CHECK (dp_ber_marker_place (truth, NSYM, rx, NSYM, m, 2881, 0,
+                                 DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1)
             == 2881);
 
   /* At the record's end there is no lag span of truth past the marker,
@@ -383,8 +383,9 @@ test_marker_skips_a_degenerate_stretch (void)
      (A placement that wanted the span refused here, and a validator's
      end-of-burst slip check read a clean burst as SLIPPED.) */
   DP_CHECK (((size_t)NSYM - DP_BER_SYNC_SYMS + OFF) % FRAME == 363u);
-  DP_CHECK (dp_ber_marker_place (truth, NSYM, m, NSYM - DP_BER_SYNC_SYMS, 0,
-                                 DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1)
+  DP_CHECK (dp_ber_marker_place (truth, NSYM, rx, NSYM, m,
+                                 NSYM - DP_BER_SYNC_SYMS, 0, DP_BER_LAG_SPAN,
+                                 DP_BER_SYNC_PFA, -1)
             == (size_t)NSYM - DP_BER_SYNC_SYMS);
 
   /* And the one-call path aligns the burst the old placement lost. */
@@ -400,9 +401,97 @@ test_marker_skips_a_degenerate_stretch (void)
 
   /* A record that is all one run has nowhere to place one. */
   memset (truth, 0, sizeof truth);
-  DP_CHECK (dp_ber_marker_place (truth, NSYM, m, t_old, 0, DP_BER_LAG_SPAN,
-                                 DP_BER_SYNC_PFA, 1)
+  DP_CHECK (dp_ber_marker_place (truth, NSYM, NULL, 0, m, t_old, 0,
+                                 DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1)
             == SIZE_MAX);
+}
+
+/* A stretch the clean replay resolves can still refuse a perfect link: the
+ * received noise adds to every off-peak lag's power, the CFAR floor rises,
+ * and a marker that overlaps a constant run (whose own correlation already
+ * lifts that floor) falls under the threshold with every decision right
+ * (doppler#3131: 256 of 256 correct at 10 dB, 0.63 dB short, at the 415.1
+ * pull-in's seed 8). The same stimulus as above, 10 dB, every start across
+ * one frame:
+ *   - the defect exists: some start the noiseless guard (rx NULL) accepts
+ *     is refused by the sync on the received symbols;
+ *   - the fix holds: from EVERY start, the guarded placement (rx given)
+ *     lands where the sync aligns, at the true lag.
+ * Sabotage: drop the measured noise (s2 = 0) -> the second count is the
+ * first's, red; drop the runner's noise term -> no change here (the floor
+ * term binds first), which is why it is pinned on its own below. */
+/* The guard as it was before doppler#3131, the control: the truth replayed
+   noiselessly around the marker, aligned at lag 0 by the detector. */
+static int
+_clean_replay_aligns (const uint8_t *truth, size_t n_truth, int m, size_t t)
+{
+  const size_t span = (size_t)DP_BER_LAG_SPAN, n = DP_BER_SYNC_SYMS;
+  const size_t a = t > span ? t - span : 0;
+  const size_t b = t + n + span < n_truth ? t + n + span : n_truth;
+  float _Complex rep[DP_BER_SYNC_SYMS + 2 * DP_BER_LAG_SPAN];
+  if (t + n > n_truth)
+    return 0;
+  for (size_t i = 0; i < b - a; i++)
+    rep[i]
+        = cexpf (I * (float)(2.0 * M_PI * truth[a + i] / m + mpsk_phi0 (m)));
+  const ber_align_t al
+      = dp_ber_align_detect (rep, b - a, truth + a, b - a, m, t - a, n, 0,
+                             (int)DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
+  return al.ok && al.lag == 0;
+}
+
+static void
+test_marker_placement_survives_the_noise (void)
+{
+  enum
+  {
+    NSYM  = 6000,
+    FRAME = 1000,
+    IDLE  = 275,
+    OFF   = 619
+  };
+  static uint8_t truth[NSYM];
+  static float _Complex rx[NSYM];
+  uint64_t     st    = 2026u;
+  const int    m     = 2;
+  const long   lag   = 37;
+  const double sigma = sqrt (0.5 / pow (10.0, 10.0 / 10.0));
+  for (int i = 0; i < NSYM; i++)
+    {
+      size_t pos = ((size_t)i + OFF) % FRAME;
+      truth[i]   = pos < IDLE ? 0u : (uint8_t)(dp_xs64 (&st) & 1u);
+    }
+  build (rx, NSYM, truth, NSYM, m, lag, 0.4, sigma, &st);
+  size_t clean_refused = 0, guarded_refused = 0, placed = 0;
+  for (size_t t = 1000; t < 2000; t++)
+    {
+      dp_ber_marker_t mk = { NULL, DP_BER_SYNC_SYMS, 0, 0, 0 };
+      dp_ber_sync_t   sy;
+      if (_clean_replay_aligns (truth, NSYM, m, t))
+        {
+          mk.t0 = t;
+          sy    = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
+                               DP_BER_SYNC_PFA);
+          clean_refused += !(sy.ok && sy.lag == lag);
+        }
+      const size_t at = dp_ber_marker_place (
+          truth, NSYM, rx, NSYM, m, t, 0, DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
+      if (at == SIZE_MAX)
+        continue;
+      placed++;
+      mk.t0 = at;
+      sy    = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
+                           DP_BER_SYNC_PFA);
+      guarded_refused += !(sy.ok && sy.lag == lag);
+    }
+  printf ("  placement over one frame at 10 dB: starts the clean replay "
+          "accepted refused %zu, the guarded placement's %zu of %zu\n",
+          clean_refused, guarded_refused, placed);
+  DP_CHECK_MSG (clean_refused > 0,
+                "the defect exists: a clean-accepted start refuses the link");
+  DP_CHECK_MSG (placed == 1000, "every start finds a placement");
+  DP_CHECK_MSG (guarded_refused == 0,
+                "the guarded placement never refuses a link that aligns");
 }
 
 /* The false-alarm gate: a marker correlated against a stream that does NOT
@@ -866,6 +955,7 @@ main (void)
   test_sync_resolves ();
   test_sync_rejects_garbage ();
   test_marker_skips_a_degenerate_stretch ();
+  test_marker_placement_survives_the_noise ();
   test_score_counts_exactly ();
   test_settle ();
   test_sanity_gate ();

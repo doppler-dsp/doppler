@@ -1273,7 +1273,8 @@ extern "C"
 
   /** @brief Has the cascade's CIC stage clipped its input since the last
    *         reset? Forwarded from the RateConverter: a CIC bounds its input
-   *         to +-2.0 and clips silently past that, which no timing metric
+   *         to its full scale (CIC_PAPR_WIDE as built) and clips silently
+   *         at and past that, which no timing metric
    *         reveals. Always 0 when the plan has no CIC stage.
    *  @param state  Must be non-NULL.
    *  @return 1 if the CIC has clipped since the last reset, else 0. */

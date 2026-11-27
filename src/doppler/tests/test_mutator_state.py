@@ -673,6 +673,7 @@ def _scalar_candidates(t: str, current: Any = None) -> list[Any]:
     if t == "int":
         x = int(current) if current is not None else 0
         base = [x + 1, 2 * x if x else 2, x + 3, 1, 2, 3, 4, 8]
+        base += [16, 32, 64]  # a width in bits
         return [v for v in dict.fromkeys(base) if v != x and v >= 0]
     return []
 

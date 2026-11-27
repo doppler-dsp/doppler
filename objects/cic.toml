@@ -39,7 +39,38 @@ type = "uint32_t"
 field = true
 
 [[cic.properties]]
+name = "precision"
+type = "uint32_t"
+writable = true
+error = "ValueError"
+error_message = "CIC: precision is 16, 32 or 64"
+doc = "The input word the filter is built for: 16 (a 16-bit word, full scale 2.0: the filter as it was before it had a precision), 32 (a 32-bit word, or the widest the register has left past R = 256) or 64 (the widest the register has left, the default); 32 and 64 start with full scale 4.0. Setting it sets that precision's headroom and resets the filter. Raises ValueError, changing nothing, for any other value."
+
+[[cic.properties]]
+name = "headroom_bits"
+type = "uint32_t"
+writable = true
+error = "ValueError"
+error_message = "CIC: headroom_bits is 0 to 14"
+doc = "Bits of the input word above unit amplitude: full scale is 2**headroom_bits. The rest of the word is precision, so each bit of headroom doubles `step`. Setting `precision` puts it back to that precision's own (1 at 16, 2 at 32 and 64). Setting it resets the filter. Raises ValueError, changing nothing, outside 0 to 14."
+
+[[cic.properties]]
+name = "bits"
+type = "uint32_t"
+doc = "The input word's width in bits, sign included: the precision, or 64 - 4*log2(R) when the register has less than that left."
+
+[[cic.properties]]
+name = "full_scale"
+type = "double"
+doc = "The input bound, 2**headroom_bits: a component at or beyond it is clipped."
+
+[[cic.properties]]
+name = "step"
+type = "double"
+doc = "The input's step: a component smaller than this reads zero. full_scale / 2**(bits - 1)."
+
+[[cic.properties]]
 name = "clipped"
 type = "bool"
 field = true
-doc = "True if any input component has exceeded the +-2.0 bound since the last reset(). Sticky, and free to read: the CIC's boundary comparisons run on every sample anyway, so it records something the sample stream cannot tell you -- a clipped stream still looks entirely plausible (finite, no NaN, merely distorted), so this flag is the only reliable check."
+doc = "True if any input component has reached the bound (`full_scale`) since the last reset(). Sticky, and free to read: the CIC's boundary comparisons run on every sample anyway, so it records something the sample stream cannot tell you -- a clipped stream still looks entirely plausible (finite, no NaN, merely distorted), so this flag is the only reliable check."

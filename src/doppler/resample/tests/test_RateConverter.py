@@ -6,7 +6,12 @@ import math
 import numpy as np
 import pytest
 
-from doppler.resample import MatchedRateConverter, RateConverter, rate_convert
+from doppler.resample import (
+    CIC,
+    MatchedRateConverter,
+    RateConverter,
+    rate_convert,
+)
 from doppler.wfm import rrc_h
 
 
@@ -659,6 +664,10 @@ def test_set_rate_keeps_the_pulse():
 # ------------------------------------------------------------------ #
 
 
+# The bound a planned CIC brings, as that CIC is built: 4.0.
+_CIC_FULL_SCALE = CIC(R=16).full_scale
+
+
 @pytest.mark.parametrize(
     "rate,has_cic",
     [
@@ -678,14 +687,14 @@ def test_input_bound_applies_exactly_when_a_cic_is_planned(rate, has_cic):
 
     # Drive it 4x past the bound and see whether the gain holds.
     y = RateConverter(rate=rate).execute(
-        np.full(8192, 8.0, dtype=np.complex64)
+        np.full(8192, 4.0 * _CIC_FULL_SCALE, dtype=np.complex64)
     )
-    gain = float(y[-1].real) / 8.0
+    gain = float(y[-1].real) / (4.0 * _CIC_FULL_SCALE)
     if has_cic:
-        # Clipped at the boundary, which is CIC_PAPR_HEADROOM (2.0, 6 dB
-        # above unity) rather than 1.0 -- that headroom is the whole point
-        # of the encode scale being 32768/CIC_PAPR_HEADROOM.
-        assert float(y[-1].real) == pytest.approx(2.0, rel=1e-2)
+        # Clipped at the boundary, which is the CIC's full scale (4.0 as
+        # built, 12 dB above unity) rather than 1.0 -- that headroom is
+        # where a signal's peaks go.
+        assert float(y[-1].real) == pytest.approx(_CIC_FULL_SCALE, rel=1e-2)
         assert gain == pytest.approx(0.25, rel=1e-2)
     else:
         assert gain == pytest.approx(1.0, rel=1e-2)
@@ -698,8 +707,8 @@ def test_input_bound_is_silent_not_an_error():
         np.full(8192, 50.0, dtype=np.complex64)
     )
     assert np.all(np.isfinite(y))
-    # Saturates at the CIC_PAPR_HEADROOM bound (2.0), not at unity.
-    assert abs(float(y[-1].real) - 2.0) < 0.01
+    # Saturates at the CIC's full scale, not at unity.
+    assert abs(float(y[-1].real) - _CIC_FULL_SCALE) < 0.01
 
 
 def test_clipped_reports_the_bound_the_cascade_hides():
@@ -710,7 +719,7 @@ def test_clipped_reports_the_bound_the_cascade_hides():
     assert rc.clipped is False
     rc.execute(np.full(4096, 0.5, dtype=np.complex64))
     assert rc.clipped is False
-    rc.execute(np.full(4096, 4.0, dtype=np.complex64))
+    rc.execute(np.full(4096, 2.0 * _CIC_FULL_SCALE, dtype=np.complex64))
     assert rc.clipped is True
     rc.execute(np.full(4096, 0.5, dtype=np.complex64))
     assert rc.clipped is True  # sticky
@@ -733,5 +742,32 @@ def test_matched_cascade_surfaces_clipping_too():
     x, _ = _rrc_bpsk(17.333333333, 0.0)
     rc.execute(x)
     assert rc.clipped is False
-    rc.execute((x * 8).astype(np.complex64))
+    rc.execute((x * 4 * _CIC_FULL_SCALE).astype(np.complex64))
     assert rc.clipped is True
+
+
+def test_the_cic_word_is_the_converters_to_set():
+    # The word reaches the CIC the plan builds and the one a re-plan
+    # builds, and a plan with no CIC has no bound and no step. The C test
+    # (test_cic_word) holds the stages; this is the binding.
+    rc = RateConverter(rate=0.01)
+    assert any("CIC" in s for s in rc.stages)
+    assert (rc.cic_precision, rc.cic_headroom_bits) == (64, 2)
+    assert rc.full_scale == 4.0 and 0.0 < rc.step < 1e-9
+    rc.cic_precision = 16
+    assert (rc.full_scale, rc.step) == (2.0, 2.0 / 2**15)
+    rc.cic_headroom_bits = 4
+    assert rc.full_scale == 16.0
+    rc.rate = 0.005  # a re-plan builds its CIC the same way
+    assert rc.full_scale == 16.0 and rc.cic_precision == 16
+    with pytest.raises(ValueError, match="cic_precision is 16, 32 or 64"):
+        rc.cic_precision = 24
+    with pytest.raises(ValueError, match="cic_headroom_bits is 0 to 14"):
+        rc.cic_headroom_bits = 15
+
+    free = RateConverter(rate=0.5)
+    assert not any("CIC" in s for s in free.stages)
+    assert np.isinf(free.full_scale) and free.step == 0.0
+    free.cic_precision = 16  # kept for a plan that has a CIC
+    free.rate = 0.01
+    assert free.full_scale == 2.0

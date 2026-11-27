@@ -199,8 +199,8 @@ typedef struct dp_rx_point
   /** Transmit level in dBFS (<= 0), the same unit `wfm_compose` states a
       source's level in. It is part of the OPERATING POINT rather than a
       harness constant because the level a geometry can carry is a property of
-      the geometry: a cascade that plans a CIC bounds its input to
-      `CIC_PAPR_HEADROOM`, and the stimulus RMS grows as `sqrt(sps)` at fixed
+      the geometry: a cascade that plans a CIC bounds its input to the
+      CIC's full scale, and the stimulus RMS grows as `sqrt(sps)` at fixed
       matched-filter Es/N0 — per-sample noise does — so one constant cannot
       serve every rate. Measured: RMS 1.63 at sps=8 against 5.27 at sps=128.
       0 means unit power and no gain. `clipped` is the check, and it is

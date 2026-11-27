@@ -99,12 +99,11 @@ def make_signal(sps, tau=0.37, seed=7, es_n0_db=ES_N0_DB):
     squared for the default detector and linear for the other, so the same
     0.158 mistake above would have cost ~6x rather than ~40x under DTTL.
 
-    The CIC's input bound is **2.0**, not 1.0 -- ``CIC_PAPR_HEADROOM``
-    reserves exactly the 6 dB a unit-amplitude RRC's 1.582 peak needs, so
-    the contracted level fits with margin. What does not fit is the NOISE:
-    15 dB Es/N0 at 17.33 samples per symbol is only ~2.6 dB per-sample SNR,
-    so the composite crest runs past the bound on noise alone. See the note
-    beside the assertions below, and gh-668.
+    The CIC's input bound is **4.0** as built, 12 dB over unit amplitude,
+    so the contracted level fits (a unit-amplitude RRC peaks at 1.582) and
+    so does the NOISE on top of it: 15 dB Es/N0 at 17.33 samples per symbol
+    is only ~2.6 dB per-sample SNR, and the composite peaks at 3.27. See
+    the note beside the assertions below.
     """
     rng = np.random.default_rng(seed)
     syms = np.where(rng.integers(0, 2, NSYM) > 0, 1.0, -1.0)
@@ -356,24 +355,20 @@ def main(out_path="ratesync_demo.png"):
     # restored the day native/validation/symsync_lock.c is extended to
     # RateSync's geometry and the number stops being invented.
     assert sync.locked, f"timing never locked (lock_stat {sync.lock_stat:.3f})"
-    # The front end's clip flag is REPORTED, not asserted, and the reason is
-    # measured rather than assumed. `clipped` cannot tell "the caller
-    # over-drove the transmitter" from "the NOISE crest exceeds the bound",
-    # and at this operating point it is entirely the second: unit symbol
-    # amplitude puts the shaped signal's peak at 1.582 against the CIC's 2.0
-    # bound (CIC_PAPR_HEADROOM reserves exactly that 6 dB), but 15 dB Es/N0
-    # at 17.33 samples per symbol is only ~2.6 dB per-SAMPLE SNR, so noise
-    # sigma is ~0.59 per dimension and the composite peaks at 3.27 -- 4403
-    # of 104088 samples past the bound, none of them signal.
+    # The front end's clip flag is REPORTED, not asserted. `clipped` cannot
+    # tell "the caller over-drove the transmitter" from "the NOISE crest
+    # exceeds the bound", and at a noisy operating point it is the second
+    # that reaches the bound first: here unit symbol amplitude puts the
+    # shaped signal's peak at 1.582, and 15 dB Es/N0 at 17.33 samples per
+    # symbol is only ~2.6 dB per-SAMPLE SNR, so noise sigma is ~0.59 per
+    # dimension and the composite peaks at 3.27, under the CIC's 4.0.
     #
-    # It costs nothing here, and that is measured too: EVM lands on the
-    # matched-filter bound (-15.1 dB against -15.0) with the clip active,
-    # because a noise-dominated EVM cannot see a 4% clip. The EVM assertion
-    # below is the real check, and it is strictly stronger -- an over-driven
-    # front end shows up there as the ~25 dB collapse cic_core.h documents.
-    # Backing the level off to silence the flag is the wrong trade: it
-    # under-drives a TED whose slope goes as A^2 (measured: 0.25x amplitude
-    # reads -13.4 dB, 1.6 dB off the bound).
+    # The EVM assertion below is the real check, and it is strictly
+    # stronger -- an over-driven front end shows up there as the ~25 dB
+    # collapse cic_core.h documents. Backing the level off to keep clear of
+    # the bound is the wrong trade: it under-drives a TED whose slope goes
+    # as A^2 (measured: 0.25x amplitude reads -13.4 dB, 1.6 dB off the
+    # bound).
     if sync.clipped:
         print(
             "note: CIC clipped on noise crests -- expected at "

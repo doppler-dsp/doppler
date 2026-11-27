@@ -697,6 +697,126 @@ RateConverter_getprop_clipped (RateConverterObject *self,
   return PyBool_FromLong ((long)(dp_RateConverter_get_clipped (self->handle)));
 }
 static PyObject *
+RateConverter_getprop_cic_precision (RateConverterObject *self,
+                                     void                *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLong (
+      (unsigned long)dp_RateConverter_get_cic_precision (self->handle));
+}
+static int
+RateConverter_setprop_cic_precision (RateConverterObject *self,
+                                     PyObject            *value,
+                                     void                *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  long long v_raw = 0LL;
+  if (!PyArg_Parse (value, "L", &v_raw))
+    return -1;
+  if (v_raw < 0 || v_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "cic_precision: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)v_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t v = (uint32_t)v_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  int _rc = dp_RateConverter_set_cic_precision (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "RateConverter: cic_precision is 16, 32 or 64",
+                    (long long)_rc);
+      return -1;
+    }
+  return 0;
+}
+static PyObject *
+RateConverter_getprop_cic_headroom_bits (RateConverterObject *self,
+                                         void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLong (
+      (unsigned long)dp_RateConverter_get_cic_headroom_bits (self->handle));
+}
+static int
+RateConverter_setprop_cic_headroom_bits (RateConverterObject *self,
+                                         PyObject            *value,
+                                         void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  long long v_raw = 0LL;
+  if (!PyArg_Parse (value, "L", &v_raw))
+    return -1;
+  if (v_raw < 0 || v_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "cic_headroom_bits: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)v_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t v = (uint32_t)v_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  int _rc = dp_RateConverter_set_cic_headroom_bits (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "RateConverter: cic_headroom_bits is 0 to 14",
+                    (long long)_rc);
+      return -1;
+    }
+  return 0;
+}
+static PyObject *
+RateConverter_getprop_full_scale (RateConverterObject *self,
+                                  void                *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dp_RateConverter_get_full_scale (self->handle));
+}
+static PyObject *
+RateConverter_getprop_step (RateConverterObject *self,
+                            void                *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dp_RateConverter_get_step (self->handle));
+}
+static PyObject *
 RateConverter_getprop_narrow_pulse (RateConverterObject *self,
                                     void                *Py_UNUSED (closure))
 {
@@ -782,12 +902,55 @@ static PyGetSetDef RateConverter_getset[] = {
     NULL },
   { "clipped", (getter)RateConverter_getprop_clipped, NULL,
     "True if any planned CIC stage has clipped its input since the last "
-    "`reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <= "
-    "2.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The "
-    "clip is invisible in the samples (finite, no NaN, merely distorted), so "
-    "this is the only reliable check, and it is free: the boundary "
-    "comparisons run on every sample regardless. Always False for a cascade "
-    "with no CIC stage -- those plans are scale-free.\n",
+    "`reset()`. The cascade inherits the CIC's input bound (`full_scale`) "
+    "whenever `stages` names a CIC -- any decimation by 8 or more. The clip "
+    "is invisible in the samples (finite, no NaN, merely distorted), so this "
+    "is the only reliable check, and it is free: the boundary comparisons run "
+    "on every sample regardless. Always False for a cascade with no CIC stage "
+    "-- those plans are scale-free.\n",
+    NULL },
+  { "cic_precision", (getter)RateConverter_getprop_cic_precision,
+    (setter)RateConverter_setprop_cic_precision,
+    "The input word every CIC stage this converter plans is given: 16 (a "
+    "16-bit word, full scale 2.0), 32 (a 32-bit word, or the widest the "
+    "stage's registers have left) or 64 (the widest they have left, the "
+    "default); 32 and 64 start at full scale 4.0. It holds across a re-plan, "
+    "and a plan with no CIC keeps it for one that has. Setting it sets that "
+    "precision's headroom and resets the converter. Raises ValueError, "
+    "changing nothing, for any other value.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_RateConverter_set_cic_precision`` refuses\n"
+    "    the value by returning non-zero. The exception message is\n"
+    "    ``RateConverter: cic_precision is 16, 32 or 64``, with the return\n"
+    "    code appended.\n",
+    NULL },
+  { "cic_headroom_bits", (getter)RateConverter_getprop_cic_headroom_bits,
+    (setter)RateConverter_setprop_cic_headroom_bits,
+    "Bits of the CIC stages' input word above unit amplitude: `full_scale` is "
+    "2**cic_headroom_bits when the plan has a CIC, and `step` doubles with "
+    "each bit. Setting `cic_precision` puts it back to that precision's own. "
+    "Setting it resets the converter. Raises ValueError, changing nothing, "
+    "outside 0 to 14.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_RateConverter_set_cic_headroom_bits``\n"
+    "    refuses the value by returning non-zero. The exception message is\n"
+    "    ``RateConverter: cic_headroom_bits is 0 to 14``, with the return\n"
+    "    code appended.\n",
+    NULL },
+  { "full_scale", (getter)RateConverter_getprop_full_scale, NULL,
+    "The input bound of this plan: a component at or beyond it is clipped. "
+    "The CIC stage's full scale, 4.0 as built; `inf` for a plan with no CIC "
+    "stage, which is scale-free.\n",
+    NULL },
+  { "step", (getter)RateConverter_getprop_step, NULL,
+    "The input step of this plan: a component smaller than it reads zero. The "
+    "CIC stage's step; 0.0 for a plan with no CIC stage.\n",
     NULL },
   { "narrow_pulse", (getter)RateConverter_getprop_narrow_pulse, NULL,
     "True when a rectangular pulse was selected with fewer than four output "

@@ -130,3 +130,92 @@ def test_an_unset_code_is_not_docs_only() -> None:
 def test_a_code_job_failure_on_docs_only_is_still_red() -> None:
     r = _run_docs("false", {"python": "success", "macos": "failure"})
     assert r.returncode == 1
+
+
+# ── the scope lane (ci_scope.py): a push without a PR, a push a PR covers ──
+# PR_ONLY jobs may skip when `scope` said minimal; anything may skip when it
+# said skip; neither is ever a pass for a failure, and `full` grants nothing.
+PR_ONLY = "macos coverage"
+
+
+def _run_scope(
+    scope: str | None,
+    results: dict[str, str],
+    scope_result: str = "success",
+    pr_only: str = PR_ONLY,
+) -> subprocess.CompletedProcess[str]:
+    needs = {job: {"result": r, "outputs": {}} for job, r in results.items()}
+    needs["changes"] = {"result": "success", "outputs": {"src": "true"}}
+    needs["scope"] = {
+        "result": scope_result,
+        "outputs": {} if scope is None else {"scope": scope},
+    }
+    env = {
+        **os.environ,
+        "NEEDS": json.dumps(needs),
+        "SKIPPABLE": "python docs",
+        "PR_ONLY": pr_only,
+    }
+    return subprocess.run(
+        [sys.executable, str(SCRIPT)], env=env, capture_output=True, text=True
+    )
+
+
+def test_a_minimal_push_may_skip_the_pr_only_jobs() -> None:
+    r = _run_scope(
+        "minimal",
+        {"python": "success", "macos": "skipped", "coverage": "skipped"},
+    )
+    assert r.returncode == 0, r.stdout
+    assert "left to the PR run" in r.stdout
+    assert "minimal set" in r.stdout
+
+
+def test_a_minimal_push_may_not_skip_a_minimal_job() -> None:
+    r = _run_scope("minimal", {"python": "skipped", "macos": "skipped"})
+    assert r.returncode == 1
+    assert "python was skipped" in r.stdout
+
+
+def test_the_sabotage_a_pr_only_job_failing_is_red_on_every_scope() -> None:
+    """The permission is to SKIP, never to fail: `scope` cannot green a red."""
+    for scope in ("full", "minimal", "skip"):
+        r = _run_scope(scope, {"python": "success", "macos": "failure"})
+        assert r.returncode == 1, scope
+        assert "macos ended 'failure'" in r.stdout, scope
+
+
+def test_a_pr_only_job_skipped_on_a_full_run_is_red() -> None:
+    """`full` is a pull request or main: the left-to-the-PR jobs are owed."""
+    r = _run_scope("full", {"python": "success", "macos": "skipped"})
+    assert r.returncode == 1
+    assert "macos was skipped" in r.stdout
+
+
+def test_a_skipped_scope_job_grants_nothing() -> None:
+    """A scope that did not succeed has said nothing: no permission."""
+    r = _run_scope(
+        "minimal",
+        {"python": "success", "macos": "skipped", "scope": "failure"},
+        scope_result="failure",
+    )
+    assert r.returncode == 1
+
+
+def test_an_unset_scope_is_not_minimal() -> None:
+    r = _run_scope(None, {"python": "success", "macos": "skipped"})
+    assert r.returncode == 1
+
+
+def test_a_covered_push_may_skip_everything() -> None:
+    r = _run_scope(
+        "skip",
+        {"python": "skipped", "macos": "skipped", "lint": "skipped"},
+    )
+    assert r.returncode == 0, r.stdout
+    assert "the PR run is the gate" in r.stdout
+
+
+def test_a_cancelled_job_is_red_even_when_covered() -> None:
+    r = _run_scope("skip", {"python": "cancelled"})
+    assert r.returncode == 1

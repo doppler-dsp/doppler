@@ -23,11 +23,20 @@ if TYPE_CHECKING:
 
 REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "check_ci_aggregator.py"
+#: The aggregator's name, as the checker pins it (the full scope's required
+#: name; minimal and skip named apart).
+NAME_EXPR = (
+    "${{ needs.scope.outputs.scope == 'full' && 'CI passed' || "
+    "needs.scope.outputs.scope == 'minimal' "
+    "&& 'CI passed (push, minimal set)' || "
+    "'CI passed (skipped: the PR run is the gate)' }}"
+)
 
 
 def _check(tmp_path: Path, body: str):
     f = tmp_path / "ci.yml"
-    f.write_text(textwrap.dedent(body), encoding="utf-8")
+    text = textwrap.dedent(body).replace("NAME_EXPR", f'"{NAME_EXPR}"')
+    f.write_text(text, encoding="utf-8")
     return subprocess.run(
         [sys.executable, str(SCRIPT), str(f)], capture_output=True, text=True
     )
@@ -40,7 +49,7 @@ _SOUND = """
       test:
         runs-on: ubuntu-latest
       ci-passed:
-        name: CI passed
+        name: NAME_EXPR
         needs: [build, test]
         if: always()
         runs-on: ubuntu-latest
@@ -76,9 +85,9 @@ def test_a_need_that_names_no_job_is_named(tmp_path: Path) -> None:
 
 def test_a_renamed_aggregator_is_refused(tmp_path: Path) -> None:
     """The ruleset requires the check by its display NAME."""
-    r = _check(tmp_path, _SOUND.replace("name: CI passed", "name: CI green"))
+    r = _check(tmp_path, _SOUND.replace("name: NAME_EXPR", 'name: "CI green"'))
     assert r.returncode == 1
-    assert "requires the check 'CI passed'" in r.stdout
+    assert "must be" in r.stdout and "only the full scope" in r.stdout
 
 
 def test_an_aggregator_without_always_is_refused(tmp_path: Path) -> None:
@@ -115,7 +124,7 @@ _FAST = """
         if: needs.changes.outputs.src == 'true'
         runs-on: ubuntu-latest
       ci-passed:
-        name: CI passed
+        name: NAME_EXPR
         needs: [changes, lint, matrix]
         if: always()
         runs-on: ubuntu-latest
@@ -172,7 +181,7 @@ _CODE = """
         if: needs.changes.outputs.code == 'true'
         runs-on: ubuntu-latest
       ci-passed:
-        name: CI passed
+        name: NAME_EXPR
         needs: [changes, lint, macos]
         if: always()
         runs-on: ubuntu-latest
@@ -227,7 +236,7 @@ _RETIRED = """
         if: GATE
         runs-on: ubuntu-latest
       ci-passed:
-        name: CI passed
+        name: NAME_EXPR
         needs: [changes, lint, matrix]
         if: always()
         runs-on: ubuntu-latest
@@ -304,7 +313,7 @@ _LEGS = """
                   needs.pythons.outputs.primary }}
             run: make test-python PYTEST_ARGS=--cov
       ci-passed:
-        name: CI passed
+        name: NAME_EXPR
         needs: [pythons, python]
         if: always()
         runs-on: ubuntu-latest
@@ -413,7 +422,10 @@ JOBS_EXTRA
 
 def _check_doc(tmp_path: Path, doc: str):
     f = tmp_path / "ci.yml"
-    f.write_text(textwrap.dedent(_legs()), encoding="utf-8")
+    f.write_text(
+        textwrap.dedent(_legs()).replace("NAME_EXPR", f'"{NAME_EXPR}"'),
+        encoding="utf-8",
+    )
     d = tmp_path / "ci.md"
     d.write_text(doc, encoding="utf-8")
     return subprocess.run(
@@ -486,3 +498,158 @@ def test_a_doc_without_the_jobs_table_is_refused(tmp_path: Path) -> None:
     r = _check_doc(tmp_path, doc)
     assert r.returncode == 1
     assert "ci-jobs:start" in r.stdout
+
+
+# ── the scope permission: PR_ONLY equals the jobs gated on `full` ──────────
+
+_SCOPE = """
+    jobs:
+      scope:
+        runs-on: ubuntu-latest
+        outputs:
+          scope: ${{ steps.s.outputs.scope }}
+      build:
+        needs: scope
+        if: needs.scope.outputs.scope != 'skip'
+        runs-on: ubuntu-latest
+      extra:
+        needs: scope
+        if: needs.scope.outputs.scope == 'full'
+        runs-on: ubuntu-latest
+      ci-passed:
+        name: NAME_EXPR
+        needs: [scope, build, extra]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+          - env:
+              PR_ONLY: extra
+"""
+
+
+def test_a_sound_scope_passes(tmp_path: Path) -> None:
+    r = _check(tmp_path, _SCOPE)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_full_only_job_missing_from_pr_only_is_caught(
+    tmp_path: Path,
+) -> None:
+    """Every push without a PR would go red on the job it never runs."""
+    r = _check(tmp_path, _SCOPE.replace("PR_ONLY: extra", "PR_ONLY: build"))
+    assert r.returncode == 1
+    assert "`extra` is gated on" in r.stdout
+    assert "not in `ci-passed`'s PR_ONLY" in r.stdout
+
+
+def test_pr_only_may_not_name_an_ungated_job(tmp_path: Path) -> None:
+    """A skip granted for a job that runs on every push."""
+    r = _check(
+        tmp_path, _SCOPE.replace("PR_ONLY: extra", "PR_ONLY: extra build")
+    )
+    assert r.returncode == 1
+    assert "PR_ONLY lists `build`" in r.stdout
+
+
+def test_a_job_that_ignores_the_scope_is_caught(tmp_path: Path) -> None:
+    """A `skip` run (a PR already covers the commit) would run it again."""
+    body = _SCOPE.replace(
+        "        if: needs.scope.outputs.scope != 'skip'\n", ""
+    )
+    r = _check(tmp_path, body)
+    assert r.returncode == 1
+    assert "job `build` does not read `needs.scope.outputs.scope`" in r.stdout
+
+
+def test_a_job_reading_the_scope_must_need_it(tmp_path: Path) -> None:
+    r = _check(
+        tmp_path,
+        _SCOPE.replace(
+            "      build:\n        needs: scope\n", "      build:\n"
+        ),
+    )
+    assert r.returncode == 1
+    assert "reads the scope but does not need `scope`" in r.stdout
+
+
+def test_a_scope_job_without_an_output_is_refused(tmp_path: Path) -> None:
+    r = _check(
+        tmp_path,
+        _SCOPE.replace(
+            "        outputs:\n"
+            "          scope: ${{ steps.s.outputs.scope }}\n",
+            "",
+        ),
+    )
+    assert r.returncode == 1
+    assert "declares no `scope` output" in r.stdout
+
+
+def test_scope_references_without_a_scope_job_are_refused(
+    tmp_path: Path,
+) -> None:
+    body = _SCOPE.split("      build:")[1]
+    r = _check(
+        tmp_path,
+        "    jobs:\n      build:" + body,
+    )
+    assert r.returncode == 1
+    assert "no `scope` job" in r.stdout
+
+
+def test_the_live_workflow_runs_a_scope_job() -> None:
+    """The tolerance above is for seeds; ci.yml itself must have the job."""
+    import yaml
+
+    text = (REPO / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    doc = yaml.safe_load(text)
+    assert "scope" in doc["jobs"]
+    push = (doc.get(True) or doc.get("on"))["push"]
+    # Every branch (a tags-ignore alone runs for no branch push, GitHub's
+    # syntax page), with release tags kept out.
+    assert push["branches"] == ["**"]
+    assert push["tags-ignore"] == ["v*"]
+
+
+def test_a_guarded_leg_step_still_names_its_leg(tmp_path: Path) -> None:
+    """`!cancelled() && ...` says whether a step runs after a red one, not
+    where; the leg is what is left after the guards come off."""
+    guard = "!cancelled() && steps.pyext.outcome == 'success' && "
+    r = _check(
+        tmp_path,
+        _legs(sel="${{ " + guard + _FAST_SEL + " }}"),
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_the_required_name_is_only_the_full_scopes(tmp_path: Path) -> None:
+    """Reviewer's hazard: a minimal or skip aggregator must not carry the
+    required name. Sabotage: the minimal branch returns the required name, so
+    a push without a PR would show the required check green while the PR's full
+    run is pending. Refused: the checker pins the expression exactly."""
+    bad = (
+        "name: \"${{ needs.scope.outputs.scope == 'minimal' && 'CI passed'"
+        " || 'x' }}\""
+    )
+    sabotaged = _SOUND.replace("name: NAME_EXPR", bad)
+    assert sabotaged != _SOUND, "the sabotage must change the name"
+    r = _check(tmp_path, sabotaged)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "only the full scope" in r.stdout
+
+
+def test_the_three_names_are_the_ones_the_checker_pins() -> None:
+    """The expression the checker pins names each scope; the required name is
+    the full scope's and only that one."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "check_ci_aggregator", SCRIPT.parent / "check_ci_aggregator.py"
+    )
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    expr = mod.AGGREGATOR_NAME_EXPR
+    assert expr.count("'CI passed'") == 1, expr
+    assert "'CI passed (push, minimal set)'" in expr
+    assert "'CI passed (skipped: the PR run is the gate)'" in expr

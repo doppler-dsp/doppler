@@ -112,6 +112,24 @@ Keep locally only what CI cannot see: whether two open PRs compose
 
 ## 3. While CI runs
 
+Every push runs CI, with or without a PR. A branch without one gets the
+**minimal set** (Linux 24.04 x86 and arm, Windows, the floor and newest
+Python, lint, manifest drift, the sweep validators), so a red is known the
+day it is introduced and not the day the PR opens; the PR runs the rest
+([What a push runs](ci.md#a-push-without-a-pull-request)). Read where a
+branch stands with:
+
+```sh
+gh api "repos/doppler-dsp/doppler/actions/runs?head_sha=$(git rev-parse HEAD)" \
+  --jq '.workflow_runs[] | "\(.id) \(.event) \(.conclusion) \(.name)"'
+```
+
+(by commit, not by branch: a workflow file GitHub rejects has no branch, so
+`gh run list --branch` does not show it; see [CI](ci.md).)
+
+A green minimal run is not a green PR: coverage, the sanitizers, macOS and
+the rest first run when the PR does. A newer push cancels the older run.
+
 Do not wait on it. Start the next **independent** change, or review
 someone else's.
 

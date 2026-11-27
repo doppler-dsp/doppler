@@ -19,6 +19,11 @@ Modes
     coverage run). CI's ``classify`` step emits it as an output and every
     such step compares ``matrix.python-version`` against that output, so no
     step names a version.
+``--newest``
+    Print the NEWEST classifier, as a bare version string: the other end of
+    the range from the primary. A push without a pull request runs the Python
+    job on the primary and the newest alone (ci.yml's ``pythons`` job), the
+    two ends, and reads both from here.
 (no argument)
     The gate. Exit 1 unless the lowest classifier equals the
     ``requires-python`` floor and every classifier satisfies every
@@ -38,7 +43,8 @@ Modes
     strings. A ``python`` that is neither a list nor a ``${{ }}`` expression
     fails, and finding no list is a failure, not a pass. This runs on every
     ``make lint``, not first at release, under ``uv run`` -- the gate alone
-    imports PyYAML; ``--matrix`` and ``--primary`` stay stdlib-only.
+    imports PyYAML; ``--matrix``, ``--primary`` and ``--newest`` stay
+    stdlib-only.
 
 The primary leg
 ---------------
@@ -147,6 +153,27 @@ def primary(project: dict) -> str | None:
     """
     versions = classifier_versions(project)
     return versions[0] if versions else None
+
+
+def newest(project: dict) -> str | None:
+    """The newest classifier, the far end of the range from the primary.
+
+    Returns ``None`` when there is no classifier; the gate reports that case.
+
+    Examples
+    --------
+    >>> newest(
+    ...     {
+    ...         "classifiers": [
+    ...             "Programming Language :: Python :: 3.9",
+    ...             "Programming Language :: Python :: 3.10",
+    ...         ]
+    ...     }
+    ... )
+    '3.10'
+    """
+    versions = classifier_versions(project)
+    return versions[-1] if versions else None
 
 
 def check(project: dict) -> list[str]:
@@ -300,6 +327,7 @@ def main(argv: list[str] | None = None) -> int:
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--matrix", action="store_true")
     mode.add_argument("--primary", action="store_true")
+    mode.add_argument("--newest", action="store_true")
     ap.add_argument("--pyproject", type=Path, default=ROOT / "pyproject.toml")
     ap.add_argument("--release", type=Path, default=RELEASE_YML)
     args = ap.parse_args(argv)
@@ -315,6 +343,12 @@ def main(argv: list[str] | None = None) -> int:
         if lead is None:
             return 1
         print(lead)
+        return 0
+    if args.newest:
+        last = newest(project)
+        if last is None:
+            return 1
+        print(last)
         return 0
     errors = check(project)
     release = args.release.read_text(encoding="utf-8")

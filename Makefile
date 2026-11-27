@@ -21,7 +21,9 @@
 #   pin             a repin PR must resolve its image, version bump or not
 #   pre-commit      lint checks exactly the files a version bump changes
 #   manifest-drift  likewise for the generated-vs-manifest drift
-CI_ALWAYS_RUN_JOBS = pin pre-commit manifest-drift
+#   scope           it IS the policy for what a run owes (full / minimal /
+#                   skip, scripts/ci_scope.py): every other job waits on it
+CI_ALWAYS_RUN_JOBS = pin pre-commit manifest-drift scope
 
 # ── Feature flags ────────────────────────────────────────────────────────────
 # doppler is the demanding consumer: every group is on.
@@ -1994,7 +1996,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 release-freshness-check \
                 print-jm-version print-stock-registry stock-registry \
                 print-uv-version \
-                print-python-matrix print-python-primary lock \
+                print-python-matrix print-python-primary print-python-newest lock \
                 nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
@@ -3822,6 +3824,11 @@ print-python-matrix: ## Print the supported Pythons as JSON (ci.yml and release.
 
 print-python-primary: ## Print the primary Python leg, the floor (ci.yml reads it here)
 	@python3 scripts/python_versions.py --primary
+
+# The newest classifier: with the primary (the floor), the two Pythons a push
+# without a PR runs (ci.yml's `pythons` job reads it here).
+print-python-newest: ## Print the newest supported Python, the far end from the primary (ci.yml reads it here)
+	@python3 scripts/python_versions.py --newest
 
 lock: ## Re-lock uv.lock with the pinned uv (LOCK_CMD, the one spelling)
 	$(LOCK_CMD)

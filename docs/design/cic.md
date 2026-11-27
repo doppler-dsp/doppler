@@ -158,22 +158,39 @@ still reads 1, and the `uint16_t` decode cast widens.
 
 ______________________________________________________________________
 
-## What a DC probe cannot see
+## The offset goes around the pipeline, not through it
 
-Worth recording, because it was found by sabotaging a gate and watching it stay
-green: **the CIC's DC output is insensitive to its own normalisation shift.**
+Every register in the pipeline is unsigned, because the pipeline depends on
+its registers wrapping and in C only an unsigned type promises that. A Q15
+sample is signed, so it is made non-negative with the offset-binary
+midpoint, 32768, and that offset is handled at the two ends:
 
-The offset-binary bias travels through the same pipeline as the signal and is
-removed after the same shift. Halve the shift and both the signal *and* the
-restored bias double, and the decoded DC value comes back unchanged — while the
-filter's gain on everything that actually varies has doubled.
+- **In:** the offset is added to make the conversion's result non-negative,
+    and taken straight off again in `uint64_t`. The register holds the
+    sample modulo 2⁶⁴, and a zero sample is a zero word.
+- **Out:** the offset is added back at the pipeline's gain, `32768 << shift`,
+    before the normalizing shift. The sum is the offset-binary result, in
+    `[0, 2¹⁶ · R^N)`, so the shift is of a value that is never negative.
 
-Measured: with `shift` deliberately reduced by one bit, a DC probe through the
-cascade still read **1.000**, and the matched-filter symbol amplitude read
-**2×**. So a unity-gain gate that probes with DC is decorative on this filter.
-The gate uses a tone at 1/512 of the output rate instead — low enough that CIC
-droop is below 1e-4, so it reads the same as DC on a healthy filter, and high
-enough that it is *signal* rather than bias.
+Two things follow.
+
+**A filter that has only seen silence holds zeros.** Its first `N − 1`
+outputs after create or reset are the boxcars filling with the input and
+nothing else: silence in is exact zeros out from the first output. Carried
+through the pipeline instead, the offset is a full-scale step the empty
+boxcars have to fill with, and the first outputs for silence read −1.88,
+−0.88 and −0.06 at `R = 16`.
+
+**The steady state does not change.** Once the boxcars are full the offset
+through the pipeline is `32768 · R^N`, which is the term added at the
+output. `test_cic_core.c` (`test_offset_is_outside_the_pipeline`) holds
+both: 96 rows of tones and noise, to the clip and past it, equal a model of the definition that uses no modular arithmetic on every
+output, and equal the offset-through form on every output past the fill. It also runs
+both rails as DC through 8.2 million inputs at `R = 2048`, where the fourth
+integrator passes 2⁶⁴ after about 4096 of them.
+
+A probe for the normalizing shift still wants a tone: the gate uses one at
+1/512 of the output rate, low enough that the droop is below 1e-4.
 
 ______________________________________________________________________
 

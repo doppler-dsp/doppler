@@ -77,8 +77,12 @@
  *      release when both its lock flags are down, and is held while it
  *      decodes its parent's data (its symbol lock up).
  *      dp_async_dsss_pool_ghost_of() is the test. The ghost is reset to
- *      idle; the search's sidelobe rule then keeps it off that cell, but
- *      for noise lifting it past the gate.
+ *      idle, its ring emptied. Whether the search seeds that cell again is
+ *      the search's sidelobe rule
+ *      (dp_async_dsss_receiver_set_rank()): it models one clean code
+ *      period, and a data transition in the parent's epoch can read its
+ *      sidelobes far above that, where only the gate stands, so a
+ *      re-seed is a rate, not excluded (doppler#3263 measures it).
  *    - **seeds the idle receivers.** The search's picks of the period just
  *      fed, strongest first, go to the idle receivers in index order
  *      (dp_async_dsss_receiver_seed()), each with its code phase at the

@@ -5,6 +5,11 @@ import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray
 
+RATESYNC_LIFECYCLE: dict[int, str]
+"""Names of the ratesync_lifecycle values, keyed by code (RATESYNC_ACQUIRING ..
+RATESYNC_COASTING).
+"""
+
 @final
 class LoopFilter:
     """A second-order loop filter whose closed loop has noise bandwidth `bn`,
@@ -3428,6 +3433,114 @@ class RateSync:
 
         """
 
+    def configure_acquisition(self, symbols: int, quality: float) -> None:
+        """Turn the built-in acquisition on (symbols > 0) or off (0). On, the
+        object estimates the symbol timing feedforward over `symbols` symbols
+        on a matched filter of its own, repeats until an estimate's quality is
+        `quality` or more, and seeds the loop with it, so the time to a closed
+        loop is a count. A declared lock that drops starts it again. Raises
+        ValueError, changing nothing, for a quality outside (0, 1) or an sps
+        under 4.
+
+        On, the object starts by estimating: a feedforward timing estimate over
+        symbols symbols on a matched filter of its own
+        (dp_timing_est_create_matched()), repeated until one has a quality of
+        quality or more, then handed to the loop as a seed. The loop closes on
+        it, so the time to a closed loop is a count: the estimator's lead-in,
+        then symbols symbols an attempt. A declared lock that drops starts it
+        again (dp_ratesync_set_presence() says from which rate).
+        dp_ratesync_get_settle_time() counts one attempt.
+
+        Both figures are the caller's. The block's length sets the estimate's
+        error and the threshold its false-alarm probability, and neither has a
+        derived default yet: the estimator's validation report
+        (`src/doppler/estimation/tests/validation/timing_est/results.md`) gives
+        the error and the pass rate against both.
+
+        If the lock is not declared when this is called the loop is put in
+        acquiring at once. Off (symbols 0), the loop is in tracking and stays
+        there, which is the object as it was built.
+
+        Parameters
+        ----------
+        symbols : int
+            Symbols an attempt estimates over; 0 turns it off.
+        quality : float
+            The estimate's `quality` at or above which it seeds; over 0 and
+            under 1. Ignored when symbols is 0.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``RateSync: acquisition needs sps >= 4 and 0 < quality < 1``, with
+            the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import RateSync
+        >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+        ...                 1.0, -1.0)
+        >>> x = (0.25 * np.repeat(syms, 8)).astype(np.complex64)
+        >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+        >>> rs.configure_acquisition(128, 0.05)
+        >>> rs.lifecycle
+        'acquiring'
+        >>> y = rs.steps(x)
+        >>> rs.lifecycle, rs.valid
+        ('tracking', True)
+
+        """
+
+    def seed(self, eye: float, rate: float = 0.0) -> None:
+        """Seed the loop from a timing the caller already has: `eye` is an eye
+        center on the input's timeline, in samples since create or reset (any
+        one of them, past or future), and `rate` the symbol clock's offset to
+        start from, sps / true_sps - 1. The loop closes on it. Raises
+        ValueError, changing nothing, for a non-finite eye or a rate of
+        magnitude 0.5 or more.
+
+        eye is an eye center on the input's timeline: the index, counted from
+        create or reset and not whole, of a sample instant where a symbol is to
+        be read. Other eye centers are whole symbols either side, so any one of
+        them will do, past or future. The object finds how far the terminal
+        stage's next output is from one (the stage's accumulator and the
+        cascade's group delay say where that output reads) and seeds the loop
+        with it, dp_ratesync_loop_seed(). The built-in acquisition makes this
+        call with its estimate.
+
+        Parameters
+        ----------
+        eye : float
+            An eye center, input samples since create or reset.
+        rate : float, default 0.0
+            The symbol clock's offset to start the loop's rate state from,
+            symbols a symbol: `sps / true_sps - 1`, 0 for the nominal clock.
+            Magnitude under 0.5.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``RateSync: seed needs a finite eye and |rate| < 0.5``, with the
+            return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import RateSync
+        >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+        ...                 1.0, -1.0)
+        >>> x = np.repeat(syms, 8)[5:].astype(np.complex64)  # edges at 3, 11, ...
+        >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.0)  # does not steer
+        >>> rs.seed(6.5)                         # a symbol's center
+        >>> v = np.array(rs.steps(x)).real[4:-4]
+        >>> bool(np.mean(np.abs(v)) ** 2 / np.mean(v ** 2) > 0.99)  # in the eye
+        True
+
+        """
+
     def reset(self) -> None:
         """Re-seed the timing loop, the cascade's filter memories, the strobe
         ring and the prime countdown.
@@ -3563,6 +3676,32 @@ class RateSync:
         """Current timing-lock decision: True after the verify count of
         consecutive above-threshold decisions, False again after the drop count
         of consecutive below-threshold ones.
+        """
+
+    @property
+    def presence(self) -> int:
+        """The presence input: is the signal known to be there by evidence
+        other than the symbol lock (a code lock and a carrier lock, in a DSSS
+        receiver)? It decides where a lost symbol lock goes: coasting at the
+        held rate with it, acquiring from a zero rate without. Lowering it
+        during a coast ends the coast in acquiring. Non-zero is present, and it
+        reads back as set; 0 after create or reset.
+        """
+    @presence.setter
+    def presence(self, value: int) -> None: ...
+    @property
+    def valid(self) -> bool:
+        """Is the symbol just emitted valid: the loop tracking, no seed in
+        progress and the lock declared. With no acquisition configured it is
+        `locked`.
+        """
+
+    @property
+    def lifecycle(self) -> Literal["acquiring", "tracking", "coasting"]:
+        """Where the timing loop is, by name: "acquiring" (the loop open, the
+        estimator running), "tracking" (the loop closed) or "coasting" (the
+        loop held at its rate, the estimator running). Always "tracking" with
+        no acquisition configured.
         """
 
     @property

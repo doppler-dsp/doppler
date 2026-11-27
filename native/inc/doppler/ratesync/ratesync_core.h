@@ -124,11 +124,13 @@
 #include "doppler/loop_filter/loop_filter_core.h"
 #include "doppler/resamp/resamp_core.h"
 #include "doppler/resample/resample_core.h"
+#include "doppler/timing_est/timing_est_core.h"
 #include "doppler/symsync/symsync_core.h" /* gardner_ted / dttl_ted — one TED, reused */
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include "doppler/telemetry/telemetry_core.h"
 #include "doppler/ber/ber_core.h"
 #include "doppler/pn/pn_core.h"
+#include "doppler/nco/nco_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -197,6 +199,20 @@ extern "C"
     int32_t   id_integ;   /**< "<prefix>.integ" — the filter's integrator */
   } ratesync_tlm_t;
 
+  /** The timing loop's states (docs/design/ratesync-timing.md, "Acquisition,
+   * then tracking"). A loop with no estimator beside it
+   * (dp_ratesync_loop_set_acquisition() never called) is in tracking from
+   * reset and never leaves it. */
+  /* SSOT: enum=ratesync_lifecycle */
+  typedef enum
+  {
+    RATESYNC_ACQUIRING = 0, /**< the loop is open and its rate state is
+                                 zero; its owner's estimator is running.  */
+    RATESYNC_TRACKING  = 1, /**< the loop is closed.                      */
+    RATESYNC_COASTING  = 2, /**< the loop is held at the rate it had; its
+                                 owner's estimator is running.            */
+  } ratesync_lifecycle_t;
+
   /**
    * @brief The symbol-timing loop, independent of what feeds it.
    *
@@ -244,8 +260,22 @@ extern "C"
      *  divide, and the running power estimate it would have divided by, are
      *  both construct-time work masquerading as per-symbol work. */
     double ted_scale;
+    int    acquires;   /**< 1: the owner has an estimator and seeds this
+                            loop (dp_ratesync_loop_set_acquisition()), so
+                            the loop starts in acquiring and leaves
+                            tracking on a lost lock; 0: tracking only.    */
 
     /* ── running state ──────────────────────────────────────────────── */
+    int      state;     /**< ratesync_lifecycle_t.                         */
+    int      present;   /**< the owner's presence input, as given
+                             (dp_ratesync_loop_set_presence()): non-zero
+                             is present.                                   */
+    int      had_lock;  /**< lock has declared since tracking was entered. */
+    uint32_t miss_run;  /**< decisions in a row that were not hits, while
+                             lock has not declared.                        */
+    size_t   seed_left; /**< outputs until a seed is behind the loop: the
+                             seed's control is applied while this is above
+                             `m`, and the loop stays open until it is 0.   */
     double ctrl;       /**< per-input rate deviation now applied.         */
     double last_error; /**< last normalised TED error.                    */
     double rate_est;   /**< smoothed tracked samples/symbol.              */
@@ -289,6 +319,25 @@ extern "C"
     double beta;       /**< RRC roll-off.                                 */
     size_t span;       /**< one-sided RRC span, symbols.                  */
     size_t num_phases; /**< bank arms (power of two).                     */
+    double delay;      /**< the cascade's group delay, input samples
+                            (dp_RateConverter_get_group_delay()).         */
+    double decim;      /**< inputs to one terminal-stage input: the whole
+                            decimation ahead of the terminal stage.       */
+    dp_timing_est_state_t *est; /**< the feedforward estimator, matched,
+                            owned; NULL when `sps` is under
+                            TIMING_EST_MATCHED_SPS, where there is no
+                            built-in acquisition.                         */
+
+    /* ── acquisition (dp_ratesync_configure_acquisition(); in the blob) */
+    size_t acq_symbols; /**< symbols an attempt estimates over; 0: off.   */
+    double acq_quality; /**< an estimate at or above this seeds the loop. */
+
+    /* ── running state ──────────────────────────────────────────────── */
+    uint64_t in_count;   /**< inputs taken since create or reset.         */
+    uint64_t term_in;    /**< inputs the terminal stage has been handed.  */
+    uint64_t acq_origin; /**< `in_count` at the estimator's first sample
+                              of this acquisition.                        */
+    int      acq_run;    /**< the estimator is on an acquisition.         */
   } dp_ratesync_state_t;
 
   /* ------------------------------------------------------------------
@@ -346,6 +395,90 @@ extern "C"
    *         prime countdown. Configuration and cascade geometry are kept.
    *  @param l  Must be non-NULL. */
   void dp_ratesync_loop_reset (ratesync_loop_t *l);
+
+  /**
+   * @brief Say whether the loop's owner acquires for it.
+   *
+   * With @p on the loop has the three states of the design page: it is put
+   * in acquiring now unless its lock is declared, a reset returns it there,
+   * and tracking is left when a declared lock drops (to coasting with the
+   * presence input up, to acquiring without) or when `n_down` decisions in
+   * a row are not hits on a loop that has not declared. The owner runs its
+   * estimator while the state is not tracking and hands the result to
+   * dp_ratesync_loop_seed(). With @p on 0 the loop is in tracking and stays
+   * there, which is the loop every owner had before.
+   *
+   * @param l   Must be non-NULL.
+   * @param on  Non-zero: the owner acquires.
+   */
+  void dp_ratesync_loop_set_acquisition (ratesync_loop_t *l, int on);
+
+  /**
+   * @brief The owner's presence input: is the signal known to be there by
+   *        evidence other than the symbol lock?
+   *
+   * A DSSS receiver raises it while its code lock and its carrier lock are
+   * both up. It decides where a lost symbol lock goes: with presence the
+   * loop coasts, held at its rate, and without it the loop acquires from a
+   * zero rate. Lowering it during a coast ends the coast in acquiring.
+   * It has no effect on a loop whose owner does not acquire.
+   *
+   * @param l        Must be non-NULL.
+   * @param present  Non-zero: present.
+   */
+  void dp_ratesync_loop_set_presence (ratesync_loop_t *l, int present);
+
+  /**
+   * @brief Seed the loop: say where the symbol clock is and close on it.
+   *
+   * @p ahead is how far past the terminal stage's NEXT output an on-time
+   * instant sits, in output periods at the rate the loop holds, 0 or more
+   * and not whole. Its whole part picks the on-time outputs, that one and
+   * every `m`-th after it. Its fraction `r` is moved by one symbol of
+   * control: the terminal stage sets the interval to its next output as
+   * each output is emitted, `1 / (R + ctrl)` of its inputs, so the control
+   * that stretches `m` intervals by `r / m` of themselves is
+   *
+   *     ctrl = (R + held) m / (m + r) - R,   held = integrator * R
+   *
+   * held while `m` outputs are emitted. It is always a stretch. The loop
+   * enters tracking, its lock detector is reset, and it stays open for the
+   * `2 m` outputs the stretch and the gate behind it take; the symbols of
+   * those outputs are emitted and are not valid.
+   *
+   * @param l         Must be non-NULL. A loop still in its prime countdown
+   *                  takes the seed too: the outputs the fill drops are
+   *                  counted, so the on-time outputs are the same ones.
+   * @param ahead     Output periods from the next output to an on-time
+   *                  instant; finite, 0 or more.
+   * @param rate      The loop filter's integrator to start from, symbols a
+   *                  symbol: `sps / true_sps - 1`. Read only with
+   *                  @p set_rate; magnitude under 0.5.
+   * @param set_rate  0 keeps the rate the loop holds: zero after acquiring,
+   *                  the held rate after a coast.
+   * @return DP_OK, or DP_ERR_INVALID (a non-finite or negative @p ahead,
+   *         a @p rate out of range) with nothing changed.
+   */
+  int dp_ratesync_loop_seed (ratesync_loop_t *l, double ahead, double rate,
+                          int set_rate);
+
+  /** @brief A lock decision's consequence for the state; called from
+   *         ratesync_loop_take_output() on a loop whose owner acquires.
+   *  @param l    Must be non-NULL.
+   *  @param was  The lock flag before the decision.
+   *  @param now  The lock flag after it. */
+  void dp_ratesync_loop_decide (ratesync_loop_t *l, int was, int now);
+
+  /** @brief Is the symbol just emitted valid: the loop tracking, no seed in
+   *         progress and the lock declared. On a loop whose owner does not
+   *         acquire it is the lock flag.
+   *  @param l  Must be non-NULL.
+   *  @return 1 or 0. */
+  static inline int
+  dp_ratesync_loop_valid (const ratesync_loop_t *l)
+  {
+    return l->state == RATESYNC_TRACKING && !l->seed_left && l->lock.locked;
+  }
 
   /** @brief Symbols the loop emits before its timing has settled.
    *
@@ -434,9 +567,12 @@ extern "C"
 /** @brief State-blob magic for the timing loop (FourCC "RSLP"). */
 #define RATESYNC_LOOP_STATE_MAGIC DP_FOURCC ('R', 'S', 'L', 'P')
 /** @brief Timing-loop blob layout version. */
-#define RATESYNC_LOOP_STATE_VERSION 2u /* v2: the TED normaliser is
-                                        * a construct-time constant, so
-                                        * pwr_avg/pwr_seeded are gone */
+#define RATESYNC_LOOP_STATE_VERSION 3u /* v3: the lifecycle (state,
+                                        * presence, had_lock, miss_run,
+                                        * seed_left); v2: the TED
+                                        * normaliser is a construct-time
+                                        * constant, so pwr_avg/pwr_seeded
+                                        * are gone */
 
   /** @brief Bytes dp_ratesync_loop_get_state() writes (envelope + payload +
    *         the loop filter's child blob).
@@ -590,6 +726,20 @@ extern "C"
    */
   void dp_ratesync_reset (dp_ratesync_state_t *state);
 
+  /** @brief Hand one input to the estimator while the loop is not tracking,
+   *         and seed the loop from the block that passes.
+   *
+   *  Called by ratesync_step_ted() for every input taken outside tracking.
+   *  The first input of an acquisition resets the estimator, so its `eye`
+   *  counts from there; a block of the configured length is closed, and one
+   *  whose quality is at or above the configured figure goes to
+   *  dp_ratesync_seed()'s path with the loop's held rate kept. A block that
+   *  does not pass is dropped and the next one starts.
+   *
+   *  @param state  Must be non-NULL, with acquisition configured.
+   *  @param x      The input just taken. */
+  void dp_ratesync_acquire_push (dp_ratesync_state_t *state, float _Complex x);
+
   /* ------------------------------------------------------------------
    * Execute
    * ------------------------------------------------------------------ */
@@ -622,6 +772,15 @@ extern "C"
     if (s->ring_n <= half)
       s->ring_n++;
 
+    /* A seed in progress. Its control is on the accumulator while the
+       first m outputs after it are emitted (each sets the interval to the
+       next), then the held rate returns; the loop stays open for m more,
+       until the gate a strobe reads is past the stretch. Counted on every
+       output, the ones the fill drops included: the terminal stage emitted
+       them under the same control. */
+    if (JM_UNLIKELY (s->seed_left) && --s->seed_left == s->m)
+      s->ctrl = s->lf.integ * s->term_rate;
+
     if (s->prime_left)
       {
         /* The cascade is still filling: these outputs are the delay lines,
@@ -637,6 +796,15 @@ extern "C"
 
     const float _Complex on  = y;
     const float _Complex mid = s->ring[half];
+    if (JM_UNLIKELY (s->state != RATESYNC_TRACKING || s->seed_left))
+      {
+        /* Open: the symbol clock runs on at the rate the loop holds and
+           the symbol is emitted, one a symbol period in every state. */
+        s->have_prev = 1;
+        s->prev_on   = on;
+        *y_out       = on;
+        return 1;
+      }
     if (!s->have_prev)
       {
         s->have_prev = 1;
@@ -717,10 +885,13 @@ extern "C"
     s->lock_sum += lock_signal;
     if (++s->lock_count >= s->avgs)
       {
-        s->lock_stat = s->lock_sum / (double)s->avgs;
-        (void)dp_lockdet_step (&s->lock, s->lock_stat);
+        s->lock_stat  = s->lock_sum / (double)s->avgs;
+        const int was = s->lock.locked;
+        const int now = dp_lockdet_step (&s->lock, s->lock_stat);
         s->lock_sum   = 0.0;
         s->lock_count = 0;
+        if (JM_UNLIKELY (s->acquires))
+          dp_ratesync_loop_decide (s, was, now);
       }
 
     s->prev_on = on;
@@ -775,11 +946,19 @@ extern "C"
        with m >= 2 those can contain at most one on-time strobe: the
        single-symbol return of this function is still correct. */
     float _Complex ys[4];
-    size_t n = dp_RateConverter_execute_ctrl_push (s->mf, x, s->loop.ctrl, ys,
-                                                sizeof (ys) / sizeof (ys[0]));
-    int    emitted = 0;
+    int            n_pre = 0;
+    size_t         n     = dp_RateConverter_execute_ctrl_push_tap (
+        s->mf, x, s->loop.ctrl, ys, sizeof (ys) / sizeof (ys[0]), NULL,
+        &n_pre);
+    /* Where the stream is, for a seed: the inputs taken and the ones the
+       terminal stage has been handed (dp_ratesync_seed()). */
+    s->in_count++;
+    s->term_in += (uint64_t)n_pre;
+    int emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= ratesync_loop_take_output (&s->loop, ys[oi], y_out, ted);
+    if (JM_UNLIKELY (s->loop.state != RATESYNC_TRACKING))
+      dp_ratesync_acquire_push (s, x);
     return emitted;
   }
 #endif /* !__cplusplus */
@@ -899,7 +1078,10 @@ extern "C"
    *  the default damping. It is known at construction and follows
    *  configure(). `locked` says a statistic crossed a threshold, which
    *  happens while the timing is still moving; this says when it has
-   *  stopped.
+   *  stopped. With the acquisition on
+   *  (dp_ratesync_configure_acquisition()) one attempt is added ahead of
+   *  it: the estimator's lead-in, the block, and the two symbols a seed
+   *  keeps the loop open.
    *
    *  Example (Python):
    *  >>> from doppler.track import RateSync
@@ -969,6 +1151,125 @@ extern "C"
    *  @param state  Must be non-NULL.
    *  @return 1 when locked, 0 otherwise (0 after create/reset). */
   int dp_ratesync_get_locked (const dp_ratesync_state_t *state);
+
+  /** @brief Is the symbol just emitted valid?
+   *
+   *  The lock flag, while the loop is tracking and no seed is in progress.
+   *  With no acquisition configured it is dp_ratesync_get_locked(). Every
+   *  symbol period emits a symbol in every state, and this is the flag
+   *  beside it: read it after each ratesync_step() that returns 1.
+   *
+   *  @param state  Must be non-NULL.
+   *  @return 1 or 0. */
+  int dp_ratesync_get_valid (const dp_ratesync_state_t *state);
+
+  /** @brief Where the timing loop is: acquiring, tracking or coasting.
+   *  @param state  Must be non-NULL.
+   *  @return A ratesync_lifecycle_t; RATESYNC_TRACKING always, with no
+   *          acquisition configured. */
+  int dp_ratesync_get_lifecycle (const dp_ratesync_state_t *state);
+
+  /**
+   * @brief Turn the built-in acquisition on, or off.
+   *
+   * On, the object starts by estimating: a feedforward timing estimate
+   * over @p symbols symbols on a matched filter of its own
+   * (dp_timing_est_create_matched()), repeated until one has a quality of
+   * @p quality or more, then handed to the loop as a seed. The loop closes
+   * on it, so the time to a closed loop is a count: the estimator's
+   * lead-in, then @p symbols symbols an attempt. A declared lock that
+   * drops starts it again (dp_ratesync_set_presence() says from which
+   * rate). dp_ratesync_get_settle_time() counts one attempt.
+   *
+   * Both figures are the caller's. The block's length sets the estimate's
+   * error and the threshold its false-alarm probability, and neither has a
+   * derived default yet: the estimator's validation report
+   * (`src/doppler/estimation/tests/validation/timing_est/results.md`)
+   * gives the error and the pass rate against both.
+   *
+   * If the lock is not declared when this is called the loop is put in
+   * acquiring at once. Off (@p symbols 0), the loop is in tracking and
+   * stays there, which is the object as it was built.
+   *
+   * @param state    Must be non-NULL.
+   * @param symbols  Symbols an attempt estimates over; 0 turns it off.
+   * @param quality  The estimate's `quality` at or above which it seeds;
+   *                 over 0 and under 1. Ignored when @p symbols is 0.
+   * @return DP_OK, or DP_ERR_INVALID with nothing changed: @p quality out
+   *         of range, or an `sps` under TIMING_EST_MATCHED_SPS, where the
+   *         estimator's matched filter cannot be built.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import RateSync
+   * >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+   * ...                 1.0, -1.0)
+   * >>> x = (0.25 * np.repeat(syms, 8)).astype(np.complex64)
+   * >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+   * >>> rs.configure_acquisition(128, 0.05)
+   * >>> rs.lifecycle
+   * 'acquiring'
+   * >>> y = rs.steps(x)
+   * >>> rs.lifecycle, rs.valid
+   * ('tracking', True)
+   *
+   * @endcode
+   */
+  int dp_ratesync_configure_acquisition (dp_ratesync_state_t *state,
+                                      size_t symbols, double quality);
+
+  /**
+   * @brief Seed the loop from a timing a caller already has.
+   *
+   * @p eye is an eye center on the input's timeline: the index, counted
+   * from create or reset and not whole, of a sample instant where a symbol
+   * is to be read. Other eye centers are whole symbols either side, so any
+   * one of them will do, past or future. The object finds how far the
+   * terminal stage's next output is from one (the stage's accumulator and
+   * the cascade's group delay say where that output reads) and seeds the
+   * loop with it, dp_ratesync_loop_seed(). The built-in acquisition makes
+   * this call with its estimate.
+   *
+   * @param state  Must be non-NULL.
+   * @param eye    An eye center, input samples since create or reset.
+   * @param rate   The symbol clock's offset to start the loop's rate state
+   *               from, symbols a symbol: `sps / true_sps - 1`, 0 for the
+   *               nominal clock. Magnitude under 0.5.
+   * @return DP_OK, or DP_ERR_INVALID with nothing changed (a non-finite
+   *         @p eye, a @p rate out of range).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import RateSync
+   * >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+   * ...                 1.0, -1.0)
+   * >>> x = np.repeat(syms, 8)[5:].astype(np.complex64)  # edges at 3, 11, ...
+   * >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.0)  # does not steer
+   * >>> rs.seed(6.5)                         # a symbol's center
+   * >>> v = np.array(rs.steps(x)).real[4:-4]
+   * >>> bool(np.mean(np.abs(v)) ** 2 / np.mean(v ** 2) > 0.99)  # in the eye
+   * True
+   *
+   * @endcode
+   */
+  int dp_ratesync_seed (dp_ratesync_state_t *state, double eye, double rate);
+
+  /** @brief The presence input as it stands.
+   *  @param state  Must be non-NULL.
+   *  @return The value last set, non-zero when the owner has said the
+   *          signal is there; 0 after create or reset. */
+  int dp_ratesync_get_presence (const dp_ratesync_state_t *state);
+
+  /** @brief Set the presence input: dp_ratesync_loop_set_presence() on this
+   *         object's loop.
+   *
+   *  Is the signal known to be there by evidence other than the symbol
+   *  lock (a code lock and a carrier lock, in a DSSS receiver)? It decides
+   *  where a lost symbol lock goes: coasting at the held rate with it,
+   *  acquiring from a zero rate without. Lowering it during a coast ends
+   *  the coast in acquiring.
+   *
+   *  @param state  Must be non-NULL.
+   *  @param val    Non-zero: present. */
+  void dp_ratesync_set_presence (dp_ratesync_state_t *state, int val);
 
   /** @brief Has the cascade's CIC stage clipped its input since the last
    *         reset? Forwarded from the RateConverter: a CIC bounds its input
@@ -1062,7 +1363,7 @@ extern "C"
 /** @brief State-blob magic for RateSync (FourCC "RATS"). */
 #define RATESYNC_STATE_MAGIC DP_FOURCC ('R', 'A', 'T', 'S')
 /** @brief RateSync blob layout version. */
-#define RATESYNC_STATE_VERSION 2u /* v2: running state moved into the loop */
+#define RATESYNC_STATE_VERSION 3u /* v3: the acquisition (its two settings, the stream counts, the estimator's child blob); v2: running state moved into the loop */
 
   /** @brief Bytes dp_ratesync_get_state() writes (envelope + payload + child).
    *  @param state  Must be non-NULL.

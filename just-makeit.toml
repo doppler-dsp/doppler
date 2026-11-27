@@ -348,6 +348,13 @@ values = ["none", "eof", "timeout", "interrupted"]
 name = "interp_method"
 values = ["floor", "nearest", "linear"]
 
+# RateSync's timing-loop states (ratesync_core.h, ratesync_lifecycle_t),
+# read through its `lifecycle` property as a string.
+[[enum]]
+name = "ratesync_lifecycle"
+values = ["acquiring", "tracking", "coasting"]
+enumerators = ["RATESYNC_ACQUIRING", "RATESYNC_TRACKING", "RATESYNC_COASTING"]
+
 # The AsyncDsssReceiver's lifecycle states (async_dsss_receiver_core.h,
 # ASYNC_DSSS_RX_*), bound by name so the compiler checks every one. Read
 # through the receiver's `lifecycle` property as a string.

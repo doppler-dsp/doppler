@@ -408,3 +408,97 @@ def test_settle_time_follows_the_bandwidth():
     assert np.isinf(rs.settle_time)
     with pytest.raises(AttributeError):
         rs.settle_time = 1.0
+
+
+def _eye(y: np.ndarray) -> float:
+    """``mean(|Re y|)**2 / mean(Re y ** 2)``: 1 when every symbol is read at
+    its full height, lower as the reading instant leaves the eye."""
+    v = np.asarray(y).real
+    return float(np.mean(np.abs(v)) ** 2 / np.mean(v**2))
+
+
+def test_seed_puts_the_symbols_in_the_eye():
+    # The binding reaches dp_ratesync_seed(): on a loop that does not steer
+    # (bn = 0) the seed alone decides where the symbols are read. The C test
+    # (test_seed) sweeps the plans; this is four offsets through the
+    # binding. Unseeded, the same streams are read wherever the count of
+    # outputs falls, and at one of the offsets that is not the eye.
+    sps = 8.0
+    seeded, unseeded = [], []
+    for tau in (0.0, 0.25, 0.5, 0.75):
+        x, _ = _tx(sps, tau)
+        for seed, eyes in ((False, unseeded), (True, seeded)):
+            rs = RateSync(sps=sps, pulse="rrc", m=2, bn=0.0)
+            if seed:
+                # symbol 0's center, given before the first input
+                rs.seed((SPAN + tau) * sps)
+                assert rs.lifecycle == "tracking"
+            eyes.append(_eye(np.array(rs.steps(x))[8:-8]))
+    assert min(seeded) > 0.97
+    assert min(unseeded) < 0.90
+    rs = RateSync(sps=sps, bn=0.01)
+    for bad in ((float("nan"), 0.0), (3.0, 0.5), (3.0, float("nan"))):
+        with pytest.raises(ValueError, match="seed needs"):
+            rs.seed(*bad)
+
+
+def test_acquisition_runs_the_three_states():
+    # The binding reaches the lifecycle: acquiring, then tracking by count,
+    # `valid` after the lock declares, a coast when the signal goes with
+    # presence up, acquiring when presence drops. The C test
+    # (test_lifecycle) holds the transitions to their counts.
+    sps, L = 8.0, 128
+    rng = np.random.default_rng(3)
+    syms = np.where(rng.integers(0, 2, 1500) > 0, 1.0, -1.0)
+    sig = np.repeat(syms, int(sps)).astype(np.complex64)
+    rs = RateSync(sps=sps, pulse="iandd", m=4, bn=0.01)
+    assert rs.lifecycle == "tracking" and not rs.valid
+    base = rs.settle_time
+    rs.configure_acquisition(L, 0.05)
+    assert rs.lifecycle == "acquiring"
+    assert rs.settle_time > base + L
+    assert rs.presence == 0
+    rs.presence = 1
+    assert rs.presence == 1
+
+    y = np.array(rs.steps(sig[: int(100 * sps)]))
+    assert rs.lifecycle == "acquiring" and not rs.valid
+    assert len(y) > 80  # a symbol a symbol period, while acquiring too
+    y = np.array(rs.steps(sig[int(100 * sps) :]))
+    assert rs.lifecycle == "tracking" and rs.valid
+    assert _eye(y[200:]) > 0.97
+
+    rs.steps(np.zeros(int(1000 * sps), dtype=np.complex64))  # the signal goes
+    assert rs.lifecycle == "coasting" and not rs.valid
+    rs.presence = 0
+    assert rs.lifecycle == "acquiring"
+    rs.steps(sig)
+    assert rs.lifecycle == "tracking" and rs.valid
+
+    rs.configure_acquisition(0, 0.0)
+    assert rs.lifecycle == "tracking"
+    assert rs.settle_time == base
+    with pytest.raises(ValueError, match="acquisition needs"):
+        rs.configure_acquisition(L, 1.0)
+    with pytest.raises(ValueError, match="acquisition needs"):
+        RateSync(sps=3.0, m=2).configure_acquisition(L, 0.05)
+
+
+def test_acquisition_resumes_from_a_blob():
+    # A blob taken in the middle of an acquisition carries the setting, the
+    # stream counts and the estimator: an object that was never configured
+    # resumes bit for bit.
+    sps = 8.0
+    rng = np.random.default_rng(5)
+    syms = np.where(rng.integers(0, 2, 900) > 0, 1.0, -1.0)
+    x = np.repeat(syms, int(sps)).astype(np.complex64)
+    a = RateSync(sps=sps, pulse="iandd", m=4, bn=0.01)
+    a.configure_acquisition(128, 0.05)
+    a.steps(x[:517])
+    assert a.lifecycle == "acquiring"
+    b = RateSync(sps=sps, pulse="iandd", m=4, bn=0.01)
+    b.set_state(a.get_state())
+    assert b.lifecycle == "acquiring"
+    ya, yb = np.array(a.steps(x[517:])), np.array(b.steps(x[517:]))
+    assert ya.tobytes() == yb.tobytes()
+    assert a.lifecycle == b.lifecycle == "tracking"

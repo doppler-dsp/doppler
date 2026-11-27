@@ -347,5 +347,26 @@ PyInit_track (void)
       Py_DECREF (m);
       return NULL;
     }
+  { /* gh-2344: [[enum]] ratesync_lifecycle -> RATESYNC_LIFECYCLE */
+    PyObject *_e = PyDict_New ();
+    for (Py_ssize_t _i = 0; _e && _i < 3; _i++)
+      {
+        PyObject *_k
+            = PyLong_FromLong (_enum_RateSync_ratesync_lifecycle_c[_i]);
+        PyObject *_v
+            = PyUnicode_FromString (_enum_RateSync_ratesync_lifecycle[_i]);
+        if (!_k || !_v || PyDict_SetItem (_e, _k, _v) < 0)
+          Py_CLEAR (_e);
+        Py_XDECREF (_k);
+        Py_XDECREF (_v);
+      }
+    if (!_e || PyModule_AddObject (m, "RATESYNC_LIFECYCLE", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+
   return m;
 }

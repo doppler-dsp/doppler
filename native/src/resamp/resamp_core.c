@@ -461,6 +461,13 @@ dp_resamp_get_ctrl_acc (const resamp_state_t *s)
   return nco_word_to_norm (s->ctrl_phase);
 }
 
+double
+dp_resamp_get_ctrl_lead (const resamp_state_t *s)
+{
+  return (double)s->ctrl_debt - (double)s->ctrl_ahead
+         + nco_word_to_norm (s->ctrl_phase);
+}
+
 /* ------------------------------------------------------------------ */
 /* Scalar dot product: Σ w[j] × h[j], CF32 × F32                     */
 /* ------------------------------------------------------------------ */

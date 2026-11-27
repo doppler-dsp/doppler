@@ -53,6 +53,7 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     symsync_core
     nco_core
     farrow_core
+    timing_est_core
     pn_core
     doppler_channel_core)
 if(TARGET ${PROJECT_NAME}_lib)
@@ -115,6 +116,7 @@ target_link_libraries(test_async_dsss_pool_core
     symsync_core
     nco_core
     farrow_core
+    timing_est_core
     pn_core
     doppler_channel_core
     ${JM_MATH_LIBRARY})
@@ -168,6 +170,7 @@ target_link_libraries(bench_async_dsss_pool_core
     symsync_core
     nco_core
     farrow_core
+    timing_est_core
     pn_core
     doppler_channel_core
     ${JM_MATH_LIBRARY})

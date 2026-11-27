@@ -15,6 +15,7 @@
  * tolerance below is that bound, computed, never a number chosen to pass.
  */
 #include "doppler/timing_est/timing_est_core.h"
+#include "dp_chunk_inv.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 
@@ -741,6 +742,111 @@ test_tau_edge (void)
   dp_timing_est_destroy (s);
 }
 
+/* dp_timing_est_push() under any chunking: an estimator that closes a block
+   every CI_BLK inputs of the stream gives the same estimates however the
+   stream is cut into pushes. The wrapper cuts a push only where a block
+   closes, so the pushes themselves are the partition's.
+     Sabotage, shown red: a matched push that drops the converter's memory
+   between calls (dp_RateConverter_reset() at its top) -> the matched spec,
+   every partition but the one-shot's. */
+enum
+{
+  CI_BLK = 1000 /* inputs a block; not a whole number of chunks */
+};
+
+typedef struct
+{
+  dp_timing_est_state_t *te;
+  size_t                 seen; /* inputs taken since create */
+} ci_est_t;
+
+static void *
+ci_est_create (void *arg)
+{
+  ci_est_t *o = calloc (1, sizeof *o);
+  if (!o)
+    return NULL;
+  o->te = *(int *)arg
+              ? dp_timing_est_create_matched (8.0, RC_PULSE_RRC, 0.35, 8)
+              : dp_timing_est_create (4.0);
+  if (!o->te)
+    {
+      free (o);
+      return NULL;
+    }
+  return o;
+}
+
+static void
+ci_est_destroy (void *obj)
+{
+  ci_est_t *o = obj;
+  dp_timing_est_destroy (o->te);
+  free (o);
+}
+
+/* One element out per closed block: tau, quality, power, symbols, eye, rate.
+ */
+static size_t
+ci_est_process (void *obj, const void *in, size_t n, void *out, size_t cap)
+{
+  ci_est_t             *o   = obj;
+  const float _Complex *x   = in;
+  double               *y   = out;
+  size_t                got = 0;
+  while (n)
+    {
+      size_t room = CI_BLK - o->seen % CI_BLK;
+      size_t c    = n < room ? n : room;
+      dp_timing_est_push (o->te, x, c);
+      o->seen += c;
+      x += c;
+      n -= c;
+      if (o->seen % CI_BLK == 0 && got < cap)
+        {
+          dp_timing_estimate_t e = dp_timing_est_finish (o->te);
+          double              *r = y + 6 * got++;
+          r[0]                   = e.tau;
+          r[1]                   = e.quality;
+          r[2]                   = e.power;
+          r[3]                   = e.symbols;
+          r[4]                   = e.eye;
+          r[5]                   = e.rate;
+        }
+    }
+  return got;
+}
+
+static int
+test_push_chunks (void)
+{
+  enum
+  {
+    N = 9000
+  };
+  float _Complex *x = malloc (N * sizeof *x);
+  DP_REQUIRE (x != NULL);
+  make_alt (x, N, 8.0, 2.5, 0.02);
+  for (int matched = 0; matched < 2; matched++)
+    {
+      dp_ci_spec_t spec = {
+        .name     = matched ? "timing_est push (matched)" : "timing_est push",
+        .create   = ci_est_create,
+        .destroy  = ci_est_destroy,
+        .process  = ci_est_process,
+        .arg      = &matched,
+        .in_size  = sizeof (float _Complex),
+        .out_size = 6 * sizeof (double),
+        .out_cap  = N / CI_BLK + 1,
+        /* the estimator's own chunk through its converter, and around it */
+        .extra_sizes = (const size_t[]){ 255u, 256u, 257u, 0u },
+      };
+      DP_CHECK (dp_chunk_invariance (&spec, x, N) == 0);
+    }
+  free (x);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -754,5 +860,6 @@ main (void)
   test_whole_sps_fold ();
   DP_CHECK (test_matched () == 0);
   test_tau_edge ();
+  test_push_chunks ();
   DP_TEST_END ("test_timing_est_core");
 }

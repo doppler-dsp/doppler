@@ -68,6 +68,7 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 |  size\_t | [**dp\_resamp\_execute\_ctrl\_pos**](#function-dp_resamp_execute_ctrl_pos) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, const double \* ctrl, size\_t num\_in, float \_Complex \* out, double \* pos, size\_t max\_out) <br>[_**dp\_resamp\_execute\_ctrl()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl) _, also reporting where each output sits on the input timeline._ |
 |  size\_t | [**dp\_resamp\_execute\_ctrl\_push**](#function-dp_resamp_execute_ctrl_push) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push one input at an instantaneous rate deviation; emit any outputs._  |
 |  double | [**dp\_resamp\_get\_ctrl\_acc**](#function-dp_resamp_get_ctrl_acc) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_The control accumulator's fractional phase, in [0, 1)._  |
+|  double | [**dp\_resamp\_get\_ctrl\_lead**](#function-dp_resamp_get_ctrl_lead) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Where the next steered output sits, in input intervals past the newest input the delay line holds._  |
 |  double | [**dp\_resamp\_get\_delay**](#function-dp_resamp_get_delay) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Group delay of the interpolating structure, in INPUT samples._  |
 |  double | [**dp\_resamp\_get\_execute\_delay**](#function-dp_resamp_get_execute_delay) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Group delay of_ [_**dp\_resamp\_execute()**_](resamp__core_8h.md#function-dp_resamp_execute) _, in INPUT samples, on the path its rate runs._ |
 |  size\_t | [**dp\_resamp\_get\_num\_phases**](#function-dp_resamp_get_num_phases) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Polyphase arms in the bank._  |
@@ -583,6 +584,46 @@ Pinned by test\_resamp\_core.c §10 (the arm, read off the output at four rates)
 **Returns:**
 
 mu, from 0 up to (not including) 1: a fraction of one input interval; 0 after create/reset. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_resamp\_get\_ctrl\_lead 
+
+_Where the next steered output sits, in input intervals past the newest input the delay line holds._ 
+```C++
+double dp_resamp_get_ctrl_lead (
+    const resamp_state_t * state
+) 
+```
+
+
+
+[**dp\_resamp\_get\_ctrl\_acc()**](resamp__core_8h.md#function-dp_resamp_get_ctrl_acc) is the fraction; this adds the whole inputs the accumulator still has to be given before that output is formed, less any it was handed early. With `n` inputs taken since create or reset, the next output of the control forms reads the input timeline at `n - 1 + lead`, which is what a caller needs to place an output after the rate has been steered: the count of outputs no longer says. The interval to that output was fixed when the output before it was emitted, so a control passed now moves the one after.
+
+
+Pinned by test\_ratesync\_core.c (`test_seed`): unsteered, on four plans, `n - 1 + lead` is the output count over the rate at every input.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The lead, in input intervals; 0 after create/reset. 
 
 
 

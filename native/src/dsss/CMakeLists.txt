@@ -55,6 +55,7 @@ target_link_libraries(dsss PRIVATE
     symsync_core
     nco_core
     farrow_core
+    timing_est_core
     snr_core
     ccsds_415_core
     carrier_acq_core

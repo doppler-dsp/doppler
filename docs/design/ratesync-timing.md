@@ -602,6 +602,28 @@ enters `ACQUIRING`.
 A loop with no estimator beside it starts in `TRACKING`, which is the
 loop as it is today.
 
+**What is built.** The three states, the presence input, the seed and
+`valid` are in `ratesync_loop_t`, and `RateSync` owns a matched
+estimator and runs it while the loop is not tracking. The acquisition is
+a setting, `dp_ratesync_configure_acquisition (symbols, quality)`, off
+until it is called: `L` and the quality threshold are the caller's, since
+neither has a derived default (the open items below, and #3371). Off, the
+object is in `TRACKING` from reset and never leaves it.
+
+| what                                             | where                                                          | held by                                                    |
+| ------------------------------------------------ | -------------------------------------------------------------- | ---------------------------------------------------------- |
+| the states and their transitions                 | `dp_ratesync_loop_decide()`, `dp_ratesync_loop_set_presence()` | `test_ratesync_core.c`, `test_lifecycle`                   |
+| the seed in the loop: the count and the stretch  | `dp_ratesync_loop_seed()`                                      | `test_seed`, part 2                                        |
+| where the next output reads, steered or not      | `dp_resamp_get_ctrl_lead()`, `dp_ratesync_seed()`              | `test_seed`, parts 1 and 3                                 |
+| the estimator beside the loop, reset an attempt  | `dp_ratesync_acquire_push()`                                   | `test_lifecycle`, the eye over the 60 symbols after a seed |
+| the blob: the setting, the counts, the estimator | `dp_ratesync_get_state()`, version 3                           | `test_lifecycle`, the two splits and five refusals         |
+| `settle_time` with one attempt ahead of the loop | `dp_ratesync_get_settle_time()`                                | `test_lifecycle`                                           |
+
+`valid` is read after each symbol in C (`dp_ratesync_get_valid()`); a
+block call returns the symbols and the flag as of the last one. The
+receivers compose the loop without an estimator, so they are unchanged
+until each is re-certified on it (§9.6).
+
 **Coasting is the signal present and the symbol clock not declared.**
 The state is `code_lock and carrier_lock and not symbol_lock`, entered
 from `TRACKING` when a symbol lock that had declared drops. The code and
@@ -714,7 +736,13 @@ where the loop has pushed the tracking bank: it is the same at `m = 1`,
 estimator has already taken its own converter's delay and lead-in out.
 The tracking converter's group delay
 (`dp_RateConverter_get_group_delay()`) then says which of its outputs
-carries that sample: `j_on = (eye + group_delay) * rate`, not whole. The
+carries that sample: `j_on = (eye + group_delay) * rate`, not whole,
+while the cascade has not been steered. Once it has, the count of
+outputs no longer says where an output reads, and the terminal stage's
+accumulator still does: the inputs it has been handed plus
+`dp_resamp_get_ctrl_lead()`, scaled by the decimation ahead of it, less
+the group delay. `dp_ratesync_seed()` places the next output that way and
+takes any eye center of the stream, past or future. The
 on-time outputs are `floor (j_on)` and every `m`-th after it, which is a
 count, and the remainder `r`, under one output period and never negative, goes to the
 terminal stage as one symbol of control. The terminal stage sets the
@@ -723,7 +751,10 @@ of its inputs at its own rate `R`, so `ctrl = -R r / (m + r)` held while
 `m` outputs are emitted moves the symbol by `r` outputs exactly. The
 seed is always a stretch: a control that shortened an interval below one
 terminal input would put two outputs in one call. The seed resets the
-lock detector, so the stretched symbol is never called valid.
+lock detector and the loop stays open for `2 m` outputs, the stretch and
+the gate behind it, so the stretched symbols are never called valid. A
+seed is taken while the cascade is still filling too: the outputs the
+fill drops are counted.
 
 `validate_ratesync_seed` does this from outside, on the public calls, and
 reads where the on-time outputs land with a probe tone through a second
@@ -766,19 +797,20 @@ loop emits before its timing error is under 2% of where it started,
 The lock flag declares before that, on a statistic that crossed a
 threshold, so a window opened at the flag holds the pull-in. `MpskReceiver`
 and `AsyncDsssReceiver` report the timing and carrier loops' figures
-added. An acquisition ahead of the loop (§9.3) adds its block to it.
+added. With `RateSync`'s acquisition on, one attempt is added ahead of
+the loop: the estimator's lead-in, the block, and the seed's two symbols.
 
 ### 9.5 The surface that changes
 
-|               | today                                                                        | finalized                                                                                                                                                           |
-| ------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| create        | `sps, pulse, beta, span, m, num_phases, bn, zeta, ted`                       | the same arguments; `ted` gains `DERIVATIVE` and it is the default of the least-input constructor; `m >= 1`                                                         |
-| new           |                                                                              | a seed call (timing, rate); the state, readable by name; `valid` beside each symbol; the figure at a stated Es/N0; the `bn` for a stated loop SNR at a stated Es/N0 |
-| new object    |                                                                              | the feedforward timing estimator, composed here                                                                                                                     |
-| symbol out    | the arm's output, 0.88 to 0.96 of the symbol on a band-limited input (#3366) | `a_u * y`: the symbol                                                                                                                                               |
-| Resampler     | one bank                                                                     | an optional second bank and a paired output                                                                                                                         |
-| RateConverter | `rc_build_bank` samples or integrates the pulse                              | builds `h`, `dh`, `a` from the plan's derived response                                                                                                              |
-| blob          | version N                                                                    | version N + 1: the acquisition's sums and state                                                                                                                     |
+|               | today                                                                        | finalized                                                                                                                                                                                                          |
+| ------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| create        | `sps, pulse, beta, span, m, num_phases, bn, zeta, ted`                       | the same arguments; `ted` gains `DERIVATIVE` and it is the default of the least-input constructor; `m >= 1`                                                                                                        |
+| new           |                                                                              | a seed call (timing, rate); the acquisition's setting; the presence input; the state, readable by name; `valid` beside each symbol; the figure at a stated Es/N0; the `bn` for a stated loop SNR at a stated Es/N0 |
+| new object    |                                                                              | the feedforward timing estimator, composed here                                                                                                                                                                    |
+| symbol out    | the arm's output, 0.88 to 0.96 of the symbol on a band-limited input (#3366) | `a_u * y`: the symbol                                                                                                                                                                                              |
+| Resampler     | one bank                                                                     | an optional second bank and a paired output                                                                                                                                                                        |
+| RateConverter | `rc_build_bank` samples or integrates the pulse                              | builds `h`, `dh`, `a` from the plan's derived response                                                                                                                                                             |
+| blob          | version N                                                                    | version N + 1: the acquisition's sums and state                                                                                                                                                                    |
 
 ### 9.6 The order of work
 

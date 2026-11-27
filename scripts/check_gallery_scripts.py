@@ -90,6 +90,10 @@ VAR = re.compile(r'"?\$\{?(\w+)\}?"?')
 
 #: This script, which `make gallery` runs to derive its move list.
 HELPER = f"scripts/{pathlib.Path(__file__).name}"
+#: The uv wrapper every `$(UV)` call goes through (scripts/uvg.py, #3305). A
+#: gallery recipe runs it as a process, not as a gallery script: it refuses a
+#: nested rebuild and then runs uv, which is not a plot this gate tracks.
+UV_GUARD = "scripts/uvg.py"
 
 #: The tag-time gate that refuses a changed gallery script whose plot was
 #: not re-rendered; a characterization subject must reach it too.
@@ -248,7 +252,7 @@ def check_narrow(
     own = set(plots(repo / script))
     stray = sorted(
         {p for p in DRY_PNG.findall(text) if pathlib.Path(p).name not in own}
-        | (set(DRY_PY.findall(text)) - {script, HELPER})
+        | (set(DRY_PY.findall(text)) - {script, HELPER, UV_GUARD})
     )
     if stray:
         rc = 1

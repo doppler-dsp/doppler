@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "check_uv_pin.py"
 COMPOSITE = ".github/actions/setup-uv/action.yml"
+GUARDED_UV_LINE = "override UV = python3 scripts/uvg.py $(UV_BIN)\n"
 DOCKERFILE = "deploy/docker/Dockerfile"
 
 PIN = '[tool.uv]\nrequired-version = "==0.12.24"\n'
@@ -61,6 +62,15 @@ def _seed(
     tmp_path.mkdir(parents=True, exist_ok=True)
     if allow is not None:
         files = {"scripts/.bare-uv-allow": allow, **(files or {})}
+    # Every seeded makefile carries the one guarded UV definition unless the
+    # test gives its own (rule 6 refuses a tree without it).
+    files = dict(files or {})
+    if (
+        "Makefile" in files
+        and "override UV =" not in files["Makefile"]
+        and "UV =" not in files["Makefile"]
+    ):
+        files["Makefile"] = files["Makefile"] + GUARDED_UV_LINE
     (tmp_path / "pyproject.toml").write_text(
         '[project]\nname = "x"\n\n' + pyproject, encoding="utf-8"
     )
@@ -282,7 +292,7 @@ def _lock_gate(tmp_path: Path, edit: tuple[str, str] | None = None):
     # on windows-latest too).
     uv_cmd = f"{PurePath(uv).as_posix()} --directory {tmp_path.as_posix()}"
     return subprocess.run(
-        ["make", "-s", "-C", str(REPO), "lint-uv-lock", f"UV={uv_cmd}"],
+        ["make", "-s", "-C", str(REPO), "lint-uv-lock", f"UV_BIN={uv_cmd}"],
         capture_output=True,
         text=True,
     )
@@ -354,8 +364,7 @@ def test_a_bare_uv_in_a_makefile_is_refused(tmp_path: Path, line: str) -> None:
 
 def test_uv_through_the_variable_passes(tmp_path: Path) -> None:
     mk = (
-        "UV = uv\n"
-        "t:\n"
+        GUARDED_UV_LINE + "t:\n"
         "\t$(UV) run python scripts/x.py\n"
         "\t$(UV) sync --group dev\n"
         "\tcmake -DPy=$$($(UV) run python -c 'print(1)')\n"
@@ -459,7 +468,7 @@ def test_a_tool_run_outside_the_lock_is_refused(
 
 def test_a_locked_tool_through_dev_run_passes(tmp_path: Path) -> None:
     mk = (
-        "UV = uv\nDEV_RUN = $(UV) run --group dev\n"
+        GUARDED_UV_LINE + "DEV_RUN = $(UV) run --group dev\n"
         "t:\n\t$(DEV_RUN) diff-cover cov.lcov --fail-under=80\n"
         "# a comment may say uvx diff-cover\n"
         "\t@# so may a recipe comment: uvx diff-cover\n"
@@ -472,9 +481,9 @@ def test_a_locked_tool_through_dev_run_passes(tmp_path: Path) -> None:
         "\t$(DEV_RUN) ./configure --with-openssl\n"
         "\t$(DEV_RUN) auditwheel repair x.whl -w dist/\n"
         "\t$(UV) run --frozen pytest -w dist\n"
-        "\t$(UV) run --group dev --python 3.12 pytest --with x\n"
+        "\t$(UV) run --group dev pytest --with x\n"
         "\t$(UV) run -q pytest -w dist\n"
-        "\t$(UV) run -qp 3.12 pytest --with x\n"
+        "\t$(UV) run -q pytest --with x\n"
         "\t$(UV) run -Ck=v pytest -w dist\n"
     )
     r = _run(_seed(tmp_path, files={"Makefile": mk}))
@@ -646,4 +655,149 @@ def test_the_unlisted_options_were_read_from_the_pinned_uv():
         f"{gate.RUN_VALUED_UNLISTED_UV}'s crates/uv-cli/src/lib.rs. Read "
         f"uv {pin}'s copy for the hidden and alias `uv run` options that "
         "take a value, update the set, then RUN_VALUED_UNLISTED_UV."
+    )
+
+
+# ── rule 5: the interpreter is UV_PYTHON, set once, not typed per call ───────
+# The lead's rule: `make IS what CI runs except where we deviated`, and the
+# interpreter is one of those deviations. A version named on a uv line, or
+# typed in a workflow beyond the ratchet, is a second interpreter choice.
+
+
+def test_a_uv_line_naming_a_python_is_refused(tmp_path: Path) -> None:
+    """The sabotage: `--python` beside uv bypasses UV_PYTHON."""
+    root = _seed(
+        tmp_path,
+        files={"Makefile": "x:\n\t$(UV) run --python 3.12 pytest\n"},
+    )
+    r = _run(root)
+    assert r.returncode == 1
+    assert "uv named with --python/-p" in r.stdout
+
+
+def test_a_short_python_flag_is_refused(tmp_path: Path) -> None:
+    root = _seed(
+        tmp_path,
+        files={"Makefile": "x:\n\tuv venv -p 3.13 .venv\n"},
+    )
+    r = _run(root)
+    assert r.returncode == 1
+    assert "uv named with --python/-p" in r.stdout
+
+
+def test_a_plain_uv_line_passes_the_interpreter_rule(tmp_path: Path) -> None:
+    root = _seed(tmp_path, files={"Makefile": "x:\n\t$(UV) run pytest\n"})
+    assert _run(root).returncode == 0
+
+
+def test_a_typed_python_in_a_workflow_is_refused(tmp_path: Path) -> None:
+    """The sabotage: a typed version re-introduced in a workflow."""
+    wf = (
+        "jobs:\n  j:\n    steps:\n"
+        "      - uses: ./.github/actions/setup-uv\n"
+        "        with:\n          python-version: '3.12'\n"
+    )
+    root = _seed(tmp_path, files={".github/workflows/new.yml": wf})
+    r = _run(root)
+    assert r.returncode == 1
+    assert ".github/workflows/new.yml:6: typed python-version" in r.stdout
+
+
+def test_a_matrix_expression_is_not_a_typed_version(tmp_path: Path) -> None:
+    """`${{ matrix.python }}` and python-version-file are not literals."""
+    wf = (
+        "jobs:\n  j:\n    steps:\n"
+        "      - with:\n          python-version: ${{ matrix.python }}\n"
+        "      - with:\n          python-version-file: .python-version\n"
+    )
+    root = _seed(tmp_path, files={".github/workflows/new.yml": wf})
+    assert _run(root).returncode == 0
+
+
+def test_a_uv_python_assignment_is_refused(tmp_path: Path) -> None:
+    """The sabotage: a Makefile default that would override the file."""
+    root = _seed(
+        tmp_path,
+        files={
+            "Makefile": (
+                "UV_PYTHON ?= $(shell python3 x.py)\nexport UV_PYTHON\n"
+            )
+        },
+    )
+    r = _run(root)
+    assert r.returncode == 1
+    assert "sets UV_PYTHON" in r.stdout
+
+
+def test_the_declared_smoke_override_is_allowed(tmp_path: Path) -> None:
+    """The one declared assignment: the smoke target's explicit override."""
+    mk = "release-smoke-pypi: export UV_PYTHON = $(SMOKE_PYTHON)\n"
+    assert _run(_seed(tmp_path, files={"Makefile": mk})).returncode == 0
+
+
+def test_the_live_tree_passes_the_interpreter_rule() -> None:
+    """The committed tree, with its ratchet, is clean."""
+    r = _run(REPO)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+# ── rule 6: UV is defined once, guarded; no spelling of uv skips the guard ───
+
+
+def test_the_guarded_uv_definition_passes(tmp_path: Path) -> None:
+    mk = "override UV = python3 scripts/uvg.py $(UV_BIN)\n"
+    assert _run(_seed(tmp_path, files={"Makefile": mk})).returncode == 0
+
+
+def test_a_second_uv_definition_is_refused(tmp_path: Path) -> None:
+    """The sabotage: an unguarded UV beside the guarded one."""
+    mk = "override UV = python3 scripts/uvg.py $(UV_BIN)\nUV = uv\n"
+    r = _run(_seed(tmp_path, files={"Makefile": mk}))
+    assert r.returncode == 1
+    assert "assigns UV" in r.stdout
+
+
+def test_an_unguarded_only_definition_is_refused(tmp_path: Path) -> None:
+    """The sabotage: the guard removed from the one definition."""
+    r = _run(_seed(tmp_path, files={"Makefile": "UV = uv\n"}))
+    assert r.returncode == 1
+    assert "UV is not defined as" in r.stdout
+
+
+def test_a_command_line_uv_override_is_named_not_hidden(
+    tmp_path: Path,
+) -> None:
+    """`override` makes a command-line UV= lose to the guard: the Makefile
+    still has the guarded definition, so the gate passes it; the override
+    itself is not visible to a tree scan, and that is said in the docs."""
+    mk = "override UV = python3 scripts/uvg.py $(UV_BIN)\n"
+    assert _run(_seed(tmp_path, files={"Makefile": mk})).returncode == 0
+
+
+# ── rule 7: a script that launches uv by argv goes through the venv guard ────
+
+
+def test_a_script_launching_uv_run_by_argv_is_refused(tmp_path: Path) -> None:
+    """The sabotage: a multi-line argv list whose first element is uv."""
+    src = (
+        "import subprocess\n"
+        "subprocess.run(\n"
+        '    ["uv", "run", "--group", "dev", "mdformat", "-"],\n'
+        ")\n"
+    )
+    r = _run(_seed(tmp_path, files={"scripts/tool.py": src}))
+    assert r.returncode == 1, r.stdout
+    assert "launches uv by argv" in r.stdout
+
+
+def test_a_script_through_the_guard_passes(tmp_path: Path) -> None:
+    src = (
+        "import subprocess\n"
+        "subprocess.run(\n"
+        "    [sys.executable, 'scripts/uvg.py', 'uv', 'run',"
+        " 'mdformat', '-'],\n"
+        ")\n"
+    )
+    assert (
+        _run(_seed(tmp_path, files={"scripts/tool.py": src})).returncode == 0
     )

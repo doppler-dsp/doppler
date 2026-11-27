@@ -8,7 +8,7 @@ into xargs. POSIX sh has no pipefail, so when that script failed -- on any
 box whose uv is not the pin -- the list just lost those files and the
 target exited 0 (#2361). A gate reading green while checking less. (With
 the default `UV` on such a box, the clang-format call is refused too and
-xargs fails the target; the exit 0 needed `UV=` naming the pinned uv, which
+xargs fails the target; the exit 0 needed `UV_BIN=` naming the pinned uv, which
 the bare listing ignored, or a listing that failed some other way.)
 
 The fake `UV` below fails ONLY the listing step and turns the clang-format
@@ -68,7 +68,7 @@ def test_a_failed_hand_written_listing_fails_the_target(
             "lint-clang-format",
             # POSIX spelling: the recipe runs under make's shell, which eats
             # a Windows path's backslashes (test_uv_pin_gate.py says why).
-            f"UV={PurePath(uv).as_posix()}",
+            f"UV_BIN={PurePath(uv).as_posix()}",
         ],
         capture_output=True,
         text=True,
@@ -113,7 +113,7 @@ def test_every_listed_hand_written_file_reaches_clang_format(
             "-C",
             str(REPO),
             "lint-clang-format",
-            f"UV={PurePath(uv).as_posix()}",
+            f"UV_BIN={PurePath(uv).as_posix()}",
         ],
         capture_output=True,
         text=True,

@@ -145,27 +145,54 @@ CMAKE       := cmake
 #   no python3 -- is case 4's refusal too, with its own reason.
 #
 # `$(or $(UV),uv)` because `UV = uv` is defined further down, under Tooling,
-# and this block is expanded NOW; a `UV=` on the command line is already
+# and this block is expanded NOW; a `UV_BIN=` on the command line is already
 # set, and otherwise the value is the same `uv` the Tooling line assigns.
 # Not a `$(error)`: standard.mk's _std_require expands PYEXT_CMD and
 # COVERAGE_CMD at parse time, so an error there would stop `make lint` and
 # every other target on the same box, not just the ones that need Python.
-_PY_UV := $(or $(UV),uv)
+# The default interpreter is `.python-version` (3.12), which uv reads for every
+# project command: no UV_PYTHON is set here, so every target gets it. Unset,
+# uv would pick the NEWEST Python on the box, and a newer one can have no
+# wheel for a pinned package (pillow 12.2.0 has none for 3.15). CI's matrix
+# legs override it by setting UV_PYTHON through setup-uv; `primary` (the
+# floor, 3.9) is a matrix leg, not the default interpreter.
+# UV_BIN is the uv binary; UV is the ONLY spelling a recipe uses, and it is the
+# binary behind the nested-make guard (scripts/uvg.py, #3305). `override`
+# makes it win over a command-line UV=, so no spelling of a uv call skips the
+# guard: the override moved to UV_BIN. A nested make refuses a sync-capable uv
+# command against a .venv on another Python; the top-level make may build it.
+UV_BIN     ?= uv
+override UV = python3 scripts/uvg.py $(UV_BIN)
+# The same guard by absolute path, for the recipes that change directory into
+# the downstream example first (a relative path would not resolve there). Not
+# exported, so it costs the environment budget nothing.
+UV_ABS = python3 $(CURDIR)/scripts/uvg.py $(UV_BIN)
+_PY_UV := $(UV)
 ifneq ($(JUST_BUILDIT_PYTHON),)
 PYTHON_EXECUTABLE := $(JUST_BUILDIT_PYTHON)
 else ifeq ($(origin PYTHON_EXECUTABLE),undefined)
-ifeq ($(shell command -v $(_PY_UV) 2>/dev/null),)
+ifeq ($(shell command -v $(UV_BIN) 2>/dev/null),)
 PYTHON_EXECUTABLE := $(shell command -v python3 2>/dev/null)
 else
-_PY_PROBE := $(shell out=$$($(_PY_UV) run python -c \
+# A parse-time probe ASKS; it must never change the shared .venv. With a venv,
+# `run --no-sync` answers with that venv's interpreter and leaves it alone (a
+# mismatched venv is reported, not rebuilt). With none, `uv python find` names
+# the interpreter a sync WOULD use and creates nothing. Measured: a plain
+# `uv run` here, with UV_PYTHON unset, rebuilt a 3.14 venv as 3.12 on every
+# make that ran it (#3305, the trace of test_make_env_budget).
+ifneq ($(wildcard $(CURDIR)/.venv/bin/python),)
+_PY_PROBE := $(shell out=$$($(_PY_UV) run --no-sync python -c \
     'import sys; print(sys.executable)' 2>/dev/null) && echo "ok $$out")
+else
+_PY_PROBE := $(shell out=$$($(_PY_UV) python find 2>/dev/null) && echo "ok $$out")
+endif
 ifeq ($(firstword $(_PY_PROBE)),ok)
 PYTHON_EXECUTABLE := $(wordlist 2,$(words $(_PY_PROBE)),$(_PY_PROBE))
 else
 PYTHON_EXECUTABLE :=
 # uv's error line, not a `warning:` printed ahead of it; the first line of
 # any kind when uv says nothing starting `error`.
-_PY_ERROR := $(or $(shell out=$$($(_PY_UV) run python -c pass 2>&1 \
+_PY_ERROR := $(or $(shell out=$$($(_PY_UV) run --no-sync python -c pass 2>&1 \
     >/dev/null); printf '%s\n' "$$out" | grep -m1 '^error' \
     || printf '%s\n' "$$out" | head -n 1),`$(_PY_UV) run python` failed)
 endif
@@ -225,10 +252,8 @@ BLAZING_CFLAGS ?= -march=native
 # and are pinned by uv.lock — which is what makes local and CI resolve
 # identically, and why the hook config resolves no lock-managed tool itself.
 # Override it with an ABSOLUTE path, or a name on PATH: a few recipes `cd`
-# into a subproject before running $(UV), where a relative UV= no longer
+# into a subproject before running $(UV), where a relative UV_BIN= no longer
 # names the same file.
-UV         = uv
-
 # A BARE interpreter, deliberately not `$(UV) run python`, and the exception
 # is narrow: scripts/nats_streams.py is stdlib-only (there is a test pinning
 # that) and its callers are the two places a resolved dev venv cannot be
@@ -238,6 +263,7 @@ UV         = uv
 # `nats-down` runs `if: always()`, after a job that may have failed for any
 # reason at all, including a broken environment.
 NATS_STREAMS = python3 scripts/nats_streams.py
+# Through UV, so through the guard (see UV above).
 DEV_RUN    = $(UV) run --group dev
 RUFF       = $(DEV_RUN) ruff
 # Routed through the dev group, not PATH: uv.lock is the one pin, shared by
@@ -361,7 +387,7 @@ DOWNSTREAM_GEN_C_RE := ^($(shell git grep -l '^/\* jm:generated ' -- \
 # into xargs: POSIX sh has no pipefail, so a failing `list_hand_ext_c.py`
 # only shortened the list and the target still exited 0 -- a gate reading
 # green while checking less. It also ran a bare `uv`, which ignores the
-# `UV=` override, so a box whose uv is not the pin dropped those files
+# `UV_BIN=` override, so a box whose uv is not the pin dropped those files
 # every time.
 C_FILES     = git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'
 HAND_EXT_C  = $(UV) run python scripts/list_hand_ext_c.py
@@ -1212,7 +1238,7 @@ python-executable-check: ## Fail when there is no interpreter to build for
 	@if [ -n $(_PY_ERROR_Q) ]; then \
 	  echo "python-executable-check: no interpreter to build for:"; \
 	  printf '    %s\n' $(_PY_ERROR_Q); \
-	  echo "  Fix uv (or pass UV=<the pinned uv>), or name one with"; \
+	  echo "  Fix uv (or pass UV_BIN=<the pinned uv>), or name one with"; \
 	  echo "  PYTHON_EXECUTABLE=<python>. Not falling back to python3: that"; \
 	  echo "  builds the extension for the wrong interpreter (#2364)."; \
 	  exit 1; \
@@ -4240,14 +4266,14 @@ jm-migrate-fragments: ## Move each [module.X] to modules/<name>.toml
 jm-revendor: ## Re-vendor every jm_*.h that is behind the pinned jm (both projects)
 	$(UV) sync --group dev --no-install-project
 	$(UV) run python scripts/check_jm_status.py --fix
-	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) \
+	cd $(DOWNSTREAM_DIR) && $(UV_ABS) run --project $(CURDIR) \
 	    python $(CURDIR)/scripts/check_jm_status.py --fix
 
 jm-status-docs: ## List members whose docstring falls back to their name (jm status --docs)
 	$(UV) run --group dev just-makeit status --docs
 
 jm-apply-downstream: ## Regenerate the downstream example's jm glue (same pin)
-	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) just-makeit apply
+	cd $(DOWNSTREAM_DIR) && $(UV_ABS) run --project $(CURDIR) just-makeit apply
 
 # jm-adopt for the downstream example: same arguments, same pin, run from
 # its directory so `adopt` reads its manifest rather than doppler's.
@@ -4256,7 +4282,7 @@ jm-adopt-downstream: ## JM_ADOPT_ARGS='<obj>... | --check --all' — jm-adopt fo
 	    echo "usage: make jm-adopt-downstream JM_ADOPT_ARGS='--check --all'"; \
 	    exit 2; }
 	$(UV) sync --group dev --no-install-project
-	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) \
+	cd $(DOWNSTREAM_DIR) && $(UV_ABS) run --project $(CURDIR) \
 	    just-makeit adopt $(JM_ADOPT_ARGS)
 
 # The jm manifest drift gate. --no-install-project because the gate only reads
@@ -4282,7 +4308,7 @@ drift-check: ## jm manifest drift gate (CI's 'jm manifest drift')
 # bindings/stubs/CMake can drift from its manifest exactly like doppler's can.
 # Checked with the SAME pinned jm, so the example cannot silently document a jm
 # version doppler is not on.
-	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) \
+	cd $(DOWNSTREAM_DIR) && $(UV_ABS) run --project $(CURDIR) \
 	    python $(CURDIR)/scripts/check_jm_status.py
 
 # One definition of "code", used by BOTH questions below — and by
@@ -4748,12 +4774,14 @@ endif
 # uninstallable while the smoke only ever ran cp312). Empty, the venv takes
 # whatever Python uv finds, as before.
 SMOKE_PYTHON ?=
+# The explicit override goes through the one mechanism, UV_PYTHON, never a
+# --python flag beside it. Empty, it is unset and .python-version applies.
+release-smoke-pypi: export UV_PYTHON = $(SMOKE_PYTHON)
 release-smoke-pypi: ## Smoke-test the PUBLISHED wheel from PyPI (VERSION=x.y.z [SMOKE_PYTHON=3.N])
 ifndef VERSION
 	@echo "usage: make release-smoke-pypi VERSION=<x.y.z> [SMOKE_PYTHON=3.N]"; exit 1
 endif
-	bash tests/install/wheel-smoke.sh --pypi "$(VERSION)" \
-	    $(if $(SMOKE_PYTHON),--python "$(SMOKE_PYTHON)")
+	bash tests/install/wheel-smoke.sh --pypi "$(VERSION)"
 
 # Every wheel's filename must be one pip would install (doppler#1817): parsed
 # by packaging's parse_wheel_filename, and at least one of its tags among

@@ -37,7 +37,12 @@ REPO = repo_root(__file__)
 # is why the budget is a difference). Measured 2026-11-04 on Linux: 2556 bytes
 # with the list kept out, 4980 with it in; the largest variable 2548 then.
 ADDED_MAX = 3500
-VAR_MAX = 1800
+# VAR_MAX raised 1800 -> 2243 (+443), a RAISED RATCHET for the reviewer to
+# accept or refuse (#3305). DOCS_CHECK_PRE_CMDS is a `define` of about 30 uv
+# calls, each now spelled `python3 scripts/uvg.py uv run` (the venv guard, 20
+# bytes a use). Measured 2159 with the shortest spelling that keeps `bash`: a
+# Windows checkout does not reliably keep the exec bit (not verified there).
+VAR_MAX = 2243
 
 
 def _env(cwd: Path, files: list[str], home: Path) -> dict[bytes, bytes]:
@@ -51,7 +56,19 @@ def _env(cwd: Path, files: list[str], home: Path) -> dict[bytes, bytes]:
             "envdump",
         ],
         capture_output=True,
-        env={"PATH": os.environ["PATH"], "HOME": str(home)},
+        # The leg's interpreter passes through, as in CI (setup-uv exports
+        # UV_PYTHON): a make with it dropped asks uv for the default, and the
+        # probe then names a venv it must not touch. The budget is about the
+        # exports a Makefile adds, not about this one variable.
+        env={
+            "PATH": os.environ["PATH"],
+            "HOME": str(home),
+            **(
+                {"UV_PYTHON": os.environ["UV_PYTHON"]}
+                if os.environ.get("UV_PYTHON")
+                else {}
+            ),
+        },
         check=True,
     )
     out: dict[bytes, bytes] = {}

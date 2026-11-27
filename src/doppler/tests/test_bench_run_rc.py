@@ -59,14 +59,18 @@ def _run(tmp_path: Path, code: int) -> subprocess.CompletedProcess[str]:
         "RC": str(runs / f"{VERSION}.rc"),
         "CODE": str(code),
     }
-    env.pop("MAKEFLAGS", None)
+    # A top-level make for this test: an outer suite's MAKELEVEL would make
+    # this one nested, and the venv guard (scripts/uvg.py) would then
+    # refuse the stub on a 3.14 venv for a request that never touches it.
+    for k in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL"):
+        env.pop(k, None)
     return subprocess.run(
         [
             "make",
             "-s",
             "bench-interleaved",
             f"VERSION={VERSION}",
-            f"UV={stub}",
+            f"UV_BIN={stub}",
             f"BENCH_RUN_DIR={runs}",
         ],
         cwd=REPO,

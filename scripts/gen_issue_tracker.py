@@ -258,8 +258,19 @@ def _mdformat(text: str) -> str:
     rather than a bare import, so this cannot format differently from the
     hook that judges the result.
     """
+    # Through the venv guard, as every uv call is (uvg.py, #3305): this runs
+    # under make, and a nested make must not rebuild the project .venv.
     proc = subprocess.run(
-        ["uv", "run", "--group", "dev", "mdformat", "-"],
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "uvg.py"),
+            "uv",
+            "run",
+            "--group",
+            "dev",
+            "mdformat",
+            "-",
+        ],
         input=text,
         capture_output=True,
         text=True,

@@ -78,7 +78,8 @@ Examples
 >>> key("ubuntu:24.04")
 '2404'
 >>> join_fingerprint(["arm64=b", "amd64=a"]) == join_fingerprint(
-...     ["amd64=a", "arm64=b"])
+...     ["amd64=a", "arm64=b"]
+... )
 True
 """
 
@@ -154,8 +155,10 @@ def packager_bases() -> "dict[str, str]":
     for arch in ("AMD64", "ARM64"):
         tag = os.environ.get(f"PACKAGER_BASE_{arch}", "")
         if not tag:
-            sys.exit(f"ci-image: PACKAGER_BASE_{arch} is empty "
-                     "(set PACKAGER_IMAGE_BASE_* in the Makefile)")
+            sys.exit(
+                f"ci-image: PACKAGER_BASE_{arch} is empty "
+                "(set PACKAGER_IMAGE_BASE_* in the Makefile)"
+            )
         out[arch] = tag
     return out
 
@@ -208,7 +211,9 @@ def _image_bytes(path: Path) -> bytes:
         return b"<absent>"
     if path != BOOTSTRAP:
         return path.read_bytes()
-    return _tables_kept(path, lambda name: not _unread_by_the_image(name), True)
+    return _tables_kept(
+        path, lambda name: not _unread_by_the_image(name), True
+    )
 
 
 def _tables_kept(
@@ -289,9 +294,7 @@ def packager_source_hash() -> str:
 
 def join_fingerprint(words: "list[str]") -> str:
     """One fingerprint over every arch's, independent of their order."""
-    return hashlib.sha256(
-        "\n".join(sorted(words)).encode()
-    ).hexdigest()
+    return hashlib.sha256("\n".join(sorted(words)).encode()).hexdigest()
 
 
 #: What a retry can fix: a rate limit, a 5xx, a dropped or timed-out
@@ -332,9 +335,17 @@ def _inspect(ref: str) -> str:
     wait = float(os.environ.get("CI_IMAGE_PULL_DELAY", "5"))
     for n in range(1, attempts + 1):
         r = subprocess.run(
-            ["docker", "buildx", "imagetools", "inspect", ref,
-             "--format", "{{json .Manifest}}"],
-            capture_output=True, text=True,
+            [
+                "docker",
+                "buildx",
+                "imagetools",
+                "inspect",
+                ref,
+                "--format",
+                "{{json .Manifest}}",
+            ],
+            capture_output=True,
+            text=True,
         )
         if r.returncode == 0:
             digest: str = json.loads(r.stdout)["digest"]
@@ -349,8 +360,11 @@ def _inspect(ref: str) -> str:
             print(err, file=sys.stderr)
             raise _Unreachable(ref)
         last = err.splitlines()[-1] if err else "failed"
-        print(f"ci-image: {ref}: {last} -- retry {n + 1}/{attempts} in "
-              f"{wait:g}s", file=sys.stderr)
+        print(
+            f"ci-image: {ref}: {last} -- retry {n + 1}/{attempts} in "
+            f"{wait:g}s",
+            file=sys.stderr,
+        )
         time.sleep(wait)
         wait *= 2
     # Reached only when CI_IMAGE_PULL_ATTEMPTS is below 1, so nothing was
@@ -400,8 +414,10 @@ def source(ref: str) -> "tuple[str, str]":
         return first, _inspect(first)
     except _Unreachable:
         if not mirror:
-            sys.exit(f"ci-image: {first} unreachable, and "
-                     "CI_IMAGE_BASE_MIRROR is unset")
+            sys.exit(
+                f"ci-image: {first} unreachable, and "
+                "CI_IMAGE_BASE_MIRROR is unset"
+            )
     alt = f"{mirror}/{ref}"
     print(f"ci-image: {first} unreachable; trying {alt}", file=sys.stderr)
     try:
@@ -414,9 +430,18 @@ def _digest_once(ref: str) -> str:
     """The pre-registry fetch, kept byte-for-byte for an adopter without
     ``CI_IMAGE_BASE_REGISTRY``: one call, docker's error as the failure."""
     out = subprocess.run(
-        ["docker", "buildx", "imagetools", "inspect", ref,
-         "--format", "{{json .Manifest}}"],
-        check=True, capture_output=True, text=True,
+        [
+            "docker",
+            "buildx",
+            "imagetools",
+            "inspect",
+            ref,
+            "--format",
+            "{{json .Manifest}}",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout
     digest: str = json.loads(out)["digest"]
     return digest
@@ -437,8 +462,7 @@ def _latest_jb() -> "tuple[str, str]":
         req.add_header("Authorization", f"Bearer {token}")
     with urllib.request.urlopen(req, timeout=30) as resp:
         tag = json.load(resp)["tag_name"]
-    url = (f"https://github.com/{JB_REPO}/releases/download/"
-           f"{tag}/{JB_ASSET}")
+    url = f"https://github.com/{JB_REPO}/releases/download/{tag}/{JB_ASSET}"
     with urllib.request.urlopen(url, timeout=60) as resp:
         return tag, hashlib.sha256(resp.read()).hexdigest()
 
@@ -486,9 +510,13 @@ def _pin_keys() -> "list[str]":
     if packager_on():
         # Appended after the CI block, never interleaved: an adopter without
         # the packager keeps its pin byte-for-byte.
-        keys += ["CI_PACKAGER_BASE_AMD64", "CI_PACKAGER_BASE_ARM64",
-                 "CI_PACKAGER_IMAGE", "CI_PACKAGER_FINGERPRINT",
-                 "CI_PACKAGER_SOURCE_HASH"]
+        keys += [
+            "CI_PACKAGER_BASE_AMD64",
+            "CI_PACKAGER_BASE_ARM64",
+            "CI_PACKAGER_IMAGE",
+            "CI_PACKAGER_FINGERPRINT",
+            "CI_PACKAGER_SOURCE_HASH",
+        ]
     return keys
 
 
@@ -523,22 +551,28 @@ def changed(new: Path) -> bool:
     """Did the content or the sources move? A new snapshot alone did not."""
     old, fresh = read_pin(), read_pin(new)
     moved = [
-        k for k in _pin_keys()
-        if k.startswith("CI_IMAGE_FINGERPRINT_") or k == "CI_IMAGE_SOURCE_HASH"
+        k
+        for k in _pin_keys()
+        if k.startswith("CI_IMAGE_FINGERPRINT_")
+        or k == "CI_IMAGE_SOURCE_HASH"
         or k in ("CI_PACKAGER_FINGERPRINT", "CI_PACKAGER_SOURCE_HASH")
         if old.get(k) != fresh.get(k)
     ]
     for k in moved:
-        print(f"{k}: {old.get(k, '<unpinned>')} -> {fresh.get(k)}",
-              file=sys.stderr)
+        print(
+            f"{k}: {old.get(k, '<unpinned>')} -> {fresh.get(k)}",
+            file=sys.stderr,
+        )
     return bool(moved)
 
 
 def check() -> int:
     """0 when the pin is complete, well formed and built from this tree."""
     if not PIN.exists():
-        print(f"ci-image-check: no {PIN}. Dispatch the CI image workflow "
-              "to build and pin the first image.")
+        print(
+            f"ci-image-check: no {PIN}. Dispatch the CI image workflow "
+            "to build and pin the first image."
+        )
         return 1
     pin = read_pin()
     bad = [k for k in _pin_keys() if not _shape(k, pin.get(k, ""))]
@@ -556,7 +590,10 @@ def check() -> int:
             "or dispatch the CI image workflow on it."
         )
         return 1
-    if packager_on() and pin["CI_PACKAGER_SOURCE_HASH"] != packager_source_hash():
+    if (
+        packager_on()
+        and pin["CI_PACKAGER_SOURCE_HASH"] != packager_source_hash()
+    ):
         print(
             f"ci-image-check: the packager's sources ({PACKAGER_DOCKERFILE}, "
             f"{BOOTSTRAP}) moved without a repin.\n"

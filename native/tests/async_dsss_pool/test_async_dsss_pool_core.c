@@ -2156,11 +2156,61 @@ _test_the_ccsds415_pool_is_the_point (void)
   return 0;
 }
 
+/* Ccsds415Pool's refusals, in C (#3267, P29): each returns NULL with @p why
+   naming its own cause, and a NULL @p why is allowed. The cases are the
+   table's (a code that is not 1,023 chips, a carrier past either edge, a
+   negative lost_confirm_s), the receiver count out of 1 to MAX, and a
+   negative thread count. Each row's sentence is matched on a phrase only
+   its cause's sentence holds, so a refusal reporting another cause is red.
+   Sabotage: drop the threads < 0 check -> the -1 row builds a pool; swap
+   the receiver-count and thread sentences -> both rows red. */
+static int
+_test_the_ccsds415_pool_refuses_with_its_cause (void)
+{
+  uint8_t code[DP_CCSDS_415_SF];
+  dp_dsss_gold_1023 (code);
+  static const struct
+  {
+    size_t      code_len, n_rx;
+    double      fc, lost;
+    int         threads;
+    const char *phrase;
+  } rows[] = {
+    { 1022, 2, DP_CCSDS_415_FC_LO, 0.4, 1, "1,023 chips" },
+    { DP_CCSDS_415_SF, 2, 2.0e9, 0.4, 1, "below DP_CCSDS_415_RX_FC_MIN" },
+    { DP_CCSDS_415_SF, 2, 8.0e9, 0.4, 1, "above DP_CCSDS_415_RX_FC_MAX" },
+    { DP_CCSDS_415_SF, 2, DP_CCSDS_415_FC_LO, -1.0, 1, "lost_confirm_s" },
+    { DP_CCSDS_415_SF, 0, DP_CCSDS_415_FC_LO, 0.4, 1, "n_receivers" },
+    { DP_CCSDS_415_SF, ASYNC_DSSS_POOL_MAX_RECEIVERS + 1, DP_CCSDS_415_FC_LO,
+      0.4, 1, "n_receivers" },
+    { DP_CCSDS_415_SF, 2, DP_CCSDS_415_FC_LO, 0.4, -1, "threads" },
+  };
+  for (size_t k = 0; k < sizeof rows / sizeof rows[0]; k++)
+    {
+      const char                 *why = NULL;
+      dp_async_dsss_pool_state_t *p   = dp_async_dsss_pool_create_ccsds415 (
+          code, rows[k].code_len, rows[k].n_rx, rows[k].fc, rows[k].lost,
+          rows[k].threads, true, &why);
+      if (p || !why || !strstr (why, rows[k].phrase))
+        fprintf (stderr, "row %zu: %s\n", k, why ? why : "(why unset)");
+      DP_CHECK_MSG (p == NULL, "the pool view refuses");
+      DP_CHECK_MSG (why && strstr (why, rows[k].phrase),
+                    "the refusal names its own cause");
+      dp_async_dsss_pool_destroy (p);
+      DP_CHECK (dp_async_dsss_pool_create_ccsds415 (
+                    code, rows[k].code_len, rows[k].n_rx, rows[k].fc,
+                    rows[k].lost, rows[k].threads, true, NULL)
+                == NULL);
+    }
+  return 0;
+}
+
 int
 main (void)
 {
   DP_CHECK (_test_create_domain () == 0);
   DP_CHECK (_test_the_ccsds415_pool_is_the_point () == 0);
+  DP_CHECK (_test_the_ccsds415_pool_refuses_with_its_cause () == 0);
   DP_CHECK (_test_refine_passes_through () == 0);
   DP_CHECK (_test_ghost_test_edges () == 0);
   DP_CHECK (_test_ghost_is_released () == 0);

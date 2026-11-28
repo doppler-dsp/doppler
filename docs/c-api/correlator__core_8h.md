@@ -6211,7 +6211,25 @@ Most Doppler-rate hypotheses an engine searches. Each one costs a full slow-time
 
 
 
-Two code phases closer than this many chips, circularly, are one signal: the receiver's pick (rules 1 and 3, docs/design/async-dsss-receiver.md §7.2), the pool's duplicate test, and the peak zone the receiver asks its search for ([**dp\_correlator\_set\_peak\_zone()**](correlator__core_8h.md#function-dp_correlator_set_peak_zone)) all read this one value. 
+Two code phases closer than this many chips, circularly, are one signal: the receiver's pick (rules 1 and 3, docs/design/async-dsss-receiver.md §7.2), the pool's duplicate test, and the peak zone the receiver asks its search for ([**dp\_correlator\_set\_peak\_zone()**](correlator__core_8h.md#function-dp_correlator_set_peak_zone)) all read this one value. The test itself is [**dp\_correlator\_same\_code\_phase()**](correlation__core_8h.md#function-dp_correlator_same_code_phase) ([**correlation\_core.h**](correlation__core_8h.md)), which the pick and the duplicate test call:
+
+
+
+```C++
+#include "doppler/correlation/correlation_core.h"
+#include <stdio.h>
+int main (void)
+{
+  // one chip apart is one signal; a chip and a half is two
+  int one = dp_correlator_same_code_phase (100.0, 101.0, 1023.0);
+  int two = dp_correlator_same_code_phase (100.0, 101.5, 1023.0);
+  // across chip 0: 0.6 chips apart, circularly
+  int wrap = dp_correlator_same_code_phase (0.4, 1022.8, 1023.0);
+  printf ("%d %d %d\n", one, two, wrap);              // 1 0 1
+  return !(one && !two && wrap);
+}
+```
+ 
 
 
         

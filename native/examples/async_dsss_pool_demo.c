@@ -57,6 +57,7 @@
 #include "doppler/dp_complex.h"
 #include <doppler/async_dsss_pool/async_dsss_pool_core.h>
 #include <doppler/awgn/awgn_core.h>
+#include <doppler/correlation/correlation_core.h>
 #include <doppler/gold/gold_core.h>
 #include <doppler/wfm/wfm_core.h>
 #include <doppler/wfm_synth/wfm_synth_core.h>
@@ -144,10 +145,13 @@ emitter_synth (const uint8_t *code, size_t k)
   return syn;
 }
 
-/** @brief Which emitter receiver @p i holds after push @p e: the one within
- *  1.5 chips of its code phase, or -1 when it holds nothing (idle, lost).
- *  A receiver still holding an emitter that has left -- until its release
- *  fires -- reads that emitter. */
+/** @brief Which emitter receiver @p i holds after push @p e: the one at
+ *  its code phase, or -1 when it holds nothing (idle, lost). The identity
+ *  IS the pool's key, dp_correlator_same_code_phase(): an emitter within
+ *  DP_CORRELATOR_SAME_PHASE_CHIPS, the width the pool's duplicate test and
+ *  the search's exclusion read, so this counts a holder exactly when the
+ *  pool does (#3401). A receiver still holding an emitter that has left --
+ *  until its release fires -- reads that emitter. */
 static int
 holder_of (const async_dsss_receiver_status_t *st, size_t e)
 {
@@ -158,8 +162,9 @@ holder_of (const async_dsss_receiver_status_t *st, size_t e)
   int          out = -1;
   for (size_t k = 0; k < N_EM; k++)
     {
-      const double d = fabs (st->chip_phase - emitter_phase (k, end));
-      if (e >= EMITTERS[k].first && fmin (d, SF - d) <= 1.5)
+      if (e >= EMITTERS[k].first
+          && dp_correlator_same_code_phase (
+              st->chip_phase, emitter_phase (k, end), (double)SF))
         out = (int)k;
     }
   return out;

@@ -185,11 +185,18 @@ def run(x: np.ndarray) -> dict:
 
 
 # --8<-- [start:validate]
+from doppler.correlation import correlator_same_code_phase
+
+
 def holder_of(rec: dict) -> np.ndarray:
     """Which emitter each receiver holds at each epoch's end: the index of
-    the emitter within 1.5 chips of the receiver's code phase, or -1
-    (searching). A receiver still holding an emitter that has left -- until
-    its release fires -- reads that emitter."""
+    the emitter at the receiver's code phase, or -1 (searching). The
+    identity IS the pool's key, ``correlator_same_code_phase``: an emitter
+    within ``DP_CORRELATOR_SAME_PHASE_CHIPS``, the width the pool's
+    duplicate test and the search's exclusion read, so this counts a
+    holder exactly when the pool does (#3401). A receiver still holding an
+    emitter that has left -- until its release fires -- reads that
+    emitter."""
     out = np.full(rec["state"].shape, -1)
     for e in range(N_EPOCHS):
         end = (e + 1) * TE
@@ -197,8 +204,9 @@ def holder_of(rec: dict) -> np.ndarray:
             if rec["state"][e, i] not in (1, 2):
                 continue
             for k, (_, _, _, (a, _b)) in enumerate(EMITTERS):
-                d = abs(rec["phase"][e, i] - emitter_phase(k, end))
-                if e >= a and min(d, SF - d) <= 1.5:
+                if e >= a and correlator_same_code_phase(
+                    rec["phase"][e, i], emitter_phase(k, end), SF
+                ):
                     out[e, i] = k
     return out
 

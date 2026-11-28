@@ -6,7 +6,7 @@ if(NOT JM_MATH_LIBRARY)
   set(JM_MATH_LIBRARY "")
 endif()
 
-add_library(correlation_core OBJECT correlation_core.c)
+add_library(correlation_core OBJECT correlation_core.c correlator_same_code_phase.c)
 target_include_directories(correlation_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
@@ -32,6 +32,39 @@ add_custom_command(TARGET correlation POST_BUILD
     VERBATIM
     COMMENT "Copy correlation extension module")
 endif()
+
+# The C unit test; `ctest` runs it.
+add_executable(test_correlation_core
+    ${CMAKE_SOURCE_DIR}/native/tests/correlation/test_correlation_core.c)
+target_link_libraries(test_correlation_core PRIVATE
+    correlation_core
+    correlator_core
+    Threads::Threads
+    fft2d_core
+    fft_core
+    detection_core
+    dp_tlm_core
+    ${JM_MATH_LIBRARY})
+target_include_directories(test_correlation_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+            ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_correlation_core COMMAND test_correlation_core)
+
+# The C benchmark; built, but not run by ctest.
+add_executable(bench_correlation_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/correlation/bench_correlation_core.c)
+target_link_libraries(bench_correlation_core PRIVATE
+    correlation_core
+    correlator_core
+    Threads::Threads
+    fft2d_core
+    fft_core
+    detection_core
+    dp_tlm_core
+    ${JM_MATH_LIBRARY})
+target_include_directories(bench_correlation_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+            ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
 # Your own CMake for this directory goes in correlation_extra.cmake beside this
 # file: it is included here and never overwritten. This file is

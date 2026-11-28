@@ -1,5 +1,6 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
+#include "doppler/correlation/correlation_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/dsss_receiver/sym_hold_private.h"
 #include "doppler/loop_filter/loop_filter_core.h"
@@ -1446,13 +1447,13 @@ adr_align_skip (dp_async_dsss_receiver_state_t *s, size_t x_len)
   return (size_t)owed;
 }
 
-/* One signal's code phase: the one key, dp__adsss_same_code_phase()
- * (async_dsss_receiver_private.h), which the pool's duplicate test calls
- * too. */
+/* One signal's code phase: the one key, dp_correlator_same_code_phase()
+ * (correlation_core.h), which the pool's duplicate test calls too; here
+ * over the receiver's own code length. */
 static int
 adr_same_code_phase (double a, double b, size_t code_len)
 {
-  return dp__adsss_same_code_phase (a, b, (double)code_len);
+  return dp_correlator_same_code_phase (a, b, (double)code_len);
 }
 
 /* A dwell's peak list, strongest first, to the one this receiver takes.

@@ -7,6 +7,7 @@
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include "doppler/async_dsss_pool/async_dsss_pool_private.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
+#include "doppler/correlation/correlation_core.h"
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -234,14 +235,6 @@ holds (int state)
   return state == ASYNC_DSSS_RX_REFINING || state == ASYNC_DSSS_RX_TRACKING;
 }
 
-/* The receivers' own key (dp__adsss_same_code_phase()), so a duplicate here
-   is exactly a phase a search would have excluded. */
-static int
-same_phase (double a, double b, double code_len)
-{
-  return dp__adsss_same_code_phase (a, b, code_len);
-}
-
 /* Whether holder `i` keeps the signal over holder `j`: tracking over
    refining, then the longer in its state (the first to get there), then
    the higher C/N0 estimate, then the lower index. */
@@ -387,13 +380,16 @@ control (dp_async_dsss_pool_state_t *s)
           s->released_lost++;
         }
     }
-  /* Duplicates, pair by pair in index order. A loser is reset at once, so
-     it holds nothing in the pairs after it. */
+  /* Duplicates, pair by pair in index order, on the receivers' own key
+     (dp_correlator_same_code_phase()), so a duplicate here is exactly a
+     phase a search would have excluded. A loser is reset at once, so it
+     holds nothing in the pairs after it. */
   for (size_t i = 0; i < n; i++)
     for (size_t j = i + 1; j < n && holds (st[i].state); j++)
       {
         if (!holds (st[j].state)
-            || !same_phase (st[i].chip_phase, st[j].chip_phase, code_len))
+            || !dp_correlator_same_code_phase (st[i].chip_phase,
+                                               st[j].chip_phase, code_len))
           continue;
         const size_t loser = keeps (st, i, j) ? j : i;
         dp_async_dsss_receiver_reset (s->rx[loser]);

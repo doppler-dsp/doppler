@@ -653,6 +653,7 @@ dp_correlator_rate_hypothesis function
 dp_correlator_rate_phasor function
 dp_correlator_reset function
 dp_correlator_run function
+dp_correlator_same_code_phase function
 dp_correlator_search_period function
 dp_correlator_set_carrier_freq_hz function
 dp_correlator_set_keep_surface function

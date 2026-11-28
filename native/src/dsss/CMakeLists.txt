@@ -63,6 +63,7 @@ target_link_libraries(dsss PRIVATE
     acc_trace_core
     carrier_nda_core
     boxcar_core
+    correlation_core
     Threads::Threads
     burst_capture_core
     Python3::NumPy)

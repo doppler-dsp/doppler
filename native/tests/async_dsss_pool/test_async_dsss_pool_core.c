@@ -9,6 +9,7 @@
 #include "doppler/async_dsss_pool/async_dsss_pool_private.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include "doppler/awgn/awgn_core.h"
+#include "doppler/correlation/correlation_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include "dp_air_test.h"
@@ -1184,6 +1185,73 @@ _test_lost_is_released (void)
   DP_CHECK (dp_async_dsss_pool_status (p, 0).state != ASYNC_DSSS_RX_TRACKING);
   dp_async_dsss_pool_destroy (p);
   free (off);
+  free (x);
+  free (data);
+  return 0;
+}
+
+/* A search false alarm 1.5 chips from a holder is released by its loss
+   release, by design (#3401). The search's noise crosses its gate at its
+   own Pfa (1e-3 a dwell), and a crossing can land anywhere, 1.5 chips from
+   a holder included. Two receivers on one emitter's stream (Gold-1023 at
+   the design point, 0 Hz, 50 dB-Hz): receiver 0 seeded on the emitter's
+   code phase, receiver 1 seeded 1.5 chips from it, where that false alarm
+   sat. Then, at every control step:
+   - the pool's key (dp_correlator_same_code_phase()) does not count the
+     seed as the emitter's holder: the duplicate pass never resets it;
+   - the seed never gets code lock: a chip's correlation is zero past one
+     chip, so its code loop has nothing to pull it in with;
+   - its loss release frees it: released_lost counts one, and it is idle
+     the step it is released, while receiver 0 still holds the emitter
+     with code lock.
+   Sabotage: widen DP_CORRELATOR_SAME_PHASE_CHIPS to 1.5 -> the key counts
+   the seed as a second holder, the duplicate pass resets it, and the loss
+   release never fires. */
+static int
+_test_false_alarm_seed_is_released_lost (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double    tsym = POOL_FS / POOL_RS;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 0.0, 50.0, 600, 0, 21,
+                   &x, &n, &data);
+  dp_async_dsss_pool_state_t *p = _pool (code, 2, CI_CONFIRM_S, 1);
+  DP_REQUIRE (p != NULL);
+  const double seed_phase = 1.5;
+  DP_CHECK_MSG (!dp_correlator_same_code_phase (0.0, seed_phase, 1023.0),
+                "the key does not count a seed 1.5 chips away as the holder");
+  DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[0], 0.0, 0.0, 50.0) == DP_OK);
+  DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[1], seed_phase, 0.0, 50.0)
+              == DP_OK);
+  int    seed_locked = 0, released = 0, idle_at_release = 0;
+  int    holder_kept = 0;
+  size_t pos         = 0;
+  for (; pos < n && !released; pos += POOL_GROUP)
+    {
+      (void)dp_async_dsss_pool_push (
+          p, x + pos, n - pos < POOL_GROUP ? n - pos : POOL_GROUP);
+      const async_dsss_receiver_status_t s1 = dp_async_dsss_pool_status (p, 1);
+      seed_locked |= s1.code_locked;
+      released = p->released_lost > 0;
+      if (released)
+        {
+          const async_dsss_receiver_status_t s0
+              = dp_async_dsss_pool_status (p, 0);
+          idle_at_release = s1.state == ASYNC_DSSS_RX_IDLE;
+          holder_kept = s0.state == ASYNC_DSSS_RX_TRACKING && s0.code_locked;
+        }
+    }
+  DP_CHECK_MSG (p->released_duplicate == 0,
+                "the duplicate pass never counts the seed as the holder");
+  DP_CHECK_MSG (!seed_locked, "the seed never gets code lock");
+  DP_CHECK_MSG (released, "the seed's loss release frees it");
+  DP_CHECK (p->released_lost == 1);
+  DP_CHECK_MSG (idle_at_release, "the released seed is idle");
+  DP_CHECK_MSG (holder_kept, "the holder keeps the emitter with code lock");
+  dp_async_dsss_pool_destroy (p);
   free (x);
   free (data);
   return 0;
@@ -2754,6 +2822,7 @@ main (void)
   DP_CHECK (_test_reset_clears_the_carry () == 0);
   DP_CHECK (_test_telemetry_one_producer () == 0);
   DP_CHECK (_test_lost_is_released () == 0);
+  DP_CHECK (_test_false_alarm_seed_is_released_lost () == 0);
   DP_CHECK (_test_release_latency () == 0);
   DP_CHECK (_test_search_restarts_and_names_survive () == 0);
   DP_CHECK (_test_reacquire_releases_itself () == 0);

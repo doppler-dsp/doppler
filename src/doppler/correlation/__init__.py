@@ -39,6 +39,10 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .correlation import CORRELATOR_FLAVOR, Correlator  # noqa: E402
+from .correlation import (  # noqa: E402
+    CORRELATOR_FLAVOR,
+    Correlator,
+    correlator_same_code_phase,
+)
 
-__all__ = ["Correlator", "CORRELATOR_FLAVOR"]
+__all__ = ["Correlator", "CORRELATOR_FLAVOR", "correlator_same_code_phase"]

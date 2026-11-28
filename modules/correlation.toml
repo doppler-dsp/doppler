@@ -33,3 +33,19 @@ Examples
 
 """
 objects = ["correlator"]
+
+[[module.correlation.functions]]
+name = "correlator_same_code_phase"
+return_type = "int"
+
+[[module.correlation.functions.params]]
+name = "a"
+type = "double"
+
+[[module.correlation.functions.params]]
+name = "b"
+type = "double"
+
+[[module.correlation.functions.params]]
+name = "code_len"
+type = "double"

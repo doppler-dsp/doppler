@@ -103,7 +103,7 @@ Here is a list of all files with brief descriptions:
             * **dir** [**conv\_enc**](dir_c22965c7b72380eff65e84661867f314.md)     
                 * **file** [**conv\_enc\_core.h**](conv__enc__core_8h.md) _The convolutional encoder, as a stateful object over_ `conv` _._    
             * **dir** [**correlation**](dir_9360b0d8b0ed26b6dcce04fb43b6327f.md)     
-                * **file** [**correlation\_core.h**](correlation__core_8h.md) _Correlation module — public C API._ 
+                * **file** [**correlation\_core.h**](correlation__core_8h.md) _Correlation module — public C API._     
             * **dir** [**correlator**](dir_296d11a08af6c23b555f7cd87cd10cbd.md)     
                 * **file** [**correlator\_core.h**](correlator__core_8h.md) _The one FFT cross-correlator, with coherent integrate-and-dump._     
                 * **file** [**correlator\_private.h**](correlator__private_8h.md) _The correlator's detection layer: the ring, the noise estimate, the one peak picker and the framed push._     

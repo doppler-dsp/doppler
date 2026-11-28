@@ -62,11 +62,6 @@ _A receiver's roles inside an AsyncDsssPool: pooled (idle until seeded) and sear
 |  size\_t | [**dp\_async\_dsss\_receiver\_take\_picks**](#function-dp_async_dsss_receiver_take_picks) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, double \* chip\_phase, double \* doppler\_hz, double \* cn0\_dbhz, size\_t max) <br>_Take a search-only receiver's waiting picks, in the order their dwells found them (each dwell's strongest first), and clear them._  |
 
 
-## Public Static Functions
-
-| Type | Name |
-| ---: | :--- |
-|  int | [**dp\_\_adsss\_same\_code\_phase**](#function-dp__adsss_same_code_phase) (double a, double b, double code\_len) <br>_One signal's code phase:_ `a` _and_`b` _within DP\_CORRELATOR\_SAME\_PHASE\_CHIPS of each other, circularly over a code of_`code_len` _chips._ |
 
 
 
@@ -254,30 +249,6 @@ The picks written, at most `max`; any past it are dropped.
 
 
 
-
-
-        
-
-<hr>
-## Public Static Functions Documentation
-
-
-
-
-### function dp\_\_adsss\_same\_code\_phase 
-
-_One signal's code phase:_ `a` _and_`b` _within DP\_CORRELATOR\_SAME\_PHASE\_CHIPS of each other, circularly over a code of_`code_len` _chips._
-```C++
-static inline int dp__adsss_same_code_phase (
-    double a,
-    double b,
-    double code_len
-) 
-```
-
-
-
-The one key that says two code phases are one signal: the receiver's pick (rules 1 and 3 of docs/design/async-dsss-receiver.md §7.2, keyed on code phase alone, never carrier: async-dsss-receiver-measurements.md §12.14) and the pool's duplicate test both call it, and the peak zone the receiver asks its search for is the same width. 
 
 
         

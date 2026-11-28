@@ -1406,6 +1406,62 @@ _test_borrowed_lock_lasts_one_chain (void)
   return 0;
 }
 
+/* The controller's latency (#3267, P9): a release comes at most a group's
+   periods less one after the period that called for it. The lost-release
+   scene of _test_lost_is_released, fed one code period a push: the
+   period the receiver enters lost (its own state, before the controller
+   reads it) and the period the pool releases it are at most
+   ASYNC_DSSS_POOL_PERIODS_PER_JOIN - 1 apart. Sabotage: release a lost
+   receiver only once it has been lost a whole group -> the release comes
+   a group late, red here and nowhere else. */
+static int
+_test_release_latency (void)
+{
+  const size_t    sf = 7, spc = 4, te = sf * spc;
+  const double    fs = 1.0e6 * (double)spc, sym_rate = 35714.29;
+  const double    cn0 = 70.0, confirm_s = 0.02;
+  const size_t    pre = sf * spc * 5 + 3, tail_n = (size_t)(0.25 * fs);
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, fs / sym_rate, 0.0, cn0, 400, pre, 7,
+                   &x, &n, &data);
+  float _Complex *off = calloc (tail_n, sizeof *off);
+  dp_dsss_add_awgn (off, tail_n, fs, cn0, 99u);
+  dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
+      CODE7, 7, 1, 1.0e6, sym_rate, 4.0 * 1.0e6, 2, cn0, 1e-2, 0.9, 500.0, 4,
+      8, 0, 0.5, 4, 14.0, 32, 8, false, 100000, 0.0, confirm_s, false, 0.0,
+      0.0, 1, true);
+  DP_REQUIRE (p && off);
+  DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[0], 0.0, 0.0, cn0) == DP_OK);
+  for (size_t pos = pre; pos + te <= n; pos += te)
+    (void)dp_async_dsss_pool_push (p, x + pos, te);
+  DP_REQUIRE (p->rx[0]->state == ASYNC_DSSS_RX_TRACKING);
+  long entered = -1, released = -1;
+  for (size_t k = 0; (k + 1) * te <= tail_n && released < 0; k++)
+    {
+      (void)dp_async_dsss_pool_push (p, off + k * te, te);
+      if (entered < 0 && p->rx[0]->state == ASYNC_DSSS_RX_LOST)
+        entered = (long)k;
+      if (p->released_lost > 0)
+        {
+          released = (long)k;
+          if (entered < 0) /* entered and released in the same period */
+            entered = (long)k;
+        }
+    }
+  DP_REQUIRE_MSG (released >= 0, "the lost receiver was released");
+  DP_CHECK_MSG (released - entered >= 0
+                    && released - entered
+                           <= (long)ASYNC_DSSS_POOL_PERIODS_PER_JOIN - 1,
+                "a release comes within a group's periods less one");
+  dp_async_dsss_pool_destroy (p);
+  free (off);
+  free (x);
+  free (data);
+  return 0;
+}
+
 /* The thread count changes nothing but the cost: one worker and three
    give the same state, byte for byte, and the same symbols. The search
    spans +-5 kHz, several Doppler tiles, so on three workers it fans its
@@ -2572,6 +2628,7 @@ main (void)
   DP_CHECK (_test_reset_clears_the_carry () == 0);
   DP_CHECK (_test_telemetry_one_producer () == 0);
   DP_CHECK (_test_lost_is_released () == 0);
+  DP_CHECK (_test_release_latency () == 0);
   DP_CHECK (_test_search_restarts_and_names_survive () == 0);
   DP_CHECK (_test_reacquire_releases_itself () == 0);
   DP_CHECK (_test_borrowed_lock_lasts_one_chain () == 0);

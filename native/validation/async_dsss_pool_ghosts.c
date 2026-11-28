@@ -30,7 +30,9 @@
  *
  * SECOND. A at 70 dB-Hz and a DISTINCT emitter B on A's carrier (+/-5 Hz),
  * at a drawn code offset, at B_DBHZ from the floor up: receiver 1 seeded
- * on B's own phase and Doppler once receiver 0 tracks A. Run until both
+ * on B's own phase and Doppler once receiver 0 tracks A, or, when the
+ * pool's own search took B first (more often the stronger B is), scored
+ * on that seed (by_pool). Run until both
  * rings have been full for a window. Recorded: whether the rule released
  * B, and whether the rule with k = 0 admitted would have
  * (dp__async_dsss_pool_ghost_of_any_k(), the same tests on the same rings
@@ -55,7 +57,13 @@
  * Printed, with Wilson 95% intervals: the forced outcomes by k, the
  * counterfactual release rate by B's level, and the pool's own ghosts.
  * --check: 2.8 GHz, FORCED k = 0 and 2 and SECOND at 38.8 and 50 dB-Hz,
- * one draw each, and the refine-off k = 2 draw.
+ * one draw each, the refine-off k = 2 draw, and SECOND's seed 8 at 50
+ * dB-Hz, a B the pool's search takes itself.
+ *
+ * --emit's blocks are what the certification report reads
+ * (src/doppler/dsss/tests/validation/async_dsss_pool/validate.py): one row
+ * a draw (forced, second), one a tenure (alone), and the two --check pins
+ * as their own blocks (refine_off, second_by_pool).
  *
  * Usage:  validate_async_dsss_pool_ghosts [--check] [--emit] [--draws N]
  *             [--shard i/n] [--forced-s S]  (FORCED's run past the seed,
@@ -152,6 +160,10 @@ typedef struct
   double dphi_start, dphi_end, dphi_spread, acf_start_db;
   int    no_parent; /* SECOND: receiver 0 never tracked A with code lock
                        inside 3 s; the draw is counted, not scored */
+  int no_scene;     /* SECOND: receiver 0 held A, receiver 1 held neither B
+                       nor nothing by 3 s; counted, not scored */
+  int by_pool;      /* SECOND: the pool's own search took B on receiver 1;
+                       scored from the group both hold their emitter */
   /* The phase difference's spread within each GH_WIN_S window (unwrapped
      about the window's first sample), the median over the windows, so a
      reading does not grow with the tenure. */
@@ -833,29 +845,53 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
       const async_dsss_receiver_status_t s1 = dp_async_dsss_pool_status (p, 1);
       if (t_seed < 0.0)
         {
-          if (t >= 0.5 && s0.state == ASYNC_DSSS_RX_TRACKING && s0.code_locked
-              && s1.state == ASYNC_DSSS_RX_IDLE)
+          /* Receiver 0 holds A: tracking, code lock up, within a chip of
+             A's phase. Index 0 is the strongest pick's (the pool's seed
+             order), so a scene that puts A anywhere else is a failure. */
+          const dp_air_truth_t ta0 = dp_air_truth (&air, 0, air.n_out);
+          const dp_air_truth_t tb0 = dp_air_truth (&air, 1, air.n_out);
+          const int            a_held
+              = s0.state == ASYNC_DSSS_RX_TRACKING && s0.code_locked
+                && fabs (gh_wrap (s0.chip_phase, ta0.code_chips, 1023.0))
+                       < 1.0;
+          /* While receiver 1 is idle the pool's search runs, and from
+             about 44 dB-Hz it finds B itself, often before A's code lock
+             is up: receiver 1 then tracks B on the pool's own seed, the
+             path a caller's pool takes. That draw is scored from the group
+             both hold their own emitter. It used to wait for an idle
+             receiver 1 that never came and read as "receiver 0 never
+             tracked A". */
+          if (t >= 0.5 && a_held && s1.state == ASYNC_DSSS_RX_TRACKING
+              && fabs (gh_wrap (s1.chip_phase, tb0.code_chips, 1023.0)) < 1.0)
+            {
+              o->by_pool = 1;
+              t_seed     = t;
+              continue;
+            }
+          if (t >= 0.5 && a_held && s1.state == ASYNC_DSSS_RX_IDLE)
             {
               /* B's own phase at the pool's next sample, as a code NCO
                  reads it (half a sample before the continuous phase). */
-              const dp_air_truth_t tb = dp_air_truth (&air, 1, air.n_out);
-              DP_REQUIRE (!isnan (tb.code_chips));
+              DP_REQUIRE (!isnan (tb0.code_chips));
               DP_REQUIRE (
                   dp_async_dsss_receiver_seed (
                       p->rx[1],
-                      fmod (tb.code_chips
+                      fmod (tb0.code_chips
                                 - 0.5 * em[1].chip_rate / DP_CCSDS_415_FS
                                 + 1023.0,
                             1023.0),
-                      tb.car_hz, b_dbhz)
+                      tb0.car_hz, b_dbhz)
                   == DP_OK);
               t_seed = t;
             }
-          /* A draw whose parent never tracks with code lock is counted,
-             not scored, so one does not end the sweep's population. */
+          /* A draw with no scene to score by 3 s is counted, not scored,
+             so one does not end the sweep's population: receiver 0 not
+             holding A (a failure of the seed order, checked by the
+             caller), or receiver 1 holding neither B nor nothing. */
           if (t >= 3.0)
             {
-              o->no_parent = 1;
+              o->no_parent = !a_held;
+              o->no_scene  = a_held;
               break;
             }
           continue;
@@ -898,10 +934,10 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
           || t - t_seed > (gh_second_s > 0.0 ? gh_second_s : GH_SECOND_S))
         break;
     }
-  o->outcome   = o->no_parent        ? -1
-                 : p->released_ghost ? 1
-                 : p->released_lost  ? 2
-                                     : 0;
+  o->outcome   = o->no_parent || o->no_scene ? -1
+                 : p->released_ghost         ? 1
+                 : p->released_lost          ? 2
+                                             : 0;
   o->code_frac = n ? (double)code_up / (double)n : NAN;
   gh_close (code, &acc, o);
   o->b_ber = gh_b_ber (&air, &acc);
@@ -981,6 +1017,30 @@ gh_eps_cmp (const void *a, const void *b)
   return (x > y) - (x < y);
 }
 
+/* --emit's "# alone" block: one row a tenure, so a reader derives the
+   counts, the release causes and epsilon's quantile from the rows. eps_hz
+   is the tenure's carrier error (NaN off phase, or shorter than the skip);
+   ended is how it ended, read from the release counters at the step it left
+   tracking: lost, ghost, duplicate, other, or open (held at the run's
+   end). */
+static void
+gh_alone_row (double fc, double cn0, uint32_t seed, size_t r, int off,
+              double worst, double eps, const char *ended, uint64_t at)
+{
+  printf ("%.1f,%.2f,%u,%zu,%d,%.1f,%.3f,%s,%llu\n", fc / 1e9, cn0, seed, r,
+          off, worst, eps, ended, (unsigned long long)at);
+}
+
+static const char *
+gh_ended (const dp_async_dsss_pool_state_t *p, uint64_t g0, uint64_t l0,
+          uint64_t d0)
+{
+  return p->released_lost > l0        ? "lost"
+         : p->released_ghost > g0     ? "ghost"
+         : p->released_duplicate > d0 ? "duplicate"
+                                      : "other";
+}
+
 static int
 gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
           gh_alone_t *o, gh_eps_t *ep, int emit)
@@ -1038,6 +1098,10 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
           else if (in[r] && !tracking)
             {
               in[r] = 0;
+              if (emit)
+                gh_alone_row (fc, cn0, seed, r, off[r], worst[r],
+                              !off[r] && has_err[r] ? err[r] : NAN,
+                              gh_ended (p, g0, l0, d0), air.n_out);
               if (!off[r])
                 {
                   if (has_err[r])
@@ -1057,9 +1121,6 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
                   o->by_ghost += p->released_ghost > g0;
                   o->by_lost += p->released_lost > l0;
                   o->by_dup += p->released_duplicate > d0;
-                  if (emit)
-                    printf ("%.1f,%u,%zu,%.1f,%llu\n", fc / 1e9, seed, r,
-                            worst[r], (unsigned long long)air.n_out);
                 }
             }
         }
@@ -1067,6 +1128,10 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
       l0 = p->released_lost;
       d0 = p->released_duplicate;
     }
+  for (size_t r = 0; r < 4; r++)
+    if (in[r] && emit)
+      gh_alone_row (fc, cn0, seed, r, off[r], worst[r],
+                    !off[r] && has_err[r] ? err[r] : NAN, "open", air.n_out);
   for (size_t r = 0; r < 4; r++)
     if (in[r] && off[r])
       {
@@ -1106,7 +1171,8 @@ gh_alone_arm (const uint8_t *code, const double fcs[2], unsigned draws,
               int design_only)
 {
   if (emit)
-    printf ("# alone\nfc_ghz,seed,receiver,worst_chips,ended_at\n");
+    printf ("# alone\nfc_ghz,cn0_dbhz,seed,receiver,off_phase,worst_chips,"
+            "eps_hz,ended,at_sample\n");
   else
     printf (
         "  ALONE: one emitter at each level below, a pool of four, %.0f s\n",
@@ -1320,9 +1386,16 @@ main (int argc, char **argv)
       gh_t o;
       DP_REQUIRE (gh_forced (code, fcs[1], 2, 1, &o) == 0);
       gh_refine = true;
-      printf ("  refine off, 2.8 GHz, k = +2: outcome %d, carrier %.2f "
-              "image spacings off A at the end\n",
-              o.outcome, o.df_end_lat);
+      /* --emit gives it a block of its own, so a reader of the CSV
+         blocks never takes the line for a row of FORCED's. */
+      if (emit)
+        printf ("# refine_off\nfc_ghz,k,outcome,spacings_off\n"
+                "%.1f,2,%d,%.2f\n",
+                fcs[1] / 1e9, o.outcome, o.df_end_lat);
+      else
+        printf ("  refine off, 2.8 GHz, k = +2: outcome %d, carrier %.2f "
+                "image spacings off A at the end\n",
+                o.outcome, o.df_end_lat);
       DP_CHECK_MSG (o.outcome == 1 && round (o.df_end_lat) == 2.0
                         && gh_on_image (o.df_end_hz, o.spacing_hz),
                     "refine off: a k = 2 sidelobe ghost is released by the "
@@ -1343,7 +1416,7 @@ main (int argc, char **argv)
             "ratio_med_db,ratio_p10_db,ratio_p90_db,dphi_start,dphi_end,"
             "dphi_spread,acf_start_db,dphi_win_med,rho_coh,rho_nc,n_rho,"
             "lag_r,b_ber,rc100,rc25,nl100,nl25,ns25,thr25,nb25,t_cross_s,"
-            "win_dev_hz\n");
+            "win_dev_hz,by_pool,df_end_hz\n");
   else
     printf ("  SECOND: a distinct emitter on a %.0f dB-Hz one's carrier\n",
             GH_A2_DBHZ);
@@ -1352,7 +1425,7 @@ main (int argc, char **argv)
       {
         if (check && l != 0 && l != 4)
           continue;
-        size_t n = 0, rel = 0, would = 0, orphan = 0;
+        size_t n = 0, rel = 0, would = 0, orphan = 0, pooled = 0;
         for (uint32_t s = 1; s <= draws; s++)
           {
             if ((s - 1) % shards != shard)
@@ -1362,21 +1435,24 @@ main (int argc, char **argv)
             if (emit)
               printf ("%.1f,%.1f,%u,%d,%.3f,%d,%.2f,%.2f,%.2f,%.3f,%.3f,"
                       "%.3f,%.2f,%.3f,%.4f,%.4f,%zu,%ld,%.5f,%.4f,%.4f,%.4f,"
-                      "%.4f,%.4f,%.4f,%zu,%.2f,%.2f\n",
+                      "%.4f,%.4f,%.4f,%zu,%.2f,%.2f,%d,%.1f\n",
                       fcs[f] / 1e9, b_lvls[l], s, o.outcome, o.code_frac,
                       o.any_k, o.ratio_med_db, o.ratio_p10_db, o.ratio_p90_db,
                       o.dphi_start, o.dphi_end, o.dphi_spread, o.acf_start_db,
                       o.dphi_win_med, o.rho_coh, o.rho_nc, o.n_rho, o.lag_r,
                       o.b_ber, o.rc100, o.rc25, o.nl100, o.nl25, o.ns25,
-                      o.thr25, o.nb25, o.t_cross, o.win_dev_hz);
-            /* Counted, not scored: the parent never tracked A. */
+                      o.thr25, o.nb25, o.t_cross, o.win_dev_hz, o.by_pool,
+                      o.df_end_hz);
+            /* The seed order puts the 70 dB-Hz A on receiver 0. A draw
+               with no scene is counted, not scored. */
             DP_CHECK_MSG (!o.no_parent, "receiver 0 tracks A with code lock");
-            if (o.no_parent)
+            if (o.no_parent || o.no_scene)
               {
                 orphan++;
                 continue;
               }
             n++;
+            pooled += (size_t)o.by_pool;
             rel += o.outcome == 1;
             would += (size_t)o.any_k;
             /* Released only on a carrier image of its parent, A's
@@ -1393,12 +1469,34 @@ main (int argc, char **argv)
                     b_lvls[l], n);
             gh_rate ("released by the rule", rel, n);
             gh_rate ("released if k = 0 were admitted", would, n);
+            gh_rate ("B seeded by the pool's search", pooled, n);
           }
         if (!emit && orphan)
           printf ("    %.1f GHz, B at %.1f dB-Hz: %zu draws whose parent "
-                  "never tracked A with code lock (counted, not scored)\n",
+                  "never tracked A with code lock, or whose receiver 1 held "
+                  "neither B nor nothing (counted, not scored)\n",
                   fcs[f] / 1e9, b_lvls[l], orphan);
       }
+  if (check)
+    {
+      /* The scene the pool sets itself: at 50 dB-Hz, seed 8, its search
+         takes B on receiver 1 before A's code lock is up, so the harness
+         never sees receiver 1 idle. The draw is scored, on the pool's own
+         seed, with both receivers on their own emitters. */
+      gh_t o;
+      DP_REQUIRE (gh_second (code, fcs[1], b_lvls[4], 8, &o) == 0);
+      if (emit)
+        printf ("# second_by_pool\nfc_ghz,b_dbhz,seed,outcome,by_pool\n"
+                "%.1f,%.1f,8,%d,%d\n",
+                fcs[1] / 1e9, b_lvls[4], o.outcome, o.by_pool);
+      else
+        printf ("  SECOND, 2.8 GHz, B at 50 dB-Hz, seed 8: outcome %d, B "
+                "seeded by the pool %d\n",
+                o.outcome, o.by_pool);
+      DP_CHECK_MSG (o.by_pool && o.outcome >= 0,
+                    "a B the pool's own search takes is scored, not read "
+                    "as a parent that never tracked");
+    }
   if (emit)
     {
       printf ("# ratio\nfc_ghz,arm,k_or_b_dbhz,seed,t_s,ratio_db,acf_db,"

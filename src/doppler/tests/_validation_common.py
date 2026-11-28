@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import csv
 import difflib
+import math
 import re
 import subprocess
 from contextlib import contextmanager
@@ -246,6 +247,44 @@ def harness_blocks(
     if name:
         blocks[name] = rows
     return blocks
+
+
+def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """The Wilson score interval for `k` successes in `n` trials.
+
+    The interval every rate a report prints carries, the same one the C
+    harnesses print (`dp_wilson()`, `native/tests/dp_stats_test.h`), so a
+    rate a validator aggregates from a harness's per-draw rows reads the
+    same as the harness's own summary line.
+
+    Parameters
+    ----------
+    k : int
+        Successes.
+    n : int
+        Trials; 0 gives the whole of [0, 1].
+    z : float, optional
+        The normal quantile, 1.96 for 95%.
+
+    Returns
+    -------
+    tuple of float
+        The lower and upper limits.
+
+    Examples
+    --------
+    >>> [round(v, 2) for v in wilson(0, 1)]
+    [0.0, 0.79]
+    >>> wilson(0, 0)
+    (0.0, 1.0)
+    """
+    if n == 0:
+        return 0.0, 1.0
+    p = k / n
+    d = 1 + z * z / n
+    c = (p + z * z / (2 * n)) / d
+    h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
+    return max(0.0, c - h), min(1.0, c + h)
 
 
 def p2db_pin_db() -> float:

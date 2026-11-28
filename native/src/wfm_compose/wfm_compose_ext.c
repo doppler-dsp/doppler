@@ -685,16 +685,16 @@ _coerce_dp_wfm_source_crc_refuse_text (uint8_t **dst, size_t *n_dst,
 static int
 Synth_replace_symbols (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t = self->src;
-  _t.symbols      = NULL;
-  _t.n_symbols    = 0;
-  if (!_attach_symbols (&_t, value))
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.symbols      = NULL;
+  _jm_copy.n_symbols    = 0;
+  if (!_attach_symbols (&_jm_copy, value))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free (_t.symbols);
+      free (_jm_copy.symbols);
       return 0;
     }
   if (self->_gen)
@@ -705,25 +705,26 @@ Synth_replace_symbols (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free (self->src.symbols);
-  self->src.symbols   = _t.symbols;
-  self->src.n_symbols = _t.n_symbols;
+  self->src.symbols   = _jm_copy.symbols;
+  self->src.n_symbols = _jm_copy.n_symbols;
   return 1;
 }
 
 static int
 Synth_replace_acq_code (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t  = self->src;
-  _t.acq_code.bits = NULL;
-  _t.acq_code.len  = 0;
+  wfm_source_t _jm_copy  = self->src;
+  _jm_copy.acq_code.bits = NULL;
+  _jm_copy.acq_code.len  = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&_t.acq_code.bits, &_t.acq_code.len, value, "acq_code"))
+          (uint8_t **)&_jm_copy.acq_code.bits, &_jm_copy.acq_code.len, value,
+          "acq_code"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.acq_code.bits);
+      free ((void *)_jm_copy.acq_code.bits);
       return 0;
     }
   if (self->_gen)
@@ -734,26 +735,26 @@ Synth_replace_acq_code (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.acq_code.bits);
-  self->src.acq_code.bits = _t.acq_code.bits;
-  self->src.acq_code.len  = _t.acq_code.len;
+  self->src.acq_code.bits = _jm_copy.acq_code.bits;
+  self->src.acq_code.len  = _jm_copy.acq_code.len;
   return 1;
 }
 
 static int
 Synth_replace_data_code (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t   = self->src;
-  _t.data_code.bits = NULL;
-  _t.data_code.len  = 0;
-  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.data_code.bits,
-                                               &_t.data_code.len, value,
-                                               "data_code"))
+  wfm_source_t _jm_copy   = self->src;
+  _jm_copy.data_code.bits = NULL;
+  _jm_copy.data_code.len  = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.data_code.bits, &_jm_copy.data_code.len, value,
+          "data_code"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.data_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
       return 0;
     }
   if (self->_gen)
@@ -764,26 +765,26 @@ Synth_replace_data_code (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.data_code.bits);
-  self->src.data_code.bits = _t.data_code.bits;
-  self->src.data_code.len  = _t.data_code.len;
+  self->src.data_code.bits = _jm_copy.data_code.bits;
+  self->src.data_code.len  = _jm_copy.data_code.len;
   return 1;
 }
 
 static int
 Synth_replace_sync (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t      = self->src;
-  _t.retired_sync.bits = NULL;
-  _t.retired_sync.len  = 0;
+  wfm_source_t _jm_copy      = self->src;
+  _jm_copy.retired_sync.bits = NULL;
+  _jm_copy.retired_sync.len  = 0;
   if (!_coerce_dp_wfm_source_sync_refuse_text (
-          (uint8_t **)&_t.retired_sync.bits, &_t.retired_sync.len, value,
-          "sync"))
+          (uint8_t **)&_jm_copy.retired_sync.bits, &_jm_copy.retired_sync.len,
+          value, "sync"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.retired_sync.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
       return 0;
     }
   if (self->_gen)
@@ -794,25 +795,26 @@ Synth_replace_sync (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.retired_sync.bits);
-  self->src.retired_sync.bits = _t.retired_sync.bits;
-  self->src.retired_sync.len  = _t.retired_sync.len;
+  self->src.retired_sync.bits = _jm_copy.retired_sync.bits;
+  self->src.retired_sync.len  = _jm_copy.retired_sync.len;
   return 1;
 }
 
 static int
 Synth_replace_crc (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t     = self->src;
-  _t.retired_crc.bits = NULL;
-  _t.retired_crc.len  = 0;
+  wfm_source_t _jm_copy     = self->src;
+  _jm_copy.retired_crc.bits = NULL;
+  _jm_copy.retired_crc.len  = 0;
   if (!_coerce_dp_wfm_source_crc_refuse_text (
-          (uint8_t **)&_t.retired_crc.bits, &_t.retired_crc.len, value, "crc"))
+          (uint8_t **)&_jm_copy.retired_crc.bits, &_jm_copy.retired_crc.len,
+          value, "crc"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.retired_crc.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
       return 0;
     }
   if (self->_gen)
@@ -823,23 +825,23 @@ Synth_replace_crc (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.retired_crc.bits);
-  self->src.retired_crc.bits = _t.retired_crc.bits;
-  self->src.retired_crc.len  = _t.retired_crc.len;
+  self->src.retired_crc.bits = _jm_copy.retired_crc.bits;
+  self->src.retired_crc.len  = _jm_copy.retired_crc.len;
   return 1;
 }
 
 static int
 Synth_replace_frame (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t = self->src;
-  _t.frame        = NULL;
-  if (!_attach_frame (&_t, value))
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.frame        = NULL;
+  if (!_attach_frame (&_jm_copy, value))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      dp_wfm_frame_free ((wfm_frame_desc_t *)_t.frame);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
       return 0;
     }
   if (self->_gen)
@@ -850,25 +852,25 @@ Synth_replace_frame (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
-  self->src.frame = _t.frame;
+  self->src.frame = _jm_copy.frame;
   return 1;
 }
 
 static int
 Synth_replace_bits (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t      = self->src;
-  _t.retired_bits.bits = NULL;
-  _t.retired_bits.len  = 0;
+  wfm_source_t _jm_copy      = self->src;
+  _jm_copy.retired_bits.bits = NULL;
+  _jm_copy.retired_bits.len  = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&_t.retired_bits.bits, &_t.retired_bits.len, value,
-          "bits"))
+          (uint8_t **)&_jm_copy.retired_bits.bits, &_jm_copy.retired_bits.len,
+          value, "bits"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.retired_bits.bits);
+      free ((void *)_jm_copy.retired_bits.bits);
       return 0;
     }
   if (self->_gen)
@@ -879,25 +881,25 @@ Synth_replace_bits (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.retired_bits.bits);
-  self->src.retired_bits.bits = _t.retired_bits.bits;
-  self->src.retired_bits.len  = _t.retired_bits.len;
+  self->src.retired_bits.bits = _jm_copy.retired_bits.bits;
+  self->src.retired_bits.len  = _jm_copy.retired_bits.len;
   return 1;
 }
 
 static int
 Synth_replace_data (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t = self->src;
-  _t.data.bits    = NULL;
-  _t.data.len     = 0;
-  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.data.bits,
-                                               &_t.data.len, value, "data"))
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.data.bits    = NULL;
+  _jm_copy.data.len     = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.data.bits, &_jm_copy.data.len, value, "data"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.data.bits);
+      free ((void *)_jm_copy.data.bits);
       return 0;
     }
   if (self->_gen)
@@ -908,25 +910,25 @@ Synth_replace_data (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.data.bits);
-  self->src.data.bits = _t.data.bits;
-  self->src.data.len  = _t.data.len;
+  self->src.data.bits = _jm_copy.data.bits;
+  self->src.data.len  = _jm_copy.data.len;
   return 1;
 }
 
 static int
 Synth_replace_fill (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t = self->src;
-  _t.fill.bits    = NULL;
-  _t.fill.len     = 0;
-  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.fill.bits,
-                                               &_t.fill.len, value, "fill"))
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.fill.bits    = NULL;
+  _jm_copy.fill.len     = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.fill.bits, &_jm_copy.fill.len, value, "fill"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.fill.bits);
+      free ((void *)_jm_copy.fill.bits);
       return 0;
     }
   if (self->_gen)
@@ -937,26 +939,26 @@ Synth_replace_fill (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.fill.bits);
-  self->src.fill.bits = _t.fill.bits;
-  self->src.fill.len  = _t.fill.len;
+  self->src.fill.bits = _jm_copy.fill.bits;
+  self->src.fill.len  = _jm_copy.fill.len;
   return 1;
 }
 
 static int
 Synth_replace_mac_header (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t    = self->src;
-  _t.mac_header.bits = NULL;
-  _t.mac_header.len  = 0;
-  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.mac_header.bits,
-                                               &_t.mac_header.len, value,
-                                               "mac_header"))
+  wfm_source_t _jm_copy    = self->src;
+  _jm_copy.mac_header.bits = NULL;
+  _jm_copy.mac_header.len  = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.mac_header.bits, &_jm_copy.mac_header.len,
+          value, "mac_header"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.mac_header.bits);
+      free ((void *)_jm_copy.mac_header.bits);
       return 0;
     }
   if (self->_gen)
@@ -967,8 +969,8 @@ Synth_replace_mac_header (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.mac_header.bits);
-  self->src.mac_header.bits = _t.mac_header.bits;
-  self->src.mac_header.len  = _t.mac_header.len;
+  self->src.mac_header.bits = _jm_copy.mac_header.bits;
+  self->src.mac_header.len  = _jm_copy.mac_header.len;
   return 1;
 }
 
@@ -1180,18 +1182,26 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     }
   if (_kw_owned)
     Py_DECREF (_kw);
-  self->fs = fs;
-  /* gh-2272: a GIL-free call may still be running on this
-     object; new ones are refused from here, so wait for those. */
-  if (jm_inflight_wait (&self->_jm_inflight) < 0)
-    {
-      return -1;
-    }
-  if (self->_gen)
-    {
-      dp_wfm_synth_destroy (self->_gen);
-      self->_gen = NULL;
-    }
+  wfm_source_t _jm_copy      = self->src;
+  _jm_copy.symbols           = NULL;
+  _jm_copy.n_symbols         = 0;
+  _jm_copy.acq_code.bits     = NULL;
+  _jm_copy.acq_code.len      = 0;
+  _jm_copy.data_code.bits    = NULL;
+  _jm_copy.data_code.len     = 0;
+  _jm_copy.retired_sync.bits = NULL;
+  _jm_copy.retired_sync.len  = 0;
+  _jm_copy.retired_crc.bits  = NULL;
+  _jm_copy.retired_crc.len   = 0;
+  _jm_copy.frame             = NULL;
+  _jm_copy.retired_bits.bits = NULL;
+  _jm_copy.retired_bits.len  = 0;
+  _jm_copy.data.bits         = NULL;
+  _jm_copy.data.len          = 0;
+  _jm_copy.fill.bits         = NULL;
+  _jm_copy.fill.len          = 0;
+  _jm_copy.mac_header.bits   = NULL;
+  _jm_copy.mac_header.len    = 0;
   {
     int _i = _enum_index (_enum_wfm_type, type);
     if (_i < 0)
@@ -1202,7 +1212,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       type);
         return -1;
       }
-    self->src.type = _i;
+    _jm_copy.type = _i;
   }
   if (freq != NULL)
     {
@@ -1227,18 +1237,19 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.freq_hi = _hi;
-          self->src.ranged |= WFM_RANGE_FREQ;
+          _jm_copy.freq_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_FREQ;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_FREQ;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FREQ;
         }
-      self->src.freq = _lo;
+      _jm_copy.freq = _lo;
     }
   else
     {
-      self->src.freq = (double)0.0;
+      _jm_copy.freq = (double)0.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FREQ;
     }
   if (snr != NULL)
     {
@@ -1263,18 +1274,19 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.snr_hi = _hi;
-          self->src.ranged |= WFM_RANGE_SNR;
+          _jm_copy.snr_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_SNR;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_SNR;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_SNR;
         }
-      self->src.snr = _lo;
+      _jm_copy.snr = _lo;
     }
   else
     {
-      self->src.snr = (double)100.0;
+      _jm_copy.snr = (double)100.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_SNR;
     }
   {
     int _i = _enum_index (_enum_snr_mode, snr_mode);
@@ -1285,7 +1297,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       snr_mode);
         return -1;
       }
-    self->src.snr_mode = _i;
+    _jm_copy.snr_mode = _i;
   }
   if (seed_raw < 0 || seed_raw > (long long)UINT32_MAX)
     {
@@ -1294,10 +1306,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                     (long long)seed_raw, (long long)0, (long long)UINT32_MAX);
       return -1;
     }
-  uint32_t seed       = (uint32_t)seed_raw;
-  self->src.seed      = seed;
-  self->src.sps       = sps;
-  self->src.pn_length = pn_length;
+  uint32_t seed      = (uint32_t)seed_raw;
+  _jm_copy.seed      = seed;
+  _jm_copy.sps       = sps;
+  _jm_copy.pn_length = pn_length;
   if (pn_poly_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (pn_poly_obj);
@@ -1317,8 +1329,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  uint64_t pn_poly  = (uint64_t)pn_poly_raw;
-  self->src.pn_poly = pn_poly;
+  uint64_t pn_poly = (uint64_t)pn_poly_raw;
+  _jm_copy.pn_poly = pn_poly;
   {
     int _i = _enum_index (_enum_wfm_lfsr, lfsr);
     if (_i < 0)
@@ -1327,7 +1339,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       "invalid lfsr '%s' (choices: galois, fibonacci)", lfsr);
         return -1;
       }
-    self->src.lfsr = _i;
+    _jm_copy.lfsr = _i;
   }
   if (level != NULL)
     {
@@ -1352,20 +1364,21 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.level_hi = _hi;
-          self->src.ranged |= WFM_RANGE_LEVEL;
+          _jm_copy.level_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_LEVEL;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
         }
-      self->src.level = _lo;
+      _jm_copy.level = _lo;
     }
   else
     {
-      self->src.level = (double)0.0;
+      _jm_copy.level = (double)0.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
     }
-  self->src.background = background;
+  _jm_copy.background = background;
   if (f_end != NULL)
     {
       PyObject *_a = NULL, *_b = NULL;
@@ -1389,18 +1402,19 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.f_end_hi = _hi;
-          self->src.ranged |= WFM_RANGE_FEND;
+          _jm_copy.f_end_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_FEND;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_FEND;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FEND;
         }
-      self->src.f_end = _lo;
+      _jm_copy.f_end = _lo;
     }
   else
     {
-      self->src.f_end = (double)0.0;
+      _jm_copy.f_end = (double)0.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FEND;
     }
   if (span_obj != NULL)
     {
@@ -1421,8 +1435,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t span    = (size_t)span_raw;
-  self->src.span = span;
+  size_t span   = (size_t)span_raw;
+  _jm_copy.span = span;
   if (doppler != NULL)
     {
       PyObject *_a = NULL, *_b = NULL;
@@ -1446,18 +1460,19 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.doppler_hi = _hi;
-          self->src.ranged |= WFM_RANGE_DOPPLER;
+          _jm_copy.doppler_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_DOPPLER;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
         }
-      self->src.doppler = _lo;
+      _jm_copy.doppler = _lo;
     }
   else
     {
-      self->src.doppler = (double)0.0;
+      _jm_copy.doppler = (double)0.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
     }
   if (doppler_rate != NULL)
     {
@@ -1482,20 +1497,21 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.doppler_rate_hi = _hi;
-          self->src.ranged |= WFM_RANGE_DOPPLER_RATE;
+          _jm_copy.doppler_rate_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_DOPPLER_RATE;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
         }
-      self->src.doppler_rate = _lo;
+      _jm_copy.doppler_rate = _lo;
     }
   else
     {
-      self->src.doppler_rate = (double)0.0;
+      _jm_copy.doppler_rate = (double)0.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
     }
-  self->src.carrier_hz = carrier_hz;
+  _jm_copy.carrier_hz = carrier_hz;
   {
     int _i = _enum_index (_enum_doppler_lifetime, doppler_lifetime);
     if (_i < 0)
@@ -1506,7 +1522,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
             doppler_lifetime);
         return -1;
       }
-    self->src.doppler_lifetime = _i;
+    _jm_copy.doppler_lifetime = _i;
   }
   {
     int _i = _enum_index (_enum_bitmod, modulation);
@@ -1517,7 +1533,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       modulation);
         return -1;
       }
-    self->src.modulation = _i;
+    _jm_copy.modulation = _i;
   }
   {
     int _i = _enum_index (_enum_wfm_pulse, pulse);
@@ -1527,14 +1543,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       "invalid pulse '%s' (choices: rect, rrc)", pulse);
         return -1;
       }
-    self->src.pulse = _i;
+    _jm_copy.pulse = _i;
   }
-  self->src.rrc_beta = rrc_beta;
-  self->src.rrc_span = rrc_span;
-  if (!Synth_replace_symbols (self, symbols))
-    return -1;
-  if (!Synth_replace_acq_code (self, acq_code))
-    return -1;
+  _jm_copy.rrc_beta = rrc_beta;
+  _jm_copy.rrc_span = rrc_span;
   if (acq_reps_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (acq_reps_obj);
@@ -1554,22 +1566,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t acq_reps    = (size_t)acq_reps_raw;
-  self->src.acq_reps = acq_reps;
-  if (!Synth_replace_data_code (self, data_code))
-    return -1;
-  if (!Synth_replace_sync (self, sync))
-    return -1;
-  if (!Synth_replace_crc (self, crc))
-    return -1;
-  self->src.symbol_rate    = symbol_rate;
-  self->src.dsss_code_only = dsss_code_only;
-  if (!Synth_replace_frame (self, frame))
-    return -1;
-  if (!Synth_replace_bits (self, bits))
-    return -1;
-  if (!Synth_replace_data (self, data))
-    return -1;
+  size_t acq_reps         = (size_t)acq_reps_raw;
+  _jm_copy.acq_reps       = acq_reps;
+  _jm_copy.symbol_rate    = symbol_rate;
+  _jm_copy.dsss_code_only = dsss_code_only;
   if (data_len_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (data_len_obj);
@@ -1589,10 +1589,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t data_len    = (size_t)data_len_raw;
-  self->src.data_len = data_len;
-  if (!Synth_replace_fill (self, fill))
-    return -1;
+  size_t data_len   = (size_t)data_len_raw;
+  _jm_copy.data_len = data_len;
   if (code_only_symbols_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (code_only_symbols_obj);
@@ -1614,8 +1612,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t code_only_symbols    = (size_t)code_only_symbols_raw;
-  self->src.code_only_symbols = code_only_symbols;
+  size_t code_only_symbols   = (size_t)code_only_symbols_raw;
+  _jm_copy.code_only_symbols = code_only_symbols;
   if (frame_symbols_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (frame_symbols_obj);
@@ -1636,9 +1634,9 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t frame_symbols    = (size_t)frame_symbols_raw;
-  self->src.frame_symbols = frame_symbols;
-  self->src.wlan          = wlan;
+  size_t frame_symbols   = (size_t)frame_symbols_raw;
+  _jm_copy.frame_symbols = frame_symbols;
+  _jm_copy.wlan          = wlan;
   {
     int _i = _enum_index (_enum_ofdm_constellation, constellation);
     if (_i < 0)
@@ -1649,7 +1647,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
             constellation);
         return -1;
       }
-    self->src.constellation = _i;
+    _jm_copy.constellation = _i;
   }
   {
     int _i = _enum_index (_enum_ofdm_code_rate, code_rate);
@@ -1660,9 +1658,9 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       code_rate);
         return -1;
       }
-    self->src.code_rate = _i;
+    _jm_copy.code_rate = _i;
   }
-  self->src.scrambler_init = scrambler_init;
+  _jm_copy.scrambler_init = scrambler_init;
   if (window_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (window_obj);
@@ -1682,8 +1680,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t window    = (size_t)window_raw;
-  self->src.window = window;
+  size_t window   = (size_t)window_raw;
+  _jm_copy.window = window;
   {
     int _i = _enum_index (_enum_ofdm_mac, mac);
     if (_i < 0)
@@ -1692,7 +1690,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       "invalid mac '%s' (choices: none, fcs, data)", mac);
         return -1;
       }
-    self->src.mac = _i;
+    _jm_copy.mac = _i;
   }
   if (gap_obj != NULL)
     {
@@ -1713,11 +1711,196 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t gap          = (size_t)gap_raw;
-  self->src.gap       = gap;
-  self->src.bandwidth = bandwidth;
-  if (!Synth_replace_mac_header (self, mac_header))
-    return -1;
+  size_t gap         = (size_t)gap_raw;
+  _jm_copy.gap       = gap;
+  _jm_copy.bandwidth = bandwidth;
+  if (!_attach_symbols (&_jm_copy, symbols))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.acq_code.bits, &_jm_copy.acq_code.len,
+          acq_code, "acq_code"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.data_code.bits, &_jm_copy.data_code.len,
+          data_code, "data_code"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_sync_refuse_text (
+          (uint8_t **)&_jm_copy.retired_sync.bits, &_jm_copy.retired_sync.len,
+          sync, "sync"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_crc_refuse_text (
+          (uint8_t **)&_jm_copy.retired_crc.bits, &_jm_copy.retired_crc.len,
+          crc, "crc"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_attach_frame (&_jm_copy, frame))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.retired_bits.bits, &_jm_copy.retired_bits.len,
+          bits, "bits"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.data.bits, &_jm_copy.data.len, data, "data"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.fill.bits, &_jm_copy.fill.len, fill, "fill"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.mac_header.bits, &_jm_copy.mac_header.len,
+          mac_header, "mac_header"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (self->_gen)
+    {
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free (self->src.symbols);
+  free ((void *)self->src.acq_code.bits);
+  free ((void *)self->src.data_code.bits);
+  free ((void *)self->src.retired_sync.bits);
+  free ((void *)self->src.retired_crc.bits);
+  dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
+  free ((void *)self->src.retired_bits.bits);
+  free ((void *)self->src.data.bits);
+  free ((void *)self->src.fill.bits);
+  free ((void *)self->src.mac_header.bits);
+  self->src = _jm_copy;
+  self->fs  = fs;
   return 0;
 }
 
@@ -4205,17 +4388,18 @@ Segment_dealloc (SegmentObject *self)
 static int
 Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
 {
-  self->fs               = 1.0;
-  self->num_samples      = 0;
-  self->off_samples      = 0;
-  self->repeats          = 1;
-  self->delay_samples    = 0;
-  self->gap_noise        = 0;
-  self->ranged           = 0;
-  self->num_samples_hi   = 0;
-  self->off_samples_hi   = 0;
-  self->delay_samples_hi = 0;
-  PyObject *kw           = kwds ? PyDict_Copy (kwds) : PyDict_New ();
+  SegmentObject _jm_copy;
+  _jm_copy.fs               = 1.0;
+  _jm_copy.num_samples      = 0;
+  _jm_copy.off_samples      = 0;
+  _jm_copy.repeats          = 1;
+  _jm_copy.delay_samples    = 0;
+  _jm_copy.gap_noise        = 0;
+  _jm_copy.ranged           = 0;
+  _jm_copy.num_samples_hi   = 0;
+  _jm_copy.off_samples_hi   = 0;
+  _jm_copy.delay_samples_hi = 0;
+  PyObject *kw              = kwds ? PyDict_Copy (kwds) : PyDict_New ();
   if (!kw)
     return -1;
   {
@@ -4225,7 +4409,7 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
         double _v = 0.0;
         if (!PyArg_Parse (_o, "d", &_v))
           goto fail;
-        self->fs = _v;
+        _jm_copy.fs = _v;
         if (PyDict_DelItemString (kw, "fs") < 0)
           goto fail;
       }
@@ -4298,14 +4482,14 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
             }
             size_t _hi = (size_t)_hi_raw;
             Py_DECREF (_b);
-            self->num_samples_hi = _hi;
-            self->ranged |= WFM_RANGE_NUM_SAMPLES;
+            _jm_copy.num_samples_hi = _hi;
+            _jm_copy.ranged |= WFM_RANGE_NUM_SAMPLES;
           }
         else
           {
-            self->ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
+            _jm_copy.ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
           }
-        self->num_samples = _lo;
+        _jm_copy.num_samples = _lo;
         if (PyDict_DelItemString (kw, "num_samples") < 0)
           goto fail;
       }
@@ -4378,14 +4562,14 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
             }
             size_t _hi = (size_t)_hi_raw;
             Py_DECREF (_b);
-            self->off_samples_hi = _hi;
-            self->ranged |= WFM_RANGE_OFF_SAMPLES;
+            _jm_copy.off_samples_hi = _hi;
+            _jm_copy.ranged |= WFM_RANGE_OFF_SAMPLES;
           }
         else
           {
-            self->ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES;
+            _jm_copy.ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES;
           }
-        self->off_samples = _lo;
+        _jm_copy.off_samples = _lo;
         if (PyDict_DelItemString (kw, "off_samples") < 0)
           goto fail;
       }
@@ -4413,8 +4597,8 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
             }
           Py_DECREF (_ix);
         }
-        size_t _v     = (size_t)_v_raw;
-        self->repeats = _v;
+        size_t _v        = (size_t)_v_raw;
+        _jm_copy.repeats = _v;
         if (PyDict_DelItemString (kw, "repeats") < 0)
           goto fail;
       }
@@ -4487,14 +4671,14 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
             }
             size_t _hi = (size_t)_hi_raw;
             Py_DECREF (_b);
-            self->delay_samples_hi = _hi;
-            self->ranged |= WFM_RANGE_DELAY_SAMPLES;
+            _jm_copy.delay_samples_hi = _hi;
+            _jm_copy.ranged |= WFM_RANGE_DELAY_SAMPLES;
           }
         else
           {
-            self->ranged &= ~(unsigned)WFM_RANGE_DELAY_SAMPLES;
+            _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DELAY_SAMPLES;
           }
-        self->delay_samples = _lo;
+        _jm_copy.delay_samples = _lo;
         if (PyDict_DelItemString (kw, "delay_samples") < 0)
           goto fail;
       }
@@ -4513,7 +4697,7 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
                           "invalid gap_noise '%s' (choices: auto, off)", _s);
             goto fail;
           }
-        self->gap_noise = _i;
+        _jm_copy.gap_noise = _i;
         if (PyDict_DelItemString (kw, "gap_noise") < 0)
           goto fail;
       }
@@ -4528,7 +4712,7 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
     }
   if (!_fs_pos)
     {
-      PyObject *_fs = PyFloat_FromDouble ((double)self->fs);
+      PyObject *_fs = PyFloat_FromDouble ((double)_jm_copy.fs);
       int       _r  = _fs ? PyDict_SetItemString (kw, "fs", _fs) : -1;
       Py_XDECREF (_fs);
       if (_r < 0)
@@ -4542,7 +4726,7 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
   if (!one)
     return -1;
   if (_fs_pos)
-    self->fs = (double)((SynthObject *)one)->fs;
+    _jm_copy.fs = (double)((SynthObject *)one)->fs;
   PyObject *list = PyList_New (1);
   if (!list)
     {
@@ -4550,6 +4734,16 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   PyList_SET_ITEM (list, 0, one); /* steals */
+  self->fs               = _jm_copy.fs;
+  self->num_samples      = _jm_copy.num_samples;
+  self->off_samples      = _jm_copy.off_samples;
+  self->repeats          = _jm_copy.repeats;
+  self->delay_samples    = _jm_copy.delay_samples;
+  self->gap_noise        = _jm_copy.gap_noise;
+  self->ranged           = _jm_copy.ranged;
+  self->num_samples_hi   = _jm_copy.num_samples_hi;
+  self->off_samples_hi   = _jm_copy.off_samples_hi;
+  self->delay_samples_hi = _jm_copy.delay_samples_hi;
   Py_XSETREF (self->sources, list);
   return 0;
 fail:

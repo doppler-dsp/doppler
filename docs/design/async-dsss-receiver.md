@@ -311,10 +311,8 @@ Two things follow, from the code's formulas:
 **Above one symbol a code period**, a symbol rate over the epoch rate
 (3,142 to 3,999 sym/s across the band), no code-period window is free of a
 transition, and the code loop's symbol-scale coherent dwell shrinks toward one
-partial. `steps_max_out()` would not be a bound
-there ([#2469](https://github.com/doppler-dsp/doppler/issues/2469)), and
-`create()` refuses it, because the carrier loop's code-period window (§4.4)
-needs a symbol of at least a code period.
+partial. `create()` refuses it, because the carrier loop's code-period window
+(§4.4) needs a symbol of at least a code period.
 
 ### 1.6 Code and carrier are coherent; the data is not
 

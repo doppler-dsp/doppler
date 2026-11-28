@@ -2302,9 +2302,9 @@ _test_near_far_levels (void)
    (#3267, R5, R8, R11):
    - ASYNC_DSSS_RX_CARRIER_PULLIN_HZ is 97.8 Hz at 5 Mcps over Gold-1023
      and bn 0.04 (R5);
-   - at the 415.1-B-1 floor, both carriers, the loop's noise bandwidth
-     bn / T is about 30 Hz and its acquisition bound about 15 Hz, "about"
-     held as within 5% (R8: 31.2 / 29.8 and 15.6 / 14.9 Hz);
+   - at the 415.1-B-1 floor, the loop's noise bandwidth bn / T is 31.2 /
+     29.8 Hz and its acquisition bound 15.6 / 14.9 Hz at 2.2 / 2.8 GHz,
+     each to the header's 0.1 Hz (R8);
    - the carrier lock count is 712 at 30 dB-Hz at 2.8 GHz (R11);
    - the phase variance the lock is sized at: the rule's bandwidth alone
      gives 1/200 rad^2, and the delivered B_d at the detector delay is
@@ -2333,9 +2333,12 @@ _test_carrier_design_figures (void)
       printf ("  carrier at the floor, %.1f GHz: B_L %.1f Hz, acquisition "
               "bound %.1f Hz\n",
               fcs[f] / 1e9, bl, acq);
-      DP_CHECK_MSG (fabs (bl - 30.0) <= 1.5, "about 30 Hz of noise bandwidth");
-      DP_CHECK_MSG (fabs (acq - 15.0) <= 0.75,
-                    "an acquisition bound of about 15 Hz");
+      static const double bl_hz[2]  = { 31.2, 29.8 },
+                          acq_hz[2] = { 15.6, 14.9 };
+      DP_CHECK_MSG (fabs (bl - bl_hz[f]) < 0.05,
+                    "the loop noise bandwidth is 31.2 / 29.8 Hz");
+      DP_CHECK_MSG (fabs (acq - acq_hz[f]) < 0.05,
+                    "the acquisition bound is 15.6 / 14.9 Hz");
       /* R9: the rule's variance B (1 + 1/(2 gamma)) / gamma, gamma the
          update SNR C/N0 T, and the delivered one over it. */
       static const double ratio[2] = { 1.059, 1.044 };

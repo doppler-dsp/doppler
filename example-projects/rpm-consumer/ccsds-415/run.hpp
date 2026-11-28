@@ -42,9 +42,9 @@ template <auto Destroy> struct Deleter
 template <class T, auto Destroy>
 using Owned = std::unique_ptr<T, Deleter<Destroy> >;
 
-// The smallest chunk a run takes: see the README, "Chunks, and why at
-// least 25 samples".
-constexpr size_t MIN_CHUNK = 25;
+// The smallest chunk a run takes: any. The output is sized from the
+// receiver's own bound for the chunk (see the README, "Chunks").
+constexpr size_t MIN_CHUNK = 1;
 // The sample period, ns: the cost every chunk is held against.
 double sample_period_ns ();
 
@@ -216,7 +216,7 @@ private:
   async_dsss_receiver_status_t st_{};
   uint64_t n_ = 0, total_ns_ = 0;
   double last_ns_ = 0.0, worst_ns_ = 0.0;
-  bool filled_ = false; // a call filled its capacity: the run stopped there
+  bool refused_ = false; // a call did not take its chunk: the run stopped there
   void print_errors (const dp_ber_meter_state_t *meter, size_t lo) const;
   int64_t window_start () const;
 };

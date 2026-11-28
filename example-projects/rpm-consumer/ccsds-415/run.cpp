@@ -618,8 +618,7 @@ parse (int argc, char **argv, Options &o, bool tui)
         fail ("unknown option " + a);
     }
   check (o.chunk >= MIN_CHUNK,
-         "--chunk is at least " + std::to_string (MIN_CHUNK)
-             + ": below it one call's symbols can outnumber its samples");
+         "--chunk is at least " + std::to_string (MIN_CHUNK));
   check (o.seconds > 0.0 && std::isfinite (o.seconds),
          "--seconds is positive");
 }
@@ -777,7 +776,9 @@ Run::Run (const Options &o, double fc) : o_ (o), fc_ (fc)
   scene_ = std::make_unique<Scene> (code_.data (), stim_.bits, fc, o.esn0_db,
                                     o.seconds, o.chunk);
   x_.resize (o.chunk);
-  out_.resize (o.chunk);
+  // The most one call of a chunk can deliver: sized to it, no call holds
+  // symbols back or refuses its input (dp_async_dsss_receiver_steps()).
+  out_.resize (dp_async_dsss_receiver_steps_max_out (rx_.get (), o.chunk));
 }
 
 Run::~Run () = default;
@@ -806,12 +807,13 @@ Run::step ()
   const size_t got = dp_async_dsss_receiver_steps (
       rx_.get (), c_ptr (x_), o_.chunk, c_ptr (out_), out_.size ());
   const uint64_t dt = dp_mono_ns () - t0;
-  // capacity = chunk; a call that fills it may have had more to give.
-  // Recorded, not exited on: the TUI must restore the terminal before a
-  // check reports, so the finish reports it and the run stops here.
-  if (got >= out_.size ())
+  // Sized from the bound, every call takes its chunk; one that did not
+  // would mean the bound is wrong. Recorded, not exited on: the TUI must
+  // restore the terminal before a check reports, so the finish reports it
+  // and the run stops here.
+  if (dp_async_dsss_receiver_get_consumed (rx_.get ()) != o_.chunk)
     {
-      filled_ = true;
+      refused_ = true;
       return false;
     }
   last_ns_ = static_cast<double> (dt) / static_cast<double> (o_.chunk);
@@ -864,9 +866,9 @@ Result
 Run::finish ()
 {
   dp_tlm_set_now (tlm_.get (), n_);
-  check (!filled_, "[" + name_
-                      + "] a call filled its capacity: symbols may have "
-                        "been dropped");
+  check (!refused_, "[" + name_
+                       + "] a call did not take its chunk: the output "
+                         "bound is wrong");
   Result r;
   r.chunks = emitted_.size ();
   r.proc_ns = mean_proc_ns ();
@@ -1096,11 +1098,11 @@ Run::finish_partial ()
 {
   dp_tlm_set_now (tlm_.get (), n_);
   bool ok = true;
-  if (filled_)
+  if (refused_)
     {
       std::fprintf (stderr,
-                    "FAIL: [%s] a call filled its capacity: symbols may "
-                    "have been dropped\n",
+                    "FAIL: [%s] a call did not take its chunk: the output "
+                    "bound is wrong\n",
                     name_.c_str ());
       ok = false;
     }
@@ -1142,7 +1144,7 @@ Run::finish_partial ()
   std::printf ("%s: stopped at %.2f s of %.2f s by the user; %s; the "
                "full-scene checks (%sBER, the payload marker, the frames) were not "
                "evaluated. Partial checks (capture complete, %zu records, "
-               "no call filled its capacity): %s\n",
+               "every call took its chunk): %s\n",
                name_.c_str (), elapsed_s (), length_s (), lo >= 0 ? lock.c_str () : "lock not yet reached",
                lo >= 0 ? "" : "the lock time, ", held, ok ? "held" : "FAILED");
   return ok;

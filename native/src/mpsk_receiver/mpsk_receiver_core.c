@@ -409,7 +409,8 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
       return NULL;
     }
   /* One strobe per input (doppler#3289): the front end's steered rate is
-     held at ratesync_rate_bound(m_out), the derivation there. */
+     held at ratesync_rate_bound(m_out), the derivation there. The nominal
+     rate is under it, which the binding below asserts (doppler#3408). */
   (real ? rx->fe.r->rc : rx->fe.c->rc)->ctrl_rate_max
       = ratesync_rate_bound (m_out);
   rx->centre_freq = init_norm_freq;

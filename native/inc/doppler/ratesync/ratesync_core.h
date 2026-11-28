@@ -385,6 +385,13 @@ extern "C"
    * `RateConverter` somewhere — RateSync directly, the receivers inside their
    * DDC — so the walk lives here once rather than in each of them.
    *
+   * The terminal stage's nominal rate must be under the steered-rate bound
+   * of @p rc (`ctrl_rate_max`, which the owner sets to ratesync_rate_bound()
+   * before binding): only a loop transient may meet the clamp, never the
+   * steady state. A Debug build asserts it here, at each owner's create
+   * (doppler#3408); every geometry RateSync and MpskReceiver accept holds
+   * it, because both refuse an interpolating terminal stage.
+   *
    * @param l   Must be non-NULL.
    * @param rc  The cascade whose terminal stage the loop steers.
    */

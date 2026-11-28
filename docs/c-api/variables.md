@@ -53,6 +53,7 @@
 * **dp\_tlm\_state\_t** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
 * **dp\_tlm\_t** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
 * **dp\_tlm\_capture\_state\_t** ([**dp\_tlm\_capture\_core.h**](dp__tlm__capture__core_8h.md))
+* **dp\_sym\_hold\_call\_fn** ([**sym\_hold\_private.h**](sym__hold__private_8h.md))
 * **dp\_f32\_buffer\_state\_t** ([**f32\_buffer\_core.h**](f32__buffer__core_8h.md))
 * **dp\_f64\_buffer\_state\_t** ([**f64\_buffer\_core.h**](f64__buffer__core_8h.md))
 * **dp\_i16\_buffer\_state\_t** ([**i16\_buffer\_core.h**](i16__buffer__core_8h.md))

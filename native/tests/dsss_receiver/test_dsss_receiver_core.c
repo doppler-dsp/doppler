@@ -15,6 +15,7 @@
 #include "doppler/dll/dll_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dsss_receiver/dsss_receiver_core.h"
+#include "doppler/dsss_receiver/sym_hold_private.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
@@ -1042,6 +1043,112 @@ _test_no_symbol_is_dropped (void)
   return fails;
 }
 
+/* A grid change waits for the store (the review of #3397). The store
+ * holds what one call of a code period can produce at the receiver's grid,
+ * so configure_chain_raw() is refused while symbols are held -- none is
+ * dropped and the caller drains first -- and once nothing is held it
+ * resizes the store to the new grid's bound, the size a receiver created
+ * at that grid has. Sabotages: drop the refusal -> the change is taken
+ * while holding, red; skip the resize -> the store keeps the old grid's
+ * capacity, red. */
+static int
+_test_a_grid_change_waits_for_the_store (void)
+{
+  int      fails = 0;
+  uint8_t  code[127];
+  uint32_t st = 0x1234567u;
+  for (size_t i = 0; i < 127; i++)
+    code[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (code, 127, 4, 4e6, 16.0, 0.0, 70.0, 400, 3 * 508, 11, &x,
+                   &n, &data);
+  dp_dsss_receiver_state_t *r = _rx127 (code);
+  DP_REQUIRE (r);
+  float _Complex none[1];
+  size_t pos = 0;
+  while (pos < n && r->hold_len == 0)
+    (void)dp_dsss_receiver_steps (r, x + pos++, 1, none, 0);
+  DP_REQUIRE (r->hold_len > 0);
+  const size_t was = r->hold_len, old_cap = r->hold_cap;
+  /* sps moves the bound (the converter's ratio is proportional to it;
+     segments cancels between the Dll's partials and the ratio) */
+  const int n16 = (int)mpsk_rx_derive_m_out (16.0, 0);
+  DP_CHECK_MSG (dp_dsss_receiver_configure_chain_raw (r, 4, 16, n16) == -1
+                    && r->hold_len == was && r->sps == 8,
+                "a grid change is refused while symbols are held");
+  const size_t    cap = dp_dsss_receiver_steps_max_out (r, 0);
+  float _Complex *o   = malloc (cap * sizeof *o);
+  DP_REQUIRE (o);
+  DP_CHECK (dp_dsss_receiver_steps (r, x, 0, o, cap) == was);
+  DP_REQUIRE (r->hold_len == 0);
+  DP_CHECK (dp_dsss_receiver_configure_chain_raw (r, 4, 16, n16) == 0);
+  dp_dsss_receiver_state_t *f = dp_dsss_receiver_create (
+      code, 127, 1e6, 250e3, 4e6, 2, 70.0, 1e-3, 0.9, 100.0, 4, 16, 0);
+  DP_REQUIRE (f);
+  DP_CHECK (f->hold_cap != old_cap); /* the premise: the bound moved */
+  DP_CHECK_MSG (r->hold_cap == f->hold_cap
+                    && dp_dsss_receiver_state_bytes (r)
+                           == dp_dsss_receiver_state_bytes (f),
+                "the store is resized to the new grid's bound");
+  dp_dsss_receiver_destroy (f);
+  dp_dsss_receiver_destroy (r);
+  free (o);
+  free (x);
+  free (data);
+  return fails;
+}
+
+#ifdef NDEBUG
+/* A call that overruns its bound fills every slot it is handed. */
+static size_t
+_overrun (void *ctx, const float _Complex *x, size_t x_len,
+          float _Complex *out, size_t max_out)
+{
+  (void)ctx;
+  (void)x;
+  (void)x_len;
+  for (size_t i = 0; i < max_out; i++)
+    out[i] = (float _Complex) (float)(i + 1);
+  return max_out;
+}
+
+/* A wrong bound cannot write past the store in a Release build (the
+ * review of #3397). The gate takes a call whose bound fits the room plus
+ * the store, so the call must be handed no more than the bound: a call
+ * that overruns it then stops there, and what is left after out takes its
+ * room fits the store. Here a store of 2, no room, and a bound of 2 -- the
+ * gate's edge -- with a call that fills whatever it is handed. Sabotage:
+ * hand it bound + 1 in Release too, as before -> three symbols written
+ * into a store of two (hold_len 3; ASan names the heap write). A Debug
+ * build aborts on the assert instead, so this runs in Release only. */
+static int
+_test_a_wrong_bound_cannot_write_past_the_store (void)
+{
+  int             fails = 0;
+  float _Complex *hold  = malloc (2 * sizeof *hold);
+  float _Complex *scr   = NULL;
+  size_t          len = 0, scap = 0, consumed = 0;
+  float _Complex x[1] = { 0 }, out[1];
+  DP_REQUIRE (hold);
+  const size_t k = dp_sym_hold_steps (hold, &len, 2, &scr, &scap, &consumed, 2,
+                                      _overrun, NULL, x, 1, out, 0);
+  DP_CHECK (k == 0 && consumed == 1);
+  DP_CHECK_MSG (len <= 2, "the store holds no more than its capacity");
+  /* What was held is read back, so the stores into the store are live and
+     an optimizer cannot drop them: an overrun is then a write ASan sees,
+     not a dead store. */
+  volatile float sink = 0.0f;
+  for (size_t i = 0; i < len; i++)
+    sink += crealf (hold[i]);
+  (void)sink;
+  free (hold);
+  free (scr);
+  return fails;
+}
+#endif
+
 int
 main (void)
 {
@@ -1055,5 +1162,9 @@ main (void)
   (void)_test_carry_buffer_state_roundtrip ();
   (void)_test_accessor_coverage ();
   DP_CHECK (_test_no_symbol_is_dropped () == 0);
+  DP_CHECK (_test_a_grid_change_waits_for_the_store () == 0);
+#ifdef NDEBUG
+  DP_CHECK (_test_a_wrong_bound_cannot_write_past_the_store () == 0);
+#endif
   DP_TEST_END ("test_dsss_receiver_core");
 }

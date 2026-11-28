@@ -1,6 +1,7 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include "doppler/detection/detection_core.h"
+#include "doppler/dsss_receiver/sym_hold_private.h"
 #include "doppler/loop_filter/loop_filter_core.h"
 #include "doppler/state_filter/state_filter_core.h"
 #include "doppler/util/util_core.h"
@@ -2755,53 +2756,23 @@ adr_steps_call (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
   return n_out;
 }
 
+/* The receiver's own call, in the shape the store calls it. */
+static size_t
+adr_steps_call_cb (void *ctx, const float _Complex *x, size_t x_len,
+                   float _Complex *out, size_t max_out)
+{
+  return adr_steps_call (ctx, x, x_len, out, max_out);
+}
+
 size_t
 dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
                               const float _Complex *x, size_t x_len,
                               float _Complex *out, size_t max_out)
 {
-  /* Held symbols first, in order. */
-  size_t n = state->hold_len < max_out ? state->hold_len : max_out;
-  memcpy (out, state->hold_buf, n * sizeof *out);
-  state->hold_len -= n;
-  memmove (state->hold_buf, state->hold_buf + n,
-           state->hold_len * sizeof *state->hold_buf);
-  /* All or nothing: the input is consumed only when nothing stays held and
-     whatever the call can produce fits in what is left of out plus the
-     store. Otherwise it is not taken, and the caller calls again. */
-  const size_t bound = adr_steps_bound (state, x_len);
-  const size_t room  = max_out - n;
-  size_t       fits;
-  if (state->hold_len || !dp_size_add (room, state->hold_cap, &fits)
-      || bound > fits)
-    {
-      state->consumed = 0;
-      return n;
-    }
-  /* The call runs into a scratch one past its bound, so a call that made
-     more than the bound would show (the Debug assert) rather than stop at
-     it. */
-  size_t need;
-  if (!dp_size_add (bound, 1, &need))
-    need = SIZE_MAX; /* dp_xreallocn refuses it */
-  if (state->steps_cap < need)
-    {
-      state->steps_buf
-          = dp_xreallocn (state->steps_buf, need, sizeof *state->steps_buf);
-      state->steps_cap = need;
-    }
-  const size_t made = adr_steps_call (state, x, x_len, state->steps_buf, need);
-  assert (made <= bound
-          && "dp_async_dsss_receiver_steps: a call produced more than "
-             "dp_async_dsss_receiver_steps_max_out() bounds it to");
-  const size_t k = made < room ? made : room;
-  memcpy (out + n, state->steps_buf, k * sizeof *out);
-  /* the rest fits the store: bound - room <= hold_cap above */
-  memcpy (state->hold_buf, state->steps_buf + k,
-          (made - k) * sizeof *state->hold_buf);
-  state->hold_len = made - k;
-  state->consumed = x_len;
-  return n + k;
+  return dp_sym_hold_steps (state->hold_buf, &state->hold_len, state->hold_cap,
+                            &state->steps_buf, &state->steps_cap,
+                            &state->consumed, adr_steps_bound (state, x_len),
+                            adr_steps_call_cb, state, x, x_len, out, max_out);
 }
 
 int

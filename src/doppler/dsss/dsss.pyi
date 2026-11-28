@@ -1766,9 +1766,12 @@ class DsssReceiver:
         -> RateConverter -> MpskReceiver in sequence and demodulated symbols
         are returned. Accepts any block size; state carries across calls.
 
-        **No symbol is dropped.** Symbols held by an earlier call are delivered
-        first, in order. A call consumes its input only when nothing stays held
-        after that and its symbols fit: `P(x_len)` (see
+        **No symbol is dropped** while the code loop stays within its rate
+        headroom (dp_dll_steps_max_out(): twice nominal); a loop past it, as
+        one acquiring can be, drops partials inside the Dll, before they reach
+        this receiver. Symbols held by an earlier call are delivered first, in
+        order. A call consumes its input only when nothing stays held after
+        that and its symbols fit: `P(x_len)` (see
         dp_dsss_receiver_steps_max_out()) is at most the room left in out plus
         the store, which holds what one call of a code period can produce. What
         does not fit in out is held for the next call. A call that cannot
@@ -2429,9 +2432,12 @@ class AsyncDsssReceiver:
     ) -> NDArray[np.complex64]:
         """Stream raw cf32 samples; emit demodulated symbols once tracking.
 
-        **No symbol is dropped.** Symbols held by an earlier call are delivered
-        first, in order. A call consumes its input only when nothing stays held
-        after that and its symbols fit: `P(x_len)` (see
+        **No symbol is dropped** while the code loop stays within its rate
+        headroom (dp_dll_steps_max_out(): twice nominal); a loop past it, as
+        one acquiring can be, drops partials inside the Dll, before they reach
+        this receiver. Symbols held by an earlier call are delivered first, in
+        order. A call consumes its input only when nothing stays held after
+        that and its symbols fit: `P(x_len)` (see
         dp_async_dsss_receiver_steps_max_out()) is at most the room left in out
         plus the store, which holds what one call of a code period can produce.
         What does not fit in out is held for the next call. A call that cannot
@@ -3596,9 +3602,12 @@ class Ccsds415Receiver:
     ) -> NDArray[np.complex64]:
         """Stream raw cf32 samples; emit demodulated symbols once tracking.
 
-        **No symbol is dropped.** Symbols held by an earlier call are delivered
-        first, in order. A call consumes its input only when nothing stays held
-        after that and its symbols fit: `P(x_len)` (see
+        **No symbol is dropped** while the code loop stays within its rate
+        headroom (dp_dll_steps_max_out(): twice nominal); a loop past it, as
+        one acquiring can be, drops partials inside the Dll, before they reach
+        this receiver. Symbols held by an earlier call are delivered first, in
+        order. A call consumes its input only when nothing stays held after
+        that and its symbols fit: `P(x_len)` (see
         dp_async_dsss_receiver_steps_max_out()) is at most the room left in out
         plus the store, which holds what one call of a code period can produce.
         What does not fit in out is held for the next call. A call that cannot

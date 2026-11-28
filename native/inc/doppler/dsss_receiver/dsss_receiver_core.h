@@ -397,8 +397,10 @@ extern "C"
   /**
    * @brief Stream raw cf32 samples; emit demodulated symbols once locked.
    *
-   * **No symbol is dropped.** Symbols held by an earlier call are delivered
-   * first, in order. A call consumes its input only when nothing stays held
+   * **No symbol is dropped** while the code loop stays within its rate
+   * headroom (dp_dll_steps_max_out(): twice nominal); a loop past it, as one
+   * acquiring can be, drops partials inside the Dll, before they reach this
+   * receiver. Symbols held by an earlier call are delivered first, in order. A call consumes its input only when nothing stays held
    * after that and its symbols fit: `P(x_len)` (see
    * dp_dsss_receiver_steps_max_out()) is at most the room left in @p out
    * plus the store, which holds what one call of a code period can

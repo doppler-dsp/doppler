@@ -3772,6 +3772,55 @@ _test_held_symbols_round_trip (void)
   return fails;
 }
 
+/* A grid change waits for the store (the review of #3397): refused while
+ * symbols are held, and once nothing is held the store is resized to the new
+ * grid's bound. Sabotages: drop the refusal -> taken while holding, red;
+ * skip the resize -> the old grid's capacity, red. */
+static int
+_test_a_grid_change_waits_for_the_store (void)
+{
+  const size_t    sf = 7, spc = 4;
+  const double    fs = 1.0e6 * (double)spc, sym_rate = 140000.0;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  int             fails = 0;
+  dp_dsss_capture (CODE7, sf, spc, fs, fs / sym_rate, 0.0, 70.0, 300,
+                   sf * spc * 5 + 3, 7, &x, &n, &data);
+  dp_async_dsss_receiver_state_t *a
+      = _searching_rx (70.0, sym_rate, 0.0, false);
+  DP_REQUIRE (a);
+  float _Complex none[1];
+  size_t pos = 0;
+  while (pos < n && a->hold_len == 0)
+    (void)dp_async_dsss_receiver_steps (a, x + pos++, 1, none, 0);
+  DP_REQUIRE (a->hold_len > 0);
+  const size_t was = a->hold_len, old_cap = a->hold_cap;
+  /* sps moves the bound (the converter's ratio is proportional to it;
+     segments cancels between the Dll's partials and the ratio) */
+  const size_t seg = a->segments, sps = 2 * a->sps;
+  const int    m = (int)mpsk_rx_derive_m_out ((double)sps, 0);
+  DP_CHECK_MSG (dp_async_dsss_receiver_configure_chain_raw (a, seg, sps, m)
+                        == -1
+                    && a->hold_len == was && a->sps == sps / 2,
+                "a grid change is refused while symbols are held");
+  const size_t    cap = dp_async_dsss_receiver_steps_max_out (a, 0);
+  float _Complex *o   = malloc (cap * sizeof *o);
+  DP_REQUIRE (o);
+  DP_CHECK (dp_async_dsss_receiver_steps (a, x, 0, o, cap) == was);
+  DP_REQUIRE (a->hold_len == 0);
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (a, seg, sps, m) == 0);
+  DP_CHECK (a->hold_cap != old_cap); /* the premise: the bound moved */
+  DP_CHECK_MSG (a->hold_cap
+                    == dp_async_dsss_receiver_steps_max_out (a, a->tsamps),
+                "the store is resized to the new grid's bound");
+  dp_async_dsss_receiver_destroy (a);
+  free (o);
+  free (x);
+  free (data);
+  return fails;
+}
+
 /* `differential` does not change what steps() returns (#2461 #70). It is
  * handed to the internal MpskReceiver, whose differential demap acts in its
  * bits() -- a hard decision this receiver does not offer: steps() returns
@@ -7540,6 +7589,7 @@ main (void)
   (void)_test_emission_by_state ();
   DP_CHECK (_test_output_capacity () == 0);
   DP_CHECK (_test_held_symbols_round_trip () == 0);
+  DP_CHECK (_test_a_grid_change_waits_for_the_store () == 0);
   DP_CHECK (_test_differential_does_not_change_the_symbols () == 0);
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();

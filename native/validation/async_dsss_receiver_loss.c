@@ -587,6 +587,15 @@ main (int argc, char **argv)
                     "the Dll's despread error is circular");
       DP_CHECK_MSG (l2 - l1d <= RC_EXCESS_DB,
                     "the RateConverter costs nothing at oracle timing");
+      /* The two gates below need GATE_MIN_ERRORS at S0 to mean anything,
+         and skip without them. --check is the run CI makes, and it was sized
+         to clear the floor (about 370), so there a short count is a failure,
+         never a skip: a change that scores fewer symbols would otherwise
+         leave both gates unrun and the check green. */
+      if (check)
+        DP_CHECK_MSG (pt->s0.err >= GATE_MIN_ERRORS,
+                      "--check scores enough errors at S0 to run the cut's "
+                      "and the loops' gates");
       if (pt->s0.err >= GATE_MIN_ERRORS)
         {
           DP_CHECK_MSG (l1 - l0 <= CUT_MAX_DB,

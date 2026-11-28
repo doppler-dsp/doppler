@@ -292,11 +292,11 @@ run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
       if (k && first_in == SIZE_MAX)
         {
           /* The hand-over: the refine's carrier, frozen once tracking --
-             what the carrier loops were seeded with, against the truth
-             (no ramp here, so the truth is the draw's offset). */
-          first_in = b * PUSH;
-          out->handover_err_hz
-              = dp_async_dsss_receiver_get_doppler_hz (rx) - out->carrier_hz;
+             what the carrier loops were seeded with, against the truth at
+             that sample, so the measure holds for a ramped emitter too. */
+          first_in             = b * PUSH;
+          out->handover_err_hz = dp_async_dsss_receiver_get_doppler_hz (rx)
+                                 - dp_air_truth (&air, 0, air.n_out).car_hz;
         }
       n += k;
       if (stop_at == SIZE_MAX)
@@ -809,7 +809,7 @@ main (int argc, char **argv)
 
   dp_ber_report_t reps[N_PTS];
   size_t          n_bursts[N_PTS], n_unsettled[N_PTS], n_slipped[N_PTS];
-  size_t          n_inside[N_PTS], pt_f[N_PTS], pt_e[N_PTS];
+  size_t          n_inside[N_PTS], n_handed[N_PTS], pt_f[N_PTS], pt_e[N_PTS];
   size_t          n_pts = 0;
   for (size_t f = check ? CHECK_FC : 0; f < (check ? CHECK_FC + 1 : N_FC); f++)
     for (size_t e = check ? CHECK_ESN0 : 0;
@@ -825,6 +825,7 @@ main (int argc, char **argv)
         pt_e[q] = e;
         dp_ber_init (&acc, 2, DP_BER_TARGET_ERRORS);
         n_bursts[q] = n_unsettled[q] = n_slipped[q] = n_inside[q] = 0;
+        n_handed[q]                                               = 0;
         for (uint32_t s = 1; !dp_ber_enough (&acc) && s <= MAX_BURSTS; s++)
           {
             burst_t bu;
@@ -837,6 +838,10 @@ main (int argc, char **argv)
             n_inside[q]
                 += !bu.settled
                    && !(fabs (bu.handover_err_hz) > PULLIN_RELIABLE_HZ (fc));
+            /* Handed over inside the reliable pull-in: the population the
+               settle claim above is about (NaN, no hand-over, is not). */
+            n_handed[q]
+                += fabs (bu.handover_err_hz) <= PULLIN_RELIABLE_HZ (fc);
             if (bu.settled)
               {
                 any = 1;
@@ -898,6 +903,15 @@ main (int argc, char **argv)
         if (check)
           DP_CHECK_MSG (n_slipped[q] == 0,
                         "at the regression point no burst slips");
+        /* The settle claim's population: without it, a refine that hands
+           every burst over outside the pull-in leaves n_inside at 0 and the
+           claim green under the defect it exists for. At the regression
+           point every burst is handed over inside (9 of 9 within 0.1 Hz,
+           2026-11-28). */
+        if (check)
+          DP_CHECK_MSG (n_handed[q] == n_bursts[q],
+                        "at the regression point every burst is handed over "
+                        "inside the carrier loop's reliable pull-in");
       }
 
   if (emit)
@@ -906,9 +920,11 @@ main (int argc, char **argv)
          stream at this Es/N0, so the EVM's own loss is evm_db minus it.
          replica_loss_db: the Dll replica's rho^2/kappa, the part of the
          loss derived so far. unsettled_inside: unsettled bursts handed over
-         inside pullin_hz, the reliable pull-in (must be 0). */
+         inside pullin_hz, the reliable pull-in (must be 0); handed_inside:
+         bursts handed over inside it, the population that claim is about. */
       printf (
           "# ber\nfc_ghz,esn0_db,bursts,unsettled,unsettled_inside,"
+          "handed_inside,"
           "pullin_hz,slipped,slip_lo,slip_hi,symbols,errors,ber,ber_lo,ber_hi,"
           "conf,"
           "theory,loss_db,loss_lo_db,loss_hi_db,replica_loss_db,evm_db,"
@@ -926,13 +942,13 @@ main (int argc, char **argv)
           double sl_lo = NAN, sl_hi = NAN;
           dp_wilson ((double)n_slipped[q],
                      (double)(n_bursts[q] - n_unsettled[q]), &sl_lo, &sl_hi);
-          printf ("%.1f,%.1f,%zu,%zu,%zu,%.1f,%zu,%.4f,%.4f,%lu,%lu,%.4e,"
+          printf ("%.1f,%.1f,%zu,%zu,%zu,%zu,%.1f,%zu,%.4f,%.4f,%lu,%lu,%.4e,"
                   "%.4e,%.4e,%.2f,%.4e,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,"
                   "%.1f,%d\n",
                   fc / 1e9, es, n_bursts[q], n_unsettled[q], n_inside[q],
-                  PULLIN_RELIABLE_HZ (fc), n_slipped[q], sl_lo, sl_hi,
-                  r->ber.symbols, r->ber.errors, r->ber.p_hat, r->ber.lo,
-                  r->ber.hi, r->ber.conf, r->theory_ber, r->loss_db,
+                  n_handed[q], PULLIN_RELIABLE_HZ (fc), n_slipped[q], sl_lo,
+                  sl_hi, r->ber.symbols, r->ber.errors, r->ber.p_hat,
+                  r->ber.lo, r->ber.hi, r->ber.conf, r->theory_ber, r->loss_db,
                   es - dp_ber_esn0_db_for_ser (2, r->ser.lo),
                   es - dp_ber_esn0_db_for_ser (2, r->ser.hi), replica_db,
                   r->evm_db, dp_ber_evm_ideal_db (es), r->m2m4_db,

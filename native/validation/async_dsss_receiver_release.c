@@ -508,6 +508,13 @@ main (int argc, char **argv)
            8-10 times as the neighbour passes through the held phase; without
            the coast the receiver follows at the neighbour's 4.00 chips per
            second and the flag flickers 230-250 times. */
+        /* The crossing's witness, read from the run: crossing_in_watch()
+           above is arithmetic on the constants, and a neighbour that never
+           reached the held phase would leave the rate at 0 and the blips
+           at 0 too, passing both checks below. Measured: 8-10 blips. */
+        DP_CHECK_MSG (t.code_returns >= 1,
+                      "the neighbour reached the held phase: the code flag "
+                      "came back at least once as it passed");
         DP_CHECK_MSG (fabs (t.rate_after) < 1.0,
                       "a departed receiver does not follow a neighbour "
                       "crossing its code phase");
@@ -535,6 +542,16 @@ main (int argc, char **argv)
            loops, and a trial can end on the neighbour with both flags up
            throughout (#1275). What the hold owns is that the flags do not
            drop together and stay down. */
+        /* The crossing's witness, read from the run: at --check's seed a
+           flag dips as the neighbour passes (the symbol flag, at 1.26 s,
+           measured 2026-11-28). With no neighbour on the phase, the flags
+           would stay up and the check below would pass on nothing. The
+           sweep's seeds may ride it out with both flags up (#1275), so it
+           holds for --check only. */
+        if (check)
+          DP_CHECK_MSG (t.t_code_s >= 0.0 || t.t_sym_s >= 0.0,
+                        "the live neighbour reached the held phase: a flag "
+                        "dipped as it passed");
         DP_CHECK_MSG (t.code_back && t.sym_back && t.both_max_s < 1.0,
                       "a receiver whose emitter is crossed by a live "
                       "neighbour keeps its flags through the crossing");

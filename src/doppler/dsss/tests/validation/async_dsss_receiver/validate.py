@@ -1015,9 +1015,11 @@ def limits(d: Blocks, sw: Blocks) -> None:
             f"rule)",
         )
         R.limit(
-            int(r["unsettled_inside"]) == 0,
-            f"{tag} no burst handed over inside the carrier loop's reliable "
-            f"pull-in, {float(r['pullin_hz']):.0f} Hz, fails to settle",
+            int(r["handed_inside"]) == int(r["bursts"])
+            and int(r["unsettled_inside"]) == 0,
+            f"{tag} every one of {int(r['bursts'])} bursts is handed over "
+            f"inside the carrier loop's reliable pull-in, "
+            f"{float(r['pullin_hz']):.0f} Hz, and none fails to settle",
         )
 
 

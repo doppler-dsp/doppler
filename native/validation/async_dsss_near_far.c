@@ -269,7 +269,10 @@ main (int argc, char **argv)
                                       check ? 6
                                       : one ? n_trials
                                             : 40 },
-                                    { 1, 2000, check || one ? 0 : 20 } };
+                                    { 1, 2000,
+                                      check ? 4
+                                      : one ? 0
+                                            : 20 } };
   static const double sweep[]   = { 0, 4, 8, 10, 12, 14, 16, 18, 20 };
   static const double spot[]    = { 10, 20 };
   const double       *levels    = check ? spot : one ? &one_level : sweep;
@@ -286,9 +289,17 @@ main (int argc, char **argv)
     for (size_t l = 0; l < n_lv && depths[d].trials; l++)
       {
         tally_t t = { 0 };
+        /* Seeds keyed by the level's place in the sweep, so a --check row
+           is the sweep's own first trials at that level, not a different
+           draw (the deep row read 1 valid trial in 4 at its --check seeds,
+           against 19 in 20 in the sweep). */
+        size_t li = l;
+        for (size_t j = 0; j < sizeof sweep / sizeof *sweep; j++)
+          if (sweep[j] == levels[l])
+            li = j;
         for (size_t k = shard; k < depths[d].trials; k += shards)
           DP_REQUIRE (trial (code, &depths[d], levels[l],
-                             1000u * (uint32_t)l + 31u * (uint32_t)k, &t)
+                             1000u * (uint32_t)li + 31u * (uint32_t)k, &t)
                       == 0);
         double lo = 0.0, hi = 1.0;
         if (t.valid)

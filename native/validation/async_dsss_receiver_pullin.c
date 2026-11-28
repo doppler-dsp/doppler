@@ -450,6 +450,9 @@ static double pi_bn_car = NAN;
    sustains;
    --expect-broken asserts a draw does not work (the carrier loop opened
    through --bn-carrier). Each prints its verdict to stderr. */
+/* --check: the run CI makes, where a claim that degrades to "not asserted"
+   is a failure, not a print (check_cell). */
+static int pi_check      = 0;
 static int pi_no_emitter = 0;
 /* --windows W: the errors per W symbols from the declared lock, a draw (the
    header's `--windows`); 0 is off. */
@@ -2131,6 +2134,13 @@ check_cell (const draw_t *ds, size_t n)
      enough, so the line says so and asserts nothing. */
   const double bound
       = dp_ber_theory_ser (2, pow (10.0, (ds[0].esn0 - PI_MARGIN_DB) / 10.0));
+  /* In --check the cell is one whose bound a 20 s draw resolves (10 dB,
+     about 3,900 symbols): scoring fewer, e.g. a lock that came late, would
+     drop the claim to a print and leave the check green on nothing. */
+  if (pi_check)
+    DP_CHECK_MSG (sc > 0 && 3.0 / (double)sc < bound,
+                  "--check scores enough symbols to resolve its error-rate "
+                  "claim");
   if (sc > 0 && 3.0 / (double)sc >= bound)
     printf ("  %.1f GHz %4.1f dB: the error-rate claim needs %.2e symbols "
             "to resolve its bound (%.2e), %lu scored: not asserted\n",
@@ -2594,6 +2604,7 @@ main (int argc, char **argv)
   for (int i = 1; i < argc; i++)
     {
       check |= strcmp (argv[i], "--check") == 0;
+      pi_check = check;
       emit |= strcmp (argv[i], "--emit") == 0;
       if (strcmp (argv[i], "--draws") == 0 && i + 1 < argc)
         draws = (unsigned)strtoul (argv[++i], NULL, 10);

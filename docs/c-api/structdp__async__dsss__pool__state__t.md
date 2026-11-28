@@ -60,7 +60,6 @@ _AsyncDsssPool state._ [More...](#detailed-description)
 |  bool | [**searching**](#variable-searching)  <br> |
 |  float \_Complex \* | [**sym\_buf**](#variable-sym_buf)  <br> |
 |  size\_t | [**sym\_cap**](#variable-sym_cap)  <br> |
-|  size\_t | [**sym\_extra**](#variable-sym_extra)  <br> |
 |  int | [**threads**](#variable-threads)  <br> |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**tlm**](#variable-tlm)  <br> |
 |  uint32\_t | [**tlm\_decim**](#variable-tlm_decim)  <br> |
@@ -540,23 +539,6 @@ size_t dp_async_dsss_pool_state_t::sym_cap;
 
 Symbols one row holds. 
  
-
-
-        
-
-<hr>
-
-
-
-### variable sym\_extra 
-
-```C++
-size_t dp_async_dsss_pool_state_t::sym_extra;
-```
-
-
-
-Symbols one code period carries, rounded up, plus one: what a call can emit past its input's own ([**dp\_async\_dsss\_receiver\_steps()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps)). 
 
 
         

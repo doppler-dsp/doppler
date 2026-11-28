@@ -77,7 +77,6 @@ extern "C"
     int        threads; 
     float _Complex *sym_buf; 
     size_t          sym_cap; 
-    size_t sym_extra; 
     size_t         *n_sym;   
     const float _Complex *feed_x; 
     size_t                feed_n; 

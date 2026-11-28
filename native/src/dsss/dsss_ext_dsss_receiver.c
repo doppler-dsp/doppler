@@ -140,15 +140,23 @@ DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DsssReceiverObj_steps_max_out (DsssReceiverObject *self,
-                               PyObject           *Py_UNUSED (ignored))
+DsssReceiverObj_steps_max_out (DsssReceiverObject *self, PyObject *args)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dp_dsss_receiver_steps_max_out (self->handle));
+  Py_ssize_t x_len = 0;
+  if (!PyArg_ParseTuple (args, "n", &x_len))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (
+      dp_dsss_receiver_steps_max_out (self->handle, (size_t)x_len));
 }
 
 static PyObject *
@@ -205,10 +213,9 @@ DsssReceiverObj_steps (DsssReceiverObject *self, PyObject *args,
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax    = dp_dsss_receiver_steps_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
-                            ? _omax
-                            : ((size_t)PyArray_SIZE (x_arr));
+      size_t _omax = dp_dsss_receiver_steps_max_out (
+          self->handle, (size_t)PyArray_SIZE (x_arr));
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -269,9 +276,9 @@ DsssReceiverObj_steps (DsssReceiverObject *self, PyObject *args,
       return NULL;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = dp_dsss_receiver_steps_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  size_t _cap  = dp_dsss_receiver_steps_max_out (self->handle,
+                                                 (size_t)PyArray_SIZE (x_arr));
+  (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
     {
@@ -641,6 +648,18 @@ DsssReceiverObj_set_state (DsssReceiverObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
+DsssReceiver_getprop_consumed (DsssReceiverObject *self,
+                               void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_dsss_receiver_get_consumed (self->handle));
+}
+static PyObject *
 DsssReceiver_getprop_tracking (DsssReceiverObject *self,
                                void               *Py_UNUSED (closure))
 {
@@ -762,6 +781,10 @@ DsssReceiver_getprop_settle_time (DsssReceiverObject *self,
 }
 
 static PyGetSetDef DsssReceiver_getset[] = {
+  { "consumed", (getter)DsssReceiver_getprop_consumed, NULL,
+    "Inputs the last dp_dsss_receiver_steps() call took: its x_len, or 0 when "
+    "it held its input back.\n",
+    NULL },
   { "tracking", (getter)DsssReceiver_getprop_tracking, NULL,
     "Routing state: searching or tracking.\n", NULL },
   { "doppler_hz", (getter)DsssReceiver_getprop_doppler_hz, NULL,
@@ -853,6 +876,19 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "-> RateConverter -> MpskReceiver in sequence and demodulated symbols are "
     "returned. Accepts any block size; state carries across calls.\n"
     "\n"
+    "**No symbol is dropped.** Symbols held by an earlier call are delivered\n"
+    "first, in order. A call consumes its input only when nothing stays held\n"
+    "after that and its symbols fit: `P(x_len)` (see\n"
+    "dp_dsss_receiver_steps_max_out()) is at most the room left in out plus\n"
+    "the store, which holds what one call of a code period can produce. What\n"
+    "does not fit in out is held for the next call. A call that cannot\n"
+    "consume returns what it delivered and takes nothing:\n"
+    "dp_dsss_receiver_get_consumed() reads 0, and the caller calls again\n"
+    "with the same x. A C caller that sizes out below\n"
+    "dp_dsss_receiver_steps_max_out() for a call longer than a code period\n"
+    "meets this every time, so it must check consumed() or size out from\n"
+    "that function, as the Python binding does.\n"
+    "\n"
     "While searching, samples feed the embedded search and nothing is\n"
     "emitted (0 return is normal, not an error). The moment a hit fires,\n"
     "`Dll`/`RateConverter`/`MpskReceiver` are built and seeded from it, and\n"
@@ -876,8 +912,9 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    Number of symbols written (0 while searching, or while tracking\n"
-    "    with not yet a full symbol's worth of input).\n"
+    "    Number of symbols written: held ones first, then this call's; 0\n"
+    "    while searching with nothing held, or while tracking with not yet a\n"
+    "    full symbol's worth of input.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -915,16 +952,39 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "\n"
     ">>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))\n"
     "True\n" },
-  { "steps_max_out", (PyCFunction)DsssReceiverObj_steps_max_out, METH_NOARGS,
-    "steps_max_out() -> int\n"
+  { "steps_max_out", (PyCFunction)DsssReceiverObj_steps_max_out, METH_VARARGS,
+    "steps_max_out(x_len) -> int\n"
     "\n"
-    "Output capacity hint for dp_dsss_receiver_steps().\n"
+    "The capacity that lets the next steps() call on x_len samples\n"
+    "deliver everything it can: the symbols held, plus the most the call can\n"
+    "produce.\n"
+    "\n"
+    "Sized to this, a call never holds and never refuses its input\n"
+    "(dp_dsss_receiver_steps()), which is how the Python binding calls it.\n"
+    "The most a call can produce, `P(x_len)`, is bounded by the chain's\n"
+    "structure, not by the nominal rate: the call runs at most `x_len +\n"
+    "tsamps - 1` samples through the tracking chain (the carry); the Dll\n"
+    "emits at most dp_dll_steps_max_out() of them; the RateConverter at most\n"
+    "`ceil(ratio x n) + 1` of `n` partials (`ratio` fixed by configuration);\n"
+    "MpskReceiver at most one symbol per input; and the hand-over a hit\n"
+    "makes rebuilds the Dll and the RateConverter, one more close and one\n"
+    "more output. A call holds at most one hand-over: tracking never returns\n"
+    "to searching except through reset(). So `P(x_len) = ceil(ratio x\n"
+    "dp_dll_steps_max_out(dll, x_len + tsamps - 1)) + 1 + ceil(segments x\n"
+    "ratio) + 1`. A symbol may be shorter than a code period here, so a call\n"
+    "that completes a carried period can make many symbols (#2469's\n"
+    "127-chip, 250 ksym/s case: 31.75 a period); the bound carries them. A\n"
+    "Debug build aborts on a call that produces more than it.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x_len : int\n"
+    "    Input samples the call will be given.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Always 0: size out from the input length x_len, which is always\n"
-    "    enough (at most one symbol per input sample).\n" },
+    "    Held symbols plus `P(x_len)`; SIZE_MAX if that overflows.\n" },
   { "configure_search_raw",
     (PyCFunction)(void *)DsssReceiverObj_configure_search_raw,
     METH_VARARGS | METH_KEYWORDS,

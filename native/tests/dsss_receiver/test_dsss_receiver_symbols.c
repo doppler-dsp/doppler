@@ -27,6 +27,7 @@ const jm_any_fn jm_bound_symbols_dsss_receiver[] = {
     (jm_any_fn)dp_dsss_receiver_destroy,
     (jm_any_fn)dp_dsss_receiver_reset,
     (jm_any_fn)dp_dsss_receiver_steps_max_out,
+    (jm_any_fn)dp_dsss_receiver_get_consumed,
     (jm_any_fn)dp_dsss_receiver_steps,
     (jm_any_fn)dp_dsss_receiver_configure_search_raw,
     (jm_any_fn)dp_dsss_receiver_configure_lock_raw,

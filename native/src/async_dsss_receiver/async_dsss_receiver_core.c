@@ -2977,7 +2977,10 @@ dp_async_dsss_receiver_configure_chain_raw (
      anything is rebuilt: a period past what the Dll's aid takes, or an `n`
      MpskReceiver refuses, would abort the rebuild under dp_xnn (doppler#2103,
      #2421). A negative `n` is refused before the cast. */
-  if (n < 0 || !mpsk_rx_m_out_ok ((double)sps, (size_t)n, 0)
+  /* Held symbols belong to the grid that made them and size its store: a
+     grid change while any are held is refused, so the caller drains first
+     and none is dropped (#2469). */
+  if (state->hold_len || n < 0 || !mpsk_rx_m_out_ok ((double)sps, (size_t)n, 0)
       || !adr_track_chain_ok (state->code_len, state->chip_rate,
                               state->symbol_rate, segments, sps, state->spc))
     return -1;
@@ -2993,6 +2996,12 @@ dp_async_dsss_receiver_configure_chain_raw (
 
   adr_rebuild_track_chain (state, chip_phase, doppler_hz_now, segments, sps,
                            n);
+  /* The store follows the grid: the chain's bound at a code period on the
+     new one. Nothing is held (refused above), so it is resized empty. */
+  const size_t cap = adr_chain_bound (state, state->tsamps);
+  state->hold_buf
+      = dp_xreallocn (state->hold_buf, cap, sizeof *state->hold_buf);
+  state->hold_cap = cap;
   return 0;
 }
 

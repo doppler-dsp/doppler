@@ -366,3 +366,48 @@ def test_settle_time_is_the_demodulators():
     # The demodulator's figure at the bandwidths the receiver builds it
     # with (test_dsss_receiver_core.c), known before a sample is fed.
     assert _new_receiver().settle_time == pytest.approx(778.47, abs=0.01)
+
+
+def test_one_sample_calls_deliver_the_whole_calls_symbols() -> None:
+    """Several symbols a code period, fed one sample a call, lose nothing.
+
+    #2469's case: a 127-chip code at 1 Mcps and 250 ksym/s, 4 samples a
+    chip, is 31.75 symbols a code period, so the call that completes a
+    carried period makes the whole period's symbols at once. The binding
+    sized ``out`` at ``max(steps_max_out(), x_len)`` and ``steps_max_out()``
+    returned 0, so a one-sample call kept one symbol and dropped the rest:
+    114,870 symbols in one call against 3,996 one sample a call on the
+    issue's capture. Now the binding sizes ``out`` from
+    ``steps_max_out(x_len)``, the call's true bound, and the two streams
+    are the same symbols. Sabotage: ``steps_max_out`` returning ``x_len``
+    again -- the extra symbols wait in the store, and the last call's are
+    never delivered, so the one-sample stream comes up short.
+    """
+    sf, chip, sym, spc = 127, 1.0e6, 250.0e3, 4
+    fs = chip * spc
+    tsym, te = fs / sym, sf * spc
+    code = np.asarray(Gold().generate(sf)).astype(np.uint8)
+    csign = np.where(code & 1, -1.0, 1.0)
+    rng = np.random.default_rng(5)
+    n_sym = 4000
+    idx = np.arange(int(n_sym * tsym))
+    data = (rng.integers(0, 2, n_sym + 4) * 2 - 1).astype(float)
+    sig = data[(idx / tsym).astype(int)] * csign[(idx // spc) % sf]
+    x = np.concatenate([np.zeros(3 * te), sig]).astype(np.complex64)
+    x += (
+        0.05 * (rng.standard_normal(len(x)) + 1j * rng.standard_normal(len(x)))
+    ).astype(np.complex64)
+
+    def make() -> DsssReceiver:
+        return DsssReceiver(
+            code, chip_rate=chip, symbol_rate=sym, sample_rate=fs
+        )
+
+    whole_rx, cut_rx = make(), make()
+    whole = whole_rx.steps(x)
+    cut = np.concatenate([cut_rx.steps(x[i : i + 1]) for i in range(len(x))])
+    assert whole_rx.tracking and cut_rx.tracking
+    assert len(whole) > n_sym * 3 // 4  # the premise: the symbols are there
+    assert len(cut) == len(whole)
+    assert np.array_equal(cut, whole)
+    assert cut_rx.consumed == 1

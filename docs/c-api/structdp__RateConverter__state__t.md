@@ -50,6 +50,7 @@ _Cascade state_  _owns all sub-stage C objects._[More...](#detailed-description)
 |  uint32\_t | [**cic\_headroom\_bits**](#variable-cic_headroom_bits)  <br> |
 |  uint32\_t | [**cic\_precision**](#variable-cic_precision)  <br> |
 |  int | [**compensate**](#variable-compensate)  <br> |
+|  double | [**ctrl\_rate\_max**](#variable-ctrl_rate_max)  <br> |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**ctx**](#variable-ctx)  <br> |
 |  uint32\_t | [**decim**](#variable-decim)  <br> |
 |  int | [**n\_stages**](#variable-n_stages)  <br> |
@@ -357,6 +358,23 @@ int dp_RateConverter_state_t::compensate;
 
 CIC droop-comp flag 
  
+
+
+        
+
+<hr>
+
+
+
+### variable ctrl\_rate\_max 
+
+```C++
+double dp_RateConverter_state_t::ctrl_rate_max;
+```
+
+
+
+Config: the most the terminal stage's steered rate, its rate plus the control, may reach on the control path: the mirror of the lower clamp (RESAMP\_CTRL\_RATE\_MIN). +INFINITY, the default, is no bound, so a converter nobody bounds runs as before. A timing loop's owner sets it once, after create, to its outputs per symbol `m`: one input then yields at most `m` outputs (`ceil(rate + ctrl)`), and two on-time strobes need `m + 1`, so `rate + ctrl <= m` is the bound that keeps one strobe per input (doppler#3289). Never set by a setter, so it is not in the blob. 
 
 
         

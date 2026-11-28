@@ -528,7 +528,7 @@ test_marker_runner_bears_the_noise (void)
   const double sigma = sqrt (0.5 / pow (10.0, 10.0 / 10.0));
   for (int i = 0; i < NSYM; i++)
     truth[i] = (uint8_t)(dp_xs64 (&st) & 1u);
-  for (int j = 0; j < DP_BER_SYNC_SYMS; j++)
+  for (unsigned j = 0; j < DP_BER_SYNC_SYMS; j++)
     truth[T + D + j]
         = (uint8_t)(truth[T + j] ^ (j < KEEP ? 0u : (unsigned)(j & 1)));
   build (rx, NSYM, truth, NSYM, m, 37, 0.4, sigma, &st);

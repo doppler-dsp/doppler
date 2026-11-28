@@ -1,0 +1,10 @@
+head 0b0ec2030 (main), clean detached worktree, run by doppler-tester 2026-11-28
+box x86_64, AMD Ryzen AI 7 445, WSL2, GCC 15.2.0 (Ubuntu 15.2.0-16ubuntu1), Release -O3 -DNDEBUG, DOPPLER_NATIVE=OFF
+cmd make validate-async-pool-sweep (6 shards), exit 0; all 20 limits held
+sha256 forced.csv b54b63a98b3d50713788cdc4a22f4c41bfcb14691a07fff5c350b579d9995045
+sha256 second.csv e2242ed44f923da1a94d69e6ecf3460b1d2192ed8ebc60130d68ec02d7dbebe0
+sha256 alone.csv 9fa936b88b78bee9775310025d1ca69d43f807f34bbf0dda3f26c48ac3395d50
+against the aarch64 record (src/doppler/dsss/tests/validation/async_dsss_pool/data/, same head):
+same keys, no rows added or lost; forced 195 of 200 rows differ, 40 outcomes flip;
+second 95 of 200 differ (last digits), 0 outcomes flip; alone 71 of 122 differ (eps_hz, 0.01 Hz scale).
+paired-row summary: doppler#3409 issuecomment-7239495359

@@ -2305,9 +2305,14 @@ _test_near_far_levels (void)
    - at the 415.1-B-1 floor, both carriers, the loop's noise bandwidth
      bn / T is about 30 Hz and its acquisition bound about 15 Hz, "about"
      held as within 5% (R8: 31.2 / 29.8 and 15.6 / 14.9 Hz);
-   - the carrier lock count is 712 at 30 dB-Hz at 2.8 GHz (R11).
+   - the carrier lock count is 712 at 30 dB-Hz at 2.8 GHz (R11);
+   - the phase variance the lock is sized at: the rule's bandwidth alone
+     gives 1/200 rad^2, and the delivered B_d at the detector delay is
+     1.059 / 1.044 times the rule's at 2.2 / 2.8 GHz, read as the
+     delivered variance over the rule's (R9).
    Sabotage: the bound's half (2 T) taken as T -> R5 and R8 red; the
-   lock's Pd ASYNC_DSSS_RX_CAR_LOCK_PD moved -> R11 red. */
+   lock's Pd ASYNC_DSSS_RX_CAR_LOCK_PD moved -> R11 red; the detector
+   delay taken as 0 -> R9's ratio reads 1, red. */
 static int
 _test_carrier_design_figures (void)
 {
@@ -2331,6 +2336,17 @@ _test_carrier_design_figures (void)
       DP_CHECK_MSG (fabs (bl - 30.0) <= 1.5, "about 30 Hz of noise bandwidth");
       DP_CHECK_MSG (fabs (acq - 15.0) <= 0.75,
                     "an acquisition bound of about 15 Hz");
+      /* R9: the rule's variance B (1 + 1/(2 gamma)) / gamma, gamma the
+         update SNR C/N0 T, and the delivered one over it. */
+      static const double ratio[2] = { 1.059, 1.044 };
+      const double        gamma    = pow (10.0, floor_cn0 / 10.0) * t_code;
+      const double        v_rule   = bn * (1.0 + 1.0 / (2.0 * gamma)) / gamma;
+      const double        v        = dp_async_dsss_receiver_carrier_phase_var (
+          floor_cn0, chip, DP_CCSDS_415_SF, 4);
+      DP_CHECK_MSG (fabs (v_rule * 200.0 - 1.0) < 1e-3,
+                    "the rule's bandwidth alone gives 1/200 rad^2");
+      DP_CHECK_MSG (fabs (v / v_rule - ratio[f]) < 5e-4,
+                    "the delivered B_d is 1.059 / 1.044 times the rule's");
     }
   DP_CHECK_MSG (dp_async_dsss_receiver_carrier_lock_n_noncoh (
                     30.0, dp_ccsds_415_chip_rate (DP_CCSDS_415_FC_HI),

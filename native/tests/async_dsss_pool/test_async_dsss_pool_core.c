@@ -1293,20 +1293,34 @@ _test_reacquire_releases_itself (void)
           1e-3, 0.9, 500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
           CI_CONFIRM_S, reacquire, 0.0, 0.0, 1, true);
       DP_REQUIRE (p != NULL);
-      int    tracked[2] = { 0, 0 }, went_idle = 0;
-      size_t lost_read = 0;
+      int    tracked[2] = { 0, 0 }, idle_rx = -1;
+      double seed_cn0[2] = { NAN, NAN };
+      size_t lost_read   = 0;
       for (size_t pos = 0; pos + POOL_GROUP <= n; pos += POOL_GROUP)
         {
           (void)dp_async_dsss_pool_push (p, x + pos, POOL_GROUP);
           for (size_t i = 0; i < 2; i++)
             {
-              const int st = dp_async_dsss_pool_status (p, i).state;
-              lost_read += st == ASYNC_DSSS_RX_LOST;
-              went_idle |= tracked[i] && st == ASYNC_DSSS_RX_IDLE;
-              tracked[i] |= st == ASYNC_DSSS_RX_TRACKING;
+              const async_dsss_receiver_status_t s
+                  = dp_async_dsss_pool_status (p, i);
+              lost_read += s.state == ASYNC_DSSS_RX_LOST;
+              if (tracked[i] && s.state == ASYNC_DSSS_RX_IDLE && idle_rx < 0)
+                idle_rx = (int)i;
+              if (s.state == ASYNC_DSSS_RX_TRACKING && !tracked[i])
+                {
+                  tracked[i]  = 1;
+                  seed_cn0[i] = s.cn0_dbhz_est;
+                }
             }
         }
-      DP_REQUIRE_MSG (went_idle, "a holder went back to idle after B left");
+      DP_REQUIRE_MSG (idle_rx >= 0 && tracked[0] && tracked[1],
+                      "both held, then a holder went back to idle");
+      /* B, the one that leaves, is 3 dB under A: its holder has the lower
+         seed C/N0, and it is that one that goes idle. */
+      DP_CHECK_MSG (seed_cn0[idle_rx] < seed_cn0[1 - idle_rx],
+                    "the holder that goes idle is B's");
+      /* Released by neither of the controller's other rules. */
+      DP_CHECK (p->released_duplicate == 0 && p->released_ghost == 0);
       DP_CHECK (lost_read == 0);
       if (reacquire)
         DP_CHECK_MSG (p->released_lost == 0,
@@ -1407,13 +1421,15 @@ _test_borrowed_lock_lasts_one_chain (void)
 }
 
 /* The controller's latency (#3267, P9): a release comes at most a group's
-   periods less one after the period that called for it. The lost-release
-   scene of _test_lost_is_released, fed one code period a push: the
-   period the receiver enters lost (its own state, before the controller
-   reads it) and the period the pool releases it are at most
-   ASYNC_DSSS_POOL_PERIODS_PER_JOIN - 1 apart. Sabotage: release a lost
-   receiver only once it has been lost a whole group -> the release comes
-   a group late, red here and nowhere else. */
+   periods less one after the period that called for it. The receivers are
+   fed only when a group completes, and the controller runs at the end of
+   that same step, so the claim is that the step that ends the group a
+   receiver entered lost in releases it: after every push the receiver's
+   OWN state (not status(), which P21 already holds) never reads lost, and
+   it is released. The lost-release scene of _test_lost_is_released, a
+   group a push. Sabotage: release a lost receiver only once it has been
+   lost a whole group -> it is seen lost after a push, red here and
+   nowhere else. */
 static int
 _test_release_latency (void)
 {
@@ -1437,24 +1453,16 @@ _test_release_latency (void)
   for (size_t pos = pre; pos + te <= n; pos += te)
     (void)dp_async_dsss_pool_push (p, x + pos, te);
   DP_REQUIRE (p->rx[0]->state == ASYNC_DSSS_RX_TRACKING);
-  long entered = -1, released = -1;
-  for (size_t k = 0; (k + 1) * te <= tail_n && released < 0; k++)
+  const size_t g         = p->group;
+  int          seen_lost = 0;
+  for (size_t k = 0; (k + 1) * g <= tail_n && !p->released_lost; k++)
     {
-      (void)dp_async_dsss_pool_push (p, off + k * te, te);
-      if (entered < 0 && p->rx[0]->state == ASYNC_DSSS_RX_LOST)
-        entered = (long)k;
-      if (p->released_lost > 0)
-        {
-          released = (long)k;
-          if (entered < 0) /* entered and released in the same period */
-            entered = (long)k;
-        }
+      (void)dp_async_dsss_pool_push (p, off + k * g, g);
+      seen_lost |= p->rx[0]->state == ASYNC_DSSS_RX_LOST;
     }
-  DP_REQUIRE_MSG (released >= 0, "the lost receiver was released");
-  DP_CHECK_MSG (released - entered >= 0
-                    && released - entered
-                           <= (long)ASYNC_DSSS_POOL_PERIODS_PER_JOIN - 1,
-                "a release comes within a group's periods less one");
+  DP_REQUIRE_MSG (p->released_lost == 1, "the lost receiver was released");
+  DP_CHECK_MSG (!seen_lost, "the step that ends the group it entered lost "
+                            "in releases it");
   dp_async_dsss_pool_destroy (p);
   free (off);
   free (x);
@@ -2197,10 +2205,14 @@ _test_ghost_parent_is_the_stronger (void)
               == 0);
   dp_async_dsss_pool_state_t *p = z.p;
   DP_REQUIRE_MSG (z.tracked, "the ghost reached tracking");
-  DP_REQUIRE_MSG (z.code_up < z.n / 2,
-                  "its code lock is low: by its own test it is a ghost");
   DP_CHECK_MSG (p->released_ghost == 0,
                 "a ghost stronger than every holder is no one's ghost");
+  /* And by the ghost test itself it IS A's ghost (its code lock low, its
+     carrier a whole k of spacings off), so only the strength order kept
+     it. Read only while it is held: a released ghost's ring is empty. */
+  if (p->released_ghost == 0)
+    DP_REQUIRE_MSG (dp_async_dsss_pool_ghost_of (p, 0, 1) == 1,
+                    "by the ghost test, receiver 1 is receiver 0's ghost");
   DP_CHECK (dp_async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_TRACKING);
   DP_CHECK (dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_TRACKING);
   dp_async_dsss_pool_destroy (p);

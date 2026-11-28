@@ -138,6 +138,13 @@ definition = "Reading the one-sided power spectrum (8,193 bins) out of a 16,384-
 domain = "call"
 count = 1
 
+["c:correlation::same_code_phase (one call, not inlinable)"]
+name = "Same-signal key, one call"
+unit = "call"
+definition = "One dp_correlator_same_code_phase() call: whether two code phases on a 1,023-chip code are one signal, the key the receiver's pick asks per peak of a dwell and the pool's duplicate test per pair of holders; its own translation unit, so the time includes the call a C caller cannot inline."
+domain = "call"
+count = 1
+
 ["c:spectral::kaiser_window[4096]"]
 name = "Kaiser window design, 4,096 points"
 unit = "bin"

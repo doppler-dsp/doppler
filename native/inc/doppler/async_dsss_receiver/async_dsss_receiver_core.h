@@ -248,10 +248,10 @@ extern "C"
    * S_L / 200`. The bandwidth is that, or ASYNC_DSSS_RX_BN_CARRIER where
    * the rule allows more: the rule is a ceiling, and the release's 0.04 is
    * the widest the loop has been designed at. At the 415.1-B-1 floor (C/N0
-   * 38.77 dB-Hz) it is 0.00993 at 2.2 GHz and 0.00744 at 2.8 GHz: about
-   * 30 Hz of loop noise bandwidth (`bn / T`) and an acquisition bound of
-   * about 15 Hz (ASYNC_DSSS_RX_CARRIER_PULLIN_HZ) at both carriers, the two
-   * carriers differing only through the squaring loss.
+   * 38.77 dB-Hz) it is 0.00993 at 2.2 GHz and 0.00744 at 2.8 GHz: 31.2 /
+   * 29.8 Hz of loop noise bandwidth (`bn / T`) and an acquisition bound of
+   * 15.6 / 14.9 Hz (ASYNC_DSSS_RX_CARRIER_PULLIN_HZ), the two carriers
+   * differing only through the squaring loss.
    * create() sizes the receiver's carrier loop with it, at `cn0_dbhz`.
    *
    * @param cn0_dbhz   Design C/N0, dB-Hz.

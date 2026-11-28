@@ -38,6 +38,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 * `#include "doppler/loop_filter/loop_filter_core.h"`
 * `#include "doppler/state_filter/state_filter_core.h"`
 * `#include "doppler/ccsds/ccsds_415.h"`
+* `#include "doppler/correlation/correlation_core.h"`
 
 
 

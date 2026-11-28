@@ -55,7 +55,8 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     farrow_core
     timing_est_core
     pn_core
-    doppler_channel_core)
+    doppler_channel_core
+    correlation_core)
 if(TARGET ${PROJECT_NAME}_lib)
   target_link_libraries(${PROJECT_NAME}_lib PRIVATE
       Threads::Threads)
@@ -119,6 +120,7 @@ target_link_libraries(test_async_dsss_pool_core
     timing_est_core
     pn_core
     doppler_channel_core
+    correlation_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_async_dsss_pool_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
@@ -173,6 +175,7 @@ target_link_libraries(bench_async_dsss_pool_core
     timing_est_core
     pn_core
     doppler_channel_core
+    correlation_core
     ${JM_MATH_LIBRARY})
 target_include_directories(
   bench_async_dsss_pool_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

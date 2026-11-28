@@ -46,6 +46,7 @@ target_link_libraries(test_adr_telemetry_oom PRIVATE
     symsync_core timing_est_core nco_core farrow_core pn_core
     doppler_channel_core
     ccsds_415_core
+    correlation_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_adr_telemetry_oom PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc

@@ -11,6 +11,8 @@
 #include "doppler/clib_common.h"
 #include <numpy/arrayobject.h>
 
+#include "doppler/correlation/correlation_core.h"
+
 #ifndef JM_ARRAY_ARG_DEFINED
 #define JM_ARRAY_ARG_DEFINED
 /* Convert a Python argument for an array parameter to an ndarray of
@@ -189,9 +191,79 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 
 #include "correlation_ext_correlator.c"
 
+static PyObject *
+_bind_correlator_same_code_phase (PyObject *self, PyObject *args,
+                                  PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "a", "b", "code_len", NULL };
+  double       a         = 0.0;
+  double       b         = 0.0;
+  double       code_len  = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &a, &b,
+                                    &code_len))
+    return NULL;
+  return PyLong_FromLong (
+      (long)dp_correlator_same_code_phase (a, b, code_len));
+}
+
 /* ======================================================== */
 /* Module                                                    */
 /* ======================================================== */
+
+static PyMethodDef correlation_module_methods[] = {
+  { "correlator_same_code_phase",
+    (PyCFunction)(void *)_bind_correlator_same_code_phase,
+    METH_VARARGS | METH_KEYWORDS,
+    "One signal's code phase: 1 when code phases a and b, chips, are\n"
+    "within DP_CORRELATOR_SAME_PHASE_CHIPS of each other, circularly over a\n"
+    "code of code_len chips; else 0.\n"
+    "\n"
+    "The one key the receiver's pick and the pool's duplicate test share,\n"
+    "and the one the peak zone is sized from. The receiver's pick drops a\n"
+    "peak within it of one already taken or of an excluded phase (rules 1\n"
+    "and 3 of docs/design/async-dsss-receiver.md section 7.2, keyed on code\n"
+    "phase alone, never carrier: async-dsss-receiver-measurements.md section\n"
+    "12.14); the pool resets the second of two holders within it of each\n"
+    "other; and the zone the receiver asks its search for\n"
+    "(dp_correlator_set_peak_zone()) is half of it, so the zone stays inside\n"
+    "the key (#3071: a zone as wide as the key masked pairs two lags apart\n"
+    "that the key keeps). An example that names which emitter a receiver\n"
+    "holds calls this, so it identifies an emitter by exactly the test the\n"
+    "pool does. A C caller's example is on DP_CORRELATOR_SAME_PHASE_CHIPS\n"
+    "(correlator_core.h).\n"
+    "\n"
+    "The distance is |a - b| folded over the code, so phases either side of\n"
+    "chip 0 are near: 0.4 and 1022.8 are 0.6 chips apart on a 1023-chip\n"
+    "code. The bound is inclusive: phases exactly\n"
+    "DP_CORRELATOR_SAME_PHASE_CHIPS apart are one signal. Phases are taken\n"
+    "as given, each in [0, code_len); a NaN phase compares as two signals.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "a : float\n"
+    "    A code phase, chips.\n"
+    "b : float\n"
+    "    Another, chips.\n"
+    "code_len : float\n"
+    "    The code's length, chips.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    1 when a and b are one signal's code phase, else 0.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.correlation import correlator_same_code_phase\n"
+    ">>> correlator_same_code_phase(100.0, 101.0, 1023.0)\n"
+    "1\n"
+    ">>> correlator_same_code_phase(100.0, 101.5, 1023.0)\n"
+    "0\n"
+    ">>> correlator_same_code_phase(0.4, 1022.8, 1023.0)  # across chip 0\n"
+    "1\n" },
+  { NULL, NULL, 0, NULL }
+};
 
 static PyModuleDef correlation_moduledef = {
   PyModuleDef_HEAD_INIT,
@@ -241,7 +313,7 @@ static PyModuleDef correlation_moduledef = {
     ">>> c.flavor\n"
     "'1d'\n",
   .m_size    = -1,
-  .m_methods = NULL,
+  .m_methods = correlation_module_methods,
 };
 
 PyMODINIT_FUNC

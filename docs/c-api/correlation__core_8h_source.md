@@ -20,6 +20,8 @@ extern "C" {
 
 /* Declare module-level functions here. */
 
+int dp_correlator_same_code_phase(double a, double b, double code_len);
+
 #ifdef __cplusplus
 }
 #endif

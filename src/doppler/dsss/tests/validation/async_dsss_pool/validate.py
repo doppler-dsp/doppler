@@ -834,6 +834,27 @@ def review(forced: Rows, second: Rows, alone: Rows) -> None:
         "the binding does not reach. Each is certified in the C test "
         "section 1 names.",
     )
+    R.find(
+        "false_alarm_seed_released_lost",
+        "BY DESIGN",
+        "A search false alarm, at the search's own Pfa (1e-3 a dwell), "
+        "seeds a receiver wherever the noise crossed the gate, 1.5 chips "
+        "from a holder included. The seed never gets code lock: what the "
+        "held emitter puts on a cell 1.5 chips from its own is its "
+        "sidelobe, measured in the #3401 scene with "
+        "`dp_correlator_cell_corr()` at 0.5 to 7% of its own lag's "
+        "correlation epoch by epoch, against noise reading 90 to 2,080 "
+        "there, so the seed's code loop tracks noise. It holds a slot "
+        "until its loss "
+        "release, one refine plus `lost_confirm_s` (about 143 ms in the "
+        "demo), and the pool releases it, by design. It is not a duplicate: "
+        "the pool's key, `dp_correlator_same_code_phase()` "
+        "(`DP_CORRELATOR_SAME_PHASE_CHIPS`, one chip), finds no second "
+        "holder, and widening the key would hide a real second emitter "
+        "near a holder. Both demo twins name a holder by the same key. "
+        "Pinned by `_test_false_alarm_seed_is_released_lost`; the demo "
+        "passes with A's first epoch anywhere in 85 to 95 (#3401).",
+    )
 
 
 # ── 4. limits ────────────────────────────────────────────────────────────

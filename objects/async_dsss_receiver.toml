@@ -56,6 +56,8 @@ depends_on = [
     # link only, as `ber` above; resamp is its own dependency, already here.
     { name = "doppler_channel" },
     { name = "correlator", link = true },
+    # dp_correlator_same_code_phase(), the one same-signal key.
+    { name = "correlation", link = true },
     { name = "fft", link = true },
     { name = "acc_trace", link = true },
 ]

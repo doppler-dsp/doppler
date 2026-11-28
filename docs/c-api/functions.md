@@ -1126,6 +1126,7 @@
 * **dp\_dsss\_receiver\_state\_bytes** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **dp\_dsss\_receiver\_steps** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **dp\_dsss\_receiver\_steps\_max\_out** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
+* **dp\_sym\_hold\_steps** ([**sym\_hold\_private.h**](sym__hold__private_8h.md))
 * **dp\_f32\_buffer\_get\_available** ([**f32\_buffer\_core.h**](f32__buffer__core_8h.md))
 * **dp\_f32\_buffer\_get\_capacity** ([**f32\_buffer\_core.h**](f32__buffer__core_8h.md))
 * **dp\_f32\_buffer\_get\_closed** ([**f32\_buffer\_core.h**](f32__buffer__core_8h.md))

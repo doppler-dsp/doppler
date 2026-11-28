@@ -591,9 +591,21 @@ def section_object() -> None:
                 "`_test_handover_holds_the_refined_doppler_to_the_domain`",
             ],
             [
-                "steps() never writes past `max_out`; the excess is "
-                "dropped, not deferred",
+                "steps() never writes past `max_out`; what does not fit is "
+                "held and delivered by the next call, in order: a starved "
+                "caller's stream is a sized caller's, symbol for symbol",
                 "`_test_output_capacity`",
+            ],
+            [
+                "a call takes its input only when nothing stays held and its "
+                "symbols fit; held, a call of no room takes nothing "
+                "(`consumed` 0) and keeps the hold",
+                "`_test_output_capacity`",
+            ],
+            [
+                "held symbols ride the blob at one size per object, and a "
+                "held count past the store is refused",
+                "`_test_held_symbols_round_trip`",
             ],
             [
                 "decodes at the Es/N0 floor (the 3.069 Mcps point's claim; "
@@ -884,12 +896,16 @@ def review(sw: Blocks, bsw: Blocks) -> None:
     R.md()
     R.find(
         "steps_max_out_not_a_bound",
-        "GAP",
-        "`steps_max_out()` returns 0, which is not a bound: a call that "
-        "completes a carried code period emits that whole period's symbols, "
-        "so at more than one symbol per period an `out` sized to the call's "
-        "`x_len` drops symbols silently. At the specification's operating "
-        "point (0.9 symbols a period) it never binds. Tracked as #2469.",
+        "FIXED",
+        "`steps_max_out(x_len)` is the call's bound: the symbols held plus "
+        "the most a call of `x_len` samples can produce, by the chain's "
+        "structure (the code loop's own bound, the converter's fixed rate, "
+        "one symbol per demodulator input, one hand-over a call). What does "
+        "not fit `out` is held and delivered first by the next call, and a "
+        "call takes its input only when its symbols fit (#2469). Until "
+        "then `steps_max_out()` returned 0, and a call that completed a "
+        "carried code period at more than one symbol a period dropped what "
+        "did not fit `out` silently.",
     )
     R.find(
         "differential_is_inert",
@@ -1034,10 +1050,6 @@ def _takeaways(sw: Blocks, bsw: Blocks) -> list[str]:
         f"(median of {len(drops)} settled draws, worst {max(drops):.0f} ms; "
         f"2.5). Printed, not asserted: the requirement is not set "
         f"(doppler#3157).",
-        "**Size `out` with care above one symbol a code period:** "
-        "`steps_max_out()` is not yet a bound "
-        f"({R.ref('steps_max_out_not_a_bound')}, #2469). At the "
-        "specification's operating point it never binds.",
     ]
 
 

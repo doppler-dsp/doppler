@@ -134,39 +134,30 @@ of five; the other three (carrier, demodulator carrier, sync) are not
 published yet (#3350), so the window here can open before the record's
 would, and the rate counts what settling the record leaves out.
 
-## Chunks, and why at least 25 samples
+## Chunks
 
 A call to `dp_async_dsss_receiver_steps()` writes its symbols into a buffer
-the caller sizes. This program sizes it to the chunk, which holds whenever
-one call cannot produce as many symbols as it was handed samples.
+the caller sizes. This program sizes it with
+`dp_async_dsss_receiver_steps_max_out (rx, chunk)`: the most one call of
+`chunk` samples can deliver. Sized to that, no call holds symbols back for
+the next one or refuses its input (doppler#2469), so any chunk works, and
+the run checks that every call took its chunk.
 
-That count is bounded by the chain's fixed rates, never by the timing loop
-(doppler#2469). The demodulator emits at most one symbol per input. Its
-inputs are a fixed-rate converter's outputs from the code loop's partial
-correlations. A call runs at most `x_len + H` samples: its own, plus the
-carried code period or a hand-over's history, whichever is longest. So a
-call's symbols are at most
+That count is bounded by the chain's structure, never by the timing loop.
+The demodulator emits at most one symbol per input; its inputs are a
+fixed-rate converter's outputs from the code loop's partial correlations; a
+call runs at most `x_len + H` samples (its own, plus the carried code period
+or a hand-over's history), and the code loop emits at most its own bound of
+partials for them. At the point, with the receiver's own configuration:
 
-```text
-ceil(ratio x segments x (floor((x_len + H) / tsamps) + 1)) + 1
-```
+| carrier | bound at 1 | bound at 4,096 | bound at 65,536 |
+| ------- | ---------- | -------------- | --------------- |
+| 2.2 GHz | 49         | 72             | 339             |
+| 2.8 GHz | 40         | 58             | 328             |
 
-At the point, with the receiver's own configuration:
-
-| carrier | tsamps | H     | segments | ratio  | bound at 4,096 | smallest chunk |
-| ------- | ------ | ----- | -------- | ------ | -------------- | -------------- |
-| 2.2 GHz | 3,500  | 8,268 | 4        | 1.9094 | 32             | 25             |
-| 2.8 GHz | 2,750  | 6,693 | 4        | 1.5003 | 26             | 21             |
-
-The values are the receiver's own state at each carrier (`tsamps`;
-`H = max(tsamps - 1, refine_hist_cap, srch_hist_cap)`; `segments`; the
-converter's `sps x symbol_rate / (segments x chip_rate / code_len)`), read
-from `dp_async_dsss_receiver_create_ccsds415()`'s result (measured
-2026-11-24).
-
-So capacity = chunk holds from 25 samples, and `--chunk` refuses less. The
-default is 4,096. The check that no call filled its capacity stays on at run
-time.
+Read from `Ccsds415Receiver(code, carrier_freq_hz=fc).steps_max_out(n)`
+(measured 2026-11-28). The bound is a worst case by the demodulator's one
+symbol per input: a tracking call of 4,096 samples makes a few symbols.
 
 ## What it measures
 

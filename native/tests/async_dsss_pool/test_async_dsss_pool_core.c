@@ -2620,6 +2620,79 @@ _test_the_ccsds415_pool_refuses_with_its_cause (void)
   return 0;
 }
 
+/* A pool's receiver delivers what a lone receiver fed the same periods
+ * delivers, through a hand-over (#3398). One emitter, a one-receiver pool
+ * pushed a join group at a time (so its carry stays empty and every
+ * receiver call is one period on the grid). At the first push the pool's
+ * receiver ends refining, its blob is restored into a lone twin (another
+ * pool's receiver, the same configuration, driven directly); from there
+ * each push's periods are fed to the twin one call each, its out sized by
+ * dp_async_dsss_receiver_steps_max_out(), and the pool's row for that push
+ * must be the twin's symbols, symbol for symbol, across the refine ->
+ * track hand-over. Sabotage: rows sized below the receiver's bound (one
+ * symbol a call) -> a call refuses its period, and a Debug build aborts at
+ * the pool's consumed check. */
+static int
+_test_a_pool_row_is_a_lone_receivers_stream (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double    tsym = POOL_FS / POOL_RS;
+  float _Complex *x;
+  size_t          n;
+  double         *d;
+  dp_dsss_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 200.0, 50.0, 400, 1000,
+                   21, &x, &n, &d);
+  dp_async_dsss_pool_state_t *p = _pool (code, 1, 0.0, 1);
+  dp_async_dsss_pool_state_t *q = _pool (code, 1, 0.0, 1);
+  DP_REQUIRE (p && q);
+  dp_async_dsss_receiver_state_t *twin = q->rx[0];
+  const size_t                    per  = p->period;
+  float _Complex row[4096], got[4096];
+  int    twinned = 0, handed_over = 0, same = 1;
+  size_t compared = 0;
+  for (size_t pos = 0; pos + POOL_GROUP <= n; pos += POOL_GROUP)
+    {
+      (void)dp_async_dsss_pool_push (p, x + pos, POOL_GROUP);
+      if (twinned)
+        {
+          size_t k = 0;
+          for (size_t j = 0; j < ASYNC_DSSS_POOL_PERIODS_PER_JOIN; j++)
+            {
+              const size_t cap
+                  = dp_async_dsss_receiver_steps_max_out (twin, per);
+              DP_REQUIRE (k + cap <= 4096);
+              k += dp_async_dsss_receiver_steps (twin, x + pos + j * per, per,
+                                                 got + k, cap);
+            }
+          const size_t m = dp_async_dsss_pool_symbols (p, 0, row, 4096);
+          same &= m == k && memcmp (row, got, k * sizeof *row) == 0;
+          compared += k;
+          handed_over |= twin->state == ASYNC_DSSS_RX_TRACKING;
+          if (!same)
+            break;
+        }
+      else if (p->rx[0]->state == ASYNC_DSSS_RX_REFINING)
+        {
+          const size_t sz   = dp_async_dsss_receiver_state_bytes (p->rx[0]);
+          uint8_t     *blob = malloc (sz);
+          DP_REQUIRE (blob && sz == dp_async_dsss_receiver_state_bytes (twin));
+          dp_async_dsss_receiver_get_state (p->rx[0], blob);
+          DP_REQUIRE (dp_async_dsss_receiver_set_state (twin, blob) == DP_OK);
+          free (blob);
+          twinned = 1;
+        }
+    }
+  DP_CHECK_MSG (twinned && handed_over && compared > 50,
+                "the twin was taken refining and handed over (the premise)");
+  DP_CHECK_MSG (same, "the pool's row is the lone receiver's stream");
+  dp_async_dsss_pool_destroy (p);
+  dp_async_dsss_pool_destroy (q);
+  free (x);
+  free (d);
+  return same ? 0 : 1;
+}
+
 int
 main (void)
 {
@@ -2658,5 +2731,6 @@ main (void)
   DP_CHECK (_test_chunk_invariance () == 0);
   DP_CHECK (_test_refused_restore_changes_nothing () == 0);
   DP_CHECK (_test_nested_trace_version_refused () == 0);
+  DP_CHECK (_test_a_pool_row_is_a_lone_receivers_stream () == 0);
   DP_TEST_END ("test_async_dsss_pool_core");
 }

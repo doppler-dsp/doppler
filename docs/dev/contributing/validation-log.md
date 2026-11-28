@@ -69,50 +69,50 @@ listed the moment its folder exists. There is no list here to update.
 
 **42 objects certified** — 29 of the 90 `objects/*.toml` jm fragments, plus 13 with no object manifest at all (`buffer`, `ccsds_tm`, `conv`, `detection`, `ema`, `framer`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
 
-| object                                                                                                                                  | module        | limits | findings | still open                 |
-| --------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------ | -------- | -------------------------- |
-| [BurstCapture](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_capture/results.md)          | `acquire`     | 27/27  | 7        | 1 — F6                     |
-| [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)                                 | `agc`         | 18/18  | 6        | 2 — F4, F6                 |
-| [The ring buffer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/buffer/tests/validation/buffer/results.md)               | `buffer`      | 34/34  | 8        | 1 — F8                     |
-| [Interleaver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/coding/tests/validation/interleaver/results.md)              | `coding`      | 20/20  | 8        | 2 — F7, F8                 |
-| [The correlator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/correlation/tests/validation/correlator/results.md)       | `correlation` | 83/83  | 25       | 3 — F14, F15, F16          |
-| [detection](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/detection/results.md)               | `detection`   | 24/24  | 6        | 1 — F5                     |
-| [LockDet](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/lockdet/results.md)                   | `detection`   | 22/22  | 6        | none                       |
-| [AsyncDsssPool](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_pool/results.md)          | `dsss`        | 20/20  | 9        | 6 — F2, F4, F5, F6, F7, F8 |
-| [AsyncDsssReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)  | `dsss`        | 4/4    | 6        | 3 — F2, F3, F4             |
-| [BurstDemod](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_demod/results.md)                 | `dsss`        | 15/15  | 5        | none                       |
-| [BurstDespreader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_despreader/results.md)       | `dsss`        | 15/15  | 5        | none                       |
-| [DsssBurstReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md)  | `dsss`        | 27/27  | 10       | none                       |
-| [PolynomialPhaseEstimator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/estimation/tests/validation/ppe/results.md)     | `estimation`  | 15/15  | 5        | none                       |
-| [SymbolTimingEstimator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/estimation/tests/validation/timing_est/results.md) | `estimation`  | 23/23  | 6        | 2 — F5, F6                 |
-| [M-PSK constellation](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/mpsk/tests/validation/mpsk/results.md)               | `mpsk`        | 24/24  | 5        | 1 — F3                     |
-| [Ofdm](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/ofdm/tests/validation/ofdm/results.md)                              | `ofdm`        | 3/3    | 4        | none                       |
-| [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md)                      | `resample`    | 14/14  | 9        | none                       |
-| [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)                                | `source`      | 26/26  | 9        | none                       |
-| [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)                              | `source`      | 18/18  | 9        | none                       |
-| [PSD](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/psd/results.md)                            | `spectral`    | 30/30  | 16       | 3 — F11, F12, F14          |
-| [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/spectrogram/results.md)        | `spectral`    | 36/36  | 12       | none                       |
-| [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md)                | `track`       | 44/44  | 12       | 6 — F4, F5, F6, F7, F8, F9 |
-| [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md)                | `track`       | 26/26  | 10       | 1 — F6                     |
-| [MpskReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md)            | `track`       | 70/70  | 8        | 2 — F5, F6                 |
-| [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md)                     | `track`       | 37/37  | 18       | 2 — F7, F17                |
-| [StateFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/state_filter/results.md)              | `track`       | 19/19  | 6        | 1 — F6                     |
-| [KalmanStateFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/state_filter_kalman/results.md) | `track`       | 23/23  | 6        | 1 — F5                     |
-| [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)                                | `util`        | 15/15  | 6        | none                       |
-| [Gold](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/gold/results.md)                               | `wfm`         | 17/17  | 4        | 1 — F4                     |
-| [PN](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/pn/results.md)                                   | `wfm`         | 16/16  | 4        | none                       |
-| [Composer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_compose/results.md)                    | `wfm`         | 15/15  | 4        | none                       |
-| [Frame](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_frame/results.md)                         | `wfm`         | 16/16  | 4        | 1 — F2                     |
-| [Plan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_plan/results.md)                           | `wfm`         | 18/18  | 4        | 2 — F1, F2                 |
-| [Reader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_reader/results.md)                       | `wfm`         | 20/20  | 4        | 2 — F2, F3                 |
-| [Synth](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_synth/results.md)                         | `wfm`         | 22/22  | 10       | 2 — F5, F9                 |
-| [Writer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_writer/results.md)                       | `wfm`         | 16/16  | 5        | none                       |
-| [Wlan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wlan/tests/validation/wlan/results.md)                              | `wlan`        | 5/5    | 7        | 1 — F7                     |
-| [ccsds_tm](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/ccsds_tm/results.md)                           | `— (C only)`  | 12/12  | 5        | 1 — F2                     |
-| [conv](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/conv/results.md)                                   | `— (C only)`  | 10/10  | 3        | none                       |
-| [The ring's framer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/framer/results.md)                    | `— (C only)`  | 19/19  | 6        | none                       |
-| [rs](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/rs/results.md)                                       | `— (C only)`  | 11/11  | 4        | none                       |
-| [wfmgen](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/wfmgen/results.md)                               | `— (C only)`  | 18/18  | 9        | none                       |
+| object | module | limits | findings | still open |
+|---|---|---|---|---|
+| [BurstCapture](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_capture/results.md) | `acquire` | 27/27 | 7 | 1 — F6 |
+| [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md) | `agc` | 18/18 | 6 | 2 — F4, F6 |
+| [The ring buffer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/buffer/tests/validation/buffer/results.md) | `buffer` | 34/34 | 8 | 1 — F8 |
+| [Interleaver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/coding/tests/validation/interleaver/results.md) | `coding` | 20/20 | 8 | 2 — F7, F8 |
+| [The correlator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/correlation/tests/validation/correlator/results.md) | `correlation` | 83/83 | 25 | 3 — F14, F15, F16 |
+| [detection](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/detection/results.md) | `detection` | 24/24 | 6 | 1 — F5 |
+| [LockDet](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/lockdet/results.md) | `detection` | 22/22 | 6 | none |
+| [AsyncDsssPool](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_pool/results.md) | `dsss` | 20/20 | 9 | 5 — F2, F4, F5, F6, F7 |
+| [AsyncDsssReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md) | `dsss` | 4/4 | 6 | 3 — F2, F3, F4 |
+| [BurstDemod](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_demod/results.md) | `dsss` | 15/15 | 5 | none |
+| [BurstDespreader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_despreader/results.md) | `dsss` | 15/15 | 5 | none |
+| [DsssBurstReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md) | `dsss` | 27/27 | 10 | none |
+| [PolynomialPhaseEstimator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/estimation/tests/validation/ppe/results.md) | `estimation` | 15/15 | 5 | none |
+| [SymbolTimingEstimator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/estimation/tests/validation/timing_est/results.md) | `estimation` | 23/23 | 6 | 2 — F5, F6 |
+| [M-PSK constellation](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/mpsk/tests/validation/mpsk/results.md) | `mpsk` | 24/24 | 5 | 1 — F3 |
+| [Ofdm](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/ofdm/tests/validation/ofdm/results.md) | `ofdm` | 3/3 | 4 | none |
+| [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md) | `resample` | 14/14 | 9 | none |
+| [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md) | `source` | 26/26 | 9 | none |
+| [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md) | `source` | 18/18 | 9 | none |
+| [PSD](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/psd/results.md) | `spectral` | 30/30 | 16 | 3 — F11, F12, F14 |
+| [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/spectrogram/results.md) | `spectral` | 36/36 | 12 | none |
+| [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md) | `track` | 44/44 | 12 | 6 — F4, F5, F6, F7, F8, F9 |
+| [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md) | `track` | 26/26 | 10 | 1 — F6 |
+| [MpskReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md) | `track` | 70/70 | 8 | 2 — F5, F6 |
+| [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md) | `track` | 37/37 | 18 | 2 — F7, F17 |
+| [StateFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/state_filter/results.md) | `track` | 19/19 | 6 | 1 — F6 |
+| [KalmanStateFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/state_filter_kalman/results.md) | `track` | 23/23 | 6 | 1 — F5 |
+| [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md) | `util` | 15/15 | 6 | none |
+| [Gold](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/gold/results.md) | `wfm` | 17/17 | 4 | 1 — F4 |
+| [PN](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/pn/results.md) | `wfm` | 16/16 | 4 | none |
+| [Composer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_compose/results.md) | `wfm` | 15/15 | 4 | none |
+| [Frame](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_frame/results.md) | `wfm` | 16/16 | 4 | 1 — F2 |
+| [Plan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_plan/results.md) | `wfm` | 18/18 | 4 | 2 — F1, F2 |
+| [Reader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_reader/results.md) | `wfm` | 20/20 | 4 | 2 — F2, F3 |
+| [Synth](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_synth/results.md) | `wfm` | 22/22 | 10 | 2 — F5, F9 |
+| [Writer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_writer/results.md) | `wfm` | 16/16 | 5 | none |
+| [Wlan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wlan/tests/validation/wlan/results.md) | `wlan` | 5/5 | 7 | 1 — F7 |
+| [ccsds_tm](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/ccsds_tm/results.md) | `— (C only)` | 12/12 | 5 | 1 — F2 |
+| [conv](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/conv/results.md) | `— (C only)` | 10/10 | 3 | none |
+| [The ring's framer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/framer/results.md) | `— (C only)` | 19/19 | 6 | none |
+| [rs](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/rs/results.md) | `— (C only)` | 11/11 | 4 | none |
+| [wfmgen](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/wfmgen/results.md) | `— (C only)` | 18/18 | 9 | none |
 
 <!-- validation-log:end -->
 

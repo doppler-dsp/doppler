@@ -2265,6 +2265,7 @@
 ## r
 
 * **ratesync\_loop\_take\_output** ([**ratesync\_core.h**](ratesync__core_8h.md))
+* **ratesync\_rate\_bound** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **ratesync\_step** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **ratesync\_step\_ted** ([**ratesync\_core.h**](ratesync__core_8h.md))
 

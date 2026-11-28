@@ -139,6 +139,7 @@ length is already a safe bound" — with_ `sps >= m >= 2` _a block can never yie
 | Type | Name |
 | ---: | :--- |
 |  int | [**dp\_ratesync\_loop\_valid**](#function-dp_ratesync_loop_valid) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Is the symbol just emitted valid: the loop tracking, no seed in progress and the lock declared. On a loop whose owner does not acquire it is the lock flag._  |
+|  double | [**ratesync\_rate\_bound**](#function-ratesync_rate_bound) (size\_t m) <br>_The steered-rate bound a timing loop's owner sets on its converter (RateConverter.ctrl\_rate\_max, doppler#3289)._  |
 
 
 
@@ -168,6 +169,7 @@ length is already a safe bound" — with_ `sps >= m >= 2` _a block can never yie
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**RATESYNC\_FOLD\_MAX**](ratesync__core_8h.md#define-ratesync_fold_max)  `4u`<br>_Terminal outputs one input's call folds: the rest wait as the converter's debt (_ `ctrl_ahead` _) and come out on a later input. The buffer RateSync's and MpskReceiver's steps fold into._ |
 | define  | [**RATESYNC\_LOCK\_BUDGET**](ratesync__core_8h.md#define-ratesync_lock_budget)  `1e-6`<br>_The per-decision false-transition budget the default verify counts are derived from: n\_up = dp\_det\_verify\_count(RATESYNC\_LOCK\_PFA,
 budget), n\_down = dp\_det\_verify\_count(1 - RATESYNC\_LOCK\_PD, budget). 1e-6 is the library's convention for a detector's own default, not a new number: the Dll's declare budget at its default pfa, the async receiver's code-lock drop, and symsync's SYMSYNC\_LOCK\_BUDGET._  |
 | define  | [**RATESYNC\_LOCK\_EPS**](ratesync__core_8h.md#define-ratesync_lock_eps)  `1e-12`<br>_Numerical guard on the on-time+mid energy sum feeding the lock statistic (not tunable) — mirrors SYMSYNC\_LOCK\_EPS._  |
@@ -2237,9 +2239,65 @@ static inline int dp_ratesync_loop_valid (
         
 
 <hr>
+
+
+
+### function ratesync\_rate\_bound 
+
+_The steered-rate bound a timing loop's owner sets on its converter (RateConverter.ctrl\_rate\_max, doppler#3289)._ 
+```C++
+static inline double ratesync_rate_bound (
+    size_t m
+) 
+```
+
+
+
+The largest power of two at or under both `m` and RATESYNC\_FOLD\_MAX:
+* at or under `m`: a strobe is every m-th output, so two need `m + 1` outputs from one input, and one input yields at most `ceil(rate + ctrl)`;
+* at or under the fold: no input's outputs overflow the call's buffer into the converter's debt, so each comes out on its own input;
+* a power of two: the resampler steps by `floor(2^32 / delta)`, which is exact only where `2^32 / delta` is an integer, so only there does a steer AT the bound yield exactly that many outputs and never one more (at 6, `6 floor(2^32/6) = 2^32 - 4`, and the phase walks down until one input yields 7).
+
+
+
+
+
+
+**Parameters:**
+
+
+* `m` Terminal outputs per symbol, &gt;= 2. 
+
+
+
+**Returns:**
+
+2 or 4. 
+
+
+
+
+
+        
+
+<hr>
 ## Macro Definition Documentation
 
 
+
+
+
+### define RATESYNC\_FOLD\_MAX 
+
+_Terminal outputs one input's call folds: the rest wait as the converter's debt (_ `ctrl_ahead` _) and come out on a later input. The buffer RateSync's and MpskReceiver's steps fold into._
+```C++
+#define RATESYNC_FOLD_MAX `4u`
+```
+
+
+
+
+<hr>
 
 
 

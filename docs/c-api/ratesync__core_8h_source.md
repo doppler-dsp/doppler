@@ -224,6 +224,17 @@ extern "C"
    * Execute
    * ------------------------------------------------------------------ */
 
+#define RATESYNC_FOLD_MAX 4u
+
+  static inline double
+  ratesync_rate_bound (size_t m)
+  {
+    size_t b = m < RATESYNC_FOLD_MAX ? m : RATESYNC_FOLD_MAX;
+    while (b & (b - 1))
+      b &= b - 1; /* down to its highest power of two */
+    return (double)b;
+  }
+
 #ifndef __cplusplus
   /* C only: the body uses the C99 complex library, which C++ does not have
      (dp_complex.h, "From C++"). A C++ caller uses dp_ratesync_steps(). */
@@ -386,9 +397,9 @@ extern "C"
        two need m + 1 outputs from one input, and one input yields at most
        ceil(rate + ctrl). The cascade's nominal rate is m/sps <= 1, but the
        control is unclamped, so create() bounds the steered rate on the
-       converter, rate + ctrl <= m (ctrl_rate_max, doppler#3289): an
-       acquisition transient steered past m is held there. */
-    float _Complex ys[4];
+       converter at ratesync_rate_bound(m) (ctrl_rate_max, doppler#3289):
+       an acquisition transient steered past it is held there. */
+    float _Complex ys[RATESYNC_FOLD_MAX];
     int            n_pre = 0;
     size_t         n     = dp_RateConverter_execute_ctrl_push_tap (
         s->mf, x, s->loop.ctrl, ys, sizeof (ys) / sizeof (ys[0]), NULL,

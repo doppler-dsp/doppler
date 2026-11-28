@@ -73,6 +73,15 @@ Blocks = dict[str, Rows]
 #: design's inputs (doppler#3263), not this report's, and are not kept.
 RECORD = ("forced", "second", "alone")
 
+#: The machine the committed record (data/*.csv) was taken on. FORCED's
+#: scene is chaotic in floating point: an ulp-level difference grows into a
+#: different ending, so its per-draw outcomes are this machine's sample, not
+#: a property of the pool (doppler#3409: on x86_64 the same sweep flips 40 of
+#: 200 FORCED endings, and every limit holds on both).
+RECORD_BOX = (
+    "aarch64 (Qualcomm, WSL2), GCC 15.2.0, Release, DOPPLER_NATIVE off"
+)
+
 #: The harness's image tolerance, Hz (`GH_IMAGE_TOL_HZ`): the ghost rule's
 #: ASYNC_DSSS_POOL_GHOST_EPS_HZ plus three of its STILL_HZ.
 GHOST_EPS_HZ = 10.0
@@ -448,6 +457,15 @@ def section_forced(rows: Rows) -> None:
         "(within the harness's 40 Hz), where the rule can act; the fine "
         "hand-over carries the rest to A's own carrier, k = 0 "
         "(the design page, section 8.2)."
+    )
+    R.md()
+    R.md(
+        f"**The record is one machine's sample**, taken on {RECORD_BOX}. "
+        "FORCED's scene is chaotic in floating point: on x86_64 the same "
+        "sweep ends 40 of these 200 draws differently, while every limit in "
+        "section 4 holds on both machines (#3409). So each count below is "
+        "this machine's, and its interval, not its exact value, is what "
+        "carries over. No limit reads a FORCED per-draw outcome."
     )
     R.md()
     out = []
@@ -868,12 +886,30 @@ def limits(
     )
     for r in d["second"]:
         b = float(r["b_dbhz"])
+        # "Not released" is what outcome 0 shows; whether B is a working
+        # link is its error rate, which 31 dB under a 70 dB-Hz neighbour it
+        # is not (section 2.2). Where it is within 20 dB, it must decode.
         R.limit(
             int(r["outcome"]) == 0,
             f"[check] a distinct emitter at {b:.1f} dB-Hz on a 70 dB-Hz "
-            f"one's carrier is held",
+            f"one's carrier is not released by the ghost rule",
             by=f"`--check` SECOND, B at {b:.1f} dB-Hz",
         )
+        if 70.0 - b <= 20.0:
+            far = [x for x in d["second"] if 70.0 - float(x["b_dbhz"]) > 30.0]
+            R.limit(
+                int(r["outcome"]) == 0
+                and _decodes(r)
+                # the control: 31 dB under, the same meter must say no
+                and len(far) == 1
+                and not _decodes(far[0]),
+                f"[check] {70.0 - b:.0f} dB under the strong emitter, B is "
+                f"held and decodes (BER {float(r['b_ber']):.1e} < "
+                f"{DECODES:.0e})",
+                by=f"`--check` SECOND, B at {b:.1f} dB-Hz",
+                control="B at 38.8 dB-Hz, 31 dB under: held, and does not "
+                "decode",
+            )
     bp = d["second_by_pool"][0]
     R.limit(
         int(bp["by_pool"]) == 1 and int(bp["outcome"]) >= 0,

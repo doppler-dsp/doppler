@@ -964,6 +964,7 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
 typedef struct
 {
   size_t tenures, ghosts, by_ghost, by_lost, by_dup, open;
+  size_t held_end; /* receivers on the emitter's phase at the run's end */
 } gh_alone_t;
 
 /* The carrier report's error, the epsilon of the scorer's ambiguous class
@@ -1139,6 +1140,8 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, double cn0,
       gh_alone_row (fc, cn0, seed, r, off[r], worst[r],
                     !off[r] && has_err[r] ? err[r] : NAN, "open", air.n_out);
   for (size_t r = 0; r < 4; r++)
+    o->held_end += (size_t)(in[r] && !off[r]);
+  for (size_t r = 0; r < 4; r++)
     if (in[r] && off[r])
       {
         o->ghosts++;
@@ -1203,6 +1206,12 @@ gh_alone_arm (const uint8_t *code, const double fcs[2], unsigned draws,
             gh_alone_t o;
             DP_REQUIRE (gh_alone (code, fcs[f], s, levels[lv], &o, &ep, emit)
                         == 0);
+            /* The pool's claim at its simplest: one emitter, held, by one
+               receiver (the record: 120 of 120 draws). */
+            DP_CHECK_MSG (o.tenures > o.ghosts,
+                          "a lone emitter is held: an on-phase tenure");
+            DP_CHECK_MSG (o.held_end <= 1,
+                          "a lone emitter is held by one receiver at most");
             n++;
             a.tenures += o.tenures;
             a.ghosts += o.ghosts;
@@ -1351,6 +1360,11 @@ main (int argc, char **argv)
               continue;
             gh_t o;
             DP_REQUIRE (gh_forced (code, fcs[f], k, s, &o) == 0);
+            /* The premise "held" rests on: the forced ghost reached
+               tracking (code_frac is over its tracked steps; NaN means it
+               never tracked, which would read as held). Record: 200 of 200. */
+            DP_CHECK_MSG (isfinite (o.code_frac),
+                          "the forced ghost reached tracking");
             n++;
             rel += o.outcome == 1;
             lost += o.outcome == 2;

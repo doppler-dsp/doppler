@@ -296,7 +296,7 @@ run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
              that sample, so the measure holds for a ramped emitter too. */
           first_in             = b * PUSH;
           out->handover_err_hz = dp_async_dsss_receiver_get_doppler_hz (rx)
-                                 - dp_air_truth (&air, 0, air.n_out).car_hz;
+                                 - dp_air_truth (&air, 0, first_in).car_hz;
         }
       n += k;
       if (stop_at == SIZE_MAX)

@@ -81,7 +81,9 @@ dp_sym_hold_steps (float _Complex *hold, size_t *hold_len, size_t hold_cap,
 #endif
   if (*scratch_cap < need)
     {
-      *scratch     = dp_xreallocn (*scratch, need, sizeof **scratch);
+      /* the cast is C++'s: the header is installed and parsed as C++ */
+      *scratch = (float _Complex *)dp_xreallocn (*scratch, need,
+                                                 sizeof **scratch);
       *scratch_cap = need;
     }
   const size_t made = call (ctx, x, x_len, *scratch, need);

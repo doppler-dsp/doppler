@@ -40,6 +40,8 @@ _Receiver-level payload that follows the state envelope: the routing flag, cache
 |  uint64\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
+|  uint64\_t | [**hold\_cap**](#variable-hold_cap)  <br> |
+|  uint64\_t | [**hold\_len**](#variable-hold_len)  <br> |
 |  uint64\_t | [**n**](#variable-n)  <br> |
 |  uint64\_t | [**segments**](#variable-segments)  <br> |
 |  uint64\_t | [**sps**](#variable-sps)  <br> |
@@ -153,6 +155,40 @@ double dsss_receiver_extra_t::doppler_hz_est;
 
 
 Cached hit Doppler estimate, Hz. 
+
+
+        
+
+<hr>
+
+
+
+### variable hold\_cap 
+
+```C++
+uint64_t dsss_receiver_extra_t::hold_cap;
+```
+
+
+
+v6: layout key, the store's capacity (#2469); the store follows the carry, hold\_cap symbols. 
+
+
+        
+
+<hr>
+
+
+
+### variable hold\_len 
+
+```C++
+uint64_t dsss_receiver_extra_t::hold_len;
+```
+
+
+
+v6: symbols held, at most hold\_cap; the rest of the store packed as zeros. 
 
 
         

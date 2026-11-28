@@ -48,6 +48,8 @@ _The receiver's own fields in its state blob, after the envelope and before the 
 |  uint64\_t | [**fine\_n**](#variable-fine_n)  <br> |
 |  uint8\_t | [**had\_lock**](#variable-had_lock)  <br> |
 |  uint64\_t | [**ho\_src**](#variable-ho_src)  <br> |
+|  uint64\_t | [**hold\_cap**](#variable-hold_cap)  <br> |
+|  uint64\_t | [**hold\_len**](#variable-hold_len)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  double | [**lock\_num**](#variable-lock_num)  <br> |
@@ -338,6 +340,40 @@ uint64_t async_dsss_receiver_extra_t::ho_src;
 
 
 v19: ASYNC\_DSSS\_RX\_HO\_\*, refused past 3 (v23). 
+
+
+        
+
+<hr>
+
+
+
+### variable hold\_cap 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::hold_cap;
+```
+
+
+
+v24: layout key, the store's capacity (#2469); the store follows the fine buffer, hold\_cap symbols. 
+
+
+        
+
+<hr>
+
+
+
+### variable hold\_len 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::hold_len;
+```
+
+
+
+v24: symbols held, at most hold\_cap; the rest of the store packed as zeros. 
 
 
         

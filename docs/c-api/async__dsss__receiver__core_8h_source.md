@@ -199,6 +199,15 @@ typedef enum
     float _Complex *car_wiped_buf; 
     float _Complex *car_carry_buf; 
     size_t         car_carry_len;  
+    /* Symbols a call produced past its out, delivered first by the next
+     * call (#2469). The store has a fixed capacity so the blob keeps one
+     * size per object, padded like the carry. */
+    float _Complex *hold_buf; 
+    size_t          hold_len; 
+    size_t          hold_cap; 
+    float _Complex *steps_buf; 
+    size_t          steps_cap; 
+    size_t          consumed;  
     /* Own copy of the spreading code (same rationale as DsssReceiver's
      * own copy -- neither dp_correlator_create_continuous() nor dp_dll_create()'s
      * borrow-vs-copy semantics are part of their public contract). */
@@ -374,7 +383,11 @@ typedef enum
       dp_async_dsss_receiver_state_t *state, dp_tlm_t *tlm, const char *prefix,
       uint32_t decim);
 
-  size_t dp_async_dsss_receiver_steps_max_out (dp_async_dsss_receiver_state_t *state);
+  size_t dp_async_dsss_receiver_steps_max_out (
+      dp_async_dsss_receiver_state_t *state, size_t x_len);
+
+  size_t dp_async_dsss_receiver_get_consumed (
+      const dp_async_dsss_receiver_state_t *state);
 
   size_t dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
                                     const float _Complex *x, size_t x_len,
@@ -555,10 +568,12 @@ typedef enum
     uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; 
     uint64_t ho_src; 
     uint64_t fine_n; 
+    uint64_t hold_cap; 
+    uint64_t hold_len; 
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 23u /* v23: the fine hand-over's buffer and count (ho_src 3); v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 24u /* v24: the held symbols' store (#2469); v23: the fine hand-over's buffer and count (ho_src 3); v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

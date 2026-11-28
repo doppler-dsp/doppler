@@ -2146,7 +2146,8 @@ adr_chain_bound (const dp_async_dsss_receiver_state_t *s, size_t x_len)
      fresh Dll close and fresh RateConverter output */
   const double p = ceil (ratio * (double)parts) + 1.0
                    + ceil ((double)s->segments * ratio) + 1.0;
-  return p >= (double)SIZE_MAX ? SIZE_MAX : (size_t)p;
+  size_t       bound;
+  return dp_size_from_double (p, &bound) ? bound : SIZE_MAX;
 }
 
 /* P(x_len): the chain's bound, or 0 in a state that cannot reach the chain

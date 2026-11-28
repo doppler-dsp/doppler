@@ -113,6 +113,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 despreading" lock, de-chattered by up/down hysteresis._  |
 |  double | [**dp\_async\_dsss\_receiver\_get\_code\_rate**](#function-dp_async_dsss_receiver_get_code_rate) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The Dll's code rate, chips per nominal chip (~1.0 at lock), without the carrier aid; a coasting Dll reports its held rate._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_get\_coherent\_bins**](#function-dp_async_dsss_receiver_get_coherent_bins) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The searcher's slow-time depth D: epochs per coherent dwell._  |
+|  size\_t | [**dp\_async\_dsss\_receiver\_get\_consumed**](#function-dp_async_dsss_receiver_get_consumed) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Inputs the last_ [_**dp\_async\_dsss\_receiver\_steps()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps) _call took: its_`x_len` _, or 0 when it held its input back._ |
 |  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_async\_dsss\_receiver\_get\_demod\_lock\_rule**](#function-dp_async_dsss_receiver_get_demod_lock_rule) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The demodulator's carrier lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._ |
 |  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_async\_dsss\_receiver\_get\_demod\_sync\_lock\_rule**](#function-dp_async_dsss_receiver_get_demod_sync_lock_rule) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The demodulator's timing lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._ |
 |  double | [**dp\_async\_dsss\_receiver\_get\_doppler\_hz**](#function-dp_async_dsss_receiver_get_doppler_hz) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The HAND-OVER's Doppler, Hz: what the live chain was built from, frozen for the track's whole tenure_  _the seed's while refining, the refine's estimate from the hand-over on. It does not follow the carrier: under a 400 Hz/s ramp it is 400 Hz stale a second later. Where the emitter is now is status().doppler\_hz, a field of the same name with the other meaning._ |
@@ -148,7 +149,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_state\_bytes**](#function-dp_async_dsss_receiver_state_bytes) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Size in bytes of the blob_ [_**dp\_async\_dsss\_receiver\_get\_state()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_state) _writes._ |
 |  [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) | [**dp\_async\_dsss\_receiver\_status**](#function-dp_async_dsss_receiver_status) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Read the status record, by value: the state; where the emitter is now (the live carrier), its chip phase, code rate and C/N0; both lock flags with the symbol-lock metric and threshold; both carrier residuals; and the two clocks in input samples (since the state was entered; both flags down without a break)._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_steps**](#function-dp_async_dsss_receiver_steps) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream raw cf32 samples; emit demodulated symbols once tracking._  |
-|  size\_t | [**dp\_async\_dsss\_receiver\_steps\_max\_out**](#function-dp_async_dsss_receiver_steps_max_out) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The output capacity steps() needs beyond the input's._  |
+|  size\_t | [**dp\_async\_dsss\_receiver\_steps\_max\_out**](#function-dp_async_dsss_receiver_steps_max_out) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t x\_len) <br>_The capacity that lets the next steps() call on_ `x_len` _samples deliver everything it can: the symbols held, plus the most the call can produce._ |
 
 
 
@@ -181,7 +182,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | Type | Name |
 | ---: | :--- |
 | define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_MAGIC**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'R', 'X')`<br>_Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob._  |
-| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `23u /\* v23: the fine hand-over's buffer and count (ho\_src 3); v22: the pre-despread carrier loop is carrier\_nda ('CNDA' children for car and car\_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set\_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples\_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br>_Layout version of the AsyncDsssReceiver blob (history below)._  |
+| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `24u /\* v24: the held symbols' store (#2469); v23: the fine hand-over's buffer and count (ho\_src 3); v22: the pre-despread carrier loop is carrier\_nda ('CNDA' children for car and car\_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set\_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples\_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br>_Layout version of the AsyncDsssReceiver blob (history below)._  |
 | define  | [**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier)  `0.04`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CARRIER\_LOOP\_SNR\_DB**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_loop_snr_db)  `20.0`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_pullin_hz) (bn, chip\_rate, code\_len) `((bn) \* (chip\_rate) / (2.0 \* (double)(code\_len)))`<br> |
@@ -1230,6 +1231,43 @@ D, &gt;= 1.
 90
 ```
  
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_get\_consumed 
+
+_Inputs the last_ [_**dp\_async\_dsss\_receiver\_steps()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps) _call took: its_`x_len` _, or 0 when it held its input back._
+```C++
+size_t dp_async_dsss_receiver_get_consumed (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+Per-call, not in the blob: 0 after create and reset.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Input samples the last call consumed. 
 
 
 
@@ -2641,6 +2679,9 @@ size_t dp_async_dsss_receiver_steps (
 
 
 
+**No symbol is dropped.** Symbols held by an earlier call are delivered first, in order. A call consumes its input only when nothing stays held after that and its symbols fit: `P(x_len)` (see [**dp\_async\_dsss\_receiver\_steps\_max\_out()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps_max_out)) is at most the room left in `out` plus the store, which holds what one call of a code period can produce. What does not fit in `out` is held for the next call. A call that cannot consume returns what it delivered and takes nothing: [**dp\_async\_dsss\_receiver\_get\_consumed()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_consumed) reads 0, and the caller calls again with the same `x`. A C caller that sizes `out` below [**dp\_async\_dsss\_receiver\_steps\_max\_out()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps_max_out) for a call longer than a code period meets this every time, so it must check consumed() or size `out` from that function, as the Python binding does.
+
+
 Drives the state machine. It emits nothing while searching or refining (an empty return is normal, not an error): a hit seeds the frozen-carrier refine chain, `CarrierAcquisition` sharpens the coarse Doppler estimate, and only once it is ready (or gives up) is the live tracking chain built and demodulation begins. A hit inside a call hands the rest of the call straight to the refine chain, so no sample is dropped there; at the refine's end, what the refine did not consume of the last call goes on to the live chain. Accepts any block size; state carries across calls, so a capture can be fed in frames of any length with no seam. Lost (after the release rule fires) consumes the samples and emit nothing, so the feeding loop is the same in every state; while tracking, the release clock runs on the two lock flags after every call, or on the symbol lock flag alone with `reacquire` (see `lost_confirm_s`). Tracking emits symbols whether or not they are data: a noise false alarm can reach tracking and emit until the release rule lets it go  or, at the default lost\_confirm\_s of 0, until reset()  and symbol lock (`locked`) is what says the symbols are a signal's, so read it rather than the count (#2439). Under the specification's coupled offset + 500 Hz/s Doppler ramp the pre-despread carrier loop removes the full carrier dynamics before the code loop, so the recovered constellation lands cleanly on the BPSK real axis.
 
 
@@ -2653,13 +2694,13 @@ Drives the state machine. It emits nothing while searching or refining (an empty
 * `x` Input cf32 samples. 
 * `x_len` Number of input samples. 
 * `out` Output symbols; caller provides `max_out` capacity. 
-* `max_out` Output capacity. steps() never writes past it, and the symbols past it are dropped, not held for the next call. `x_len` is not always enough: a call that completes a carried code period emits the whole period's symbols (#2469). 
+* `max_out` Output capacity. steps() never writes past it; symbols past it are held and delivered by the next call. [**dp\_async\_dsss\_receiver\_steps\_max\_out()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps_max_out) for `x_len` is always enough. 
 
 
 
 **Returns:**
 
-Number of symbols written: 0 while searching, refining or lost, or before a full symbol's worth of input. 
+Number of symbols written: held ones first, then this call's; 0 while searching, refining or lost with nothing held, or before a full symbol's worth of input. 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import AsyncDsssReceiver
@@ -2716,16 +2757,29 @@ True
 
 ### function dp\_async\_dsss\_receiver\_steps\_max\_out 
 
-_The output capacity steps() needs beyond the input's._ 
+_The capacity that lets the next steps() call on_ `x_len` _samples deliver everything it can: the symbols held, plus the most the call can produce._
 ```C++
 size_t dp_async_dsss_receiver_steps_max_out (
-    dp_async_dsss_receiver_state_t * state
+    dp_async_dsss_receiver_state_t * state,
+    size_t x_len
 ) 
 ```
 
 
 
-Returns 0, which is NOT a bound. A call runs more samples than its `x_len` through the tracking chain at a hand-over: the hand-over ring's tail (up to refine\_hist\_cap samples) or the search history's, through a fresh chain. Their symbols can outnumber `x_len`, and those past `max_out` are dropped (see [**dp\_async\_dsss\_receiver\_steps()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps)). A call that completes a carried code period adds at most one symbol: create() refuses a symbol shorter than a code period. A true bound is #2469.
+Sized to this, a call never holds and never refuses its input ([**dp\_async\_dsss\_receiver\_steps()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps)), which is how the Python binding calls it. The most a call can produce, `P(x_len)`, is bounded by the chain's structure, not by the nominal rate:
+
+
+
+* the call runs at most `x_len + H` samples through the tracking chain, `H = max(tsamps - 1, refine_hist_cap, srch_hist_cap)`: the carry, or at a hand-over the refine ring's tail or the search history's;
+* the live Dll emits at most [**dp\_dll\_steps\_max\_out()**](dll__core_8h.md#function-dp_dll_steps_max_out) of them, its own bound, which carries its rate headroom;
+* the RateConverter emits at most `ceil(ratio x n) + 1` of `n` partials (`ratio = sps x symbol_rate / (segments x chip_rate / code_len)`, fixed by configuration), and MpskReceiver at most one symbol per input;
+* a hand-over rebuilds the Dll and the RateConverter with fresh phases, one more close and one more output: `ceil(segments x ratio) + 1`. A call holds at most one: the release clock runs once a call, at its end, and the call returns after it, so no call can release, search, refine and hand over again.
+
+
+
+
+So `P(x_len) = ceil(ratio x dp_dll_steps_max_out(dll, x_len + H)) + 1 + ceil(segments x ratio) + 1`. It is 0 in a state that cannot reach the chain within a call: a search-only receiver ([**dp\_async\_dsss\_receiver\_set\_search\_only()**](async__dsss__receiver__private_8h.md#function-dp_async_dsss_receiver_set_search_only)) reports its hits and never seeds, a pooled receiver waits idle for a seed given between calls, and lost leaves only through reset(); so such a receiver consumes into any `out`, 0 included. A Debug build holds the bound to the chain: a call that produces more than it aborts (#2469).
 
 
 
@@ -2734,12 +2788,13 @@ Returns 0, which is NOT a bound. A call runs more samples than its `x_len` throu
 
 
 * `state` Must be non-NULL. 
+* `x_len` Input samples the call will be given. 
 
 
 
 **Returns:**
 
-0. 
+Held symbols plus `P(x_len)`; SIZE\_MAX if that overflows. 
 
 
 
@@ -2772,7 +2827,7 @@ _Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob._
 
 _Layout version of the AsyncDsssReceiver blob (history below)._ 
 ```C++
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION `23u /* v23: the fine hand-over's buffer and count (ho_src 3); v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION `24u /* v24: the held symbols' store (#2469); v23: the fine hand-over's buffer and count (ho_src 3); v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
 ```
 
 

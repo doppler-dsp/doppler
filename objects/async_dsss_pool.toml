@@ -194,6 +194,9 @@ result_fields = [
     { name = "cn0_dbhz_est", type = "double" },
     { name = "code_locked", type = "int" },
     { name = "locked", type = "int" },
+    { name = "carrier_locked", type = "int" },
+    { name = "demod_carrier_locked", type = "int" },
+    { name = "sync_locked", type = "int" },
     { name = "lock_metric", type = "double" },
     { name = "lock_threshold", type = "double" },
     { name = "car_last_error", type = "double" },
@@ -205,7 +208,7 @@ result_fields = [
 ]
 single = true
 record_name = "PoolReceiverStatus"
-record_doc = "One AsyncDsssPool receiver's status record, read after the controller's step: state (1 refining, 2 tracking, 3 idle, 4 lost; a pooled receiver never searches), the live estimates, both lock flags, and the two clocks in input samples."
+record_doc = "One AsyncDsssPool receiver's status record, read after the controller's step: state (1 refining, 2 tracking, 3 idle, 4 lost; a pooled receiver never searches), the live estimates, the five lock flags, and the two clocks in input samples."
 record_module = "doppler.dsss"
 
 [[async_dsss_pool.methods]]

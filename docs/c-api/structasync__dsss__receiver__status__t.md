@@ -39,10 +39,12 @@ _One consistent picture of what the receiver is doing, by value._ [More...](#det
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  double | [**car\_last\_error**](#variable-car_last_error)  <br> |
 |  uint64\_t | [**carrier\_lock\_n\_noncoh**](#variable-carrier_lock_n_noncoh)  <br> |
+|  int | [**carrier\_locked**](#variable-carrier_locked)  <br> |
 |  double | [**chip\_phase**](#variable-chip_phase)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  int | [**code\_locked**](#variable-code_locked)  <br> |
 |  double | [**code\_rate**](#variable-code_rate)  <br> |
+|  int | [**demod\_carrier\_locked**](#variable-demod_carrier_locked)  <br> |
 |  double | [**doppler\_hz**](#variable-doppler_hz)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  double | [**lock\_threshold**](#variable-lock_threshold)  <br> |
@@ -51,6 +53,7 @@ _One consistent picture of what the receiver is doing, by value._ [More...](#det
 |  uint64\_t | [**refused\_hits**](#variable-refused_hits)  <br> |
 |  int | [**state**](#variable-state)  <br> |
 |  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
+|  int | [**sync\_locked**](#variable-sync_locked)  <br> |
 
 
 
@@ -160,6 +163,24 @@ The carrier lock's non-coherent count, the updates one decision sums ([**dp\_asy
 
 
 
+### variable carrier\_locked 
+
+```C++
+int async_dsss_receiver_status_t::carrier_locked;
+```
+
+
+
+The pre-despread carrier loop's lock detector (loop 1, the NDA tracker), [**dp\_carrier\_nda\_get\_locked()**](carrier__nda__core_8h.md#function-dp_carrier_nda_get_locked). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable chip\_phase 
 
 ```C++
@@ -223,6 +244,24 @@ double async_dsss_receiver_status_t::code_rate;
 
 
 The Dll's code rate, chips per nominal chip (~1.0 at lock), without the carrier aid; a coasting Dll's is its held rate. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable demod\_carrier\_locked 
+
+```C++
+int async_dsss_receiver_status_t::demod_carrier_locked;
+```
+
+
+
+The demodulator's (loop 2's) carrier lock detector, [**dp\_mpsk\_receiver\_get\_locked()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_get_locked); 0 with no demodulator built. 
  
 
 
@@ -366,6 +405,25 @@ uint64_t async_dsss_receiver_status_t::state_samples;
 
 
 Input samples since `state` was entered. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable sync\_locked 
+
+```C++
+int async_dsss_receiver_status_t::sync_locked;
+```
+
+
+
+The demodulator's timing (sync) lock detector, [**dp\_mpsk\_receiver\_get\_sync\_locked()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_get_sync_locked); 0 with no demodulator built. With `locked`, `code_locked`, `carrier_locked` and `demod_carrier_locked`, the five flags the error-rate window opens on, each read as up only while `state` is tracking: the flags of a receiver searching or refining are not its link's ([**dp\_ber\_lock\_all()**](ber__core_8h.md#function-dp_ber_lock_all); async-dsss-receiver.md, "The error-rate
+window"). 
  
 
 

@@ -545,60 +545,6 @@ dp_ber_settle (double bn_timing, double bn_carrier,
   return dp_ber_settle_from (budget, t, c);
 }
 
-/**
- * @brief The error-rate window's start: every lock flag sustained, inside
- *        the lock allocation.
- *
- * A link is scored from the moment it is observed locked, not from an
- * analytic settle budget. Each flag's sustained index is
- * dp_ber_lock_symbol()'s (@p sustain up in a row, then @p min_frac of the
- * rest), and the window opens at the LATEST of them: every flag the link
- * needs is up and stays up. A flag that never sustains, or a latest one past
- * @p limit, is a link that did not lock inside its allocation; it is never
- * scored, and the caller counts it as "not locked" instead
- * (docs/design/async-dsss-receiver.md, "The error-rate window").
- *
- * The flags share one time base, whatever it is (symbols or blocks), and
- * @p limit is in it.
- *
- * @param flags    @p n_flags arrays of @p n flags each, nonzero = up.
- * @param n_flags  How many flags must all sustain (>= 1).
- * @param n        Length of every flag array.
- * @param sustain  Indices up in a row that open a sustained run.
- * @param min_frac Fraction of the rest that must stay up.
- * @param limit    The last index the window may open at.
- * @param which    Out, may be NULL: the flag that decided -- the latest one
- *                 when locked, else the first that never sustained or was
- *                 late.
- * @return The index the window opens at, or -1 when the link did not lock
- *         by @p limit.
- */
-static inline int64_t
-dp_ber_lock_all (const unsigned char *const *flags, size_t n_flags, size_t n,
-                 size_t sustain, double min_frac, size_t limit, size_t *which)
-{
-  int64_t start = 0;
-  size_t  w     = 0;
-  for (size_t k = 0; k < n_flags; k++)
-    {
-      const int64_t s = dp_ber_lock_symbol (flags[k], n, sustain, min_frac);
-      if (s < 0 || (uint64_t)s > (uint64_t)limit)
-        {
-          if (which)
-            *which = k;
-          return -1;
-        }
-      if (s >= start)
-        {
-          start = s;
-          w     = k;
-        }
-    }
-  if (which)
-    *which = w;
-  return start;
-}
-
 /* --- 4. Counting - inverse binomial sampling ----------------------------- */
 
 /**

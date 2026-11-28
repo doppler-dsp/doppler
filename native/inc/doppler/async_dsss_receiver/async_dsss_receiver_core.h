@@ -1670,6 +1670,24 @@ typedef enum
     double cn0_dbhz_est; /**< C/N0 estimate, dB-Hz (the seed's).            */
     int    code_locked;  /**< Presence flag: the Dll's lock detector.        */
     int    locked;       /**< Health flag: the symbol-lock detector.         */
+    int    carrier_locked; /**< The pre-despread carrier loop's lock
+                                detector (loop 1, the NDA tracker),
+                                dp_carrier_nda_get_locked().             */
+    int    demod_carrier_locked; /**< The demodulator's (loop 2's) carrier
+                                lock detector,
+                                dp_mpsk_receiver_get_locked(); 0 with no
+                                demodulator built.                       */
+    int    sync_locked;  /**< The demodulator's timing (sync) lock
+                              detector, dp_mpsk_receiver_get_sync_locked();
+                              0 with no demodulator built. With `locked`,
+                              `code_locked`, `carrier_locked` and
+                              `demod_carrier_locked`, the five flags the
+                              error-rate window opens on, each read as
+                              up only while `state` is tracking: the
+                              flags of a receiver searching or refining
+                              are not its link's (dp_ber_lock_all();
+                              async-dsss-receiver.md, "The error-rate
+                              window").                                  */
     double lock_metric;  /**< cos(2*phi) over the symbols, drives `locked`.  */
     double lock_threshold; /**< `locked` declares strictly above this.      */
     double car_last_error; /**< Pre-despread loop's residual, rad (slope 1). */
@@ -1694,13 +1712,14 @@ typedef enum
   /**
    * @brief Read the status record, by value: the state; where the emitter
    *        is now (the live carrier), its chip phase, code rate and C/N0;
-   *        both lock flags with the symbol-lock metric and threshold; both
+   *        the five lock flags with the symbol-lock metric and threshold; both
    *        carrier residuals; and the two clocks in input samples (since
    *        the state was entered; both flags down without a break).
    *
    * Cheap and allocation-free: every field is a read of live state. The
    * one-at-a-time getters report the same fields, `doppler_hz` apart (see
-   * the record); this is the face a controller reads. No timestamp: the
+   * the record), and the three loop flags past `locked` are published here
+   * alone; this is the face a controller reads. No timestamp: the
    * clocks are in input samples, and the holder, which owns the sample
    * clock, stamps the record.
    *
@@ -1716,6 +1735,8 @@ typedef enum
    * >>> st = rx.status()
    * >>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # searching
    * (0, 0.0, 0, 0)
+   * >>> (st.carrier_locked, st.demod_carrier_locked, st.sync_locked)
+   * (0, 0, 0)
    * >>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)
    * >>> st = rx.status()
    * >>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining

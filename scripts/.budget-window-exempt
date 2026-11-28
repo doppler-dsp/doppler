@@ -5,7 +5,7 @@
 # Read by scripts/check_budget_windows.py (make lint-budget-windows). A
 # receiver measurement opens its window at the observed lock of every flag
 # the receiver publishes, inside a stated allocation, aligned once there:
-# dp_ber_lock_all(), native/tests/dp_ber_test.h, and
+# dp_ber_lock_all(), doppler/ber/ber_core.h, and
 # docs/dev/contributing/measuring-a-receiver.md, "The traps". This list only
 # shrinks: a file over its count, or a file with calls and no row, is red,
 # and so is a row above its file's count. A file converted to

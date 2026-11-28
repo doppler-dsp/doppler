@@ -312,6 +312,64 @@ extern "C"
                               size_t sustain, double min_frac);
 
   /**
+   * @brief The error-rate window's start: every lock flag sustained, inside
+   *        the lock allocation.
+   *
+   * A link is scored from the moment it is observed locked, not from an
+   * analytic settle budget. Each flag's sustained index is
+   * dp_ber_lock_symbol()'s (@p sustain up in a row, then @p min_frac of the
+   * rest), and the window opens at the LATEST of them: every flag the link
+   * needs is up and stays up. A flag that never sustains, or a latest one
+   * past @p limit, is a link that did not lock inside its allocation; it is
+   * never scored, and the caller counts it as "not locked" instead
+   * (docs/design/async-dsss-receiver.md, "The error-rate window"). For
+   * AsyncDsssReceiver the flags are its status record's five:
+   * `locked`, `code_locked`, `carrier_locked`, `demod_carrier_locked` and
+   * `sync_locked`.
+   *
+   * The flags share one time base, whatever it is (symbols or blocks), and
+   * @p limit is in it.
+   *
+   * @param flags    @p n_flags arrays of @p n flags each, nonzero = up.
+   * @param n_flags  How many flags must all sustain (>= 1).
+   * @param n        Length of every flag array.
+   * @param sustain  Indices up in a row that open a sustained run; 0
+   *                 selects 200, as dp_ber_lock_symbol().
+   * @param min_frac Fraction of the rest that must stay up; <= 0 selects
+   *                 0.9, as dp_ber_lock_symbol().
+   * @param limit    The last index the window may open at.
+   * @param which    Out, may be NULL: the flag that decided -- the latest
+   *                 one when locked, else the first that never sustained or
+   *                 was late.
+   * @return The index the window opens at, or -1 when the link did not lock
+   *         by @p limit.
+   * @code
+   * #include "doppler/ber/ber_core.h"
+   * #include <stdio.h>
+   * #include <string.h>
+   * int main (void)
+   * {
+   *   uint8_t a[1000], b[1000];
+   *   memset (a, 0, sizeof a);
+   *   memset (b, 0, sizeof b);
+   *   memset (a + 100, 1, 900); // up from 100 on
+   *   memset (b + 300, 1, 700); // up from 300 on
+   *   const uint8_t *fl[2] = { a, b };
+   *   size_t which;
+   *   long long at = dp_ber_lock_all (fl, 2, 1000, 200, 0.9, 1000, &which);
+   *   printf ("%lld %zu\n", at, which);                     // 300 1
+   *   // the same flags with the window due by index 250: not locked
+   *   at = dp_ber_lock_all (fl, 2, 1000, 200, 0.9, 250, &which);
+   *   printf ("%lld %zu\n", at, which);                     // -1 1
+   *   return 0;
+   * }
+   * @endcode
+   */
+  int64_t dp_ber_lock_all (const uint8_t *const *flags, size_t n_flags,
+                           size_t n, size_t sustain, double min_frac,
+                           size_t limit, size_t *which);
+
+  /**
    * @brief How often a lock flag changes after a point, and where it first
    *        does.
    *

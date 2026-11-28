@@ -6,10 +6,10 @@ import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
-class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int, int, int]):
+class ReceiverStatus(tuple[int, float, float, float, float, int, int, int, int, int, float, float, float, float, int, int, int, int]):
     """AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2
-    tracking, 4 lost), the live estimates, both lock flags, and the two clocks
-    in input samples.
+    tracking, 4 lost), the live estimates, the five lock flags, and the two
+    clocks in input samples.
 
     Attributes
     ----------
@@ -27,6 +27,12 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
         Presence flag: the Dll's lock detector.
     locked : int
         Health flag: the symbol-lock detector.
+    carrier_locked : int
+        The pre-despread carrier loop's lock detector (loop 1, the NDA tracker), dp_carrier_nda_get_locked().
+    demod_carrier_locked : int
+        The demodulator's (loop 2's) carrier lock detector, dp_mpsk_receiver_get_locked(); 0 with no demodulator built.
+    sync_locked : int
+        The demodulator's timing (sync) lock detector, dp_mpsk_receiver_get_sync_locked(); 0 with no demodulator built. With `locked`, `code_locked`, `carrier_locked` and `demod_carrier_locked`, the five flags the error-rate window opens on, each read as up only while `state` is tracking: the flags of a receiver searching or refining are not its link's (dp_ber_lock_all(); async-dsss-receiver.md, "The error-rate window").
     lock_metric : float
         cos(2*phi) over the symbols, drives `locked`.
     lock_threshold : float
@@ -83,6 +89,29 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
     @property
     def locked(self) -> int:
         """Health flag: the symbol-lock detector."""
+
+    @property
+    def carrier_locked(self) -> int:
+        """The pre-despread carrier loop's lock detector (loop 1, the NDA
+        tracker), dp_carrier_nda_get_locked().
+        """
+
+    @property
+    def demod_carrier_locked(self) -> int:
+        """The demodulator's (loop 2's) carrier lock detector,
+        dp_mpsk_receiver_get_locked(); 0 with no demodulator built.
+        """
+
+    @property
+    def sync_locked(self) -> int:
+        """The demodulator's timing (sync) lock detector,
+        dp_mpsk_receiver_get_sync_locked(); 0 with no demodulator built. With
+        `locked`, `code_locked`, `carrier_locked` and `demod_carrier_locked`,
+        the five flags the error-rate window opens on, each read as up only
+        while `state` is tracking: the flags of a receiver searching or
+        refining are not its link's (dp_ber_lock_all(); async-dsss-receiver.md,
+        "The error-rate window").
+        """
 
     @property
     def lock_metric(self) -> float:
@@ -126,11 +155,11 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
         """
 
 @final
-class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int, int, int]):
+class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, int, int, int, float, float, float, float, int, int, int, int]):
     """One AsyncDsssPool receiver's status record, read after the controller's
     step: state (1 refining, 2 tracking, 3 idle, 4 lost; a pooled receiver
-    never searches), the live estimates, both lock flags, and the two clocks in
-    input samples.
+    never searches), the live estimates, the five lock flags, and the two
+    clocks in input samples.
 
     Attributes
     ----------
@@ -148,6 +177,12 @@ class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float,
         Presence flag: the Dll's lock detector.
     locked : int
         Health flag: the symbol-lock detector.
+    carrier_locked : int
+        The pre-despread carrier loop's lock detector (loop 1, the NDA tracker), dp_carrier_nda_get_locked().
+    demod_carrier_locked : int
+        The demodulator's (loop 2's) carrier lock detector, dp_mpsk_receiver_get_locked(); 0 with no demodulator built.
+    sync_locked : int
+        The demodulator's timing (sync) lock detector, dp_mpsk_receiver_get_sync_locked(); 0 with no demodulator built. With `locked`, `code_locked`, `carrier_locked` and `demod_carrier_locked`, the five flags the error-rate window opens on, each read as up only while `state` is tracking: the flags of a receiver searching or refining are not its link's (dp_ber_lock_all(); async-dsss-receiver.md, "The error-rate window").
     lock_metric : float
         cos(2*phi) over the symbols, drives `locked`.
     lock_threshold : float
@@ -204,6 +239,29 @@ class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float,
     @property
     def locked(self) -> int:
         """Health flag: the symbol-lock detector."""
+
+    @property
+    def carrier_locked(self) -> int:
+        """The pre-despread carrier loop's lock detector (loop 1, the NDA
+        tracker), dp_carrier_nda_get_locked().
+        """
+
+    @property
+    def demod_carrier_locked(self) -> int:
+        """The demodulator's (loop 2's) carrier lock detector,
+        dp_mpsk_receiver_get_locked(); 0 with no demodulator built.
+        """
+
+    @property
+    def sync_locked(self) -> int:
+        """The demodulator's timing (sync) lock detector,
+        dp_mpsk_receiver_get_sync_locked(); 0 with no demodulator built. With
+        `locked`, `code_locked`, `carrier_locked` and `demod_carrier_locked`,
+        the five flags the error-rate window opens on, each read as up only
+        while `state` is tracking: the flags of a receiver searching or
+        refining are not its link's (dp_ber_lock_all(); async-dsss-receiver.md,
+        "The error-rate window").
+        """
 
     @property
     def lock_metric(self) -> float:
@@ -2651,16 +2709,17 @@ class AsyncDsssReceiver:
 
     def status(self) -> ReceiverStatus:
         """Read the status record, by value: the state; where the emitter is
-        now (the live carrier), its chip phase, code rate and C/N0; both lock
-        flags with the symbol-lock metric and threshold; both carrier
+        now (the live carrier), its chip phase, code rate and C/N0; the five
+        lock flags with the symbol-lock metric and threshold; both carrier
         residuals; and the two clocks in input samples (since the state was
         entered; both flags down without a break).
 
         Cheap and allocation-free: every field is a read of live state. The
         one-at-a-time getters report the same fields, `doppler_hz` apart (see
-        the record); this is the face a controller reads. No timestamp: the
-        clocks are in input samples, and the holder, which owns the sample
-        clock, stamps the record.
+        the record), and the three loop flags past `locked` are published here
+        alone; this is the face a controller reads. No timestamp: the clocks
+        are in input samples, and the holder, which owns the sample clock,
+        stamps the record.
 
         Returns
         -------
@@ -2678,6 +2737,8 @@ class AsyncDsssReceiver:
         >>> st = rx.status()
         >>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # searching
         (0, 0.0, 0, 0)
+        >>> (st.carrier_locked, st.demod_carrier_locked, st.sync_locked)
+        (0, 0, 0)
         >>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)
         >>> st = rx.status()
         >>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining
@@ -3821,16 +3882,17 @@ class Ccsds415Receiver:
 
     def status(self) -> ReceiverStatus:
         """Read the status record, by value: the state; where the emitter is
-        now (the live carrier), its chip phase, code rate and C/N0; both lock
-        flags with the symbol-lock metric and threshold; both carrier
+        now (the live carrier), its chip phase, code rate and C/N0; the five
+        lock flags with the symbol-lock metric and threshold; both carrier
         residuals; and the two clocks in input samples (since the state was
         entered; both flags down without a break).
 
         Cheap and allocation-free: every field is a read of live state. The
         one-at-a-time getters report the same fields, `doppler_hz` apart (see
-        the record); this is the face a controller reads. No timestamp: the
-        clocks are in input samples, and the holder, which owns the sample
-        clock, stamps the record.
+        the record), and the three loop flags past `locked` are published here
+        alone; this is the face a controller reads. No timestamp: the clocks
+        are in input samples, and the holder, which owns the sample clock,
+        stamps the record.
 
         Returns
         -------
@@ -3848,6 +3910,8 @@ class Ccsds415Receiver:
         >>> st = rx.status()
         >>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # searching
         (0, 0.0, 0, 0)
+        >>> (st.carrier_locked, st.demod_carrier_locked, st.sync_locked)
+        (0, 0, 0)
         >>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)
         >>> st = rx.status()
         >>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining

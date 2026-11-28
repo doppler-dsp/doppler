@@ -628,9 +628,9 @@ gh_rho_centered (const gh_acc_t *a, gh_t *o)
 
    A declared deviation: this is a private best-lag meter, one lag and one
    sign over the whole run, not the shipped dp_ber_sync(). A run with a
-   slip reads high, so a count of draws under a threshold near 1e-2 can
-   move by a draw or two. doppler#3396 moves these meters onto the shipped
-   one. */
+   slip reads high, so a count of draws under a threshold near 1e-2 may
+   move under the shipped meter; it has not been re-measured. doppler#3396
+   moves these meters onto the shipped one. */
 static double
 gh_b_ber (const dp_air_t *air, const gh_acc_t *a)
 {
@@ -1503,6 +1503,8 @@ main (int argc, char **argv)
         printf ("  SECOND, 2.8 GHz, B at 50 dB-Hz, seed 8: outcome %d, B "
                 "seeded by the pool %d\n",
                 o.outcome, o.by_pool);
+      DP_CHECK_MSG (!o.no_scene, "receiver 1 holds B or nothing while "
+                                 "receiver 0 holds A");
       DP_CHECK_MSG (o.by_pool && o.outcome >= 0,
                     "a B the pool's own search takes is scored, not read "
                     "as a parent that never tracked");

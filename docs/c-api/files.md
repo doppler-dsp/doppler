@@ -140,6 +140,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md) _DsssBurstReceiver — the burst chain composed in C._     
             * **dir** [**dsss\_receiver**](dir_6f60e61f873068f58aa42ec05bfb1a20.md)     
                 * **file** [**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md) _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despread carrier wipeoff -&gt; Dll(segments) -&gt; RateConverter -&gt; MpskReceiver, one object._     
+                * **file** [**sym\_hold\_private.h**](sym__hold__private_8h.md) _The held-symbols store both continuous DSSS receivers deliver through (#2469): internals, never a caller's API._     
             * **dir** [**estimation**](dir_0cc60ff8540ae0115cf3c129e27cae4e.md)     
                 * **file** [**estimation\_core.h**](estimation__core_8h.md) _Estimation module — public C API._ 
             * **dir** [**f32\_buffer**](dir_81ff08c9d14656f475312d0561398a88.md)     

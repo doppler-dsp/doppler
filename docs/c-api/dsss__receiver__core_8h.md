@@ -79,6 +79,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despre
 |  double | [**dp\_dsss\_receiver\_get\_chip\_phase**](#function-dp_dsss_receiver_get_chip_phase) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Dll's live tracked code phase (chips); 0.0 while searching._  |
 |  double | [**dp\_dsss\_receiver\_get\_cn0\_dbhz\_est**](#function-dp_dsss_receiver_get_cn0_dbhz_est) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_C/N0 estimate from the winning acquisition hit._  |
 |  double | [**dp\_dsss\_receiver\_get\_code\_rate**](#function-dp_dsss_receiver_get_code_rate) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Dll's tracked code rate; 1.0 while searching._  |
+|  size\_t | [**dp\_dsss\_receiver\_get\_consumed**](#function-dp_dsss_receiver_get_consumed) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Inputs the last_ [_**dp\_dsss\_receiver\_steps()**_](dsss__receiver__core_8h.md#function-dp_dsss_receiver_steps) _call took: its_`x_len` _, or 0 when it held its input back._ |
 |  double | [**dp\_dsss\_receiver\_get\_doppler\_hz**](#function-dp_dsss_receiver_get_doppler_hz) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Doppler estimate from the winning acquisition hit._  |
 |  double | [**dp\_dsss\_receiver\_get\_lock**](#function-dp_dsss_receiver_get_lock) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_MpskReceiver's carrier lock EMA; 0.0 while searching._  |
 |  int | [**dp\_dsss\_receiver\_get\_n**](#function-dp_dsss_receiver_get_n) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_MpskReceiver terminal outputs per symbol (_ `m_out` _) in use._ |
@@ -92,7 +93,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despre
 |  int | [**dp\_dsss\_receiver\_set\_state**](#function-dp_dsss_receiver_set_state) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state, const void \* blob) <br>_Restore a blob from_ [_**dp\_dsss\_receiver\_get\_state()**_](dsss__receiver__core_8h.md#function-dp_dsss_receiver_get_state) _into_`state` _._ |
 |  size\_t | [**dp\_dsss\_receiver\_state\_bytes**](#function-dp_dsss_receiver_state_bytes) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Byte size of_ `state's` _blob._ |
 |  size\_t | [**dp\_dsss\_receiver\_steps**](#function-dp_dsss_receiver_steps) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream raw cf32 samples; emit demodulated symbols once locked._  |
-|  size\_t | [**dp\_dsss\_receiver\_steps\_max\_out**](#function-dp_dsss_receiver_steps_max_out) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_dsss\_receiver\_steps()**_](dsss__receiver__core_8h.md#function-dp_dsss_receiver_steps) _._ |
+|  size\_t | [**dp\_dsss\_receiver\_steps\_max\_out**](#function-dp_dsss_receiver_steps_max_out) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state, size\_t x\_len) <br>_The capacity that lets the next steps() call on_ `x_len` _samples deliver everything it can: the symbols held, plus the most the call can produce._ |
 
 
 
@@ -557,6 +558,43 @@ Chips advanced per nominal chip (~1.0 at lock), from [**dp\_dll\_get\_code\_rate
 
 
 
+### function dp\_dsss\_receiver\_get\_consumed 
+
+_Inputs the last_ [_**dp\_dsss\_receiver\_steps()**_](dsss__receiver__core_8h.md#function-dp_dsss_receiver_steps) _call took: its_`x_len` _, or 0 when it held its input back._
+```C++
+size_t dp_dsss_receiver_get_consumed (
+    const dp_dsss_receiver_state_t * state
+) 
+```
+
+
+
+Per-call, not in the blob: 0 after create and reset.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Input samples the last call consumed. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_dsss\_receiver\_get\_doppler\_hz 
 
 _Doppler estimate from the winning acquisition hit._ 
@@ -999,6 +1037,9 @@ size_t dp_dsss_receiver_steps (
 
 
 
+**No symbol is dropped.** Symbols held by an earlier call are delivered first, in order. A call consumes its input only when nothing stays held after that and its symbols fit: `P(x_len)` (see [**dp\_dsss\_receiver\_steps\_max\_out()**](dsss__receiver__core_8h.md#function-dp_dsss_receiver_steps_max_out)) is at most the room left in `out` plus the store, which holds what one call of a code period can produce. What does not fit in `out` is held for the next call. A call that cannot consume returns what it delivered and takes nothing: [**dp\_dsss\_receiver\_get\_consumed()**](dsss__receiver__core_8h.md#function-dp_dsss_receiver_get_consumed) reads 0, and the caller calls again with the same `x`. A C caller that sizes `out` below [**dp\_dsss\_receiver\_steps\_max\_out()**](dsss__receiver__core_8h.md#function-dp_dsss_receiver_steps_max_out) for a call longer than a code period meets this every time, so it must check consumed() or size `out` from that function, as the Python binding does.
+
+
 While searching, samples feed the embedded search and nothing is emitted (0 return is normal, not an error). The moment a hit fires, `Dll`/`RateConverter`/`MpskReceiver` are built and seeded from it, and the rest of THIS call from where the hit's frame ended — the hit's own `samples_consumed`, so no samples are dropped or double-fed — is handed straight to them in the same call. While tracking, samples feed `Dll -> RateConverter -> MpskReceiver` in sequence. Accepts any block size; state carries across calls (the search/`Dll`/`RateConverter`/`MpskReceiver` are all already block-size invariant; the only buffering this object adds is the carrier loop's partial-code-period carry). While tracking, each call allocates two scratch buffers (abort on OOM).
 
 
@@ -1011,13 +1052,13 @@ While searching, samples feed the embedded search and nothing is emitted (0 retu
 * `x` Input cf32 samples. 
 * `x_len` Number of input samples. 
 * `out` Output symbols; caller provides `max_out` capacity. 
-* `max_out` Output capacity. 
+* `max_out` Output capacity. steps() never writes past it; symbols past it are held and delivered by the next call. [**dp\_dsss\_receiver\_steps\_max\_out()**](dsss__receiver__core_8h.md#function-dp_dsss_receiver_steps_max_out) for `x_len` is always enough. 
 
 
 
 **Returns:**
 
-Number of symbols written (0 while searching, or while tracking with not yet a full symbol's worth of input). 
+Number of symbols written: held ones first, then this call's; 0 while searching with nothing held, or while tracking with not yet a full symbol's worth of input. 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import DsssReceiver
@@ -1067,13 +1108,17 @@ True
 
 ### function dp\_dsss\_receiver\_steps\_max\_out 
 
-_Output capacity hint for_ [_**dp\_dsss\_receiver\_steps()**_](dsss__receiver__core_8h.md#function-dp_dsss_receiver_steps) _._
+_The capacity that lets the next steps() call on_ `x_len` _samples deliver everything it can: the symbols held, plus the most the call can produce._
 ```C++
 size_t dp_dsss_receiver_steps_max_out (
-    dp_dsss_receiver_state_t * state
+    dp_dsss_receiver_state_t * state,
+    size_t x_len
 ) 
 ```
 
+
+
+Sized to this, a call never holds and never refuses its input ([**dp\_dsss\_receiver\_steps()**](dsss__receiver__core_8h.md#function-dp_dsss_receiver_steps)), which is how the Python binding calls it. The most a call can produce, `P(x_len)`, is bounded by the chain's structure, not by the nominal rate: the call runs at most `x_len + tsamps - 1` samples through the tracking chain (the carry); the Dll emits at most [**dp\_dll\_steps\_max\_out()**](dll__core_8h.md#function-dp_dll_steps_max_out) of them; the RateConverter at most `ceil(ratio x n) + 1` of `n` partials (`ratio` fixed by configuration); MpskReceiver at most one symbol per input; and the hand-over a hit makes rebuilds the Dll and the RateConverter, one more close and one more output. A call holds at most one hand-over: tracking never returns to searching except through reset(). So `P(x_len) = ceil(ratio x dp_dll_steps_max_out(dll, x_len + tsamps - 1)) + 1 + ceil(segments x ratio) + 1`. A symbol may be shorter than a code period here, so a call that completes a carried period can make many symbols (#2469's 127-chip, 250 ksym/s case: 31.75 a period); the bound carries them. A Debug build aborts on a call that produces more than it.
 
 
 
@@ -1081,13 +1126,14 @@ size_t dp_dsss_receiver_steps_max_out (
 **Parameters:**
 
 
-* `state` Unused. 
+* `state` Must be non-NULL. 
+* `x_len` Input samples the call will be given. 
 
 
 
 **Returns:**
 
-Always 0: size `out` from the input length `x_len`, which is always enough (at most one symbol per input sample). 
+Held symbols plus `P(x_len)`; SIZE\_MAX if that overflows. 
 
 
 

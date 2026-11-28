@@ -45,9 +45,13 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  uint8\_t \* | [**code**](#variable-code)  <br> |
 |  size\_t | [**code\_len**](#variable-code_len)  <br> |
+|  size\_t | [**consumed**](#variable-consumed)  <br> |
 |  int | [**differential**](#variable-differential)  <br> |
 |  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**dll**](#variable-dll)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
+|  float \_Complex \* | [**hold\_buf**](#variable-hold_buf)  <br> |
+|  size\_t | [**hold\_cap**](#variable-hold_cap)  <br> |
+|  size\_t | [**hold\_len**](#variable-hold_len)  <br> |
 |  int | [**m**](#variable-m)  <br> |
 |  int | [**n**](#variable-n)  <br> |
 |  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
@@ -55,6 +59,8 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**segments**](#variable-segments)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  size\_t | [**sps**](#variable-sps)  <br> |
+|  float \_Complex \* | [**steps\_buf**](#variable-steps_buf)  <br> |
+|  size\_t | [**steps\_cap**](#variable-steps_cap)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  int | [**tracking**](#variable-tracking)  <br> |
 |  float \_Complex \* | [**trk\_dll\_buf**](#variable-trk_dll_buf)  <br> |
@@ -272,6 +278,23 @@ Chips in `code` (spreading factor); config.
 
 
 
+### variable consumed 
+
+```C++
+size_t dp_dsss_receiver_state_t::consumed;
+```
+
+
+
+Inputs the last steps() took: its x\_len, or 0 when it held its input back. Per-call, not in the blob. 
+
+
+        
+
+<hr>
+
+
+
 ### variable differential 
 
 ```C++
@@ -315,6 +338,59 @@ double dp_dsss_receiver_state_t::doppler_hz_est;
 
 
 Cached from the winning acquisition hit. 
+
+
+        
+
+<hr>
+
+
+
+### variable hold\_buf 
+
+```C++
+float _Complex* dp_dsss_receiver_state_t::hold_buf;
+```
+
+
+
+Owned: hold\_cap held symbols. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable hold\_cap 
+
+```C++
+size_t dp_dsss_receiver_state_t::hold_cap;
+```
+
+
+
+Config: the most one call of a code period's samples can produce, derived at create. 
+
+
+        
+
+<hr>
+
+
+
+### variable hold\_len 
+
+```C++
+size_t dp_dsss_receiver_state_t::hold_len;
+```
+
+
+
+Running: symbols held, &lt;= hold\_cap. 
+ 
 
 
         
@@ -436,6 +512,41 @@ size_t dp_dsss_receiver_state_t::sps;
 
 
 MpskReceiver's own samples/symbol. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable steps\_buf 
+
+```C++
+float _Complex* dp_dsss_receiver_state_t::steps_buf;
+```
+
+
+
+Owned scratch one call's symbols are produced into, grown on demand. 
+
+
+        
+
+<hr>
+
+
+
+### variable steps\_cap 
+
+```C++
+size_t dp_dsss_receiver_state_t::steps_cap;
+```
+
+
+
+Capacity of steps\_buf, symbols. 
  
 
 

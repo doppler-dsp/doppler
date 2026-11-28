@@ -57,6 +57,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  uint8\_t \* | [**code**](#variable-code)  <br> |
 |  size\_t | [**code\_len**](#variable-code_len)  <br> |
 |  double | [**code\_only\_s**](#variable-code_only_s)  <br> |
+|  size\_t | [**consumed**](#variable-consumed)  <br> |
 |  int | [**differential**](#variable-differential)  <br> |
 |  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**dll**](#variable-dll)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
@@ -73,6 +74,9 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**fine\_snr\_db**](#variable-fine_snr_db)  <br> |
 |  int | [**had\_lock**](#variable-had_lock)  <br> |
 |  int | [**ho\_src**](#variable-ho_src)  <br> |
+|  float \_Complex \* | [**hold\_buf**](#variable-hold_buf)  <br> |
+|  size\_t | [**hold\_cap**](#variable-hold_cap)  <br> |
+|  size\_t | [**hold\_len**](#variable-hold_len)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
@@ -136,6 +140,8 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**srch\_warm**](#variable-srch_warm)  <br> |
 |  int | [**state**](#variable-state)  <br> |
 |  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
+|  float \_Complex \* | [**steps\_buf**](#variable-steps_buf)  <br> |
+|  size\_t | [**steps\_cap**](#variable-steps_cap)  <br> |
 |  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**tlm**](#variable-tlm)  <br> |
@@ -588,6 +594,23 @@ Config: the code-only window, seconds (create()'s; restored by create).
 
 
 
+### variable consumed 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::consumed;
+```
+
+
+
+Inputs the last steps() took: its x\_len, or 0 when it held its input back. Per-call, not in the blob. 
+
+
+        
+
+<hr>
+
+
+
 ### variable differential 
 
 ```C++
@@ -866,6 +889,59 @@ int dp_async_dsss_receiver_state_t::ho_src;
 
 
 ASYNC\_DSSS\_RX\_HO\_\*: which estimate the live chain was built from, NONE again at every seed. In the blob, so a resumed receiver reports the hand-over it made. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable hold\_buf 
+
+```C++
+float _Complex* dp_async_dsss_receiver_state_t::hold_buf;
+```
+
+
+
+Owned: hold\_cap held symbols. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable hold\_cap 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::hold_cap;
+```
+
+
+
+Config: the most one call of a code period's samples can produce, [**dp\_async\_dsss\_receiver\_steps\_max\_out()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps_max_out) at x\_len tsamps with nothing held, derived at create. 
+
+
+        
+
+<hr>
+
+
+
+### variable hold\_len 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::hold_len;
+```
+
+
+
+Running: symbols held, &lt;= hold\_cap. 
  
 
 
@@ -1985,6 +2061,41 @@ uint64_t dp_async_dsss_receiver_state_t::state_samples;
 
 
 Running: samples fed since the current state was entered. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable steps\_buf 
+
+```C++
+float _Complex* dp_async_dsss_receiver_state_t::steps_buf;
+```
+
+
+
+Owned scratch one call's symbols are produced into, grown on demand to the call's bound plus one. 
+
+
+        
+
+<hr>
+
+
+
+### variable steps\_cap 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::steps_cap;
+```
+
+
+
+Capacity of steps\_buf, symbols. 
  
 
 

@@ -48,6 +48,7 @@ typedef enum
 typedef struct
 {
   double         rate;                        
+  double ctrl_rate_max; 
   int            compensate;                  
   int            n_stages;                    
   rc_stage_t     stage_types[RC_MAX_STAGES];  

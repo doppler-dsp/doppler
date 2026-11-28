@@ -135,6 +135,7 @@
 * **cic\_headroom\_bits** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md))
 * **cic\_precision** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md))
 * **compensate** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md))
+* **ctrl\_rate\_max** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md))
 * **count** ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md), [**dp\_chunk\_t**](structdp__chunk__t.md), [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md), [**dp\_timing\_est\_state\_t**](structdp__timing__est__state__t.md), [**ofdm\_run\_t**](structofdm__run__t.md), [**wfm\_keyword\_t**](structwfm__keyword__t.md))
 * **clip\_max** ([**dp\_adc\_state\_t**](structdp__adc__state__t.md))
 * **clip\_min** ([**dp\_adc\_state\_t**](structdp__adc__state__t.md))

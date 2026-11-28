@@ -687,6 +687,15 @@ Synth_replace_symbols (SynthObject *self, PyObject *value)
   _jm_copy.n_symbols    = 0;
   if (!_attach_symbols (&_jm_copy, value))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free (_jm_copy.symbols);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
@@ -717,6 +726,15 @@ Synth_replace_acq_code (SynthObject *self, PyObject *value)
           (uint8_t **)&_jm_copy.acq_code.bits, &_jm_copy.acq_code.len, value,
           "acq_code"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.acq_code.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
@@ -747,6 +765,15 @@ Synth_replace_data_code (SynthObject *self, PyObject *value)
           (uint8_t **)&_jm_copy.data_code.bits, &_jm_copy.data_code.len, value,
           "data_code"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.data_code.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
@@ -777,6 +804,15 @@ Synth_replace_sync (SynthObject *self, PyObject *value)
           (uint8_t **)&_jm_copy.retired_sync.bits, &_jm_copy.retired_sync.len,
           value, "sync"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.retired_sync.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
@@ -807,6 +843,15 @@ Synth_replace_crc (SynthObject *self, PyObject *value)
           (uint8_t **)&_jm_copy.retired_crc.bits, &_jm_copy.retired_crc.len,
           value, "crc"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.retired_crc.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
@@ -834,6 +879,15 @@ Synth_replace_frame (SynthObject *self, PyObject *value)
   _jm_copy.frame        = NULL;
   if (!_attach_frame (&_jm_copy, value))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
@@ -863,6 +917,15 @@ Synth_replace_bits (SynthObject *self, PyObject *value)
           (uint8_t **)&_jm_copy.retired_bits.bits, &_jm_copy.retired_bits.len,
           value, "bits"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.retired_bits.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
@@ -892,6 +955,15 @@ Synth_replace_data (SynthObject *self, PyObject *value)
   if (!_coerce_dp_wfm_source_bits_refuse_text (
           (uint8_t **)&_jm_copy.data.bits, &_jm_copy.data.len, value, "data"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.data.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
@@ -921,6 +993,15 @@ Synth_replace_fill (SynthObject *self, PyObject *value)
   if (!_coerce_dp_wfm_source_bits_refuse_text (
           (uint8_t **)&_jm_copy.fill.bits, &_jm_copy.fill.len, value, "fill"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.fill.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
@@ -951,6 +1032,15 @@ Synth_replace_mac_header (SynthObject *self, PyObject *value)
           (uint8_t **)&_jm_copy.mac_header.bits, &_jm_copy.mac_header.len,
           value, "mac_header"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.mac_header.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
@@ -1867,6 +1957,24 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       free ((void *)_jm_copy.mac_header.bits);
       return -1;
     }
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free (_jm_copy.symbols);
+        free ((void *)_jm_copy.acq_code.bits);
+        free ((void *)_jm_copy.data_code.bits);
+        free ((void *)_jm_copy.retired_sync.bits);
+        free ((void *)_jm_copy.retired_crc.bits);
+        dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+        free ((void *)_jm_copy.retired_bits.bits);
+        free ((void *)_jm_copy.data.bits);
+        free ((void *)_jm_copy.fill.bits);
+        free ((void *)_jm_copy.mac_header.bits);
+        return -1;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
@@ -1955,8 +2063,9 @@ static int
 Synth_set_freq (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -1976,14 +2085,23 @@ Synth_set_freq (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.freq_hi = _hi;
-      self->src.ranged |= WFM_RANGE_FREQ;
+      _jm_copy.freq_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_FREQ;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_FREQ;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FREQ;
     }
-  self->src.freq = _lo;
+  _jm_copy.freq = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -1999,8 +2117,9 @@ static int
 Synth_set_snr (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -2020,14 +2139,23 @@ Synth_set_snr (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.snr_hi = _hi;
-      self->src.ranged |= WFM_RANGE_SNR;
+      _jm_copy.snr_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_SNR;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_SNR;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_SNR;
     }
-  self->src.snr = _lo;
+  _jm_copy.snr = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2060,7 +2188,17 @@ Synth_set_snr_mode (SynthObject *self, PyObject *value, void *closure)
                     s);
       return -1;
     }
-  self->src.snr_mode = _i;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.snr_mode     = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2083,8 +2221,18 @@ Synth_set_seed (SynthObject *self, PyObject *value, void *closure)
                     (long long)_v_raw, (long long)0, (long long)UINT32_MAX);
       return -1;
     }
-  uint32_t _v    = (uint32_t)_v_raw;
-  self->src.seed = _v;
+  uint32_t     _v       = (uint32_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.seed         = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2100,7 +2248,17 @@ Synth_set_sps (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.sps = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.sps          = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2116,7 +2274,17 @@ Synth_set_pn_length (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.pn_length = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.pn_length    = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2148,8 +2316,18 @@ Synth_set_pn_poly (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  uint64_t _v       = (uint64_t)_v_raw;
-  self->src.pn_poly = _v;
+  uint64_t     _v       = (uint64_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.pn_poly      = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2181,7 +2359,17 @@ Synth_set_lfsr (SynthObject *self, PyObject *value, void *closure)
                     "invalid lfsr '%s' (choices: galois, fibonacci)", s);
       return -1;
     }
-  self->src.lfsr = _i;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.lfsr         = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2197,8 +2385,9 @@ static int
 Synth_set_level (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -2218,14 +2407,23 @@ Synth_set_level (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.level_hi = _hi;
-      self->src.ranged |= WFM_RANGE_LEVEL;
+      _jm_copy.level_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_LEVEL;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
     }
-  self->src.level = _lo;
+  _jm_copy.level = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2241,7 +2439,17 @@ Synth_set_background (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.background = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.background   = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2257,8 +2465,9 @@ static int
 Synth_set_f_end (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -2278,14 +2487,23 @@ Synth_set_f_end (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.f_end_hi = _hi;
-      self->src.ranged |= WFM_RANGE_FEND;
+      _jm_copy.f_end_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_FEND;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_FEND;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FEND;
     }
-  self->src.f_end = _lo;
+  _jm_copy.f_end = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2317,8 +2535,18 @@ Synth_set_span (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v      = (size_t)_v_raw;
-  self->src.span = _v;
+  size_t       _v       = (size_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.span         = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2334,8 +2562,9 @@ static int
 Synth_set_doppler (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -2355,14 +2584,23 @@ Synth_set_doppler (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.doppler_hi = _hi;
-      self->src.ranged |= WFM_RANGE_DOPPLER;
+      _jm_copy.doppler_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_DOPPLER;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
     }
-  self->src.doppler = _lo;
+  _jm_copy.doppler = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2378,8 +2616,9 @@ static int
 Synth_set_doppler_rate (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -2399,14 +2638,23 @@ Synth_set_doppler_rate (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.doppler_rate_hi = _hi;
-      self->src.ranged |= WFM_RANGE_DOPPLER_RATE;
+      _jm_copy.doppler_rate_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_DOPPLER_RATE;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
     }
-  self->src.doppler_rate = _lo;
+  _jm_copy.doppler_rate = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2422,7 +2670,17 @@ Synth_set_carrier_hz (SynthObject *self, PyObject *value, void *closure)
   double _v = 0.0;
   if (!PyArg_Parse (value, "d", &_v))
     return -1;
-  self->src.carrier_hz = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.carrier_hz   = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2456,7 +2714,17 @@ Synth_set_doppler_lifetime (SynthObject *self, PyObject *value, void *closure)
           "invalid doppler_lifetime '%s' (choices: per_instance, persist)", s);
       return -1;
     }
-  self->src.doppler_lifetime = _i;
+  wfm_source_t _jm_copy     = self->src;
+  _jm_copy.doppler_lifetime = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2488,7 +2756,17 @@ Synth_set_modulation (SynthObject *self, PyObject *value, void *closure)
                     "invalid modulation '%s' (choices: none, bpsk, qpsk)", s);
       return -1;
     }
-  self->src.modulation = _i;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.modulation   = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2520,7 +2798,17 @@ Synth_set_pulse (SynthObject *self, PyObject *value, void *closure)
                     "invalid pulse '%s' (choices: rect, rrc)", s);
       return -1;
     }
-  self->src.pulse = _i;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.pulse        = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2536,7 +2824,17 @@ Synth_set_rrc_beta (SynthObject *self, PyObject *value, void *closure)
   double _v = 0.0;
   if (!PyArg_Parse (value, "d", &_v))
     return -1;
-  self->src.rrc_beta = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.rrc_beta     = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2552,7 +2850,17 @@ Synth_set_rrc_span (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.rrc_span = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.rrc_span     = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2647,8 +2955,18 @@ Synth_set_acq_reps (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v          = (size_t)_v_raw;
-  self->src.acq_reps = _v;
+  size_t       _v       = (size_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.acq_reps     = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2737,7 +3055,17 @@ Synth_set_symbol_rate (SynthObject *self, PyObject *value, void *closure)
   double _v = 0.0;
   if (!PyArg_Parse (value, "d", &_v))
     return -1;
-  self->src.symbol_rate = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.symbol_rate  = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2753,7 +3081,17 @@ Synth_set_dsss_code_only (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.dsss_code_only = _v;
+  wfm_source_t _jm_copy   = self->src;
+  _jm_copy.dsss_code_only = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2865,8 +3203,18 @@ Synth_set_data_len (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v          = (size_t)_v_raw;
-  self->src.data_len = _v;
+  size_t       _v       = (size_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.data_len     = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2941,8 +3289,18 @@ Synth_set_code_only_symbols (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v                   = (size_t)_v_raw;
-  self->src.code_only_symbols = _v;
+  size_t       _v            = (size_t)_v_raw;
+  wfm_source_t _jm_copy      = self->src;
+  _jm_copy.code_only_symbols = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2975,8 +3333,18 @@ Synth_set_frame_symbols (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v               = (size_t)_v_raw;
-  self->src.frame_symbols = _v;
+  size_t       _v        = (size_t)_v_raw;
+  wfm_source_t _jm_copy  = self->src;
+  _jm_copy.frame_symbols = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -3101,7 +3469,17 @@ Synth_set_scrambler_init (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.scrambler_init = _v;
+  wfm_source_t _jm_copy   = self->src;
+  _jm_copy.scrambler_init = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -3139,8 +3517,18 @@ Synth_set_window (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v        = (size_t)_v_raw;
-  self->src.window = _v;
+  size_t       _v       = (size_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.window       = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -3177,7 +3565,17 @@ Synth_set_mac (SynthObject *self, PyObject *value, void *closure)
                     "invalid mac '%s' (choices: none, fcs, data, auto)", s);
       return -1;
     }
-  self->src.mac = _i;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.mac          = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -3209,8 +3607,18 @@ Synth_set_gap (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v     = (size_t)_v_raw;
-  self->src.gap = _v;
+  size_t       _v       = (size_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.gap          = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -4363,7 +4771,14 @@ static PyTypeObject SynthType = {
       "    against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. "
       "For\n"
       "    type ofdm an fs at this default is read as unset and becomes the\n"
-      "    bandwidth, which `fs` then reads back.\n"),
+      "    bandwidth, which `fs` then reads back.\n"
+      "\n"
+      "Raises\n"
+      "------\n"
+      "ValueError\n"
+      "    The fields given are not a whole source: "
+      "``dp_wfm_source_rate_why``\n"
+      "    refused them, and its sentence is the message.\n"),
 };
 
 /* Factory shared body: inject {type: <name>} into kwds, call the type. */
@@ -5216,25 +5631,25 @@ static PyObject *
 Segment_get_fs (SegmentObject *self, void *closure)
 {
   (void)closure;
-  wfm_segment_t _seg;
-  memset (&_seg, 0, sizeof _seg);
-  _seg.fs               = self->fs;
-  _seg.num_samples      = self->num_samples;
-  _seg.off_samples      = self->off_samples;
-  _seg.repeats          = self->repeats;
-  _seg.delay_samples    = self->delay_samples;
-  _seg.gap_noise        = self->gap_noise;
-  _seg.ranged           = self->ranged;
-  _seg.num_samples_hi   = self->num_samples_hi;
-  _seg.off_samples_hi   = self->off_samples_hi;
-  _seg.delay_samples_hi = self->delay_samples_hi;
+  wfm_segment_t _jm_seg;
+  memset (&_jm_seg, 0, sizeof _jm_seg);
+  _jm_seg.fs               = self->fs;
+  _jm_seg.num_samples      = self->num_samples;
+  _jm_seg.off_samples      = self->off_samples;
+  _jm_seg.repeats          = self->repeats;
+  _jm_seg.delay_samples    = self->delay_samples;
+  _jm_seg.gap_noise        = self->gap_noise;
+  _jm_seg.ranged           = self->ranged;
+  _jm_seg.num_samples_hi   = self->num_samples_hi;
+  _jm_seg.off_samples_hi   = self->off_samples_hi;
+  _jm_seg.delay_samples_hi = self->delay_samples_hi;
   size_t        _ns;
   wfm_source_t *_srcs = _Segment_sources_c (self->sources, &_ns);
   if (!_srcs)
     return NULL;
-  _seg.sources   = _srcs;
-  _seg.n_sources = _ns;
-  double _gv     = dp_wfm_segment_fs (&_seg, self->fs);
+  _jm_seg.sources   = _srcs;
+  _jm_seg.n_sources = _ns;
+  double _gv        = dp_wfm_segment_fs (&_jm_seg, self->fs);
   free (_srcs);
   return PyFloat_FromDouble (_gv);
 }
@@ -7085,7 +7500,14 @@ static PyTypeObject SegmentType = {
       "    signal stops (clean scenes still get exact-zero gaps). off: gaps "
       "are\n"
       "    hard zeros.\n"
-      "    One of ``\"auto\"``, ``\"off\"``.\n"),
+      "    One of ``\"auto\"``, ``\"off\"``.\n"
+      "\n"
+      "Raises\n"
+      "------\n"
+      "ValueError\n"
+      "    The fields given are not a whole source: "
+      "``dp_wfm_source_rate_why``\n"
+      "    refused them, and its sentence is the message.\n"),
 };
 
 typedef struct
@@ -7903,6 +8325,22 @@ Composer_from_json (PyObject *cls, PyObject *args)
                          "dp_wfm_compose_from_json_why failed");
       return NULL;
     }
+  {
+    size_t               _cn;
+    int                  _cr = 0, _cc = 0;
+    const wfm_segment_t *_cs = dp_wfm_compose_segments (st, &_cn, &_cr, &_cc);
+    for (size_t _ci = 0; _ci < _cn; _ci++)
+      for (size_t _ck = 0; _ck < _cs[_ci].n_sources; _ck++)
+        {
+          const char *_chk = dp_wfm_source_rate_why (&_cs[_ci].sources[_ck]);
+          if (_chk)
+            {
+              PyErr_SetString (PyExc_ValueError, _chk);
+              dp_wfm_compose_destroy (st);
+              return NULL;
+            }
+        }
+  }
   ComposerObject *self = (ComposerObject *)type->tp_alloc (type, 0);
   if (!self)
     {
@@ -7934,6 +8372,22 @@ Composer_from_file (PyObject *cls, PyObject *args)
         PyErr_SetString (PyExc_OSError, "dp_wfm_compose_from_file_why failed");
       return NULL;
     }
+  {
+    size_t               _cn;
+    int                  _cr = 0, _cc = 0;
+    const wfm_segment_t *_cs = dp_wfm_compose_segments (st, &_cn, &_cr, &_cc);
+    for (size_t _ci = 0; _ci < _cn; _ci++)
+      for (size_t _ck = 0; _ck < _cs[_ci].n_sources; _ck++)
+        {
+          const char *_chk = dp_wfm_source_rate_why (&_cs[_ci].sources[_ck]);
+          if (_chk)
+            {
+              PyErr_SetString (PyExc_ValueError, _chk);
+              dp_wfm_compose_destroy (st);
+              return NULL;
+            }
+        }
+  }
   ComposerObject *self = (ComposerObject *)type->tp_alloc (type, 0);
   if (!self)
     {

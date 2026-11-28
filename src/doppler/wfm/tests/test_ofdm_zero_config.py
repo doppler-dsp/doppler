@@ -401,15 +401,18 @@ def test_a_live_ofdm_write_refuses_what_the_build_would(
     assert _readback(s) == before
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the constructor calls no check until just-makeit#2856's "
-    "check_fn; #3273 pins it at that release",
-)
-def test_construction_with_half_a_pair_is_refused():
-    """The constructor route of the same rule (#3273)."""
+@pytest.mark.parametrize("make", [Synth, Segment], ids=["Synth", "Segment"])
+def test_construction_with_half_a_pair_is_refused(make):
+    """The constructor route of the same rule (#3273).
+
+    The manifest names ``dp_wfm_source_rate_why`` as the source's
+    ``check_fn`` (just-makeit gh-2856), so a constructor, and an inline
+    ``Segment`` that builds its source through it, refuses half a pair
+    where it is written. The rejected case is a constructor that calls no
+    check: it builds the half pair, and only the first ``steps()`` refuses.
+    """
     with pytest.raises(ValueError, match="are one rate: give both"):
-        Synth(type="ofdm", constellation="bpsk")
+        make(type="ofdm", constellation="bpsk")
 
 
 def _synth_fs_default() -> float:

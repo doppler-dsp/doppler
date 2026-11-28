@@ -1945,7 +1945,7 @@
 * **dp\_wfm\_source\_mac\_header\_bits** ([**wfm\_compose.h**](wfm__compose_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **dp\_wfm\_source\_ofdm\_defaults** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_oversample** ([**wfm\_compose.h**](wfm__compose_8h.md))
-* **dp\_wfm\_source\_rate\_why** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_source\_rate\_why** ([**wfm\_compose.h**](wfm__compose_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **dp\_wfm\_source\_set\_bandwidth** ([**wfm\_compose.h**](wfm__compose_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **dp\_wfm\_source\_set\_code\_rate** ([**wfm\_compose.h**](wfm__compose_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **dp\_wfm\_source\_set\_constellation** ([**wfm\_compose.h**](wfm__compose_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))

@@ -131,6 +131,11 @@ type_name = "Synth"
 # A Synth reads the rate it renders at: an ofdm source at a default fs
 # reads its bandwidth (dp_wfm_source_fs, gh-2747). Only the read changes.
 fs_get_fn = "dp_wfm_source_fs"
+# A source is whole by the rule every write meets: the constructor, a
+# setter without a set_fn, from_json and the CLI ask it (just-makeit
+# gh-2856), so half an ofdm rate pair is refused where it is written,
+# not by the first steps() (#3273).
+check_fn = "dp_wfm_source_rate_why"
 # Fields that accept a (lo, hi) pair drawn uniformly each repeat (composer
 # epoch) — not just a scalar. The struct carries a <name>_hi companion + a
 # `ranged` bitmask (wfm_compose.h); jm emits float-or-tuple parse/getset/.pyi.

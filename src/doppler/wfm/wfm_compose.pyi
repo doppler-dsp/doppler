@@ -309,6 +309,12 @@ class Synth:
         against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. For
         type ofdm an fs at this default is read as unset and becomes the
         bandwidth, which `fs` then reads back.
+
+    Raises
+    ------
+    ValueError
+        The fields given are not a whole source: ``dp_wfm_source_rate_why``
+        refused them, and its sentence is the message.
     """
 
     def __init__(
@@ -838,6 +844,12 @@ class Segment:
         signal stops (clean scenes still get exact-zero gaps). off: gaps are
         hard zeros.
         One of ``"auto"``, ``"off"``.
+
+    Raises
+    ------
+    ValueError
+        The fields given are not a whole source: ``dp_wfm_source_rate_why``
+        refused them, and its sentence is the message.
     """
 
     sources: list[Synth]

@@ -762,7 +762,8 @@ leaves every field as it was. On an ofdm source:
 
 The header (`wfm_compose.h`) holds the rules as a table. A `Segment`'s rate
 fields are set at construction only. The constructor runs the same check
-(just-makeit's `check_fn`, #2856), so `Synth(type="ofdm", constellation="bpsk")` is refused where it is written, and a record refuses
+(just-makeit's `check_fn`,
+[just-makeit#2856](https://github.com/just-buildit/just-makeit/issues/2856)), so `Synth(type="ofdm", constellation="bpsk")` is refused where it is written, and a record refuses
 half a pair when it is read. A source built in C that holds half a pair reads each
 given half as written and the default's for the other, never `auto`.
 

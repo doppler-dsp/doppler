@@ -28,6 +28,11 @@
 extern "C" {
 #endif
 
+/* Whether a source struct is whole: NULL, or a static sentence raised as
+ * ValueError by every face that writes it without a field's set_fn
+ * (check_fn, gh-2856). */
+const char *dp_wfm_source_rate_why(const wfm_source_t *);
+
 /* Build the composed generator from a source config (source -> generator). */
 dp_wfm_synth_state_t *dp_wfm_source_to_synth(const wfm_source_t *, double);
 

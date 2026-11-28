@@ -70,6 +70,7 @@
 |  double | [**dp\_wfm\_source\_fs**](#function-dp_wfm_source_fs) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double) <br> |
 |  int | [**dp\_wfm\_source\_mac**](#function-dp_wfm_source_mac) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double) <br> |
 |  size\_t | [**dp\_wfm\_source\_mac\_header\_bits**](#function-dp_wfm_source_mac_header_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double, uint8\_t \*, size\_t) <br> |
+|  const char \* | [**dp\_wfm\_source\_rate\_why**](#function-dp_wfm_source_rate_why) (const [**wfm\_source\_t**](structwfm__source__t.md) \*) <br> |
 |  const char \* | [**dp\_wfm\_source\_set\_bandwidth**](#function-dp_wfm_source_set_bandwidth) ([**wfm\_source\_t**](structwfm__source__t.md) \*, double) <br> |
 |  const char \* | [**dp\_wfm\_source\_set\_code\_rate**](#function-dp_wfm_source_set_code_rate) ([**wfm\_source\_t**](structwfm__source__t.md) \*, int) <br> |
 |  const char \* | [**dp\_wfm\_source\_set\_constellation**](#function-dp_wfm_source_set_constellation) ([**wfm\_source\_t**](structwfm__source__t.md) \*, int) <br> |
@@ -369,6 +370,21 @@ size_t dp_wfm_source_mac_header_bits (
     double,
     uint8_t *,
     size_t
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_rate\_why 
+
+```C++
+const char * dp_wfm_source_rate_why (
+    const wfm_source_t *
 ) 
 ```
 

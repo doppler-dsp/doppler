@@ -67,7 +67,7 @@ listed the moment its folder exists. There is no list here to update.
 
 <!-- validation-log:start -->
 
-**41 objects certified** — 28 of the 90 `objects/*.toml` jm fragments, plus 13 with no object manifest at all (`buffer`, `ccsds_tm`, `conv`, `detection`, `ema`, `framer`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
+**42 objects certified** — 29 of the 90 `objects/*.toml` jm fragments, plus 13 with no object manifest at all (`buffer`, `ccsds_tm`, `conv`, `detection`, `ema`, `framer`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
 
 | object                                                                                                                                  | module        | limits | findings | still open                 |
 | --------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------ | -------- | -------------------------- |
@@ -78,6 +78,7 @@ listed the moment its folder exists. There is no list here to update.
 | [The correlator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/correlation/tests/validation/correlator/results.md)       | `correlation` | 83/83  | 25       | 3 — F14, F15, F16          |
 | [detection](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/detection/results.md)               | `detection`   | 24/24  | 6        | 1 — F5                     |
 | [LockDet](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/lockdet/results.md)                   | `detection`   | 22/22  | 6        | none                       |
+| [AsyncDsssPool](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_pool/results.md)          | `dsss`        | 18/18  | 9        | 6 — F2, F4, F5, F6, F7, F8 |
 | [AsyncDsssReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)  | `dsss`        | 4/4    | 6        | 3 — F2, F3, F4             |
 | [BurstDemod](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_demod/results.md)                 | `dsss`        | 15/15  | 5        | none                       |
 | [BurstDespreader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_despreader/results.md)       | `dsss`        | 15/15  | 5        | none                       |

@@ -35,6 +35,7 @@ import numpy as np
 
 from doppler.correlation import Correlator
 from doppler.source import AWGN
+from doppler.tests._validation_common import wilson
 from doppler.wfm import PN, rotate, wfm_awgn_amplitude
 
 NO_RATES = np.empty(0, np.complex64)
@@ -59,17 +60,6 @@ class Geometry:
 
 #: The request's geometry (#2683): 64 periods of a 511-chip code.
 FULL = Geometry(64, 9, 1e-3, 1e-2, {"uniform": -29.0, "worst": -30.7})
-
-
-def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
-    """The Wilson score interval for k successes in n trials."""
-    if n == 0:
-        return 0.0, 1.0
-    p = k / n
-    d = 1 + z * z / n
-    c = (p + z * z / (2 * n)) / d
-    h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
-    return max(0.0, c - h), min(1.0, c + h)
 
 
 class Bench:

@@ -2003,7 +2003,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 jm-pin \
                 issue-link-check bootstrap-cmd-check \
                 validate validate-py validate-c validate-check \
-                validate-async-receiver-sweep validate-mpsk-receiver-pullin \
+                validate-async-receiver-sweep validate-async-pool-sweep validate-mpsk-receiver-pullin \
                 validate-spellings-check \
                 test-sweep validation-time-baseline \
                 characterize characterization-check \
@@ -3968,6 +3968,15 @@ validate-py: ## Regenerate the Python validation reports only (VALIDATORS=<valid
 # sweeps are the C harnesses'.
 validate-async-receiver-sweep: ## Re-run the AsyncDsssReceiver certification's full sweeps into its data/, then its report
 	$(UV) run python src/doppler/dsss/tests/validation/async_dsss_receiver/validate.py --sweep
+
+# The AsyncDsssPool certification commits its full ghost sweep as
+# data/forced.csv, data/second.csv and data/alone.csv (twenty draws a cell,
+# both carriers; about 4 minutes in 8 shards) and renders them, never
+# re-running them on a push. This re-runs it on purpose, after the pool, the
+# receiver, the harness or the toolchain changes, then the report. It needs
+# `make build` first: the sweep is the C harness's.
+validate-async-pool-sweep: ## Re-run the AsyncDsssPool certification's full ghost sweep into its data/, then its report
+	$(UV) run python src/doppler/dsss/tests/validation/async_dsss_pool/validate.py --sweep
 
 # The MpskReceiver certification renders its pull-in transient (section 2.11)
 # from data/pullin.csv, the C harness's `--pullin` sweep on both rectangle

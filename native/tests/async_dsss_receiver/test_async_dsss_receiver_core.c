@@ -2298,6 +2298,48 @@ _test_near_far_levels (void)
  * The failing case is the fallback this replaced: a receiver built there
  * with the count 0 and carrier_nda's unsized EMA lock, which this reads
  * as non-NULL. */
+/* The header's carrier design figures, each at the value it prints
+   (#3267, R5, R8, R11):
+   - ASYNC_DSSS_RX_CARRIER_PULLIN_HZ is 97.8 Hz at 5 Mcps over Gold-1023
+     and bn 0.04 (R5);
+   - at the 415.1-B-1 floor, both carriers, the loop's noise bandwidth
+     bn / T is about 30 Hz and its acquisition bound about 15 Hz, "about"
+     held as within 5% (R8: 31.2 / 29.8 and 15.6 / 14.9 Hz);
+   - the carrier lock count is 712 at 30 dB-Hz at 2.8 GHz (R11).
+   Sabotage: the bound's half (2 T) taken as T -> R5 and R8 red; the
+   lock's Pd ASYNC_DSSS_RX_CAR_LOCK_PD moved -> R11 red. */
+static int
+_test_carrier_design_figures (void)
+{
+  DP_CHECK_MSG (
+      fabs (ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (0.04, 5.0e6, 1023) - 97.8) < 0.05,
+      "the acquisition bound is 97.8 Hz at 5 Mcps, bn 0.04");
+  const double fcs[2]    = { DP_CCSDS_415_FC_LO, DP_CCSDS_415_FC_HI };
+  const double floor_cn0 = dp_ccsds_415_cn0 (DP_CCSDS_415_FLOOR_ESN0_DB);
+  for (int f = 0; f < 2; f++)
+    {
+      const double chip = dp_ccsds_415_chip_rate (fcs[f]);
+      const double bn   = dp_async_dsss_receiver_carrier_bn (floor_cn0, chip,
+                                                             DP_CCSDS_415_SF);
+      const double t_code = (double)DP_CCSDS_415_SF / chip;
+      const double bl     = bn / t_code;
+      const double acq
+          = ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (bn, chip, DP_CCSDS_415_SF);
+      printf ("  carrier at the floor, %.1f GHz: B_L %.1f Hz, acquisition "
+              "bound %.1f Hz\n",
+              fcs[f] / 1e9, bl, acq);
+      DP_CHECK_MSG (fabs (bl - 30.0) <= 1.5, "about 30 Hz of noise bandwidth");
+      DP_CHECK_MSG (fabs (acq - 15.0) <= 0.75,
+                    "an acquisition bound of about 15 Hz");
+    }
+  DP_CHECK_MSG (dp_async_dsss_receiver_carrier_lock_n_noncoh (
+                    30.0, dp_ccsds_415_chip_rate (DP_CCSDS_415_FC_HI),
+                    DP_CCSDS_415_SF, 4)
+                    == 712u,
+                "the carrier lock count is 712 at 30 dB-Hz, 2.8 GHz");
+  return 0;
+}
+
 static dp_async_dsss_receiver_state_t *_car_twin (double cn0);
 
 static int
@@ -7370,6 +7412,7 @@ main (void)
   DP_CHECK (_test_a_refused_blob_changes_nothing () == 0);
   DP_CHECK (_test_fine_design () == 0);
   DP_CHECK (_test_unsized_carrier_lock_is_refused () == 0);
+  DP_CHECK (_test_carrier_design_figures () == 0);
   DP_CHECK (_test_fine_seed_bound () == 0);
   DP_CHECK (_test_near_far_levels () == 0);
   DP_CHECK (_test_fine_hands_over () == 0);

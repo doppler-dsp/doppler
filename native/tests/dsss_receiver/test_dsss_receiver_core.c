@@ -145,42 +145,6 @@ _stream (dp_dsss_receiver_state_t *rx, const float _Complex *x, size_t n,
   return n_syms;
 }
 
-/* Best-lag BER over the back half of the recovered symbols against the
- * known data (absorbing the composed chain's settling transient and
- * pipeline delay -- the existence of a clean near-zero-error lag is the
- * proof, the same pattern this repo's gallery examples use in Python). */
-static double
-_best_ber (const float _Complex *syms, size_t n_syms, const double *data,
-           size_t n_sym)
-{
-  if (n_syms < 20)
-    return 1.0;
-  size_t lo = n_syms / 2, hi = n_syms;
-  double best = 1.0;
-  for (int lag = -20; lag <= 20; lag++)
-    {
-      size_t errs = 0, cnt = 0;
-      for (size_t i = lo; i < hi; i++)
-        {
-          long di = (long)i + lag;
-          if (di < 0 || (size_t)di >= n_sym)
-            continue;
-          double bit = crealf (syms[i]) > 0 ? 1.0 : -1.0;
-          if (bit != data[(size_t)di])
-            errs++;
-          cnt++;
-        }
-      if (cnt < (hi - lo) / 2)
-        continue; /* not enough overlap at this lag to be meaningful */
-      double ber = (double)errs / (double)cnt;
-      if (ber < best)
-        best = ber;
-      if (1.0 - ber < best) /* phase/sign ambiguity: inverted bits */
-        best = 1.0 - ber;
-    }
-  return best;
-}
-
 static int
 _test_acquire_and_decode (void)
 {
@@ -233,7 +197,7 @@ _test_acquire_and_decode (void)
   DP_CHECK (n_syms > 20);
   DP_CHECK (dp_dsss_receiver_get_cn0_dbhz_est (rx) > 0.0);
 
-  double ber = _best_ber (syms, n_syms, data, n_sym + 4);
+  double ber = dp_dsss_best_ber (syms, n_syms, data, n_sym + 4);
   DP_CHECK (ber < 0.05);
 
   /* ── state-serialization round trip, while tracking ─────────────────── */
@@ -493,8 +457,8 @@ _test_sustained_doppler_rate (void)
   size_t          n_syms4 = _stream (rx4, x, n, te, &syms4);
   size_t          n_syms1 = _stream (rx1, x, n, te, &syms1);
 
-  double ber4 = _best_ber (syms4, n_syms4, data, n_sym + 4);
-  double ber1 = _best_ber (syms1, n_syms1, data, n_sym + 4);
+  double ber4 = dp_dsss_best_ber (syms4, n_syms4, data, n_sym + 4);
+  double ber1 = dp_dsss_best_ber (syms1, n_syms1, data, n_sym + 4);
 
   DP_CHECK (dp_dsss_receiver_get_tracking (rx4) == 1);
   /* A receiver that lost lock partway through (the ~117 Hz/s bare-PLL

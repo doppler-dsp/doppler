@@ -83,46 +83,6 @@ _stream (dp_async_dsss_receiver_state_t *rx, const float _Complex *x, size_t n,
   return n_syms;
 }
 
-/* Best-lag BER over the back half of the recovered symbols against the
- * known data -- mirrors test_dsss_receiver_core.c's own _best_ber(). */
-static double
-_best_ber (const float _Complex *syms, size_t n_syms, const double *data,
-           size_t n_sym)
-{
-  if (n_syms < 20)
-    return 1.0;
-  size_t lo = n_syms / 2, hi = n_syms;
-  double best = 1.0;
-  /* Wide lag search: the acquisition/refine settling delay GROWS as Es/N0
-     drops (tens of symbols near the floor), so a narrow window gives false
-     "chance" BER at low SNR even when the receiver decodes perfectly -- the
-     exact BER fragility the self-referenced EVM/M2M4 validators guard
-     against. Over a several-hundred-symbol back half, a spurious sub-0.05
-     alignment is statistically impossible, so a wide search stays honest. */
-  for (int lag = -250; lag <= 250; lag++)
-    {
-      size_t errs = 0, cnt = 0;
-      for (size_t i = lo; i < hi; i++)
-        {
-          long di = (long)i + lag;
-          if (di < 0 || (size_t)di >= n_sym)
-            continue;
-          double bit = crealf (syms[i]) > 0 ? 1.0 : -1.0;
-          if (bit != data[(size_t)di])
-            errs++;
-          cnt++;
-        }
-      if (cnt < (hi - lo) / 2)
-        continue;
-      double ber = (double)errs / (double)cnt;
-      if (ber < best)
-        best = ber;
-      if (1.0 - ber < best)
-        best = 1.0 - ber;
-    }
-  return best;
-}
-
 /* Both truth-free validators live in dp_sym_test.h so every receiver test
  * gets them; see that header for why a BER on its own is not evidence. */
 
@@ -294,7 +254,7 @@ _test_acquire_and_decode (void)
   DP_CHECK (n_syms > 20);
   DP_CHECK (dp_async_dsss_receiver_get_cn0_dbhz_est (rx) > 0.0);
 
-  double ber = _best_ber (syms, n_syms, data, n_sym + 4);
+  double ber = dp_dsss_best_ber (syms, n_syms, data, n_sym + 4);
   DP_CHECK (ber < 0.05);
   /* Truth-free corroboration: a real lock, not a lucky BER lag/polarity. */
   DP_CHECK (dp_test_evm_db_hard (syms, n_syms) < -8.0);
@@ -511,7 +471,7 @@ _test_spec_ramp_decode (void)
   float _Complex *syms;
   size_t          n_syms = _stream (rx, x, n, te, &syms);
 
-  double ber = _best_ber (syms, n_syms, data, n_sym + 4);
+  double ber = dp_dsss_best_ber (syms, n_syms, data, n_sym + 4);
 
   DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (n_syms > (n_sym / 2));
@@ -632,7 +592,7 @@ _test_handover_under_clock_offset (void)
   /* Three seeds closing (the code clock fast, the phase advancing), one
      opening (negative ppm: the clock slow, the phase retreating), at each
      operating point. */
-  int decoded = 0;
+  int decoded = 0, floor_decoded = 0;
   for (uint32_t trial = 0; trial < 8; trial++)
     {
       const uint32_t  seed      = 100 + trial % 4;
@@ -652,24 +612,13 @@ _test_handover_under_clock_offset (void)
       DP_REQUIRE (rx != NULL);
       float _Complex *syms;
       size_t          n_syms = _stream (rx, x, n, te, &syms);
-      double          ber    = _best_ber (syms, n_syms, data, n_sym + 4);
-      /* The BER is printed where this test holds it, 45 dB-Hz. At the
-         floor the decode is held to the 20 s allocation by
-         _test_clock_offset_decodes_inside_the_allocation, which decodes
-         these seeds; _best_ber's 0.45 here, after a lock at about 0.4 s,
-         is a reading nothing explains yet (doppler#3391), so it is not
-         printed as if it were a result. */
-      char ber_s[48];
-      if (cn0 == 45.0)
-        snprintf (ber_s, sizeof ber_s, "BER %.3f", ber);
-      else
-        snprintf (ber_s, sizeof ber_s, "BER held by the 20 s allocation test");
+      double          ber = dp_dsss_best_ber (syms, n_syms, data, n_sym + 4);
       printf ("  hand-over at %+.0f ppm, %.0f dB-Hz, seed %u: tracking %d, "
-              "code %d, symbol %d, %zu symbols, %s, Doppler est "
+              "code %d, symbol %d, %zu symbols, BER %.3f, Doppler est "
               "%.0f Hz (truth %.0f), chip %.2f\n",
               sign * ppm, cn0, seed, dp_async_dsss_receiver_get_tracking (rx),
               dp_async_dsss_receiver_get_code_locked (rx),
-              dp_async_dsss_receiver_get_locked (rx), n_syms, ber_s,
+              dp_async_dsss_receiver_get_locked (rx), n_syms, ber,
               dp_async_dsss_receiver_get_doppler_hz (rx),
               sign * ppm * 1e-6 * carrier,
               dp_async_dsss_receiver_get_chip_phase (rx));
@@ -690,6 +639,13 @@ _test_handover_under_clock_offset (void)
       if (cn0 == 45.0)
         decoded += dp_async_dsss_receiver_get_locked (rx) == 1
                    && n_syms > n_sym / 2 && ber < 0.05;
+      /* At the floor the code locks at about 0.4 s of the second, and
+         the back half decodes (0.001 to 0.012 measured, doppler#3391).
+         The first output there carries payload symbol 746 to 788, past a
+         +-250 lag search, which read these rows as 0.45: the failing
+         case of _best_ber's search over every lag the data holds. */
+      else
+        floor_decoded += ber < 0.05;
       free (syms);
       free (x);
       free (data);
@@ -697,6 +653,8 @@ _test_handover_under_clock_offset (void)
     }
   DP_CHECK_MSG (decoded == 4, "and at 45 dB-Hz the carrier locks and "
                               "decodes on every seed inside a second");
+  DP_CHECK_MSG (floor_decoded == 4, "and at the floor every seed's back half "
+                                    "decodes, read at its own alignment");
   free (code);
   return 0;
 }
@@ -1078,10 +1036,11 @@ _test_awgn_esn0_floor (void)
           = first_in > pre
                 ? (size_t)((double)(first_in - pre) / (cps * (double)spc))
                 : 0;
-      double ber = at >= 0 && w0 + base < n_data
-                       ? _best_ber (syms + w0, n_syms - w0, dsym + w0 + base,
+      double ber
+          = at >= 0 && w0 + base < n_data
+                ? dp_dsss_best_ber (syms + w0, n_syms - w0, dsym + w0 + base,
                                     n_data - w0 - base)
-                       : 0.5;
+                : 0.5;
       double evm = dp_test_evm_db_hard (syms + w0, n_syms - w0); /* no lag */
       double snr = dp_test_m2m4_snr_db (syms + w0, n_syms - w0); /* blind */
       /* dp_test_m2m4_snr_db() reads the window's second half. */
@@ -1648,7 +1607,7 @@ _test_seed_on_searching_flavor (void)
   DP_CHECK (dp_async_dsss_receiver_seed (rx, 3.0, 0.0, cn0) == DP_ERR_INVALID);
   DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (n_syms > 20);
-  DP_CHECK (_best_ber (syms, n_syms, data, n_sym + 4) < 0.05);
+  DP_CHECK (dp_dsss_best_ber (syms, n_syms, data, n_sym + 4) < 0.05);
   DP_CHECK (dp_test_evm_db_hard (syms, n_syms) < -8.0);
 
   /* reset() on this flavor is still the search. */
@@ -1931,7 +1890,7 @@ _test_reacquire_after_switch_off (void)
           DP_CHECK (n_syms > 20);
           DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
           DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
-          double ber = _best_ber (syms, n_syms, data, n_sym + 4);
+          double ber = dp_dsss_best_ber (syms, n_syms, data, n_sym + 4);
           DP_CHECK (ber < 0.05);
           free (syms);
         }
@@ -3239,7 +3198,7 @@ _test_refine_stops_at_its_decision (void)
       /* Same symbols, bit for bit: the fix moves cost, not output. */
       DP_CHECK (n1 == n2 && n1 > 20);
       DP_CHECK (n1 == n2 && memcmp (s1, s2, n1 * sizeof *s1) == 0);
-      DP_CHECK (_best_ber (s1, n1, data, n_sym + 4) < 0.05);
+      DP_CHECK (dp_dsss_best_ber (s1, n1, data, n_sym + 4) < 0.05);
       free (s1);
       free (s2);
     }
@@ -6562,7 +6521,7 @@ _test_chunking_changes_nothing (void)
       const size_t    n_a = _stream (one, x, n, n, &a);
       DP_CHECK (dp_async_dsss_receiver_get_tracking (one) == 1);
       DP_CHECK (n_a > n_sym / 2);
-      DP_CHECK (_best_ber (a, n_a, data, n_sym + 4) == 0.0);
+      DP_CHECK (dp_dsss_best_ber (a, n_a, data, n_sym + 4) == 0.0);
       /* Tracking after one call that refined and handed over: its blob is
          one set_state takes (the ring's count kept up through the
          hand-over), and a fresh receiver re-serializes it byte for byte. */
@@ -7082,7 +7041,7 @@ _test_no_refine_hands_over_at_the_seed (void)
       DP_CHECK (refining == 0);
       DP_CHECK (dp_async_dsss_receiver_get_tracking (r) == 1);
       DP_CHECK (ns > n_sym / 2);
-      DP_CHECK (_best_ber (syms, ns, data, n_sym + 4) == 0.0);
+      DP_CHECK (dp_dsss_best_ber (syms, ns, data, n_sym + 4) == 0.0);
       free (syms);
       dp_async_dsss_receiver_destroy (r);
     }

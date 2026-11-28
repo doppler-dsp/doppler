@@ -359,4 +359,54 @@ dp_dsss_dilated_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
   *n_out = out;
 }
 
+/* Best-lag BER over the back half of the recovered symbols against the
+ * known data (+-1 a symbol), the sign folded (BPSK's ambiguity). The one
+ * copy for the DSSS receiver tests: test_dsss_receiver_core.c and
+ * test_async_dsss_receiver_core.c each carried their own, at +-20 and
+ * +-250, until the narrower one in the async file misread a locked link
+ * (doppler#3391). */
+static inline double
+dp_dsss_best_ber (const float _Complex *syms, size_t n_syms,
+                  const double *data, size_t n_sym)
+{
+  if (n_syms < 20)
+    return 1.0;
+  size_t lo = n_syms / 2, hi = n_syms;
+  double best = 1.0;
+  /* Every lag the data holds. The first output's payload symbol grows as
+     C/N0 falls, with the search and the refine: 746 to 788 at 40 dB-Hz
+     on _test_handover_under_clock_offset, where a +-250 search tried only
+     wrong alignments and read a locked link as 0.45 (doppler#3391). A
+     wrong lag scores independent data, Binomial(cnt, 1/2), and the
+     helper needs at least 32 symbols overlapping: a sub-0.05 read there
+     is at most 1 error (or 31 or more, flipped), 2 * 33 / 2^32, about
+     1.5e-8 a lag, so about 5e-6 over the few hundred lags the smallest
+     payload here holds, and far less on the long ones, whose overlap is
+     hundreds. dp_ber_measure() (dp_ber_test.h) is the library's
+     meter, but its 256-symbol marker and +-200 search do not fit the
+     short CODE7 fixtures this helper also serves. */
+  for (long lag = -(long)lo; lag < (long)n_sym; lag++)
+    {
+      size_t errs = 0, cnt = 0;
+      for (size_t i = lo; i < hi; i++)
+        {
+          long di = (long)i + lag;
+          if (di < 0 || (size_t)di >= n_sym)
+            continue;
+          double bit = crealf (syms[i]) > 0 ? 1.0 : -1.0;
+          if (bit != data[(size_t)di])
+            errs++;
+          cnt++;
+        }
+      if (cnt < 32 || cnt < (hi - lo) / 2)
+        continue;
+      double ber = (double)errs / (double)cnt;
+      if (ber < best)
+        best = ber;
+      if (1.0 - ber < best)
+        best = 1.0 - ber;
+    }
+  return best;
+}
+
 #endif /* DP_DSSS_TEST_H */

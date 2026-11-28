@@ -84,6 +84,28 @@ IMAGE_TOL_HZ = GHOST_EPS_HZ + 3.0 * GHOST_STILL_HZ
 EPS_Q = 0.99
 EPS_MIN_N = 299
 
+#: The full sweep's cells, as the harness runs them (GH_DRAWS, FORCED's
+#: k = -2..2 and SECOND's b_lvls, both carriers), so the record's
+#: population is derived, never read off the record it checks.
+DRAWS = 20
+CARRIERS_GHZ = (2.2, 2.8)
+FORCED_K = (-2, -1, 0, 1, 2)
+SECOND_DBHZ = (38.8, 42.0, 44.0, 46.0, 50.0)
+#: --check's SECOND levels (2.8 GHz, one draw each).
+CHECK_DBHZ = (38.8, 50.0)
+
+
+def _cells(rows: Rows, col: str, values: tuple) -> bool:
+    """Every (carrier, value) cell holds exactly DRAWS rows, and no other
+    cell exists."""
+    got: dict[tuple[float, float], int] = {}
+    for r in rows:
+        key = (float(r["fc_ghz"]), float(r[col]))
+        got[key] = got.get(key, 0) + 1
+    want = {(fc, float(v)): DRAWS for fc in CARRIERS_GHZ for v in values}
+    return got == want
+
+
 #: FORCED's outcomes, as the harness codes them.
 OUTCOME = {0: "held", 1: "released by the ghost rule", 2: "freed as lost"}
 
@@ -481,7 +503,11 @@ def section_second(rows: Rows) -> None:
         "same tests on the same rings with k = 0 allowed "
         "(`dp__async_dsss_pool_ghost_of_any_k()`): the cost of the choice "
         "the header declares. B's error rate is against its own payload "
-        "while both tracked; `decodes` counts the draws under "
+        "while both tracked, read by the harness's own best-lag meter (one "
+        "lag and one sign over the run, a declared deviation from the "
+        "shipped `dp_ber_sync()`, #3396): a run with a slip reads high, so "
+        "a count near the line can move by a draw or two. `decodes` counts "
+        "the draws under "
         f"{DECODES:.0e}. Held is not decoding: A shares B's code and "
         "carrier, and A's data flips inside most code periods, so A leaks "
         "into B's despread at about 1/1023 of its power at any lag. At 31 "
@@ -714,7 +740,7 @@ def review(forced: Rows, second: Rows, alone: Rows) -> None:
         f"rest sit 24 to 31 dB under a 70 dB-Hz neighbour, past the near-far "
         f"limit, where B decodes nothing anyway. Against that, "
         f"{R.ref('k0_ghost_held_on_its_parent')}'s ghosts hold a slot. "
-        f"Leaving k = 0 alone is the owner's ruling (2026-11-23, "
+        f"Leaving k = 0 alone is the owner's decision (2026-11-23, "
         f"async-dsss-receiver.md, section 8); these numbers are the trade's "
         f"measured cost, and the rule that would take it is #3263's.",
     )
@@ -823,6 +849,16 @@ def limits(
         "if it ended on a carrier image",
         by="`--check` FORCED k = 2",
     )
+    R.limit(
+        sorted(float(r["b_dbhz"]) for r in d["second"]) == list(CHECK_DBHZ)
+        # the control: the same rows less one must not pass
+        and sorted(float(r["b_dbhz"]) for r in d["second"][1:])
+        != list(CHECK_DBHZ),
+        f"[check] SECOND ran one draw at each of "
+        f"{', '.join(f'{b:.1f}' for b in CHECK_DBHZ)} dB-Hz",
+        by="`--check` SECOND",
+        control="the same rows less one, refused",
+    )
     for r in d["second"]:
         b = float(r["b_dbhz"])
         R.limit(
@@ -839,9 +875,24 @@ def limits(
         by="`--check` SECOND seed 8, B at 50 dB-Hz",
         red="drop the pool-seeded branch: the draw reads as unscored",
     )
+    R.limit(
+        _cells(forced, "k", FORCED_K)
+        and _cells(second, "b_dbhz", SECOND_DBHZ)
+        # the control: a record with one shard's row gone must not pass
+        and not _cells(forced[1:], "k", FORCED_K),
+        f"[record] the full sweep is whole: {DRAWS} draws in every carrier "
+        f"and k ({len(CARRIERS_GHZ) * len(FORCED_K) * DRAWS} FORCED rows) "
+        f"and every carrier and level "
+        f"({len(CARRIERS_GHZ) * len(SECOND_DBHZ) * DRAWS} SECOND rows)",
+        by="data/forced.csv, data/second.csv",
+        control="the record less one row, refused",
+    )
     rel = [r for r in forced if int(r["outcome"]) == 1]
     R.limit(
-        all(_on_image(float(r["df_end_hz"]), float(r["fc_ghz"])) for r in rel),
+        len(rel) > 0
+        and all(
+            _on_image(float(r["df_end_hz"]), float(r["fc_ghz"])) for r in rel
+        ),
         f"[record] every ghost-rule release of a forced ghost ended a whole "
         f"nonzero number of image spacings off its parent ({len(rel)} of "
         f"{len(rel)})",
@@ -849,7 +900,8 @@ def limits(
     )
     k0 = [r for r in forced if int(r["k"]) == 0]
     R.limit(
-        not any(int(r["outcome"]) == 1 for r in k0),
+        len(k0) == len(CARRIERS_GHZ) * DRAWS
+        and not any(int(r["outcome"]) == 1 for r in k0),
         f"[record] no forced k = 0 ghost is released by the ghost rule "
         f"(0 of {len(k0)})",
         by="data/forced.csv",
@@ -857,7 +909,8 @@ def limits(
     sc = _scored(second)
     srel = [r for r in sc if int(r["outcome"]) == 1]
     R.limit(
-        all(
+        len(srel) > 0
+        and all(
             _on_image(float(r["df_end_hz"]), float(r["fc_ghz"])) for r in srel
         ),
         f"[record] the ghost rule releases a distinct emitter's receiver "

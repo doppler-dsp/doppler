@@ -624,7 +624,13 @@ gh_rho_centered (const gh_acc_t *a, gh_t *o)
 
 /* B's error rate against its payload: the symbols receiver 1 emitted while
    both tracked, from the truth's symbol at the first such push, the best of
-   a +-250 lag with the sign folded. */
+   a +-250 lag with the sign folded.
+
+   A declared deviation: this is a private best-lag meter, one lag and one
+   sign over the whole run, not the shipped dp_ber_sync(). A run with a
+   slip reads high, so a count of draws under a threshold near 1e-2 can
+   move by a draw or two. doppler#3396 moves these meters onto the shipped
+   one. */
 static double
 gh_b_ber (const dp_air_t *air, const gh_acc_t *a)
 {
@@ -1446,6 +1452,10 @@ main (int argc, char **argv)
             /* The seed order puts the 70 dB-Hz A on receiver 0. A draw
                with no scene is counted, not scored. */
             DP_CHECK_MSG (!o.no_parent, "receiver 0 tracks A with code lock");
+            /* With A held, receiver 1 on anything but B for 3 s is an
+               unreleased ghost or duplicate: the arm's own failure. */
+            DP_CHECK_MSG (!o.no_scene, "receiver 1 holds B or nothing while "
+                                       "receiver 0 holds A");
             if (o.no_parent || o.no_scene)
               {
                 orphan++;

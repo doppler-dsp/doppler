@@ -408,11 +408,11 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
       free (rx);
       return NULL;
     }
-  /* One strobe per input (doppler#3289): the front end's steered rate stays
-     at or under m_out, so one input yields at most m_out outputs and two
-     strobes, which need m_out + 1, cannot share it. */
-  (real ? rx->fe.r->rc : rx->fe.c->rc)->ctrl_rate_max = (double)m_out;
-  rx->centre_freq                                     = init_norm_freq;
+  /* One strobe per input (doppler#3289): the front end's steered rate is
+     held at ratesync_rate_bound(m_out), the derivation there. */
+  (real ? rx->fe.r->rc : rx->fe.c->rc)->ctrl_rate_max
+      = ratesync_rate_bound (m_out);
+  rx->centre_freq = init_norm_freq;
 
   /* A complex front end mixes at the input rate, so the LO sees `sps` samples
      per symbol; the real one's halfband decimates 2:1 first, so its LO sees

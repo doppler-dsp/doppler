@@ -2170,59 +2170,71 @@ test_lifecycle (void)
   }
 }
 
-/* One strobe per input (doppler#3289). A strobe is every m-th terminal
- * output, and two need m + 1 outputs from one input, so the converter holds
- * the steered rate (rate + ctrl) at or under m and one input yields at most
- * m. Forced past it, the loop's control is held there. Both sides of the
- * edge: forced to exactly m, the bound is reached and no input holds two
- * strobes; forced to m + 0.5, an input still yields at most m (clamped),
- * and none holds two. Sabotage: the bound removed (ctrl_rate_max left at
- * +INFINITY) -> at m + 0.5 an input yields m + 1 and two strobes share it,
- * one symbol lost, red. */
+/* One strobe per input (doppler#3289). The converter holds the steered rate
+ * at ratesync_rate_bound(m): at or under m (two strobes need m + 1 outputs
+ * from one input), at or under the call's fold (nothing spills into the
+ * converter's debt), and a power of two (only there is the bound exact: the
+ * terminal stage steps by floor(2^32/delta)). Both sides of the edge, at
+ * m 2 (bound 2) and m 6 (bound 4): forced to the bound, an input yields
+ * exactly the bound and never more; forced past it, the same (clamped); at
+ * no input does an output wait as debt, and none holds two strobes.
+ * Sabotages: the bound left unset -> at m 2, an input yields 3 and holds two
+ * strobes; the bound set to m, as first written -> at m 6, outputs spill
+ * into the debt (ctrl_ahead), red. */
 static void
 test_a_forced_control_never_shares_an_input (void)
 {
-  const size_t m       = 2;
-  const double over[2] = { 0.0, 0.5 }; /* steered rate m + over */
-  for (size_t v = 0; v < 2; v++)
-    {
-      size_t               n = 0;
-      float _Complex      *x = _tx (4.0, 0.0, &n);
-      dp_ratesync_state_t *s
-          = dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, m, 1024,
-                                0.01, 0.707, RATESYNC_TED_GARDNER);
-      DP_CHECK (x && s);
-      if (!x || !s)
-        {
-          free (x);
-          dp_ratesync_destroy (s);
-          return;
-        }
-      DP_CHECK (s->loop.term_rate < (double)m); /* only a transient meets it */
-      const double ctrl = (double)m + over[v] - s->loop.term_rate;
-      size_t       most = 0, shared = 0;
-      for (size_t i = 0; i < n; i++)
-        {
-          s->loop.ctrl    = ctrl; /* forced: the loop's own is overwritten */
-          const size_t o0 = s->loop.out_count;
-          float _Complex y;
-          (void)ratesync_step (s, x[i], &y);
-          const size_t o1 = s->loop.out_count, outs = o1 - o0;
-          size_t       strobes = 0;
-          for (size_t k = o0; k < o1; k++)
-            strobes += k % m == 0;
-          most = outs > most ? outs : most;
-          shared += strobes > 1;
-        }
-      DP_CHECK_MSG (most == m, "the bound is reached, and never passed");
-      DP_CHECK_MSG (shared == 0, "no input holds two strobes");
-      if (most != m || shared)
-        DP_TEST_ERR ("  steered rate m + %.1f: an input yielded up to %zu "
-                     "outputs, %zu inputs held two strobes\n",
-                     over[v], most, shared);
-      dp_ratesync_destroy (s);
-      free (x);
-    }
+  const size_t ms[2]   = { 2, 6 };
+  const double over[2] = { 0.0, 0.5 }; /* steered rate bound + over */
+  for (size_t q = 0; q < 2; q++)
+    for (size_t v = 0; v < 2; v++)
+      {
+        const size_t         m = ms[q];
+        size_t               n = 0;
+        float _Complex      *x = _tx (8.0, 0.0, &n);
+        dp_ratesync_state_t *s
+            = dp_ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, m,
+                                  1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+        DP_CHECK (x && s);
+        if (!x || !s)
+          {
+            free (x);
+            dp_ratesync_destroy (s);
+            return;
+          }
+        const double b = ratesync_rate_bound (m);
+        /* only a transient meets the bound: the nominal rate is under it
+           (measured: at most two thirds of it for m 2..8, sps 2..64) */
+        DP_CHECK (s->loop.term_rate < b);
+        const resamp_state_t *term
+            = (const resamp_state_t *)s->mf->stage_ptrs[s->mf->n_stages - 1];
+        const double ctrl = b + over[v] - s->loop.term_rate;
+        size_t       most = 0, shared = 0, owed = 0;
+        for (size_t i = 0; i < n; i++)
+          {
+            s->loop.ctrl    = ctrl; /* forced: the loop's own is overwritten */
+            const size_t o0 = s->loop.out_count;
+            float _Complex y;
+            (void)ratesync_step (s, x[i], &y);
+            const size_t o1 = s->loop.out_count, outs = o1 - o0;
+            size_t       strobes = 0;
+            for (size_t k = o0; k < o1; k++)
+              strobes += k % m == 0;
+            most = outs > most ? outs : most;
+            shared += strobes > 1;
+            owed += term->ctrl_ahead > 0;
+          }
+        DP_CHECK_MSG ((double)most == b,
+                      "the bound is reached, and never passed");
+        DP_CHECK_MSG (shared == 0, "no input holds two strobes");
+        DP_CHECK_MSG (owed == 0, "no output waits as the converter's debt");
+        if ((double)most != b || shared || owed)
+          DP_TEST_ERR ("  m %zu, bound %.0f + %.1f: up to %zu outputs an "
+                       "input, %zu inputs held two strobes, %zu owed\n",
+                       m, b, over[v], most, shared, owed);
+        dp_ratesync_destroy (s);
+        free (x);
+      }
 }
 
 /* The bound is never reached while tracking (doppler#3289): on a clean

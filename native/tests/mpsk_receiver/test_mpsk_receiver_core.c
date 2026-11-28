@@ -2350,7 +2350,8 @@ main (void)
      holds; and a free-running receiver on a clean stream never reaches it.
      At m_out 2: the step folds at most four outputs (ys[4]) and the rest
      wait as the converter's debt, so at m_out 4 no call can see the five two
-     strobes need, and the overwrite is reachable only at m_out 2 or 3.
+     strobes need; m_out is even, so the overwrite was reachable only at
+     m_out 2. The bound there is ratesync_rate_bound(2) = 2.
      Sabotage: the bound removed (the front end left at +INFINITY) -> at
      m_out + 0.5 an input yields m_out + 1 and holds two strobes, red. */
   {

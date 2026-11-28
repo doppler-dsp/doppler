@@ -374,7 +374,7 @@ double dp_RateConverter_state_t::ctrl_rate_max;
 
 
 
-Config: the most the terminal stage's steered rate, its rate plus the control, may reach on the control path: the mirror of the lower clamp (RESAMP\_CTRL\_RATE\_MIN). +INFINITY, the default, is no bound, so a converter nobody bounds runs as before. A timing loop's owner sets it once, after create, to its outputs per symbol `m`: one input then yields at most `m` outputs (`ceil(rate + ctrl)`), and two on-time strobes need `m + 1`, so `rate + ctrl <= m` is the bound that keeps one strobe per input (doppler#3289). Never set by a setter, so it is not in the blob. 
+Config: the most the terminal stage's steered rate, its rate plus the control, may reach on the control path: the mirror of the lower clamp (RESAMP\_CTRL\_RATE\_MIN). +INFINITY, the default, is no bound, so a converter nobody bounds runs as before. A timing loop's owner sets it once, after create, to its outputs per symbol `m`: one input then yields at most `m` outputs (`ceil(rate + ctrl)`), and two on-time strobes need `m + 1`, so `rate + ctrl <= m` keeps one strobe per input (doppler#3289). The bound is exact only where 2^32 / ctrl\_rate\_max is an integer (a power of two): the terminal stage steps by floor(2^32 / delta), so at another value a steer at the bound can yield one output more. ratesync\_rate\_bound() gives the value a loop owner sets. Never set by a setter, so it is not in the blob. 
 
 
         

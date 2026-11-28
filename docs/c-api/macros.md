@@ -483,6 +483,7 @@
 * **RC\_STATE\_MAGIC** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **RC\_STATE\_VERSION** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **RESAMPLER\_MAX\_OUT** ([**Resampler\_core.h**](Resampler__core_8h.md))
+* **RATESYNC\_FOLD\_MAX** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **RATESYNC\_LOCK\_BUDGET** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **RATESYNC\_LOCK\_EPS** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **RATESYNC\_LOCK\_PD** ([**ratesync\_core.h**](ratesync__core_8h.md))

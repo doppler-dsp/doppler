@@ -381,8 +381,7 @@ run_dropout (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
     return 1;
   float complex *blk  = dp_xmalloc (PUSH * sizeof *blk);
   float complex *noi  = dp_xmalloc (PUSH * sizeof *noi);
-  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx);
-  cap                 = cap ? cap : PUSH;
+  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx, PUSH);
   float complex *syms = dp_xmalloc (cap * sizeof *syms);
 
   size_t     fed = 0;
@@ -657,8 +656,7 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check,
 
   float complex *sig    = dp_xmalloc (PUSH * sizeof *sig);
   float complex *blk    = dp_xmalloc (PUSH * sizeof *blk);
-  size_t         cap_   = dp_async_dsss_receiver_steps_max_out (rx);
-  cap_                  = cap_ ? cap_ : PUSH;
+  size_t         cap_   = dp_async_dsss_receiver_steps_max_out (rx, PUSH);
   float complex *syms   = dp_xmalloc (cap_ * sizeof *syms);
   double         t_lock = -1.0;
   for (size_t b = 0; b < blocks; b++)
@@ -1036,8 +1034,7 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int noisy, int pin,
   const int id_o    = dp_tlm_probe_id (tlm, "rx.code.offset_pwr");
   DP_REQUIRE (id_lock >= 0 && id_lkd >= 0 && id_p >= 0 && id_o >= 0);
 
-  size_t cap              = dp_async_dsss_receiver_steps_max_out (rx);
-  cap                     = cap ? cap : PUSH;
+  size_t          cap     = dp_async_dsss_receiver_steps_max_out (rx, PUSH);
   float complex  *x       = dp_xmalloc (PUSH * sizeof *x);
   float complex  *syms    = dp_xmalloc (cap * sizeof *syms);
   dp_tlm_rec_t   *recs    = dp_xmalloc (4096 * sizeof *recs);
@@ -1195,8 +1192,7 @@ run_noise_lock (const uint8_t *code, double fc, double esn0, int pin,
               == DP_OK);
   const int id_lock = dp_tlm_probe_id (tlm, "rx.code.lock");
   DP_REQUIRE (id_lock >= 0);
-  size_t cap             = dp_async_dsss_receiver_steps_max_out (rx);
-  cap                    = cap ? cap : PUSH;
+  size_t         cap     = dp_async_dsss_receiver_steps_max_out (rx, PUSH);
   float complex *x       = dp_xmalloc (PUSH * sizeof *x);
   float complex *syms    = dp_xmalloc (cap * sizeof *syms);
   dp_tlm_rec_t  *recs    = dp_xmalloc (4096 * sizeof *recs);
@@ -1533,8 +1529,7 @@ run_longdrop (const uint8_t *code, double fc, uint32_t seed, double drop_s,
     return 1;
   float complex *blk  = dp_xmalloc (PUSH * sizeof *blk);
   float complex *noi  = dp_xmalloc (PUSH * sizeof *noi);
-  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx);
-  cap                 = cap ? cap : PUSH;
+  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx, PUSH);
   float complex *syms = dp_xmalloc (cap * sizeof *syms);
   size_t         fed  = 0;
   out->settled = lk_settle (&air, g, rx, lock_b, jitter_b, band_b, at, blk,

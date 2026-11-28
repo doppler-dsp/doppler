@@ -628,6 +628,24 @@ typedef enum
     size_t         car_carry_len;  /**< Running: live samples in the
                                         carry, 0..tsamps-1.            */
 
+    /* Symbols a call produced past its out, delivered first by the next
+     * call (#2469). The store has a fixed capacity so the blob keeps one
+     * size per object, padded like the carry. */
+    float _Complex *hold_buf; /**< Owned: hold_cap held symbols.       */
+    size_t          hold_len; /**< Running: symbols held, <= hold_cap.  */
+    size_t          hold_cap; /**< Config: the most one call of a code
+                                   period's samples can produce,
+                                   dp_async_dsss_receiver_steps_max_out()
+                                   at x_len tsamps with nothing held,
+                                   derived at create. */
+    float _Complex *steps_buf; /**< Owned scratch one call's symbols are
+                                    produced into, grown on demand to the
+                                    call's bound plus one. */
+    size_t          steps_cap; /**< Capacity of steps_buf, symbols.     */
+    size_t          consumed;  /**< Inputs the last steps() took: its
+                                    x_len, or 0 when it held its input
+                                    back. Per-call, not in the blob. */
+
     /* Own copy of the spreading code (same rationale as DsssReceiver's
      * own copy -- neither dp_correlator_create_continuous() nor dp_dll_create()'s
      * borrow-vs-copy semantics are part of their public contract). */
@@ -1369,24 +1387,74 @@ typedef enum
       uint32_t decim);
 
   /**
-   * @brief The output capacity steps() needs beyond the input's.
+   * @brief The capacity that lets the next steps() call on @p x_len samples
+   *        deliver everything it can: the symbols held, plus the most the
+   *        call can produce.
    *
-   * Returns 0, which is NOT a bound. A call runs more samples than its
-   * `x_len` through the tracking chain at a hand-over: the hand-over
-   * ring's tail (up to refine_hist_cap samples) or the search history's,
-   * through a fresh chain. Their symbols can outnumber `x_len`, and those
-   * past `max_out` are dropped (see dp_async_dsss_receiver_steps()). A
-   * call that completes a carried code period adds at most one symbol:
-   * create() refuses a symbol shorter than a code period. A true bound is
-   * #2469.
+   * Sized to this, a call never holds and never refuses its input
+   * (dp_async_dsss_receiver_steps()), which is how the Python binding
+   * calls it. The most a call can produce, `P(x_len)`, is bounded by the
+   * chain's structure, not by the nominal rate:
+   *
+   * - the call runs at most `x_len + H` samples through the tracking
+   *   chain, `H = max(tsamps - 1, refine_hist_cap, srch_hist_cap)`: the
+   *   carry, or at a hand-over the refine ring's tail or the search
+   *   history's;
+   * - the live Dll emits at most dp_dll_steps_max_out() of them, its own
+   *   bound, which carries its rate headroom;
+   * - the RateConverter emits at most `ceil(ratio x n) + 1` of `n`
+   *   partials (`ratio = sps x symbol_rate / (segments x chip_rate /
+   *   code_len)`, fixed by configuration), and MpskReceiver at most one
+   *   symbol per input;
+   * - a hand-over rebuilds the Dll and the RateConverter with fresh phases,
+   *   one more close and one more output: `ceil(segments x ratio) + 1`. A
+   *   call holds at most one: the release clock runs once a call, at its
+   *   end, and the call returns after it, so no call can release, search,
+   *   refine and hand over again.
+   *
+   * So `P(x_len) = ceil(ratio x dp_dll_steps_max_out(dll, x_len + H)) + 1
+   * + ceil(segments x ratio) + 1`. It is 0 in a state that cannot reach
+   * the chain within a call: a search-only receiver
+   * (dp_async_dsss_receiver_set_search_only()) reports its hits and never
+   * seeds, a pooled receiver waits idle for a seed given between calls, and
+   * lost leaves only through reset(); so such a receiver consumes into any
+   * @p out, 0 included. A Debug build holds the bound to the chain: a call
+   * that produces more than it aborts (#2469).
    *
    * @param state  Must be non-NULL.
-   * @return 0.
+   * @param x_len  Input samples the call will be given.
+   * @return Held symbols plus `P(x_len)`; SIZE_MAX if that overflows.
    */
-  size_t dp_async_dsss_receiver_steps_max_out (dp_async_dsss_receiver_state_t *state);
+  size_t dp_async_dsss_receiver_steps_max_out (
+      dp_async_dsss_receiver_state_t *state, size_t x_len);
+
+  /**
+   * @brief Inputs the last dp_async_dsss_receiver_steps() call took: its
+   *        @p x_len, or 0 when it held its input back.
+   *
+   * Per-call, not in the blob: 0 after create and reset.
+   *
+   * @param state  Must be non-NULL.
+   * @return Input samples the last call consumed.
+   */
+  size_t dp_async_dsss_receiver_get_consumed (
+      const dp_async_dsss_receiver_state_t *state);
 
   /**
    * @brief Stream raw cf32 samples; emit demodulated symbols once tracking.
+   *
+   * **No symbol is dropped.** Symbols held by an earlier call are delivered
+   * first, in order. A call consumes its input only when nothing stays held
+   * after that and its symbols fit: `P(x_len)` (see
+   * dp_async_dsss_receiver_steps_max_out()) is at most the room left in
+   * @p out plus the store, which holds what one call of a code period can
+   * produce. What does not fit in @p out is held for the next call. A call
+   * that cannot consume returns what it delivered and takes nothing:
+   * dp_async_dsss_receiver_get_consumed() reads 0, and the caller calls again
+   * with the same @p x. A C caller that sizes @p out below
+   * dp_async_dsss_receiver_steps_max_out() for a call longer than a code
+   * period meets this every time, so it must check consumed() or size
+   * @p out from that function, as the Python binding does.
    *
    * Drives the state machine. It emits nothing while
    * searching or refining (an empty return is normal, not an error): a hit
@@ -1413,14 +1481,13 @@ typedef enum
    * @param x        Input cf32 samples.
    * @param x_len    Number of input samples.
    * @param out      Output symbols; caller provides @p max_out capacity.
-   * @param max_out  Output capacity. steps() never writes past it, and the
-   *                 symbols past it are dropped, not held for the next
-   *                 call. @p x_len is not always enough: a call that
-   *                 completes a carried code period emits the whole
-   *                 period's symbols (#2469).
-   * @return Number of symbols written: 0 while searching, refining or lost,
-   *         or before a full symbol's
-   *         worth of input.
+   * @param max_out  Output capacity. steps() never writes past it; symbols
+   *                 past it are held and delivered by the next call.
+   *                 dp_async_dsss_receiver_steps_max_out() for @p x_len is
+   *                 always enough.
+   * @return Number of symbols written: held ones first, then this call's;
+   *         0 while searching, refining or lost with nothing held, or before
+   *         a full symbol's worth of input.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import AsyncDsssReceiver
@@ -2326,12 +2393,17 @@ typedef enum
     uint64_t ho_src; /**< v19: ASYNC_DSSS_RX_HO_*, refused past 3 (v23). */
     uint64_t fine_n; /**< v23: the fine hand-over's sums so far, at most
                           fine_cap; the buffer follows the refine ring. */
+    uint64_t hold_cap; /**< v24: layout key, the store's capacity
+                            (#2469); the store follows the fine buffer,
+                            hold_cap symbols. */
+    uint64_t hold_len; /**< v24: symbols held, at most hold_cap; the rest
+                            of the store packed as zeros. */
   } async_dsss_receiver_extra_t;
 
 /** @brief Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob. */
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
 /** @brief Layout version of the AsyncDsssReceiver blob (history below). */
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 23u /* v23: the fine hand-over's buffer and count (ho_src 3); v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 24u /* v24: the held symbols' store (#2469); v23: the fine hand-over's buffer and count (ho_src 3); v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   /**
    * @brief Size in bytes of the blob dp_async_dsss_receiver_get_state()

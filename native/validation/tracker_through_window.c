@@ -241,8 +241,8 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
      buffer hands the receiver whole epochs. */
   float complex *fifo = dp_xmalloc (4 * TE * sizeof *fifo);
   size_t         pend = 0;
-  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx);
-  float complex *syms = dp_xmalloc ((cap ? cap : TE) * sizeof *syms);
+  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx, TE);
+  float complex *syms = dp_xmalloc (cap * sizeof *syms);
   DP_REQUIRE_MSG (syn && g && rx && out->frames && (cond == COND_STATIC || ch),
                   "the emitter, the noise, the channel and the receiver open");
   /* The searcher that seeds it: the shipped continuous engine over the
@@ -317,7 +317,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
                     ho.cn0_dbhz_est);
           continue;
         }
-      (void)dp_async_dsss_receiver_steps (rx, blk, TE, syms, cap ? cap : TE);
+      (void)dp_async_dsss_receiver_steps (rx, blk, TE, syms, cap);
       const int code_on = dp_async_dsss_receiver_get_code_locked (rx) == 1;
       const int sym_on  = dp_async_dsss_receiver_get_locked (rx) == 1;
       const int trk     = dp_async_dsss_receiver_get_tracking (rx) == 1;

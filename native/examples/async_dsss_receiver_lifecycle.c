@@ -293,21 +293,17 @@ main (void)
   dp_tlm_capture_t *cap = dp_tlm_capture_open_memory (tlm, TE, &clk);
   CHECK (cap != NULL, "the capture opens");
 
-  /* The caller's buffers. steps_max_out() returns 0 for this receiver, which
-     means "allocate x_len": a push of TE samples emits at most TE symbols. So
-     the output is sized to the larger of the reported capacity and one push,
-     which is sufficient in both readings. The rows are one per push of the
-     whole timeline. */
+  /* The caller's buffers. steps_max_out() for one push of TE samples is the
+     most that push can deliver, so sized to it no call holds or refuses its
+     input. The rows are one per push of the whole timeline. */
   size_t n_pushes = 0;
   for (size_t s = 0; s < N_SEG; s++)
     n_pushes += TIMELINE[s].epochs;
-  size_t syms_cap = dp_async_dsss_receiver_steps_max_out (rx);
-  if (syms_cap < TE)
-    syms_cap = TE;
-  float complex *x    = malloc ((size_t)TE * sizeof *x);
-  float complex *sig  = malloc ((size_t)TE * sizeof *sig);
-  float complex *syms = malloc (syms_cap * sizeof *syms);
-  struct row    *rows = malloc (n_pushes * sizeof *rows);
+  const size_t   syms_cap = dp_async_dsss_receiver_steps_max_out (rx, TE);
+  float complex *x        = malloc ((size_t)TE * sizeof *x);
+  float complex *sig      = malloc ((size_t)TE * sizeof *sig);
+  float complex *syms     = malloc (syms_cap * sizeof *syms);
+  struct row    *rows     = malloc (n_pushes * sizeof *rows);
   CHECK (x && sig && syms && rows, "the buffers allocate");
 
   /* ── stream the timeline, one code epoch per push ─────────────────────── */

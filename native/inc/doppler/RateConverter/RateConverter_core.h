@@ -101,6 +101,19 @@ typedef enum
 typedef struct
 {
   double         rate;                        /**< current rate ratio        */
+  double ctrl_rate_max; /**< Config: the most the terminal stage's steered
+                             rate, its rate plus the control, may reach on
+                             the control path: the mirror of the lower clamp
+                             (RESAMP_CTRL_RATE_MIN). +INFINITY, the default,
+                             is no bound, so a converter nobody bounds runs
+                             as before. A timing loop's owner sets it once,
+                             after create, to its outputs per symbol `m`:
+                             one input then yields at most `m` outputs
+                             (`ceil(rate + ctrl)`), and two on-time strobes
+                             need `m + 1`, so `rate + ctrl <= m` is the
+                             bound that keeps one strobe per input
+                             (doppler#3289). Never set by a setter, so it is
+                             not in the blob. */
   int            compensate;                  /**< CIC droop-comp flag       */
   int            n_stages;                    /**< active stage count        */
   rc_stage_t     stage_types[RC_MAX_STAGES];  /**< stage type per slot       */

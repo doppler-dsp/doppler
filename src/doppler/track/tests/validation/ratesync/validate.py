@@ -2082,6 +2082,22 @@ def review(d: Data) -> None:
         f"([#3150](https://github.com/doppler-dsp/doppler/issues/3150)) "
         f"no longer has a case to refuse.",
     )
+    R.find(
+        "one_strobe_per_input",
+        "FIXED",
+        "one input holds at most one on-time strobe, so `step()`'s single "
+        "symbol never overwrites one: a strobe is every `m`-th terminal "
+        "output, two need `m + 1` outputs from one input, and one input "
+        "yields at most `ceil(rate + ctrl)`, so the converter holds the "
+        "steered rate at `rate + ctrl <= m` (`ctrl_rate_max`). Forced to `m` "
+        "an input yields `m` outputs and no input holds two strobes; forced "
+        "past it, the same; a tracking loop never reaches it "
+        "(`test_a_forced_control_never_shares_an_input`, "
+        "`test_tracking_stays_under_the_rate_bound`). Until then the control "
+        "was unclamped from above, and a control past `m` put two strobes "
+        "in one input, one of them lost "
+        "([#3289](https://github.com/doppler-dsp/doppler/issues/3289)).",
+    )
     R.md()
     R.table(
         ["finding", "verdict", "detail"],

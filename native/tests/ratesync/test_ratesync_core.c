@@ -2170,10 +2170,101 @@ test_lifecycle (void)
   }
 }
 
+/* One strobe per input (doppler#3289). A strobe is every m-th terminal
+ * output, and two need m + 1 outputs from one input, so the converter holds
+ * the steered rate (rate + ctrl) at or under m and one input yields at most
+ * m. Forced past it, the loop's control is held there. Both sides of the
+ * edge: forced to exactly m, the bound is reached and no input holds two
+ * strobes; forced to m + 0.5, an input still yields at most m (clamped),
+ * and none holds two. Sabotage: the bound removed (ctrl_rate_max left at
+ * +INFINITY) -> at m + 0.5 an input yields m + 1 and two strobes share it,
+ * one symbol lost, red. */
+static void
+test_a_forced_control_never_shares_an_input (void)
+{
+  const size_t m       = 2;
+  const double over[2] = { 0.0, 0.5 }; /* steered rate m + over */
+  for (size_t v = 0; v < 2; v++)
+    {
+      size_t               n = 0;
+      float _Complex      *x = _tx (4.0, 0.0, &n);
+      dp_ratesync_state_t *s
+          = dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, m, 1024,
+                                0.01, 0.707, RATESYNC_TED_GARDNER);
+      DP_CHECK (x && s);
+      if (!x || !s)
+        {
+          free (x);
+          dp_ratesync_destroy (s);
+          return;
+        }
+      DP_CHECK (s->loop.term_rate < (double)m); /* only a transient meets it */
+      const double ctrl = (double)m + over[v] - s->loop.term_rate;
+      size_t       most = 0, shared = 0;
+      for (size_t i = 0; i < n; i++)
+        {
+          s->loop.ctrl    = ctrl; /* forced: the loop's own is overwritten */
+          const size_t o0 = s->loop.out_count;
+          float _Complex y;
+          (void)ratesync_step (s, x[i], &y);
+          const size_t o1 = s->loop.out_count, outs = o1 - o0;
+          size_t       strobes = 0;
+          for (size_t k = o0; k < o1; k++)
+            strobes += k % m == 0;
+          most = outs > most ? outs : most;
+          shared += strobes > 1;
+        }
+      DP_CHECK_MSG (most == m, "the bound is reached, and never passed");
+      DP_CHECK_MSG (shared == 0, "no input holds two strobes");
+      if (most != m || shared)
+        DP_TEST_ERR ("  steered rate m + %.1f: an input yielded up to %zu "
+                     "outputs, %zu inputs held two strobes\n",
+                     over[v], most, shared);
+      dp_ratesync_destroy (s);
+      free (x);
+    }
+}
+
+/* The bound is never reached while tracking (doppler#3289): on a clean
+ * stream at a clock offset, the steered rate stays under m once locked, so
+ * the clamp costs tracking nothing. */
+static void
+test_tracking_stays_under_the_rate_bound (void)
+{
+  const size_t         m = 2;
+  size_t               n = 0;
+  float _Complex      *x = _tx (4.0, 0.37, &n);
+  dp_ratesync_state_t *s
+      = dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, m, 1024,
+                            0.01, 0.707, RATESYNC_TED_GARDNER);
+  DP_CHECK (x && s);
+  if (!x || !s)
+    {
+      free (x);
+      dp_ratesync_destroy (s);
+      return;
+    }
+  double worst = 0.0;
+  for (size_t i = 0; i < n; i++)
+    {
+      float _Complex y;
+      (void)ratesync_step (s, x[i], &y);
+      const double steered = s->loop.term_rate + s->loop.ctrl;
+      worst                = steered > worst ? steered : worst;
+    }
+  DP_CHECK_MSG (worst < (double)m, "tracking never reaches the rate bound");
+  if (!(worst < (double)m))
+    DP_TEST_ERR ("  steered rate reached %.4f against m %zu\n", worst, m);
+  dp_ratesync_destroy (s);
+  free (x);
+}
+
 int
 main (void)
 {
   test_invalid_params ();
+  test_a_forced_control_never_shares_an_input ();
+  test_tracking_stays_under_the_rate_bound ();
   test_owns_a_matched_cascade ();
   test_locks_across_planned_cascades ();
   test_tracks_a_clock_offset ();

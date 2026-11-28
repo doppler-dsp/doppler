@@ -295,6 +295,7 @@ dp_ber_esn0_db_for_ser function
 dp_ber_evm_db function
 dp_ber_evm_ideal_db function
 dp_ber_evm_scatter_floor_db function
+dp_ber_lock_all function
 dp_ber_lock_symbol function
 dp_ber_lock_transitions function
 dp_ber_meter_align function
@@ -1286,6 +1287,7 @@ dp_mpsk_receiver_get_state function
 dp_mpsk_receiver_get_sync_lock_drop_thresh function
 dp_mpsk_receiver_get_sync_lock_rule function
 dp_mpsk_receiver_get_sync_lock_thresh function
+dp_mpsk_receiver_get_sync_locked function
 dp_mpsk_receiver_get_timing_rate function
 dp_mpsk_receiver_get_zeta function
 dp_mpsk_receiver_reset function

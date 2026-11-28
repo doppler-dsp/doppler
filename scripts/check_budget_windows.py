@@ -3,7 +3,7 @@
 
 A receiver's error rate is scored from the moment it is observed locked:
 every lock flag it publishes sustained, inside a stated lock allocation,
-aligned once there (`dp_ber_lock_all()`, native/tests/dp_ber_test.h;
+aligned once there (`dp_ber_lock_all()`, doppler/ber/ber_core.h;
 docs/dev/contributing/measuring-a-receiver.md, "The traps"). Two older paths
 score from somewhere else:
 

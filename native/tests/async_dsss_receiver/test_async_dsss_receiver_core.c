@@ -35,13 +35,13 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include "doppler/awgn/awgn_core.h"
+#include "doppler/ber/ber_core.h" /* dp_ber_lock_all: the observed-lock window */
 #include "doppler/carrier_acq/carrier_acq_core.h" /* its blob magic, for forging */
 #include "doppler/correlator/correlator_private.h" /* the search's extra block */
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/gold/gold_core.h" /* the specification Gold-1023 for the Es/N0-floor sweep   */
 #include "doppler/ppe/ppe_core.h" /* the fine hand-over's estimator */
 #include "dp_air_test.h"
-#include "dp_ber_test.h" /* dp_ber_lock_all: the observed-lock window */
 #include "dp_chunk_inv.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
@@ -968,6 +968,11 @@ _test_awgn_esn0_floor (void)
   double       evm_at[5]  = { 0, 0, 0, 0, 0 };
   double       snr_at[5]  = { 0, 0, 0, 0, 0 };
   size_t       win_at[5]  = { 0, 0, 0, 0, 0 }; /* symbols M2M4 read */
+  /* The status record's three loop flags (doppler#3350), read against the
+     detectors they publish after every call: each equal to its own, each
+     seen up, and each pair seen apart, so a field filled from a sibling
+     detector is red. */
+  int rec_same = 1, rec_up[3] = { 0, 0, 0 }, rec_apart[3] = { 0, 0, 0 };
 
   for (size_t p = 0; p < n_pts; p++)
     {
@@ -1015,6 +1020,24 @@ _test_awgn_esn0_floor (void)
             first_in = pos + take; /* the first output's call */
           unsigned char f[DP_S415_N_FLAGS];
           dp_s415_lock_flags (rx, f);
+          {
+            const async_dsss_receiver_status_t sr
+                = dp_async_dsss_receiver_status (rx);
+            const int fl3[3] = { sr.carrier_locked, sr.demod_carrier_locked,
+                                 sr.sync_locked };
+            /* The detectors themselves: the truth the record is held to,
+               and the precondition that tells them apart, read without
+               the face under test. */
+            const int det[3] = { dp_carrier_nda_get_locked (&rx->car),
+                                 rx->rx ? rx->rx->l.car_lock.locked : 0,
+                                 rx->rx ? rx->rx->l.timing.lock.locked : 0 };
+            for (int q = 0; q < 3; q++)
+              {
+                rec_same &= fl3[q] == det[q];
+                rec_up[q] |= fl3[q];
+                rec_apart[q] |= det[q] != det[(q + 1) % 3];
+              }
+          }
           for (size_t j = 0; j < k; j++)
             for (size_t q = 0; q < DP_S415_N_FLAGS; q++)
               fl[q * tot + n_syms + j] = f[q];
@@ -1066,6 +1089,12 @@ _test_awgn_esn0_floor (void)
       free (dbits);
     }
   free (code);
+  DP_CHECK (rec_same);
+  for (int q = 0; q < 3; q++)
+    {
+      DP_CHECK (rec_up[q]);
+      DP_REQUIRE (rec_apart[q]); /* the control's precondition */
+    }
 
   /* AWGN-only, the receiver decodes at every point down to the use case's
      floor, 4 dB (scored from the record's own timing, above). Failing case:

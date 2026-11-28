@@ -38,7 +38,7 @@ constexpr unsigned LENGTH_SEED = 2;
 // field received with its lowest bit wrong moves where the next frame is
 // due by one octet, 8 symbols, and that is not a slip.
 constexpr size_t SLIP_MAX = 4;
-// What "sustained" means for the symbol lock is dp_ber_lock_symbol()'s
+// What "sustained" means for each lock flag is dp_ber_lock_symbol()'s
 // own: 0 and 0.0 select its defaults, so this file does not restate them.
 constexpr size_t LOCK_SUSTAIN = 0;
 constexpr double LOCK_MIN_FRAC = 0.0;
@@ -832,11 +832,16 @@ Run::step ()
       const size_t k = rx_syms_++;
       const int copies
           = k == o_.drop_symbol ? 0 : k == o_.repeat_symbol ? 2 : 1;
+      // The flags of a receiver searching or refining are not its link's.
+      const bool tr = st_.state == ASYNC_DSSS_RX_TRACKING;
+      const int up[N_LOCK_FLAGS]
+          = { st_.locked, st_.code_locked, st_.carrier_locked,
+              st_.demod_carrier_locked, st_.sync_locked };
       for (int c = 0; c < copies; c++)
         {
           syms_.push_back (out_[i]);
-          flags_.push_back (static_cast<uint8_t> (st_.locked));
-          code_flags_.push_back (static_cast<uint8_t> (st_.code_locked));
+          for (size_t q = 0; q < N_LOCK_FLAGS; q++)
+            flags_[q].push_back (static_cast<uint8_t> (tr && up[q]));
         }
     }
   emitted_.push_back (syms_.size ());
@@ -846,20 +851,19 @@ Run::step ()
   return true;
 }
 
-// Where the scored window opens: the later of the symbol lock's and the
-// code lock's sustained symbols, or -1 if either never sustained. The
-// design's rule (async-dsss-receiver.md §4.12, "The error-rate window") is
-// the latest of five flags; status() publishes these two, and the other
-// three are private (#3350), so this is that rule over the public ones.
+// Where the scored window opens: the latest of the five lock flags'
+// sustained symbols, or -1 if any never sustained. The design's rule
+// (async-dsss-receiver.md §4.12, "The error-rate window"), through the one
+// primitive the certification record opens its window with.
 int64_t
 Run::window_start () const
 {
-  const int64_t sym = dp_ber_lock_symbol (flags_.data (), flags_.size (),
-                                          LOCK_SUSTAIN, LOCK_MIN_FRAC);
-  const int64_t code
-      = dp_ber_lock_symbol (code_flags_.data (), code_flags_.size (),
-                            LOCK_SUSTAIN, LOCK_MIN_FRAC);
-  return sym < 0 || code < 0 ? -1 : std::max (sym, code);
+  const uint8_t *fl[N_LOCK_FLAGS];
+  for (size_t q = 0; q < N_LOCK_FLAGS; q++)
+    fl[q] = flags_[q].data ();
+  const size_t n = flags_[0].size ();
+  return dp_ber_lock_all (fl, N_LOCK_FLAGS, n, LOCK_SUSTAIN, LOCK_MIN_FRAC,
+                          n, nullptr);
 }
 
 Result
@@ -891,7 +895,7 @@ Run::finish ()
   // Score: the window opens where the lock is sustained (window_start()),
   // and the meter finds where the stream sits in the payload from a marker.
   const int64_t lo = window_start ();
-  check (lo >= 0, "[" + name_ + "] no sustained symbol and code lock");
+  check (lo >= 0, "[" + name_ + "] the five lock flags never all sustained");
   size_t at = 0;
   while (emitted_[at] <= static_cast<size_t> (lo))
     at++;

@@ -66,6 +66,7 @@ _Error-rate measurement: settled windows, detected alignment, and an exact confi
 |  double | [**dp\_ber\_evm\_db**](#function-dp_ber_evm_db) (const float \_Complex \* rx, size\_t rx\_len, size\_t lo, size\_t hi, int m) <br>_Self-referenced EVM (dB) over an EXPLICIT window_ `[lo, hi)` _._ |
 |  double | [**dp\_ber\_evm\_ideal\_db**](#function-dp_ber_evm_ideal_db) (double esn0\_db) <br>_What_ [_**dp\_ber\_evm\_db()**_](ber__core_8h.md#function-dp_ber_evm_db) _reads on an ideal stream at_`esn0_db` _._ |
 |  double | [**dp\_ber\_evm\_scatter\_floor\_db**](#function-dp_ber_evm_scatter_floor_db) (int m) <br>_EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation._  |
+|  int64\_t | [**dp\_ber\_lock\_all**](#function-dp_ber_lock_all) (const uint8\_t \*const \* flags, size\_t n\_flags, size\_t n, size\_t sustain, double min\_frac, size\_t limit, size\_t \* which) <br>_The error-rate window's start: every lock flag sustained, inside the lock allocation._  |
 |  int64\_t | [**dp\_ber\_lock\_symbol**](#function-dp_ber_lock_symbol) (const uint8\_t \* flags, size\_t flags\_len, size\_t sustain, double min\_frac) <br>_First symbol from which a verify-counted flag is SUSTAINED._  |
 |  size\_t | [**dp\_ber\_lock\_transitions**](#function-dp_ber_lock_transitions) (const uint8\_t \* flags, const uint8\_t \* count\_at, size\_t flags\_len, size\_t from, int64\_t \* first) <br>_How often a lock flag changes after a point, and where it first does._  |
 |  double | [**dp\_ber\_qfunc**](#function-dp_ber_qfunc) (double x) <br>_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._ |
@@ -360,6 +361,80 @@ The FLOOR of a self-referenced EVM: what a completely destroyed constant-modulus
 **Returns:**
 
 The floor in dB, or NAN for M &lt; 2, which is no constellation. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ber\_lock\_all 
+
+_The error-rate window's start: every lock flag sustained, inside the lock allocation._ 
+```C++
+int64_t dp_ber_lock_all (
+    const uint8_t *const * flags,
+    size_t n_flags,
+    size_t n,
+    size_t sustain,
+    double min_frac,
+    size_t limit,
+    size_t * which
+) 
+```
+
+
+
+A link is scored from the moment it is observed locked, not from an analytic settle budget. Each flag's sustained index is [**dp\_ber\_lock\_symbol()**](ber__core_8h.md#function-dp_ber_lock_symbol)'s (`sustain` up in a row, then `min_frac` of the rest), and the window opens at the LATEST of them: every flag the link needs is up and stays up. A flag that never sustains, or a latest one past `limit`, is a link that did not lock inside its allocation; it is never scored, and the caller counts it as "not locked" instead (docs/design/async-dsss-receiver.md, "The error-rate window"). For AsyncDsssReceiver the flags are its status record's five: `locked`, `code_locked`, `carrier_locked`, `demod_carrier_locked` and `sync_locked`.
+
+
+The flags share one time base, whatever it is (symbols or blocks), and `limit` is in it.
+
+
+
+
+**Parameters:**
+
+
+* `flags` `n_flags` arrays of `n` flags each, nonzero = up. 
+* `n_flags` How many flags must all sustain (&gt;= 1). 
+* `n` Length of every flag array. 
+* `sustain` Indices up in a row that open a sustained run; 0 selects 200, as [**dp\_ber\_lock\_symbol()**](ber__core_8h.md#function-dp_ber_lock_symbol). 
+* `min_frac` Fraction of the rest that must stay up; &lt;= 0 selects 0.9, as [**dp\_ber\_lock\_symbol()**](ber__core_8h.md#function-dp_ber_lock_symbol). 
+* `limit` The last index the window may open at. 
+* `which` Out, may be NULL: the flag that decided  the latest one when locked, else the first that never sustained or was late. 
+
+
+
+**Returns:**
+
+The index the window opens at, or -1 when the link did not lock by `limit`. 
+```C++
+#include "doppler/ber/ber_core.h"
+#include <stdio.h>
+#include <string.h>
+int main (void)
+{
+  uint8_t a[1000], b[1000];
+  memset (a, 0, sizeof a);
+  memset (b, 0, sizeof b);
+  memset (a + 100, 1, 900); // up from 100 on
+  memset (b + 300, 1, 700); // up from 300 on
+  const uint8_t *fl[2] = { a, b };
+  size_t which;
+  long long at = dp_ber_lock_all (fl, 2, 1000, 200, 0.9, 1000, &which);
+  printf ("%lld %zu\n", at, which);                     // 300 1
+  // the same flags with the window due by index 250: not locked
+  at = dp_ber_lock_all (fl, 2, 1000, 200, 0.9, 250, &which);
+  printf ("%lld %zu\n", at, which);                     // -1 1
+  return 0;
+}
+```
+ 
 
 
 

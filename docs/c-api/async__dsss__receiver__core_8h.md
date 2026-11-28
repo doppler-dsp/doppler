@@ -147,7 +147,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 |  int | [**dp\_async\_dsss\_receiver\_set\_telemetry**](#function-dp_async_dsss_receiver_set_telemetry) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the receiver's loops, and register the receiver's own lifecycle and symbol-lock decision._  |
 |  int | [**dp\_async\_dsss\_receiver\_set\_threads**](#function-dp_async_dsss_receiver_set_threads) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, int n) <br>_Set the workers the searcher fans its Doppler tiles across._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_state\_bytes**](#function-dp_async_dsss_receiver_state_bytes) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Size in bytes of the blob_ [_**dp\_async\_dsss\_receiver\_get\_state()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_state) _writes._ |
-|  [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) | [**dp\_async\_dsss\_receiver\_status**](#function-dp_async_dsss_receiver_status) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Read the status record, by value: the state; where the emitter is now (the live carrier), its chip phase, code rate and C/N0; both lock flags with the symbol-lock metric and threshold; both carrier residuals; and the two clocks in input samples (since the state was entered; both flags down without a break)._  |
+|  [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) | [**dp\_async\_dsss\_receiver\_status**](#function-dp_async_dsss_receiver_status) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Read the status record, by value: the state; where the emitter is now (the live carrier), its chip phase, code rate and C/N0; the five lock flags with the symbol-lock metric and threshold; both carrier residuals; and the two clocks in input samples (since the state was entered; both flags down without a break)._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_steps**](#function-dp_async_dsss_receiver_steps) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream raw cf32 samples; emit demodulated symbols once tracking._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_steps\_max\_out**](#function-dp_async_dsss_receiver_steps_max_out) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t x\_len) <br>_The capacity that lets the next steps() call on_ `x_len` _samples deliver everything it can: the symbols held, plus the most the call can produce._ |
 
@@ -2610,7 +2610,7 @@ Blob size, bytes.
 
 ### function dp\_async\_dsss\_receiver\_status 
 
-_Read the status record, by value: the state; where the emitter is now (the live carrier), its chip phase, code rate and C/N0; both lock flags with the symbol-lock metric and threshold; both carrier residuals; and the two clocks in input samples (since the state was entered; both flags down without a break)._ 
+_Read the status record, by value: the state; where the emitter is now (the live carrier), its chip phase, code rate and C/N0; the five lock flags with the symbol-lock metric and threshold; both carrier residuals; and the two clocks in input samples (since the state was entered; both flags down without a break)._ 
 ```C++
 async_dsss_receiver_status_t dp_async_dsss_receiver_status (
     const dp_async_dsss_receiver_state_t * state
@@ -2619,7 +2619,7 @@ async_dsss_receiver_status_t dp_async_dsss_receiver_status (
 
 
 
-Cheap and allocation-free: every field is a read of live state. The one-at-a-time getters report the same fields, `doppler_hz` apart (see the record); this is the face a controller reads. No timestamp: the clocks are in input samples, and the holder, which owns the sample clock, stamps the record.
+Cheap and allocation-free: every field is a read of live state. The one-at-a-time getters report the same fields, `doppler_hz` apart (see the record), and the three loop flags past `locked` are published here alone; this is the face a controller reads. No timestamp: the clocks are in input samples, and the holder, which owns the sample clock, stamps the record.
 
 
 
@@ -2644,6 +2644,8 @@ The record, by value.
 >>> st = rx.status()
 >>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # searching
 (0, 0.0, 0, 0)
+>>> (st.carrier_locked, st.demod_carrier_locked, st.sync_locked)
+(0, 0, 0)
 >>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)
 >>> st = rx.status()
 >>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining

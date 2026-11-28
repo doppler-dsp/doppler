@@ -410,6 +410,9 @@ typedef enum
     double cn0_dbhz_est; 
     int    code_locked;  
     int    locked;       
+    int    carrier_locked; 
+    int    demod_carrier_locked; 
+    int    sync_locked;  
     double lock_metric;  
     double lock_threshold; 
     double car_last_error; 

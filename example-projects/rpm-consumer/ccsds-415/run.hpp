@@ -16,6 +16,7 @@
 #include <doppler/dp_tlm_capture/dp_tlm_capture_core.h>
 #include <doppler/wfm_synth/wfm_synth_core.h>
 
+#include <array>
 #include <cmath>
 #include <complex>
 #include <cstdint>
@@ -94,7 +95,7 @@ struct FrameStats
 // What a finished run measured.
 struct Result
 {
-  double lock_s = NAN;   // arrival to the sustained symbol lock
+  double lock_s = NAN;   // arrival to the five lock flags sustained
   double esn0_db = NAN;  // the Es/N0 run
   double ber = NAN;      // over the locked stream
   double ber_lo = NAN, ber_hi = NAN; // its exact interval (the meter's)
@@ -211,7 +212,10 @@ private:
   std::unique_ptr<Scene> scene_;
   std::vector<cf32> x_, out_, syms_;
   size_t rx_syms_ = 0; // symbols the receiver has emitted
-  std::vector<uint8_t> flags_, code_flags_; // per symbol: symbol, code lock
+  // Per symbol, the status record's five lock flags, each up only while
+  // tracking: symbol, code, carrier, demodulator carrier, sync.
+  static constexpr size_t N_LOCK_FLAGS = 5;
+  std::array<std::vector<uint8_t>, N_LOCK_FLAGS> flags_;
   std::vector<size_t> emitted_;
   async_dsss_receiver_status_t st_{};
   uint64_t n_ = 0, total_ns_ = 0;

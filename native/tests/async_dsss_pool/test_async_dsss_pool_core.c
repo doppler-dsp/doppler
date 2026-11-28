@@ -1824,8 +1824,8 @@ _test_reset_and_restore_edges (void)
     {
       const size_t np = p->n_sym[i], nq = q->n_sym[i];
       if (np != nq)
-        fprintf (stderr, "receiver %zu: %zu held against %zu emitted\n", i, np,
-                 nq);
+        DP_TEST_ERR ("receiver %zu: %zu held against %zu emitted\n", i, np,
+                     nq);
       DP_CHECK_MSG (np == nq, "a push replaces the symbols");
       most = np > most ? np : most;
     }
@@ -2607,7 +2607,7 @@ _test_the_ccsds415_pool_refuses_with_its_cause (void)
           code, rows[k].code_len, rows[k].n_rx, rows[k].fc, rows[k].lost,
           rows[k].threads, true, &why);
       if (p || !why || !strstr (why, rows[k].phrase))
-        fprintf (stderr, "row %zu: %s\n", k, why ? why : "(why unset)");
+        DP_TEST_ERR ("row %zu: %s\n", k, why ? why : "(why unset)");
       DP_CHECK_MSG (p == NULL, "the pool view refuses");
       DP_CHECK_MSG (why && strstr (why, rows[k].phrase),
                     "the refusal names its own cause");

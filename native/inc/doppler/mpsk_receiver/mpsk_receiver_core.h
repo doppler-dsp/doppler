@@ -596,7 +596,7 @@ extern "C"
   mpsk_receiver_step_ted (dp_mpsk_receiver_state_t *s, float _Complex x,
                           float _Complex *y_out, int ted)
   {
-    float _Complex ys[4];
+    float _Complex ys[RATESYNC_FOLD_MAX];
     size_t        n     = dp_ddc_execute_ctrl_push_tap2 (
         s->fe.c, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
@@ -623,7 +623,7 @@ extern "C"
   mpsk_receiver_step_real_ted (dp_mpsk_receiver_state_t *s, float x,
                                float _Complex *y_out, int ted)
   {
-    float _Complex ys[4];
+    float _Complex ys[RATESYNC_FOLD_MAX];
     size_t        n     = dp_ddcr_execute_ctrl_push_tap2 (
         s->fe.r, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);

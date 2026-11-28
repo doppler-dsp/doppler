@@ -110,10 +110,15 @@ typedef struct
                              after create, to its outputs per symbol `m`:
                              one input then yields at most `m` outputs
                              (`ceil(rate + ctrl)`), and two on-time strobes
-                             need `m + 1`, so `rate + ctrl <= m` is the
-                             bound that keeps one strobe per input
-                             (doppler#3289). Never set by a setter, so it is
-                             not in the blob. */
+                             need `m + 1`, so `rate + ctrl <= m` keeps one
+                             strobe per input (doppler#3289). The bound is
+                             exact only where 2^32 / ctrl_rate_max is an
+                             integer (a power of two): the terminal stage
+                             steps by floor(2^32 / delta), so at another
+                             value a steer at the bound can yield one output
+                             more. ratesync_rate_bound() gives the value a
+                             loop owner sets. Never set by a setter, so it
+                             is not in the blob. */
   int            compensate;                  /**< CIC droop-comp flag       */
   int            n_stages;                    /**< active stage count        */
   rc_stage_t     stage_types[RC_MAX_STAGES];  /**< stage type per slot       */

@@ -744,6 +744,37 @@ extern "C"
    * Execute
    * ------------------------------------------------------------------ */
 
+  /** @brief Terminal outputs one input's call folds: the rest wait as the
+   *  converter's debt (`ctrl_ahead`) and come out on a later input. The
+   *  buffer RateSync's and MpskReceiver's steps fold into. */
+#define RATESYNC_FOLD_MAX 4u
+
+  /** @brief The steered-rate bound a timing loop's owner sets on its
+   *  converter (RateConverter.ctrl_rate_max, doppler#3289).
+   *
+   *  The largest power of two at or under both @p m and RATESYNC_FOLD_MAX:
+   *  - at or under `m`: a strobe is every m-th output, so two need `m + 1`
+   *    outputs from one input, and one input yields at most
+   *    `ceil(rate + ctrl)`;
+   *  - at or under the fold: no input's outputs overflow the call's buffer
+   *    into the converter's debt, so each comes out on its own input;
+   *  - a power of two: the resampler steps by `floor(2^32 / delta)`, which
+   *    is exact only where `2^32 / delta` is an integer, so only there does
+   *    a steer AT the bound yield exactly that many outputs and never one
+   *    more (at 6, `6 floor(2^32/6) = 2^32 - 4`, and the phase walks down
+   *    until one input yields 7).
+   *
+   *  @param m  Terminal outputs per symbol, >= 2.
+   *  @return 2 or 4. */
+  static inline double
+  ratesync_rate_bound (size_t m)
+  {
+    size_t b = m < RATESYNC_FOLD_MAX ? m : RATESYNC_FOLD_MAX;
+    while (b & (b - 1))
+      b &= b - 1; /* down to its highest power of two */
+    return (double)b;
+  }
+
   /** @brief Fold one terminal-stage output into the timing loop.
    *
    *  The whole of the loop's per-output work, and the reason the loop is a
@@ -947,9 +978,9 @@ extern "C"
        two need m + 1 outputs from one input, and one input yields at most
        ceil(rate + ctrl). The cascade's nominal rate is m/sps <= 1, but the
        control is unclamped, so create() bounds the steered rate on the
-       converter, rate + ctrl <= m (ctrl_rate_max, doppler#3289): an
-       acquisition transient steered past m is held there. */
-    float _Complex ys[4];
+       converter at ratesync_rate_bound(m) (ctrl_rate_max, doppler#3289):
+       an acquisition transient steered past it is held there. */
+    float _Complex ys[RATESYNC_FOLD_MAX];
     int            n_pre = 0;
     size_t         n     = dp_RateConverter_execute_ctrl_push_tap (
         s->mf, x, s->loop.ctrl, ys, sizeof (ys) / sizeof (ys[0]), NULL,

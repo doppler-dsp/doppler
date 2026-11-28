@@ -377,14 +377,19 @@ dp_dsss_best_ber (const float _Complex *syms, size_t n_syms,
      C/N0 falls, with the search and the refine: 746 to 788 at 40 dB-Hz
      on _test_handover_under_clock_offset, where a +-250 search tried only
      wrong alignments and read a locked link as 0.45 (doppler#3391). A
-     wrong lag scores independent data, Binomial(cnt, 1/2), and the
-     helper needs at least 32 symbols overlapping: a sub-0.05 read there
-     is at most 1 error (or 31 or more, flipped), 2 * 33 / 2^32, about
-     1.5e-8 a lag, so about 5e-6 over the few hundred lags the smallest
-     payload here holds, and far less on the long ones, whose overlap is
-     hundreds. dp_ber_measure() (dp_ber_test.h) is the library's
-     meter, but its 256-symbol marker and +-200 search do not fit the
-     short CODE7 fixtures this helper also serves. */
+     wrong lag scores the overlap's DATA symbols as independent,
+     Binomial(n, 1/2) for the n of them that carry random data (a
+     stimulus with constant runs, dp_dsss_windowed_capture's, has fewer
+     than cnt), and a lag counts only with cnt >= max(32, half the back
+     half): at 32 random symbols a sub-0.05 read is at most 1 error (or 31
+     or more, flipped), 2 * 33 / 2^32, about 1.5e-8 a lag, and far less on
+     the long payloads, whose overlap is hundreds.
+     A deviation, declared: this is a best-lag search, an optimisation
+     over the answer, not the library's meter. dp_ber_measure()
+     (dp_ber_test.h) does not fit the short CODE7 fixtures this helper
+     also serves (its 256-symbol marker and +-200 search); dp_ber_sync()
+     with a short marker does, and replacing this with it is doppler#3396,
+     which owns this helper's rows of scripts/.budget-window-exempt. */
   for (long lag = -(long)lo; lag < (long)n_sym; lag++)
     {
       size_t errs = 0, cnt = 0;

@@ -510,7 +510,9 @@ feed_group (dp_async_dsss_pool_state_t *s, const float _Complex *x)
         (void)dp_async_dsss_receiver_steps (s->search, x + k * s->period,
                                             s->period, none, 0);
         /* search-only produces nothing, so it takes every period */
-        assert (dp_async_dsss_receiver_get_consumed (s->search) == s->period);
+        assert (dp_async_dsss_receiver_get_consumed (s->search) == s->period
+                && "the search refused a period: search-only produces "
+                   "nothing, so it takes every one");
         s->search_periods++;
       }
   s->feed_x = x;

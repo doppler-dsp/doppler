@@ -2693,6 +2693,47 @@ _test_a_pool_row_is_a_lone_receivers_stream (void)
   return same ? 0 : 1;
 }
 
+/* A row covers every receiver's own bound, read at the push (#3405). A
+ * grid changed through the borrow (dp_async_dsss_pool_receiver(),
+ * configure_chain_raw()) resizes that receiver's store, the most one call
+ * of a code period can produce, so the push that follows must size each
+ * row from the largest store, not from the grid the pool was created on or
+ * from receiver 0's. Receiver 1 of two is put on a finer grid, its store
+ * past receiver 0's, then one group is pushed: every row holds the push's
+ * calls at receiver 1's store. (Whether each call took its period is
+ * not asked: both receivers are idle, so the bound is 0 and an idle
+ * receiver takes any period.) The
+ * production a call actually makes is a few symbols, far below any
+ * store, so no symbol count can show a short row (#3404's review ran rows
+ * of one symbol a call green): the row against the store is the
+ * observable, and it is red in every build type. Sabotage: cache the
+ * largest store at create -> the row is receiver 0's; read rx[0] alone ->
+ * the same. */
+static int
+_test_rows_follow_a_borrowed_grid (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  static float _Complex z[POOL_GROUP];
+  dp_async_dsss_pool_state_t *p = _pool (code, 2, 0.0, 1);
+  DP_REQUIRE (p != NULL);
+  dp_async_dsss_receiver_state_t *r0 = dp_async_dsss_pool_receiver (p, 0);
+  dp_async_dsss_receiver_state_t *r1 = dp_async_dsss_pool_receiver (p, 1);
+  DP_REQUIRE (r0 && r1);
+  const size_t before = r1->hold_cap;
+  DP_REQUIRE (dp_async_dsss_receiver_configure_chain_raw (r1, 8, 16, 8) == 0);
+  DP_REQUIRE_MSG (r1->hold_cap > before && r1->hold_cap > r0->hold_cap,
+                  "the finer grid grows receiver 1's store past receiver "
+                  "0's (the premise)");
+  (void)dp_async_dsss_pool_push (p, z, POOL_GROUP);
+  const size_t calls
+      = POOL_GROUP / p->period + 2 * ASYNC_DSSS_POOL_PERIODS_PER_JOIN;
+  DP_CHECK_MSG (p->sym_cap >= calls * r1->hold_cap,
+                "a row holds the push's calls at the largest store");
+  dp_async_dsss_pool_destroy (p);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -2732,5 +2773,6 @@ main (void)
   DP_CHECK (_test_refused_restore_changes_nothing () == 0);
   DP_CHECK (_test_nested_trace_version_refused () == 0);
   DP_CHECK (_test_a_pool_row_is_a_lone_receivers_stream () == 0);
+  DP_CHECK (_test_rows_follow_a_borrowed_grid () == 0);
   DP_TEST_END ("test_async_dsss_pool_core");
 }

@@ -2,7 +2,7 @@
     refuses an interleaved `int16` input whose length is odd with a
     `ValueError`, where it dropped the last element
     ([just-makeit#1999](https://github.com/just-buildit/just-makeit/issues/1999));
-    a refused assignment to a `Synth` or `Segment` field leaves the source
-    as it was, since every composer setter writes a copy and commits it
-    only on success
+    a `Synth` or `Segment` re-`__init__` that refuses one argument leaves
+    every field as it was, where it kept the arguments parsed before the
+    bad one: the constructor parses into a copy and commits it whole
     ([just-makeit#2878](https://github.com/just-buildit/just-makeit/issues/2878)).

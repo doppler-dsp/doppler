@@ -803,9 +803,9 @@ def review(forced: Rows, second: Rows, alone: Rows) -> None:
         "every call's `consumed` is checked, so a refused period aborts a "
         "Debug build rather than going unfed. A pool's row is a lone "
         "receiver's stream through a hand-over "
-        "(`_test_a_pool_row_is_a_lone_receivers_stream`). Until then the "
-        "pool sized rows by its own rule and did not read `consumed` "
-        "(#3398).",
+        "(`_test_a_pool_row_is_a_lone_receivers_stream`), and the store is "
+        "read at each push, so a grid changed through the borrow resizes "
+        "every row (`_test_rows_follow_a_borrowed_grid`).",
     )
     R.find(
         "controller_rules_c_only",

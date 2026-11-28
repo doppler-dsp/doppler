@@ -231,9 +231,6 @@ extern "C"
     int        threads; /**< Workers asked for; 0 = the online cores. */
     float _Complex *sym_buf; /**< n_receivers rows of sym_cap symbols. */
     size_t          sym_cap; /**< Symbols one row holds.                */
-    size_t sym_extra; /**< Symbols one code period carries, rounded up,
-                           plus one: what a call can emit past its
-                           input's own (dp_async_dsss_receiver_steps()). */
     size_t         *n_sym;   /**< Symbols each receiver emitted, last push. */
     const float _Complex *feed_x; /**< The block push() is stepping.    */
     size_t                feed_n; /**< Samples in feed_x: one group

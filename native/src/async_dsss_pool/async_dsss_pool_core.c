@@ -7,6 +7,7 @@
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include "doppler/async_dsss_pool/async_dsss_pool_private.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
+#include <assert.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
@@ -114,11 +115,6 @@ dp_async_dsss_pool_create (
      engine keeps the fan, which pays there on bare metal. */
   if (s->search->acq)
     s->search->acq->search->epoch_fan = 0;
-  /* A call that completes a carried code period emits that period's
-     symbols beyond its input's own (dp_async_dsss_receiver_steps()), and
-     its input's own are at most one a sample (a symbol spans at least one
-     chip of at least one sample). */
-  s->sym_extra = (size_t)ceil ((double)code_len * symbol_rate / chip_rate) + 1;
   /* One receiver block: a code period in whole samples (its floor when the
      period is not whole; the receivers' partials close on their code
      NCOs' phase, so the block need not be exactly a period). */
@@ -466,6 +462,11 @@ feed_period (dp_async_dsss_pool_state_t *s, size_t i, size_t k)
   s->n_sym[i] += dp_async_dsss_receiver_steps (
       s->rx[i], s->feed_x + k * s->period, s->period, row + s->n_sym[i],
       s->sym_cap - s->n_sym[i]);
+  /* Sized from the receiver's bound, every call takes its period; one that
+     did not would leave the period unfed with nothing to say so (#3398). */
+  assert (dp_async_dsss_receiver_get_consumed (s->rx[i]) == s->period
+          && "the pool's row refused a period: it is sized below the "
+             "receiver's bound");
   const async_dsss_receiver_status_t st
       = dp_async_dsss_receiver_status (s->rx[i]);
   hist_record (s, i, &st, (s->hist_pos + k) % s->ghost_window);
@@ -508,6 +509,8 @@ feed_group (dp_async_dsss_pool_state_t *s, const float _Complex *x)
         float _Complex none[1];
         (void)dp_async_dsss_receiver_steps (s->search, x + k * s->period,
                                             s->period, none, 0);
+        /* search-only produces nothing, so it takes every period */
+        assert (dp_async_dsss_receiver_get_consumed (s->search) == s->period);
         s->search_periods++;
       }
   s->feed_x = x;
@@ -532,12 +535,19 @@ size_t
 dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
                          const float _Complex *x, size_t x_len)
 {
-  /* A period's call emits that period's symbols plus at most one carried
-     period's (sym_extra), and a push feeds at most x_len / period + 1
-     periods. */
-  const size_t need
-      = (x_len / s->period + 2 * ASYNC_DSSS_POOL_PERIODS_PER_JOIN)
-        * (s->period + s->sym_extra);
+  /* A push feeds at most x_len / period + 2 joins' periods, each a call of
+     one code period. The most one such call can produce is the receiver's
+     own bound, whatever state it is in: its store's capacity
+     (dp_async_dsss_receiver_steps_max_out() at a code period), read now,
+     since a grid change resizes it (#3398). */
+  size_t per_call = 0;
+  for (size_t i = 0; i < s->n_receivers; i++)
+    if (s->rx[i]->hold_cap > per_call)
+      per_call = s->rx[i]->hold_cap;
+  size_t need;
+  if (!dp_size_mul (x_len / s->period + 2 * ASYNC_DSSS_POOL_PERIODS_PER_JOIN,
+                    per_call, &need))
+    abort (); /* as a row count that does not fit, below */
   if (need > s->sym_cap)
     {
       free (s->sym_buf);

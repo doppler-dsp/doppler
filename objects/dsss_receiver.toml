@@ -170,6 +170,13 @@ doc = "Return to the searching state: resets the embedded continuous search (a C
 arg_type = "void"
 return_type = "void"
 
+# steps() holds what does not fit out and takes no input while anything is
+# held or its symbols cannot fit (#2469); this says whether the last call
+# took its input, as the Resampler's block forms say.
+[[dsss_receiver.properties]]
+name = "consumed"
+type = "size_t"
+
 [[dsss_receiver.properties]]
 name = "tracking"
 type = "int"

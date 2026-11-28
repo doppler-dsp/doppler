@@ -567,8 +567,9 @@ _test_carry_buffer_state_roundtrip (void)
   memset (blob, 0xA5, cb); /* poisoned: a byte get_state skips shows */
   dp_dsss_receiver_get_state (rx, blob);
 
-  /* The carry region is the blob's last tsamps samples: the live carry,
-     then zeros, never the earlier periods still in the buffer's tail
+  /* The carry region is the tsamps samples before the held symbols' store
+     (#2469), which ends the blob: the live carry, then zeros, never the
+     earlier periods still in the buffer's tail
      (#2076's sibling). Writing the whole buffer again turns this red. The
      source's own tail is checked non-zero first, so the test cannot pass
      on a buffer that happened to hold zeros there. */
@@ -580,7 +581,7 @@ _test_carry_buffer_state_roundtrip (void)
       dirty += src[i] != 0;
     DP_CHECK (dirty > 0);
     const unsigned char *carry
-        = (const unsigned char *)blob + cb - rx->tsamps * fc;
+        = (const unsigned char *)blob + cb - (rx->tsamps + rx->hold_cap) * fc;
     DP_CHECK (memcmp (carry, rx->car_carry_buf, rx->car_carry_len * fc) == 0);
     size_t nonzero = 0;
     for (size_t i = rx->car_carry_len * fc; i < rx->tsamps * fc; i++)
@@ -654,7 +655,7 @@ _test_accessor_coverage (void)
   (void)dp_dsss_receiver_get_lock (rx);
   (void)dp_dsss_receiver_get_norm_freq (rx);
   (void)dp_dsss_receiver_get_doppler_hz (rx);
-  (void)dp_dsss_receiver_steps_max_out (rx); /* 0 until first stream */
+  (void)dp_dsss_receiver_steps_max_out (rx, 0);
 
   DP_CHECK (dp_dsss_receiver_configure_search_raw (rx, 1, 1) == 0);
   DP_CHECK (dp_dsss_receiver_configure_search_raw (rx, 100000, 1)
@@ -895,6 +896,152 @@ _test_handoff_survives_reconfigure_and_restore (void)
   return 0;
 }
 
+/* #2469's geometry in C: a 127-chip code at 1 Mcps and 250 ksym/s, 4
+ * samples a chip -- 31.75 symbols a code period, legal here (create()
+ * refuses only a symbol rate above the chip rate), so the call that
+ * completes a carried period makes the whole period's symbols at once. */
+static dp_dsss_receiver_state_t *
+_rx127 (const uint8_t *code)
+{
+  return dp_dsss_receiver_create (code, 127, 1e6, 250e3, 4e6, 2, 70.0, 1e-3,
+                                  0.9, 100.0, 4, 8, 0);
+}
+
+/* No symbol is dropped (#2469). Three receivers on one capture at #2469's
+ * geometry, one sample a call:
+ * - B with out sized by steps_max_out(), so it never holds;
+ * - A at capacity ONE, called again on the same sample until it consumes
+ *   it, then with no input until nothing is held: A's stream is B's,
+ *   symbol for symbol, and A held (a period's 31 symbols arrive in one
+ *   call);
+ * - C never drains (max_out 0): once it holds, a call takes nothing and
+ *   keeps the hold, and a call with room delivers B's first symbols and
+ *   consumes again.
+ * Then the held symbols round-trip: C, holding, restored into a fresh
+ * twin, and the two deliver the same stream; a blob claiming more than the
+ * store holds is refused. Sabotages: discard the held symbols -> A short,
+ * red; consume while holding -> C takes input, red; leave the store out of
+ * set_state -> the twin differs, red. */
+static int
+_test_no_symbol_is_dropped (void)
+{
+  int      fails = 0;
+  uint8_t  code[127];
+  uint32_t st = 0x1234567u;
+  for (size_t i = 0; i < 127; i++)
+    code[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  const size_t    n_sym = 3000;
+  dp_dsss_capture (code, 127, 4, 4e6, 16.0, 0.0, 70.0, n_sym, 3 * 508, 11, &x,
+                   &n, &data);
+  dp_dsss_receiver_state_t *a = _rx127 (code), *b = _rx127 (code),
+                           *c = _rx127 (code), *t = _rx127 (code);
+  DP_REQUIRE (a && b && c && t);
+  const size_t    capb = dp_dsss_receiver_steps_max_out (b, 1);
+  const size_t    most = 2 * n_sym + capb;
+  float _Complex *ob   = malloc (capb * sizeof *ob),
+                 *oa   = malloc (17 * sizeof *oa);
+  float _Complex *sa   = malloc (most * sizeof *sa),
+                 *sb   = malloc (most * sizeof *sb);
+  DP_REQUIRE (ob && oa && sa && sb);
+  size_t la = 0, lb = 0;
+  int    held = 0, wrote_past = 0;
+  for (size_t g = 0; g < 16; g++)
+    oa[1 + g] = 12345.0f;
+  for (size_t pos = 0; pos < n; pos++)
+    {
+      const size_t kb = dp_dsss_receiver_steps (b, x + pos, 1, ob, capb);
+      DP_REQUIRE (lb + kb <= most);
+      memcpy (sb + lb, ob, kb * sizeof *ob);
+      lb += kb;
+      do
+        {
+          const size_t ka = dp_dsss_receiver_steps (a, x + pos, 1, oa, 1);
+          DP_REQUIRE (la + ka <= most);
+          memcpy (sa + la, oa, ka * sizeof *oa);
+          la += ka;
+          held |= a->hold_len > 0;
+        }
+      while (dp_dsss_receiver_get_consumed (a) == 0);
+    }
+  size_t ka;
+  while ((ka = dp_dsss_receiver_steps (a, x, 0, oa, 1)) > 0)
+    {
+      DP_REQUIRE (la + ka <= most);
+      memcpy (sa + la, oa, ka * sizeof *oa);
+      la += ka;
+    }
+  for (size_t g = 0; g < 16; g++)
+    wrote_past |= oa[1 + g] != 12345.0f;
+  DP_CHECK_MSG (held, "at capacity 1, a call held symbols (the premise)");
+  DP_CHECK_MSG (la == lb && memcmp (sa, sb, lb * sizeof *sa) == 0,
+                "held and delivered in order: A's stream is B's");
+  if (la != lb)
+    DP_TEST_ERR ("  A gave %zu symbols, B %zu\n", la, lb);
+  DP_CHECK_MSG (wrote_past == 0, "nothing is written past max_out");
+  DP_CHECK (lb > n_sym * 3 / 4);
+
+  /* Never draining. */
+  size_t pos = 0;
+  while (pos < n && c->hold_len == 0)
+    (void)dp_dsss_receiver_steps (c, x + pos++, 1, oa, 0);
+  DP_REQUIRE (c->hold_len > 0);
+  const size_t was = c->hold_len;
+  DP_CHECK (dp_dsss_receiver_steps (c, x + pos, 1, oa, 0) == 0);
+  DP_CHECK_MSG (dp_dsss_receiver_get_consumed (c) == 0 && c->hold_len == was,
+                "held, a call of no room takes nothing and keeps the hold");
+
+  /* The held symbols ride the blob: one size per object, holding or not. */
+  const size_t sz = dp_dsss_receiver_state_bytes (c);
+  DP_CHECK (sz == dp_dsss_receiver_state_bytes (t));
+  uint8_t *blob = malloc (sz);
+  DP_REQUIRE (blob);
+  dp_dsss_receiver_get_state (c, blob);
+  DP_CHECK (dp_dsss_receiver_set_state (t, blob) == DP_OK
+            && t->hold_len == was);
+  const size_t    capc = dp_dsss_receiver_steps_max_out (c, 508);
+  float _Complex *oc   = malloc (capc * sizeof *oc),
+                 *ot   = malloc (capc * sizeof *ot);
+  DP_REQUIRE (oc && ot);
+  size_t first = 1, twin_ok = 1;
+  for (; pos + 508 <= n; pos += 508)
+    {
+      const size_t kc = dp_dsss_receiver_steps (c, x + pos, 508, oc, capc);
+      const size_t kt = dp_dsss_receiver_steps (t, x + pos, 508, ot, capc);
+      if (first)
+        {
+          DP_CHECK_MSG (kc >= was && memcmp (oc, sb, was * sizeof *oc) == 0,
+                        "a call with room delivers the held symbols first");
+          DP_CHECK_MSG (dp_dsss_receiver_get_consumed (c) == 508,
+                        "and consumes again");
+          first = 0;
+        }
+      twin_ok &= kc == kt && memcmp (oc, ot, kc * sizeof *oc) == 0;
+    }
+  DP_CHECK_MSG (twin_ok, "the twin delivers the original's stream");
+  dsss_receiver_extra_t *ex
+      = (dsss_receiver_extra_t *)(blob + sizeof (dp_state_hdr_t));
+  ex->hold_len = (uint64_t)t->hold_cap + 1;
+  DP_CHECK_MSG (dp_dsss_receiver_set_state (t, blob) == DP_ERR_INVALID,
+                "a held count past the store is refused");
+  dp_dsss_receiver_destroy (a);
+  dp_dsss_receiver_destroy (b);
+  dp_dsss_receiver_destroy (c);
+  dp_dsss_receiver_destroy (t);
+  free (blob);
+  free (oa);
+  free (ob);
+  free (oc);
+  free (ot);
+  free (sa);
+  free (sb);
+  free (x);
+  free (data);
+  return fails;
+}
+
 int
 main (void)
 {
@@ -907,5 +1054,6 @@ main (void)
   (void)_test_sustained_doppler_rate ();
   (void)_test_carry_buffer_state_roundtrip ();
   (void)_test_accessor_coverage ();
+  DP_CHECK (_test_no_symbol_is_dropped () == 0);
   DP_TEST_END ("test_dsss_receiver_core");
 }

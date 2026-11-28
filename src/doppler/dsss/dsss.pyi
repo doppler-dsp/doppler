@@ -1766,6 +1766,19 @@ class DsssReceiver:
         -> RateConverter -> MpskReceiver in sequence and demodulated symbols
         are returned. Accepts any block size; state carries across calls.
 
+        **No symbol is dropped.** Symbols held by an earlier call are delivered
+        first, in order. A call consumes its input only when nothing stays held
+        after that and its symbols fit: `P(x_len)` (see
+        dp_dsss_receiver_steps_max_out()) is at most the room left in out plus
+        the store, which holds what one call of a code period can produce. What
+        does not fit in out is held for the next call. A call that cannot
+        consume returns what it delivered and takes nothing:
+        dp_dsss_receiver_get_consumed() reads 0, and the caller calls again
+        with the same x. A C caller that sizes out below
+        dp_dsss_receiver_steps_max_out() for a call longer than a code period
+        meets this every time, so it must check consumed() or size out from
+        that function, as the Python binding does.
+
         While searching, samples feed the embedded search and nothing is
         emitted (0 return is normal, not an error). The moment a hit fires,
         `Dll`/`RateConverter`/`MpskReceiver` are built and seeded from it, and
@@ -1789,8 +1802,9 @@ class DsssReceiver:
         Returns
         -------
         NDArray[np.complex64]
-            Number of symbols written (0 while searching, or while tracking
-            with not yet a full symbol's worth of input).
+            Number of symbols written: held ones first, then this call's; 0
+            while searching with nothing held, or while tracking with not yet a
+            full symbol's worth of input.
 
         Examples
         --------
@@ -1830,14 +1844,37 @@ class DsssReceiver:
 
         """
 
-    def steps_max_out(self) -> int:
-        """Output capacity hint for dp_dsss_receiver_steps().
+    def steps_max_out(self, x_len: int, /) -> int:
+        """The capacity that lets the next steps() call on x_len samples
+        deliver everything it can: the symbols held, plus the most the call can
+        produce.
+
+        Sized to this, a call never holds and never refuses its input
+        (dp_dsss_receiver_steps()), which is how the Python binding calls it.
+        The most a call can produce, `P(x_len)`, is bounded by the chain's
+        structure, not by the nominal rate: the call runs at most `x_len +
+        tsamps - 1` samples through the tracking chain (the carry); the Dll
+        emits at most dp_dll_steps_max_out() of them; the RateConverter at most
+        `ceil(ratio x n) + 1` of `n` partials (`ratio` fixed by configuration);
+        MpskReceiver at most one symbol per input; and the hand-over a hit
+        makes rebuilds the Dll and the RateConverter, one more close and one
+        more output. A call holds at most one hand-over: tracking never returns
+        to searching except through reset(). So `P(x_len) = ceil(ratio x
+        dp_dll_steps_max_out(dll, x_len + tsamps - 1)) + 1 + ceil(segments x
+        ratio) + 1`. A symbol may be shorter than a code period here, so a call
+        that completes a carried period can make many symbols (#2469's
+        127-chip, 250 ksym/s case: 31.75 a period); the bound carries them. A
+        Debug build aborts on a call that produces more than it.
+
+        Parameters
+        ----------
+        x_len : int
+            Input samples the call will be given.
 
         Returns
         -------
         int
-            Always 0: size out from the input length x_len, which is always
-            enough (at most one symbol per input sample).
+            Held symbols plus `P(x_len)`; SIZE_MAX if that overflows.
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
@@ -2069,6 +2106,12 @@ class DsssReceiver:
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def consumed(self) -> int:
+        """Inputs the last dp_dsss_receiver_steps() call took: its x_len, or 0
+        when it held its input back.
         """
 
     @property
@@ -2507,9 +2550,14 @@ class AsyncDsssReceiver:
 
         So `P(x_len) = ceil(ratio x dp_dll_steps_max_out(dll, x_len + H)) + 1
 
-        + ceil(segments x ratio) + 1`. A Debug build holds the bound to the
+        + ceil(segments x ratio) + 1`. It is 0 in a state that cannot reach
 
-        chain: a call that produces more than it aborts (#2469).
+        the chain within a call: a search-only receiver
+        (dp_async_dsss_receiver_set_search_only()) reports its hits and never
+        seeds, a pooled receiver waits idle for a seed given between calls, and
+        lost leaves only through reset(); so such a receiver consumes into any
+        out, 0 included. A Debug build holds the bound to the chain: a call
+        that produces more than it aborts (#2469).
 
         Parameters
         ----------
@@ -3671,9 +3719,14 @@ class Ccsds415Receiver:
 
         So `P(x_len) = ceil(ratio x dp_dll_steps_max_out(dll, x_len + H)) + 1
 
-        + ceil(segments x ratio) + 1`. A Debug build holds the bound to the
+        + ceil(segments x ratio) + 1`. It is 0 in a state that cannot reach
 
-        chain: a call that produces more than it aborts (#2469).
+        the chain within a call: a search-only receiver
+        (dp_async_dsss_receiver_set_search_only()) reports its hits and never
+        seeds, a pooled receiver waits idle for a seed given between calls, and
+        lost leaves only through reset(); so such a receiver consumes into any
+        out, 0 included. A Debug build holds the bound to the chain: a call
+        that produces more than it aborts (#2469).
 
         Parameters
         ----------

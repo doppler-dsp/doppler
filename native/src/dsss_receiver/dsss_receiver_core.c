@@ -1,7 +1,11 @@
 #include "doppler/dsss_receiver/dsss_receiver_core.h"
+#include <assert.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+
+static size_t dsss_rx_steps_bound (const dp_dsss_receiver_state_t *s,
+                                   size_t                          x_len);
 
 /* The code loop's arguments, named once: create() checks the very values
    dsss_rx_build_chain() passes to dp_dll_create() (dp_dll_params_ok(),
@@ -433,6 +437,14 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
   obj->segments = segments;
   obj->sps      = sps;
   obj->n        = mpsk_rx_derive_m_out ((double)sps, 0);
+  /* The store holds what one call of a code period can produce, so a call of
+     up to a period always consumes, even into one slot (#2469). */
+  obj->hold_len  = 0;
+  obj->hold_cap  = dsss_rx_steps_bound (obj, obj->tsamps);
+  obj->hold_buf  = dp_xmallocn (obj->hold_cap, sizeof *obj->hold_buf);
+  obj->steps_buf = NULL;
+  obj->steps_cap = 0;
+  obj->consumed  = 0;
   return obj;
 }
 
@@ -444,6 +456,8 @@ dp_dsss_receiver_destroy (dp_dsss_receiver_state_t *state)
   dsss_rx_free_chain (state);
   free (state->car_wiped_buf);
   free (state->car_carry_buf);
+  free (state->hold_buf);
+  free (state->steps_buf);
   free (state->trk_dll_buf);
   free (state->trk_rc_buf);
   dp_correlator_destroy (state->acq);
@@ -463,20 +477,51 @@ dp_dsss_receiver_reset (dp_dsss_receiver_state_t *state)
   state->tracking       = 0;
   state->doppler_hz_est = 0.0;
   state->cn0_dbhz_est   = 0.0;
+  /* reset() discards held symbols, as it discards the carry */
+  state->hold_len = 0;
+  state->consumed = 0;
 }
 
-size_t
-dp_dsss_receiver_steps_max_out (dp_dsss_receiver_state_t *state)
+/* P(x_len): the most one steps() call on x_len samples can produce. The
+ * derivation is the header's (dp_dsss_receiver_steps_max_out()); each term
+ * is a stage's own bound. */
+static size_t
+dsss_rx_steps_bound (const dp_dsss_receiver_state_t *s, size_t x_len)
 {
-  (void)state;
-  return 0; /* caller falls back to allocating x_len -- always sufficient,
-               symbols emitted <= raw samples in. */
+  size_t run;
+  if (!dp_size_add (x_len, s->tsamps - 1, &run))
+    return SIZE_MAX;
+  const size_t parts = dp_dll_steps_max_out (s->dll, run);
+  if (parts == SIZE_MAX)
+    return SIZE_MAX;
+  const double ratio = s->rc->rate;
+  /* the stream's partials, the RateConverter's +1, and the hand-over's
+     fresh Dll close and fresh RateConverter output */
+  const double p = ceil (ratio * (double)parts) + 1.0
+                   + ceil ((double)s->segments * ratio) + 1.0;
+  return p >= (double)SIZE_MAX ? SIZE_MAX : (size_t)p;
 }
 
 size_t
-dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
-                        const float _Complex *x, size_t x_len,
-                        float _Complex *out, size_t max_out)
+dp_dsss_receiver_steps_max_out (dp_dsss_receiver_state_t *state, size_t x_len)
+{
+  size_t n;
+  if (!dp_size_add (state->hold_len, dsss_rx_steps_bound (state, x_len), &n))
+    return SIZE_MAX;
+  return n;
+}
+
+size_t
+dp_dsss_receiver_get_consumed (const dp_dsss_receiver_state_t *state)
+{
+  return state->consumed;
+}
+
+/* One call's work as it was before the store: every symbol it produces is
+   written to `out`, which holds `max_out`, the call's bound plus one. */
+static size_t
+dsss_rx_steps_call (dp_dsss_receiver_state_t *state, const float _Complex *x,
+                    size_t x_len, float _Complex *out, size_t max_out)
 {
   if (x_len == 0)
     return 0;
@@ -528,6 +573,55 @@ dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
   return dsss_rx_track_chain (state, x, x_len, out, max_out);
 }
 
+size_t
+dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
+                        const float _Complex *x, size_t x_len,
+                        float _Complex *out, size_t max_out)
+{
+  /* Held symbols first, in order. */
+  size_t n = state->hold_len < max_out ? state->hold_len : max_out;
+  memcpy (out, state->hold_buf, n * sizeof *out);
+  state->hold_len -= n;
+  memmove (state->hold_buf, state->hold_buf + n,
+           state->hold_len * sizeof *state->hold_buf);
+  /* All or nothing: the input is consumed only when nothing stays held and
+     whatever the call can produce fits in what is left of out plus the
+     store. Otherwise it is not taken, and the caller calls again. */
+  const size_t bound = dsss_rx_steps_bound (state, x_len);
+  const size_t room  = max_out - n;
+  size_t       fits;
+  if (state->hold_len || !dp_size_add (room, state->hold_cap, &fits)
+      || bound > fits)
+    {
+      state->consumed = 0;
+      return n;
+    }
+  /* The call runs into a scratch one past its bound, so a call that made
+     more than the bound shows (the Debug assert) rather than stops at it. */
+  size_t need;
+  if (!dp_size_add (bound, 1, &need))
+    need = SIZE_MAX; /* dp_xreallocn refuses it */
+  if (state->steps_cap < need)
+    {
+      state->steps_buf
+          = dp_xreallocn (state->steps_buf, need, sizeof *state->steps_buf);
+      state->steps_cap = need;
+    }
+  const size_t made
+      = dsss_rx_steps_call (state, x, x_len, state->steps_buf, need);
+  assert (made <= bound
+          && "dp_dsss_receiver_steps: a call produced more than "
+             "dp_dsss_receiver_steps_max_out() bounds it to");
+  const size_t k = made < room ? made : room;
+  memcpy (out + n, state->steps_buf, k * sizeof *out);
+  /* the rest fits the store: bound - room <= hold_cap above */
+  memcpy (state->hold_buf, state->steps_buf + k,
+          (made - k) * sizeof *state->hold_buf);
+  state->hold_len = made - k;
+  state->consumed = x_len;
+  return n + k;
+}
+
 int
 dp_dsss_receiver_configure_search_raw (dp_dsss_receiver_state_t *state,
                                        size_t doppler_bins, size_t n_noncoh)
@@ -553,7 +647,10 @@ dp_dsss_receiver_configure_chain_raw (dp_dsss_receiver_state_t *state,
   /* Everything the rebuild would refuse under dp_xnn is refused here,
      before anything is rebuilt: the chain's ratio, and an `n` MpskReceiver
      refuses (doppler#2426, the second copy of #2421). */
-  if (segments < 1 || sps < 2 || n < 1
+  /* Held symbols belong to the grid that made them and size its store: a
+     grid change while any are held is refused, so the caller drains first
+     and none is dropped (#2469). */
+  if (state->hold_len || segments < 1 || sps < 2 || n < 1
       || !mpsk_rx_m_out_ok ((double)sps, (size_t)n, 0)
       || !dsss_rx_chain_ok (state->chip_rate, state->symbol_rate,
                             state->code_len, segments, sps))
@@ -565,6 +662,12 @@ dp_dsss_receiver_configure_chain_raw (dp_dsss_receiver_state_t *state,
       = dp_mpsk_receiver_get_norm_freq (state->rx) * old_target_rate;
 
   dsss_rx_rebuild_chain (state, chip_phase, doppler_hz_now, segments, sps, n);
+  /* The store follows the grid: P(tsamps) at the new one. Nothing is held
+     (refused above), so it is resized empty. */
+  const size_t cap = dsss_rx_steps_bound (state, state->tsamps);
+  state->hold_buf
+      = dp_xreallocn (state->hold_buf, cap, sizeof *state->hold_buf);
+  state->hold_cap = cap;
   return 0;
 }
 
@@ -646,7 +749,8 @@ dp_dsss_receiver_state_bytes (const dp_dsss_receiver_state_t *s)
          + dp_correlator_state_bytes (s->acq) + dp_costas_state_bytes (&s->car)
          + dp_dll_state_bytes (s->dll) + dp_RateConverter_state_bytes (s->rc)
          + dp_mpsk_receiver_state_bytes (s->rx)
-         + s->tsamps * sizeof (float _Complex);
+         + s->tsamps * sizeof (float _Complex)
+         + s->hold_cap * sizeof (float _Complex);
 }
 
 void
@@ -662,6 +766,8 @@ dp_dsss_receiver_get_state (const dp_dsss_receiver_state_t *s, void *blob)
     .sps            = (uint64_t)s->sps,
     .n              = (uint64_t)s->n,
     .car_carry_len  = (uint64_t)s->car_carry_len,
+    .hold_cap       = (uint64_t)s->hold_cap,
+    .hold_len       = (uint64_t)s->hold_len,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
   DP_W_CHILD (&_w, dp_correlator, s->acq);
@@ -671,6 +777,9 @@ dp_dsss_receiver_get_state (const dp_dsss_receiver_state_t *s, void *blob)
   DP_W_CHILD (&_w, dp_mpsk_receiver, s->rx);
   dp_w_cf32 (&_w, s->car_carry_buf, s->car_carry_len);
   dp_w_zeros (&_w, (s->tsamps - s->car_carry_len) * sizeof (float _Complex));
+  /* The held symbols, oldest first, then zeros. */
+  dp_w_cf32 (&_w, s->hold_buf, s->hold_len);
+  dp_w_zeros (&_w, (s->hold_cap - s->hold_len) * sizeof (float _Complex));
 }
 
 int
@@ -691,7 +800,9 @@ dp_dsss_receiver_set_state (dp_dsss_receiver_state_t *s, const void *blob)
    * never wrote, and is refused rather than restored. */
   if (extra.segments != (uint64_t)s->segments || extra.sps != (uint64_t)s->sps
       || extra.n != (uint64_t)s->n
-      || extra.car_carry_len >= (uint64_t)s->tsamps)
+      || extra.car_carry_len >= (uint64_t)s->tsamps
+      || extra.hold_cap != (uint64_t)s->hold_cap
+      || extra.hold_len > extra.hold_cap)
     return DP_ERR_INVALID;
   DP_R_CHILD (&_r, dp_correlator, s->acq);
   DP_R_CHILD (&_r, dp_costas, &s->car);
@@ -699,6 +810,8 @@ dp_dsss_receiver_set_state (dp_dsss_receiver_state_t *s, const void *blob)
   DP_R_CHILD (&_r, dp_RateConverter, s->rc);
   DP_R_CHILD (&_r, dp_mpsk_receiver, s->rx);
   dp_r_cf32 (&_r, s->car_carry_buf, s->tsamps);
+  dp_r_cf32 (&_r, s->hold_buf, s->hold_cap);
+  s->hold_len       = (size_t)extra.hold_len;
   s->tracking       = extra.tracking;
   s->doppler_hz_est = extra.doppler_hz_est;
   s->cn0_dbhz_est   = extra.cn0_dbhz_est;

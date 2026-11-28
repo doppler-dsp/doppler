@@ -141,6 +141,20 @@ extern "C"
      * grown on demand and kept like `trk_dll_buf`. */
     float _Complex *trk_rc_buf;
     size_t         trk_rc_cap; /**< Capacity of `trk_rc_buf`, samples. */
+    /* Symbols a call produced past its out, delivered first by the next
+     * call (#2469). A fixed capacity, so the blob keeps one size per
+     * object, padded like the carry. */
+    float _Complex *hold_buf; /**< Owned: hold_cap held symbols.       */
+    size_t          hold_len; /**< Running: symbols held, <= hold_cap.  */
+    size_t          hold_cap; /**< Config: the most one call of a code
+                                   period's samples can produce,
+                                   derived at create. */
+    float _Complex *steps_buf; /**< Owned scratch one call's symbols are
+                                    produced into, grown on demand. */
+    size_t          steps_cap; /**< Capacity of steps_buf, symbols.     */
+    size_t          consumed;  /**< Inputs the last steps() took: its
+                                    x_len, or 0 when it held its input
+                                    back. Per-call, not in the blob. */
 
     /** Own copy of the spreading code -- dp_correlator_create_continuous()/
      * dp_dll_create()'s own borrow-vs-copy semantics aren't part of either's
@@ -340,14 +354,61 @@ extern "C"
    */
   void dp_dsss_receiver_reset (dp_dsss_receiver_state_t *state);
 
-  /** @brief Output capacity hint for dp_dsss_receiver_steps().
-   *  @param state  Unused.
-   *  @return Always 0: size @p out from the input length @p x_len, which
-   *          is always enough (at most one symbol per input sample). */
-  size_t dp_dsss_receiver_steps_max_out (dp_dsss_receiver_state_t *state);
+  /**
+   * @brief The capacity that lets the next steps() call on @p x_len samples
+   *        deliver everything it can: the symbols held, plus the most the
+   *        call can produce.
+   *
+   * Sized to this, a call never holds and never refuses its input
+   * (dp_dsss_receiver_steps()), which is how the Python binding calls it.
+   * The most a call can produce, `P(x_len)`, is bounded by the chain's
+   * structure, not by the nominal rate: the call runs at most `x_len +
+   * tsamps - 1` samples through the tracking chain (the carry); the Dll
+   * emits at most dp_dll_steps_max_out() of them; the RateConverter at
+   * most `ceil(ratio x n) + 1` of `n` partials (`ratio` fixed by
+   * configuration); MpskReceiver at most one symbol per input; and the
+   * hand-over a hit makes rebuilds the Dll and the RateConverter, one more
+   * close and one more output. A call holds at most one hand-over: tracking
+   * never returns to searching except through reset(). So `P(x_len) =
+   * ceil(ratio x dp_dll_steps_max_out(dll, x_len + tsamps - 1)) + 1 +
+   * ceil(segments x ratio) + 1`. A symbol may be shorter than a code period
+   * here, so a call that completes a carried period can make many symbols
+   * (#2469's 127-chip, 250 ksym/s case: 31.75 a period); the bound carries
+   * them. A Debug build aborts on a call that produces more than it.
+   *
+   * @param state  Must be non-NULL.
+   * @param x_len  Input samples the call will be given.
+   * @return Held symbols plus `P(x_len)`; SIZE_MAX if that overflows.
+   */
+  size_t dp_dsss_receiver_steps_max_out (dp_dsss_receiver_state_t *state,
+                                         size_t                    x_len);
+
+  /**
+   * @brief Inputs the last dp_dsss_receiver_steps() call took: its
+   *        @p x_len, or 0 when it held its input back.
+   *
+   * Per-call, not in the blob: 0 after create and reset.
+   *
+   * @param state  Must be non-NULL.
+   * @return Input samples the last call consumed.
+   */
+  size_t dp_dsss_receiver_get_consumed (const dp_dsss_receiver_state_t *state);
 
   /**
    * @brief Stream raw cf32 samples; emit demodulated symbols once locked.
+   *
+   * **No symbol is dropped.** Symbols held by an earlier call are delivered
+   * first, in order. A call consumes its input only when nothing stays held
+   * after that and its symbols fit: `P(x_len)` (see
+   * dp_dsss_receiver_steps_max_out()) is at most the room left in @p out
+   * plus the store, which holds what one call of a code period can
+   * produce. What does not fit in @p out is held for the next call. A call
+   * that cannot consume returns what it delivered and takes nothing:
+   * dp_dsss_receiver_get_consumed() reads 0, and the caller calls again with
+   * the same @p x. A C caller that sizes @p out below
+   * dp_dsss_receiver_steps_max_out() for a call longer than a code period
+   * meets this every time, so it must check consumed() or size @p out from
+   * that function, as the Python binding does.
    *
    * While searching, samples feed the embedded search and nothing
    * is emitted (0 return is normal, not an error). The moment a hit fires,
@@ -365,9 +426,13 @@ extern "C"
    * @param x        Input cf32 samples.
    * @param x_len    Number of input samples.
    * @param out      Output symbols; caller provides @p max_out capacity.
-   * @param max_out  Output capacity.
-   * @return Number of symbols written (0 while searching, or while
-   *         tracking with not yet a full symbol's worth of input).
+   * @param max_out  Output capacity. steps() never writes past it; symbols
+   *                 past it are held and delivered by the next call.
+   *                 dp_dsss_receiver_steps_max_out() for @p x_len is always
+   *                 enough.
+   * @return Number of symbols written: held ones first, then this call's;
+   *         0 while searching with nothing held, or while tracking with not
+   *         yet a full symbol's worth of input.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import DsssReceiver
@@ -638,12 +703,17 @@ extern "C"
     uint64_t sps;            /**< Layout key; must match the live engine. */
     uint64_t n;              /**< Layout key; must match the live engine. */
     uint64_t car_carry_len;  /**< Valid carry samples, < tsamps. */
+    uint64_t hold_cap; /**< v6: layout key, the store's capacity (#2469);
+                            the store follows the carry, hold_cap
+                            symbols. */
+    uint64_t hold_len; /**< v6: symbols held, at most hold_cap; the rest
+                            of the store packed as zeros. */
   } dsss_receiver_extra_t;
 
   /** @brief Magic tag ("DSRX") stamped in a receiver state blob. */
 #define DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('D', 'S', 'R', 'X')
   /** @brief Layout version of the receiver state blob. */
-#define DSSS_RECEIVER_STATE_VERSION 5u /* v5: the dll child grew (DLL v16 to
+#define DSSS_RECEIVER_STATE_VERSION 6u /* v6: the held symbols' store (#2469); v5: the dll child grew (DLL v16 to
                                            v18: the window sum, the rate
                                            table, the last look's terms); v4:
                                            the search child is the

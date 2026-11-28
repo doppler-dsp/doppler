@@ -1082,7 +1082,6 @@
 * **searching** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
 * **sym\_buf** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
 * **sym\_cap** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
-* **sym\_extra** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
 * **spc** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md), [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md), [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md))
 * **srch\_buf** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **srch\_cap** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))

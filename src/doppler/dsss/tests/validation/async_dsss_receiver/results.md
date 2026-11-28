@@ -57,7 +57,7 @@ A draw settled in tracking with symbol lock held at the 415.1-B-1 point, then cu
 
 | carrier | Es/N0 | lock falls, gone for good | longest dropout held | back after 50 ms out | back after 200 ms out |
 |---|---|---|---|---|---|
-| 2.8 GHz | 10 dB | 44.5 ms | 43.0 ms | 64.1 ms | 13.2 ms |
+| 2.8 GHz | 10 dB | 44.5 ms | 43.0 ms | 64.1 ms | 12.8 ms |
 
 
 ### 2.4 False lock: waits on the lock budget
@@ -160,7 +160,7 @@ The 3.069 Mcps point's arrival, EVM, dropout and false-lock limits retired with 
 | PASS | [2.8 GHz 7 dB] the error rate is a result: settled, aligned, 210 errors, and its EVM, M2M4 and theory cross-checks agree |
 | PASS | [2.8 GHz 7 dB] the error rate is not below the BPSK bound (its interval's upper limit, 1.93e-03, reaches 7.73e-04) |
 | PASS | [2.8 GHz 7 dB] no burst slipped: each ends aligned as it started (a link works only with no slip and its end in sync, the owner's rule) |
-| PASS | [2.8 GHz 7 dB] no burst handed over inside the carrier loop's reliable pull-in, 30 Hz, fails to settle |
+| PASS | [2.8 GHz 7 dB] every one of 9 bursts is handed over inside the carrier loop's reliable pull-in, 30 Hz, and none fails to settle |
 
 
 ## 5. Summary

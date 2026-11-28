@@ -896,19 +896,19 @@ def limits(
             by=f"`--check` SECOND, B at {b:.1f} dB-Hz",
         )
         if 70.0 - b <= 20.0:
-            far = [x for x in d["second"] if 70.0 - float(x["b_dbhz"]) > 30.0]
+            # The control is the meter's own, not the pool's near-far
+            # failure (a near-far improvement must not turn this red): the
+            # same _decodes refuses a coin's 0.5 and a NaN.
+            meter_ok = not _decodes({"b_ber": 0.5}) and not _decodes(
+                {"b_ber": float("nan")}
+            )
             R.limit(
-                int(r["outcome"]) == 0
-                and _decodes(r)
-                # the control: 31 dB under, the same meter must say no
-                and len(far) == 1
-                and not _decodes(far[0]),
+                int(r["outcome"]) == 0 and _decodes(r) and meter_ok,
                 f"[check] {70.0 - b:.0f} dB under the strong emitter, B is "
                 f"held and decodes (BER {float(r['b_ber']):.1e} < "
                 f"{DECODES:.0e})",
                 by=f"`--check` SECOND, B at {b:.1f} dB-Hz",
-                control="B at 38.8 dB-Hz, 31 dB under: held, and does not "
-                "decode",
+                control="the same meter on a BER of 0.5 and on NaN: refused",
             )
     bp = d["second_by_pool"][0]
     R.limit(

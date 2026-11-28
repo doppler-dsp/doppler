@@ -1067,6 +1067,9 @@ void dp_ratesync_loop_bind_cascade (
 Walks `rc` to its terminal stage and forwards its rate and tap count to [**dp\_ratesync\_loop\_set\_cascade()**](ratesync__core_8h.md#function-dp_ratesync_loop_set_cascade). Every owner of this loop owns a `RateConverter` somewhere — RateSync directly, the receivers inside their DDC — so the walk lives here once rather than in each of them.
 
 
+The terminal stage's nominal rate must be under the steered-rate bound of `rc` (`ctrl_rate_max`, which the owner sets to ratesync\_rate\_bound() before binding): only a loop transient may meet the clamp, never the steady state. A Debug build asserts it here, at each owner's create (doppler#3408); every geometry RateSync and MpskReceiver accept holds it, because both refuse an interpolating terminal stage.
+
+
 
 
 **Parameters:**

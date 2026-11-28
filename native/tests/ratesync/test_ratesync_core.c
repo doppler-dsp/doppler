@@ -29,6 +29,7 @@
 
 #include "doppler/dp_complex.h"
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2204,7 +2205,8 @@ test_a_forced_control_never_shares_an_input (void)
           }
         const double b = ratesync_rate_bound (m);
         /* only a transient meets the bound: the nominal rate is under it
-           (measured: at most two thirds of it for m 2..8, sps 2..64) */
+           (measured: at most 0.71 of it, every even m, sps m..512,
+           doppler#3408; a Debug create asserts it) */
         DP_CHECK (s->loop.term_rate < b);
         const resamp_state_t *term
             = (const resamp_state_t *)s->mf->stage_ptrs[s->mf->n_stages - 1];
@@ -2271,9 +2273,85 @@ test_tracking_stays_under_the_rate_bound (void)
   free (x);
 }
 
-int
-main (void)
+/* The bound's premise is asserted at create (doppler#3408): the nominal
+ * terminal rate is under the converter's steered-rate bound, so only a
+ * transient meets the clamp. No geometry RateSync or MpskReceiver accepts
+ * breaks it -- both refuse an interpolating terminal stage, and
+ * test_a_forced_control_never_shares_an_input pins `term_rate < bound` at
+ * ones they do -- so the failing case is forced: the cascade RateSync would
+ * build at sps = m / 2, which its create refuses, bounded as RateSync bounds
+ * it and bound to the loop through the one site both owners share.
+ *
+ * abort() raises SIGABRT; catching it and leaving with status 0 is the pass
+ * (test_clib_common's section 9). Returning from the binding at all is the
+ * failure. Run as `test_ratesync_core --abort rate-bound-premise` by its own
+ * ctest (ratesync_extra.cmake). A build without assertions (NDEBUG) has
+ * nothing to fire, so it reports SKIPPED (exit 77), never passed.
+ * Sabotage: the assert removed -> "the binding returned", red. */
+#ifndef NDEBUG
+/* Only a build with assertions installs it (below). */
+static void
+_on_abort (int sig)
 {
+  (void)sig;
+  _Exit (0);
+}
+#endif
+
+static int
+_abort_mode (const char *which)
+{
+  if (strcmp (which, "rate-bound-premise") != 0)
+    return 2;
+  const size_t              m   = 2;
+  const double              sps = 1.0; /* under m: create refuses it */
+  dp_RateConverter_state_t *rc  = dp_RateConverter_create_matched (
+      (double)m / sps, 1, RATESYNC_PULSE_RRC, _BETA, _SPAN, (double)m, 1024);
+  if (!rc || rc->n_stages < 1
+      || rc->stage_types[rc->n_stages - 1] != RC_STAGE_RESAMP)
+    {
+      DP_TEST_ERR ("FAIL: the forced cascade has no terminal resampler\n");
+      dp_RateConverter_destroy (rc);
+      return 1;
+    }
+  rc->ctrl_rate_max = ratesync_rate_bound (m);
+  const double term = dp_resamp_get_rate (
+      (const resamp_state_t *)rc->stage_ptrs[rc->n_stages - 1]);
+  /* the premise of the case itself: the geometry does break the bound's */
+  if (!(term >= rc->ctrl_rate_max))
+    {
+      DP_TEST_ERR ("FAIL: the forced geometry's terminal rate %.4f is under "
+                   "the bound %.0f: it tests nothing\n",
+                   term, rc->ctrl_rate_max);
+      dp_RateConverter_destroy (rc);
+      return 1;
+    }
+#ifdef NDEBUG
+  dp_RateConverter_destroy (rc);
+  DP_TEST_ERR ("SKIP: NDEBUG -- no assertion to fire\n");
+  return 77;
+#else
+#ifdef _MSC_VER
+  _set_abort_behavior (0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
+  (void)signal (SIGABRT, _on_abort);
+  ratesync_loop_t l;
+  dp_ratesync_loop_init (&l, sps, m, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_loop_bind_cascade (&l, rc);
+  dp_RateConverter_destroy (rc);
+  DP_TEST_ERR ("FAIL: the binding returned with the terminal rate %.4f at "
+               "or over the bound %.0f\n",
+               term, ratesync_rate_bound (m));
+  return 1;
+#endif
+}
+
+int
+main (int argc, char **argv)
+{
+  if (argc == 3 && strcmp (argv[1], "--abort") == 0)
+    return _abort_mode (argv[2]);
+
   test_invalid_params ();
   test_a_forced_control_never_shares_an_input ();
   test_tracking_stays_under_the_rate_bound ();

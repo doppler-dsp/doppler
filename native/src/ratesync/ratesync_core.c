@@ -12,6 +12,7 @@
 #include "doppler/ratesync/ratesync_core.h"
 #include "doppler/ratesync/ratesync_private.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -120,6 +121,16 @@ dp_ratesync_loop_bind_cascade (ratesync_loop_t                *l,
       ntaps     = dp_resamp_get_num_taps (term);
       term_rate = dp_resamp_get_rate (term);
     }
+  /* The steered-rate bound's premise (doppler#3408): the nominal terminal
+     rate is under the converter's bound, so only a loop transient meets the
+     clamp. RateSync and MpskReceiver set the bound (ratesync_rate_bound)
+     just before binding, and both refuse an interpolating geometry, so this
+     holds for everything they accept; one that broke it would track AT the
+     bound in the steady state. A converter nobody bounds (+INFINITY)
+     passes. */
+  assert (term_rate < rc->ctrl_rate_max
+          && "the nominal terminal rate is under the converter's steered-"
+             "rate bound, so only a transient meets the clamp");
   dp_ratesync_loop_set_cascade (l, term_rate, ntaps);
 
   /* The detector's own contribution, from the pulse the cascade already
@@ -534,8 +545,9 @@ dp_ratesync_create (double sps, int pulse, double beta, size_t span, size_t m,
     }
   /* One strobe per input (doppler#3289): the steered rate is held at
      ratesync_rate_bound(m), the derivation there. The nominal rate is under
-     it (measured: at most two thirds of it, m 2..8 and sps 2..64), so only
-     a transient meets it. */
+     it (measured: at most 0.71 of it, every even m, sps from m to 512 on a
+     fine grid, doppler#3408), so only a transient meets it;
+     dp_ratesync_loop_bind_cascade() asserts that. */
   s->mf->ctrl_rate_max = ratesync_rate_bound (m);
 
   dp_ratesync_loop_init (&s->loop, sps, m, bn, zeta, ted);

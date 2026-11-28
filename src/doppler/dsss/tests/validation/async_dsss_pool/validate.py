@@ -795,11 +795,17 @@ def review(forced: Rows, second: Rows, alone: Rows) -> None:
     )
     R.find(
         "rows_sized_by_their_own_rule",
-        "GAP",
-        "The pool sizes each receiver's symbol row by its own rule, not by "
-        "`dp_async_dsss_receiver_steps_max_out()`, and does not read "
-        "`consumed`. A receiver call is one code period, far under the "
-        "bound, so `feed_period` always consumes today (#3398).",
+        "FIXED",
+        "Each receiver's symbol row is sized from the receiver's own bound: "
+        "a push's calls, each of one code period, times the most such a "
+        "call can produce (the receiver's store, "
+        "`dp_async_dsss_receiver_steps_max_out()` at a code period), and "
+        "every call's `consumed` is checked, so a refused period aborts a "
+        "Debug build rather than going unfed. A pool's row is a lone "
+        "receiver's stream through a hand-over "
+        "(`_test_a_pool_row_is_a_lone_receivers_stream`). Until then the "
+        "pool sized rows by its own rule and did not read `consumed` "
+        "(#3398).",
     )
     R.find(
         "controller_rules_c_only",

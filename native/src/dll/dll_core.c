@@ -1093,7 +1093,14 @@ dll_block (dp_dll_state_t *s, const float _Complex *x, size_t x_len, size_t *n)
  * the bound does not assume. So an emission refused while the caller's
  * capacity is at least the bound AND the rate has stayed within the headroom
  * all call can only mean the bound is wrong: that aborts. The rate is read
- * at entry and after each steer, the only places it changes within a call.
+ * at entry and after each steer, the only places it changes within a call:
+ * the increment's one writer is dll_set_inc(), called only by dll_steer(),
+ * and this kernel reaches dll_steer() three ways -- dll_update() at one
+ * segment, the look-back's steer at several, and aid_look()'s window steer
+ * once a symbol period is set. A steer site that skipped the re-read would
+ * keep a rate the aid had pushed past the headroom reading as inside it,
+ * and abort on a drop the header accepts (#3385's coverage run, an aided
+ * Dll at rate aid 4).
  * Release builds compile all of it away. */
 #ifndef NDEBUG
 static int
@@ -1249,9 +1256,13 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
           float _Complex part  = state->acc_p / (float)state->seg_norm;
           float _Complex noise = state->acc_o / (float)state->seg_norm;
           if (state->sym_period > 0.0)
-            aid_look (state, part, noise,
-                      state->acc_e / (float)state->seg_norm,
-                      state->acc_l / (float)state->seg_norm);
+            {
+              /* the symbol aid steers here, once per symbol window */
+              aid_look (state, part, noise,
+                        state->acc_e / (float)state->seg_norm,
+                        state->acc_l / (float)state->seg_norm);
+              DLL_BOUND_STEERED (state);
+            }
           else
             lock_look (state, part, noise);
           state->chunk_p[state->seg_idx] = state->acc_p;

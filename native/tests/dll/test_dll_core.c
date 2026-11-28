@@ -2173,6 +2173,56 @@ the_carried_remainder_is_in_the_blob_and_checked (void)
   return fails;
 }
 
+/* The Debug assert (#3282) holds the bound to its headroom, so a rate the
+ * bound does not assume must not trip it. An aided Dll (segments 4, a symbol
+ * period set, so aid_look() steers once a symbol) at a rate aid of 4 runs
+ * its code at five times nominal, past the headroom of two: each period's
+ * call emits more than the bound, and the drop is the price the header names.
+ * Fed into buffers of exactly the bound, the call returns at most that many
+ * and a Debug build does not abort. Sabotaged (the build of #3385's coverage
+ * run): the re-read after aid_look()'s steer removed, the rate reads as the
+ * nominal it was at entry, and a Debug build aborts on the first period. A
+ * Release build compiles the check away, so the failing case is the Debug
+ * one: the ASan and UBSan jobs. */
+static int
+a_rate_past_the_headroom_drops_without_aborting (void)
+{
+  int          fails = 0;
+  const size_t sf = 31, segments = 4;
+  const double sps  = 2.0;
+  uint8_t     *code = malloc (sf);
+  make_code (code, sf, 17u);
+  const size_t    n   = 62 * 6;
+  float _Complex *x   = malloc (n * sizeof *x);
+  uint32_t        rng = 2463534242u;
+  for (size_t i = 0; i < n; i++)
+    {
+      const float re = (float)((int)(dp_xs32 (&rng) % 2001u) - 1000) / 1000.0f;
+      const float im = (float)((int)(dp_xs32 (&rng) % 2001u) - 1000) / 1000.0f;
+      x[i]           = re + I * im;
+    }
+  dp_dll_state_t *d
+      = dp_dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, segments);
+  DP_REQUIRE (code && x && d);
+  DP_REQUIRE (dp_dll_set_symbol_period (d, 13.5) == DP_OK);
+  dp_dll_set_rate_aid (d, 4.0);
+  for (size_t pos = 0; pos < n; pos += 62)
+    {
+      const size_t    cap = dp_dll_steps_max_out (d, 62);
+      float _Complex *out = malloc (cap * sizeof *out);
+      DP_REQUIRE (out);
+      if (dp_dll_steps (d, x + pos, 62, out, cap) > cap)
+        fails++;
+      free (out);
+    }
+  DP_CHECK_MSG (fails == 0, "past the headroom, a call stops at its "
+                            "capacity and does not abort");
+  dp_dll_destroy (d);
+  free (x);
+  free (code);
+  return fails;
+}
+
 int
 main (void)
 {
@@ -3615,6 +3665,7 @@ main (void)
             == 0);
     DP_CHECK (random_call_lengths_never_exceed_the_bound (2.2, 4, 0.9) == 0);
   }
+  DP_CHECK (a_rate_past_the_headroom_drops_without_aborting () == 0);
 
   DP_TEST_END ("test_dll_core");
 }

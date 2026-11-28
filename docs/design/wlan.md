@@ -531,11 +531,11 @@ validator every face asks (`dp_wfm_source_to_synth_error`,
 | ---------------- | -------------------------------------------------------------------------------------------------- |
 | `standard`       | `none` or a preset name; a preset fixes every field below that the standard fixes                  |
 | `bandwidth`      | channel bandwidth in Hz; the segment's `fs` is an integer multiple of it, or the source is refused |
-| `constellation`  | `bpsk`, `qpsk`, `qam16`, `qam64`, `qam256`, `qam1024`                                              |
-| `code_rate`      | `1/2`, `2/3`, `3/4`, `5/6`; a pair Table 17-4 does not list is refused                             |
+| `constellation`  | `bpsk`, `qpsk`, `qam16`, `qam64`, or `auto` (the default; "Zero config" below)                     |
+| `code_rate`      | `1/2`, `2/3`, `3/4`, `5/6`, or `auto`; a pair Table 17-4 does not list is refused                  |
 | `scrambler_init` | the 7-bit initial state; section 10                                                                |
 | `layout`         | `standard = none` only: the modulator's layout ([ofdm](ofdm.md), section 4)                        |
-| `mac`            | `none`, `fcs` or `data`: how the caller's octets become the PSDU (section 3)                       |
+| `mac`            | `none`, `fcs`, `data`, or `auto` (`fcs`): how the caller's octets become the PSDU (section 3)      |
 | `mac_header`     | `data` mode: the MAC header octets; a field form is section 10's                                   |
 | `mcs`, `gi`      | HT and later only; they arrive with section 6's rows 4 and 5                                       |
 
@@ -692,6 +692,103 @@ quarter of the rate, and a flag that says 36 must not produce an 18 Mb/s
 signal. A 10 or 5 MHz source is written with `constellation`, `code_rate` and
 `bandwidth`.
 
+#### Zero config
+
+A caller who gives nothing gets 36 Mb/s on every face: `Wlan()`, a bare
+`--type ofdm`, a `Segment` or `Synth` of type `ofdm`, and a scene with no rate
+key. Each default is decided in one place, and each is the most common
+choice rather than the first in a list. The rate's is `dp_wlan_rate_resolve`'s
+(`WLAN_MBPS_DEFAULT`), which `Wlan()` reaches directly and the source through
+`dp_wfm_source_ofdm_defaults`; the MAC, the payload and `fs` are
+`dp_wfm_source_ofdm_defaults`' alone:
+
+| field       | given nothing                                                                         |
+| ----------- | ------------------------------------------------------------------------------------- |
+| the rate    | `auto`: the pair of `WLAN_MBPS_DEFAULT`, 36 Mb/s, read from Table 17-6 (16-QAM, 3/4)  |
+| `mac`       | `auto`: `fcs`, the FCS appended                                                       |
+| the payload | `pn:768:15`, 96 octets of PN15 from the data field's default seed: a 100-octet PSDU   |
+| `fs`        | a face's default (1.0 on a segment, 1e6 on a `Synth`) is read as unset: the bandwidth |
+
+**A rate is given whole.** `constellation` and `code_rate` are both given or
+both left at `auto`; half a pair is refused ("are one rate: give both, or
+neither"), and `wlan` beside a given half is refused as a second spelling.
+`auto` is accepted on input and never written: a record, a SigMF annotation
+and a `Synth`'s properties hold the resolved value, and a `wlan` source keeps
+`wlan` alone. A C source that zero-fills its fields has the pair bpsk 1/2 and
+`mac` none by its own zeros, as a zero-filled `window` is the rectangular one;
+`WFM_SOURCE_DEFAULTS` starts at `auto`. These three are an ofdm source's
+fields: on any other type they read back what was given, `auto` unless set,
+and a record of that type carries none of them.
+
+**A record keeps a zero.** bpsk, 1/2 and none are the first value of their
+choices, and the writer, which leaves a row out at its default and at zero,
+keeps the zero of a row whose default is not its first value, as it does
+for a default that names a constant: omitted, an explicit 6 Mb/s without
+the FCS would reread as the default.
+
+**Records written before this change** that hold bpsk 1/2 or `mac` none
+reread differently whether the writer's caller gave them or not, because
+that writer omitted both at their defaults and so did not record the
+difference: every 6 Mb/s record reads as 36 Mb/s, one-field records at 9,
+12 and 24 Mb/s are refused, and every `mac` none record gains the FCS.
+
+**A live object's pair stays whole.** A `Synth`'s `constellation`,
+`code_rate`, `wlan`, `bandwidth` and `type` setters write through
+`dp_wfm_source_set_constellation`, `_set_code_rate`, `_set_wlan`,
+`_set_bandwidth` and `_set_type` (just-makeit's `set_fn`). Each builds the
+source it would leave and writes it only if `dp_wfm_source_rate_why`, the
+rate check the build itself runs, accepts it, so no write leaves a source
+that reads as a valid pair and is refused when it builds; a refused write
+leaves every field as it was. On an ofdm source:
+
+- a half set beside an `auto` other fixes the other at the value it read,
+    so `constellation = "bpsk"` on a default source reads (bpsk, 3/4) and
+    writes that pair to a record;
+- `auto` is the pair's, never a half's: either half set to `auto` returns
+    both;
+- a half set while `wlan` names the rate, and `wlan` set beside a given
+    pair, are each refused with the object untouched, in two sentences
+    worded as a pair;
+- a `wlan` no row of Table 17-6 names, and `wlan` beside a bandwidth other
+    than 20 MHz (set from either side), are refused at the write;
+- the write that makes a source ofdm is refused when the rate fields it
+    held as another type do not resolve: half a pair ("are one rate: give
+    both, or neither"), or `wlan` beside a given pair, in the resolver's
+    second-spelling sentence ("a data rate in Mb/s is a spelling of
+    constellation and code_rate");
+- a given pair Table 17-6 lacks, as (qam16, 5/6), reads back as written, not
+    as a valid pair: it is written, and the source is refused when it
+    builds, with "no SIGNAL RATE bits".
+
+The header (`wfm_compose.h`) holds the rules as a table. A `Segment`'s rate
+fields are set at construction only. The constructor runs the same check
+(just-makeit's `check_fn`,
+[just-makeit#2856](https://github.com/just-buildit/just-makeit/issues/2856)), so `Synth(type="ofdm", constellation="bpsk")` is refused where it is written, and a record refuses
+half a pair when it is read. A source built in C that holds half a pair reads each
+given half as written and the default's for the other, never `auto`.
+
+**At 10 and 5 MHz** the zero-config source is the same pair, so it carries 18
+or 9 Mb/s there; it is not `wlan`, so it is not refused.
+
+**Every ofdm source in a segment is asked**, so the order of its sources
+never changes its rate; a segment at a default `fs` whose ofdm sources
+differ in bandwidth has no one rate and is refused.
+
+**`fs` reads the rate rendered at.** A `Synth`'s `fs` reads through
+`dp_wfm_source_fs` and a `Segment`'s through `dp_wfm_segment_fs`, the rules
+the composer renders by, so `Synth(type="ofdm").fs` and
+`Segment(type="ofdm").fs` read 20e6. What is stored, set and handed to the
+build stays as given. A segment whose sources disagree reads the 1.0 it was
+given, the rate it would have, and is refused when it composes.
+
+**The fs rule is safe because neither default is a rate ofdm can render at.**
+1.0 and 1e6 are no whole multiple of 20, 10 or 5 MHz, so ofdm refused both
+before, and no source that rendered reads differently. One consequence: an
+`fs` given explicitly at a default is read the same way, and the record holds
+the bandwidth. `test_no_bandwidth_makes_a_default_fs_legal` asks the validator
+to refuse every bandwidth `d / M` that would make either default legal, so a
+new bandwidth that did turns it red.
+
 #### The per-rate numbers
 
 `dp_wlan_signal_rate_t` gains a `mbps` member, the rate as Table 17-6 prints
@@ -711,15 +808,19 @@ independent statements that must agree. The eight values are distinct (6, 9,
 
 On the faces:
 
-| capability            | C                        | Python                 | CLI        |
-| --------------------- | ------------------------ | ---------------------- | ---------- |
-| a pair's rate in Mb/s | `dp_wlan_mbps`           | `Wlan.rate_mbps`       |            |
-| a rate's pair         | `dp_wlan_rate_from_mbps` | none; just-makeit#2683 | `--wlan N` |
+| capability            | C                      | Python           | CLI        |
+| --------------------- | ---------------------- | ---------------- | ---------- |
+| a pair's rate in Mb/s | `dp_wlan_mbps`         | `Wlan.rate_mbps` |            |
+| a rate's pair         | `dp_wlan_rate_resolve` | `Wlan(mbps=N)`   | `--wlan N` |
 
 `Wlan.rate_mbps` is the 20 MHz rate and the docstring says so, as
 `Wlan.airtime` already does; the object holds no clocking. It is 0 for a pair
-Table 17-6 has no row for (BPSK 2/3, 64-QAM 1/2, any 5/6). Python has no
-lookup from a rate to a pair: none; just-makeit#2683.
+Table 17-6 has no row for (BPSK 2/3, 64-QAM 1/2, any 5/6). `Wlan(mbps=N)` and
+the source's `wlan` reach the pair through one C function,
+`dp_wlan_rate_resolve`, so they cannot name different pairs, and they refuse
+in the same words. `Wlan` has no bandwidth, so `mbps` is the pair Table 17-6
+prints at 20 MHz, and the same PPDU played at 10 or 5 MHz carries N/2 or N/4;
+the source knows its bandwidth, and refuses `wlan` at any other.
 
 #### Refusals, and the test for each
 
@@ -1368,6 +1469,13 @@ drift.
     length scaled by `M`, `M` from 1 to 128, `M = 1` bit-identical to the PPDU
     without it (section 5, "Oversampling").
 1. **No MIMO.** Out of scope, not deferred (goal 7).
+1. **Zero config is 36 Mb/s on every face** (2026-11-22, #3269): the rate
+    resolved whole from the table, the FCS appended, a 96-octet PN15
+    payload, and `fs` at a face's default read as the bandwidth (section 5,
+    "Zero config"). `Wlan(mbps=N)` is the builder's spelling of the rate.
+    Records written before it that hold bpsk 1/2 or `mac` none change
+    meaning, given or defaulted alike, since that writer did not record the
+    difference; declared as a breaking change, with no versioned reader.
 
 ### Open
 

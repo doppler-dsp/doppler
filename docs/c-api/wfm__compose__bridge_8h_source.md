@@ -28,6 +28,11 @@
 extern "C" {
 #endif
 
+/* Whether a source struct is whole: NULL, or a static sentence raised as
+ * ValueError by every face that writes it without a field's set_fn
+ * (check_fn, gh-2856). */
+const char *dp_wfm_source_rate_why(const wfm_source_t *);
+
 /* Build the composed generator from a source config (source -> generator). */
 dp_wfm_synth_state_t *dp_wfm_source_to_synth(const wfm_source_t *, double);
 
@@ -77,12 +82,52 @@ size_t dp_wfm_source_data_bits(const wfm_source_t *, double, uint8_t *, size_t);
  * count (out NULL, max 0 sizes; get_fn, gh-2718). */
 size_t dp_wfm_source_fill_bits(const wfm_source_t *, double, uint8_t *, size_t);
 
+/* Read source field `constellation` at rate fs (get_fn, gh-2710). */
+int dp_wfm_source_constellation(const wfm_source_t *, double);
+
+/* Read source field `code_rate` at rate fs (get_fn, gh-2710). */
+int dp_wfm_source_code_rate(const wfm_source_t *, double);
+
 /* Read source field `window` at rate fs (get_fn, gh-2710). */
 size_t dp_wfm_source_window(const wfm_source_t *, double);
+
+/* Read source field `mac` at rate fs (get_fn, gh-2710). */
+int dp_wfm_source_mac(const wfm_source_t *, double);
 
 /* Write source field `mac_header` at rate fs: at most max elements,
  * returning the count (out NULL, max 0 sizes; get_fn, gh-2718). */
 size_t dp_wfm_source_mac_header_bits(const wfm_source_t *, double, uint8_t *, size_t);
+
+/* Read the source's fs from its stored rate (fs_get_fn, gh-2747). */
+double dp_wfm_source_fs(const wfm_source_t *, double);
+
+/* Read segment field `fs` at rate fs (get_fn, gh-2710). */
+double dp_wfm_segment_fs(const wfm_segment_t *, double);
+
+/* Write source field `type` and any sibling it fixes: NULL after writing,
+ * or a static sentence raised as ValueError with the struct untouched
+ * (set_fn, gh-2753). */
+const char *dp_wfm_source_set_type(wfm_source_t *, int);
+
+/* Write source field `wlan` and any sibling it fixes: NULL after writing,
+ * or a static sentence raised as ValueError with the struct untouched
+ * (set_fn, gh-2753). */
+const char *dp_wfm_source_set_wlan(wfm_source_t *, int);
+
+/* Write source field `constellation` and any sibling it fixes: NULL after
+ * writing, or a static sentence raised as ValueError with the struct
+ * untouched (set_fn, gh-2753). */
+const char *dp_wfm_source_set_constellation(wfm_source_t *, int);
+
+/* Write source field `code_rate` and any sibling it fixes: NULL after
+ * writing, or a static sentence raised as ValueError with the struct
+ * untouched (set_fn, gh-2753). */
+const char *dp_wfm_source_set_code_rate(wfm_source_t *, int);
+
+/* Write source field `bandwidth` and any sibling it fixes: NULL after
+ * writing, or a static sentence raised as ValueError with the struct
+ * untouched (set_fn, gh-2753). */
+const char *dp_wfm_source_set_bandwidth(wfm_source_t *, double);
 
 #ifdef __cplusplus
 }

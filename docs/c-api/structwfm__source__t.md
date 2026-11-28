@@ -209,7 +209,7 @@ double wfm_source_t::bandwidth;
 
 
 
-For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for 802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an integer multiple of it, at most 128 times it; the multiple is the oversampling M, done by a larger transform. 
+For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for 802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an integer multiple of it, at most 128 times it; the multiple is the oversampling M, done by a larger transform. Set on a live ofdm source whose rate wlan spells, a bandwidth other than 20 MHz is refused at once. 
 
 
         
@@ -260,7 +260,7 @@ int wfm_source_t::code_rate;
 
 
 
-For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6. 
+For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; given with constellation, or neither is. auto (the default) as for constellation. Set on a live ofdm source, the pair stays whole by constellation's rules, mirrored. On any other type it reads back what was given, auto unless set. 
 
 
         
@@ -277,7 +277,7 @@ int wfm_source_t::constellation;
 
 
 
-For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, qam64; the pair with code\_rate must be a row of the standard's rate table. 
+For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, qam64; the pair with code\_rate must be a row of the standard's rate table, and is given whole or not at all. auto (the default) is the pair wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the resolved value, never auto. Set on a live ofdm source, the pair stays whole: with code\_rate auto, code\_rate is fixed at the value it read; auto returns both halves to auto; beside wlan it is refused; a pair the table lacks is written and refused when the source builds (dp\_wfm\_source\_set\_constellation). On any other type it reads back what was given, auto unless set. 
 
 
         
@@ -294,7 +294,7 @@ wfm_seq_t wfm_source_t::data;
 
 
 
-A frame's payload drawn from a data source: a Field on the command line and in a scene, a bit array in Python. The source is split into data\_len-bit frames, one chunk per frame, and its last chunk is padded from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst per frame), and continuous dsss (one bit per data symbol, no frame); not with data\_from\_file. 
+A frame's payload drawn from a data source: a Field on the command line and in a scene, a bit array in Python. The source is split into data\_len-bit frames, one chunk per frame, and its last chunk is padded from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst per frame), and continuous dsss (one bit per data symbol, no frame); not with data\_from\_file. A type=ofdm source given neither takes pn:768:15, 96 octets of the PN15 m-sequence from its default seed, which with the default mac's FCS is a 100-octet PSDU. 
 
 
         
@@ -668,7 +668,7 @@ int wfm_source_t::mac;
 
 
 
-For type=ofdm: how the caller's octets become the PSDU. none: as given. fcs: an MPDU without its FCS, which the PHY appends. data: a header (mac\_header) and a body, with the FCS appended. 
+For type=ofdm: how the caller's octets become the PSDU. none: as given. fcs: an MPDU without its FCS, which the PHY appends. data: a header (mac\_header) and a body, with the FCS appended. auto (the default) is fcs; a Synth reads, and a record holds, fcs. On any other type it reads back what was given, auto unless set. 
 
 
         
@@ -1076,7 +1076,7 @@ int wfm_source_t::wlan;
 
 
 
-For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation and code\_rate (wlan 36 is constellation qam16 code-rate 3/4). 0 = not given. Refused beside constellation or code\_rate, with a bandwidth other than 20 MHz, and on any other type. 
+For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation and code\_rate (wlan 36 is constellation qam16 code-rate 3/4). 0 = not given. Refused beside a given constellation or code\_rate, at any other bandwidth (where a 10 or 5 MHz source is spelled by its constellation and code\_rate), and on any other type. Set on a live ofdm source, it is refused at once beside a given pair (set constellation or code\_rate to auto first), when no row of the table names it, and at a bandwidth other than 20 MHz. 
 
 
         

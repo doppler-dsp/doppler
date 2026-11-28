@@ -32,6 +32,7 @@
  */
 #include "doppler/dp_complex.h"
 #include "doppler/wfm/wfm_compose.h"
+#include "doppler/wlan/wlan_core.h" /* WLAN_*_AUTO: the ofdm rows' pair */
 #include "dp_bench.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,10 +60,14 @@ bench_ofdm (jm_bench_t *bench, const char *name, int wlan, double fs,
 {
   static double t[ITERATIONS];
   wfm_source_t  src = {
-    .type           = WFM_SYNTH_FRAMES,
-    .snr            = 100.0,
-    .sps            = 1,
-    .wlan           = wlan,
+    .type = WFM_SYNTH_FRAMES,
+    .snr  = 100.0,
+    .sps  = 1,
+    .wlan = wlan,
+    /* the pair at auto: wlan is its one spelling (a zero-filled pair would
+       be bpsk 1/2, given). mac stays 0, none, as these rows always were. */
+    .constellation  = WLAN_CONSTELLATION_AUTO,
+    .code_rate      = WLAN_CODE_AUTO,
     .scrambler_init = 93,
     .data
     = { .kind = WFM_SEQ_PN, .len = 800u * 80000u, .reg_bits = 15, .seed = 1 },

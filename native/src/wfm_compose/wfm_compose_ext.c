@@ -241,18 +241,15 @@ static const char *const _enum_wfm_pulse[] = {
 };
 
 static const char *const _enum_ofdm_constellation[] = {
-  "bpsk", "qpsk", "qam16", "qam64", NULL,
+  "bpsk", "qpsk", "qam16", "qam64", "auto", NULL,
 };
 
 static const char *const _enum_ofdm_code_rate[] = {
-  "1/2", "2/3", "3/4", "5/6", NULL,
+  "1/2", "2/3", "3/4", "5/6", "auto", NULL,
 };
 
 static const char *const _enum_ofdm_mac[] = {
-  "none",
-  "fcs",
-  "data",
-  NULL,
+  "none", "fcs", "data", "auto", NULL,
 };
 
 static const char *const _enum_gap_noise[] = {
@@ -685,16 +682,25 @@ _coerce_dp_wfm_source_crc_refuse_text (uint8_t **dst, size_t *n_dst,
 static int
 Synth_replace_symbols (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t = self->src;
-  _t.symbols      = NULL;
-  _t.n_symbols    = 0;
-  if (!_attach_symbols (&_t, value))
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.symbols      = NULL;
+  _jm_copy.n_symbols    = 0;
+  if (!_attach_symbols (&_jm_copy, value))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free (_jm_copy.symbols);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free (_t.symbols);
+      free (_jm_copy.symbols);
       return 0;
     }
   if (self->_gen)
@@ -705,25 +711,35 @@ Synth_replace_symbols (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free (self->src.symbols);
-  self->src.symbols   = _t.symbols;
-  self->src.n_symbols = _t.n_symbols;
+  self->src.symbols   = _jm_copy.symbols;
+  self->src.n_symbols = _jm_copy.n_symbols;
   return 1;
 }
 
 static int
 Synth_replace_acq_code (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t  = self->src;
-  _t.acq_code.bits = NULL;
-  _t.acq_code.len  = 0;
+  wfm_source_t _jm_copy  = self->src;
+  _jm_copy.acq_code.bits = NULL;
+  _jm_copy.acq_code.len  = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&_t.acq_code.bits, &_t.acq_code.len, value, "acq_code"))
+          (uint8_t **)&_jm_copy.acq_code.bits, &_jm_copy.acq_code.len, value,
+          "acq_code"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.acq_code.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.acq_code.bits);
+      free ((void *)_jm_copy.acq_code.bits);
       return 0;
     }
   if (self->_gen)
@@ -734,26 +750,35 @@ Synth_replace_acq_code (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.acq_code.bits);
-  self->src.acq_code.bits = _t.acq_code.bits;
-  self->src.acq_code.len  = _t.acq_code.len;
+  self->src.acq_code.bits = _jm_copy.acq_code.bits;
+  self->src.acq_code.len  = _jm_copy.acq_code.len;
   return 1;
 }
 
 static int
 Synth_replace_data_code (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t   = self->src;
-  _t.data_code.bits = NULL;
-  _t.data_code.len  = 0;
-  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.data_code.bits,
-                                               &_t.data_code.len, value,
-                                               "data_code"))
+  wfm_source_t _jm_copy   = self->src;
+  _jm_copy.data_code.bits = NULL;
+  _jm_copy.data_code.len  = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.data_code.bits, &_jm_copy.data_code.len, value,
+          "data_code"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.data_code.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.data_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
       return 0;
     }
   if (self->_gen)
@@ -764,26 +789,35 @@ Synth_replace_data_code (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.data_code.bits);
-  self->src.data_code.bits = _t.data_code.bits;
-  self->src.data_code.len  = _t.data_code.len;
+  self->src.data_code.bits = _jm_copy.data_code.bits;
+  self->src.data_code.len  = _jm_copy.data_code.len;
   return 1;
 }
 
 static int
 Synth_replace_sync (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t      = self->src;
-  _t.retired_sync.bits = NULL;
-  _t.retired_sync.len  = 0;
+  wfm_source_t _jm_copy      = self->src;
+  _jm_copy.retired_sync.bits = NULL;
+  _jm_copy.retired_sync.len  = 0;
   if (!_coerce_dp_wfm_source_sync_refuse_text (
-          (uint8_t **)&_t.retired_sync.bits, &_t.retired_sync.len, value,
-          "sync"))
+          (uint8_t **)&_jm_copy.retired_sync.bits, &_jm_copy.retired_sync.len,
+          value, "sync"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.retired_sync.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.retired_sync.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
       return 0;
     }
   if (self->_gen)
@@ -794,25 +828,35 @@ Synth_replace_sync (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.retired_sync.bits);
-  self->src.retired_sync.bits = _t.retired_sync.bits;
-  self->src.retired_sync.len  = _t.retired_sync.len;
+  self->src.retired_sync.bits = _jm_copy.retired_sync.bits;
+  self->src.retired_sync.len  = _jm_copy.retired_sync.len;
   return 1;
 }
 
 static int
 Synth_replace_crc (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t     = self->src;
-  _t.retired_crc.bits = NULL;
-  _t.retired_crc.len  = 0;
+  wfm_source_t _jm_copy     = self->src;
+  _jm_copy.retired_crc.bits = NULL;
+  _jm_copy.retired_crc.len  = 0;
   if (!_coerce_dp_wfm_source_crc_refuse_text (
-          (uint8_t **)&_t.retired_crc.bits, &_t.retired_crc.len, value, "crc"))
+          (uint8_t **)&_jm_copy.retired_crc.bits, &_jm_copy.retired_crc.len,
+          value, "crc"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.retired_crc.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.retired_crc.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
       return 0;
     }
   if (self->_gen)
@@ -823,23 +867,32 @@ Synth_replace_crc (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.retired_crc.bits);
-  self->src.retired_crc.bits = _t.retired_crc.bits;
-  self->src.retired_crc.len  = _t.retired_crc.len;
+  self->src.retired_crc.bits = _jm_copy.retired_crc.bits;
+  self->src.retired_crc.len  = _jm_copy.retired_crc.len;
   return 1;
 }
 
 static int
 Synth_replace_frame (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t = self->src;
-  _t.frame        = NULL;
-  if (!_attach_frame (&_t, value))
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.frame        = NULL;
+  if (!_attach_frame (&_jm_copy, value))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      dp_wfm_frame_free ((wfm_frame_desc_t *)_t.frame);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
       return 0;
     }
   if (self->_gen)
@@ -850,25 +903,34 @@ Synth_replace_frame (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
-  self->src.frame = _t.frame;
+  self->src.frame = _jm_copy.frame;
   return 1;
 }
 
 static int
 Synth_replace_bits (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t      = self->src;
-  _t.retired_bits.bits = NULL;
-  _t.retired_bits.len  = 0;
+  wfm_source_t _jm_copy      = self->src;
+  _jm_copy.retired_bits.bits = NULL;
+  _jm_copy.retired_bits.len  = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&_t.retired_bits.bits, &_t.retired_bits.len, value,
-          "bits"))
+          (uint8_t **)&_jm_copy.retired_bits.bits, &_jm_copy.retired_bits.len,
+          value, "bits"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.retired_bits.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.retired_bits.bits);
+      free ((void *)_jm_copy.retired_bits.bits);
       return 0;
     }
   if (self->_gen)
@@ -879,25 +941,34 @@ Synth_replace_bits (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.retired_bits.bits);
-  self->src.retired_bits.bits = _t.retired_bits.bits;
-  self->src.retired_bits.len  = _t.retired_bits.len;
+  self->src.retired_bits.bits = _jm_copy.retired_bits.bits;
+  self->src.retired_bits.len  = _jm_copy.retired_bits.len;
   return 1;
 }
 
 static int
 Synth_replace_data (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t = self->src;
-  _t.data.bits    = NULL;
-  _t.data.len     = 0;
-  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.data.bits,
-                                               &_t.data.len, value, "data"))
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.data.bits    = NULL;
+  _jm_copy.data.len     = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.data.bits, &_jm_copy.data.len, value, "data"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.data.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.data.bits);
+      free ((void *)_jm_copy.data.bits);
       return 0;
     }
   if (self->_gen)
@@ -908,25 +979,34 @@ Synth_replace_data (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.data.bits);
-  self->src.data.bits = _t.data.bits;
-  self->src.data.len  = _t.data.len;
+  self->src.data.bits = _jm_copy.data.bits;
+  self->src.data.len  = _jm_copy.data.len;
   return 1;
 }
 
 static int
 Synth_replace_fill (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t = self->src;
-  _t.fill.bits    = NULL;
-  _t.fill.len     = 0;
-  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.fill.bits,
-                                               &_t.fill.len, value, "fill"))
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.fill.bits    = NULL;
+  _jm_copy.fill.len     = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.fill.bits, &_jm_copy.fill.len, value, "fill"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.fill.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.fill.bits);
+      free ((void *)_jm_copy.fill.bits);
       return 0;
     }
   if (self->_gen)
@@ -937,26 +1017,35 @@ Synth_replace_fill (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.fill.bits);
-  self->src.fill.bits = _t.fill.bits;
-  self->src.fill.len  = _t.fill.len;
+  self->src.fill.bits = _jm_copy.fill.bits;
+  self->src.fill.len  = _jm_copy.fill.len;
   return 1;
 }
 
 static int
 Synth_replace_mac_header (SynthObject *self, PyObject *value)
 {
-  wfm_source_t _t    = self->src;
-  _t.mac_header.bits = NULL;
-  _t.mac_header.len  = 0;
-  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.mac_header.bits,
-                                               &_t.mac_header.len, value,
-                                               "mac_header"))
+  wfm_source_t _jm_copy    = self->src;
+  _jm_copy.mac_header.bits = NULL;
+  _jm_copy.mac_header.len  = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.mac_header.bits, &_jm_copy.mac_header.len,
+          value, "mac_header"))
     return 0;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free ((void *)_jm_copy.mac_header.bits);
+        return 0;
+      }
+  }
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
   if (jm_inflight_wait (&self->_jm_inflight) < 0)
     {
-      free ((void *)_t.mac_header.bits);
+      free ((void *)_jm_copy.mac_header.bits);
       return 0;
     }
   if (self->_gen)
@@ -967,8 +1056,8 @@ Synth_replace_mac_header (SynthObject *self, PyObject *value)
       self->_gen = NULL;
     }
   free ((void *)self->src.mac_header.bits);
-  self->src.mac_header.bits = _t.mac_header.bits;
-  self->src.mac_header.len  = _t.mac_header.len;
+  self->src.mac_header.bits = _jm_copy.mac_header.bits;
+  self->src.mac_header.len  = _jm_copy.mac_header.len;
   return 1;
 }
 
@@ -1065,17 +1154,17 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   PyObject          *frame_symbols_obj     = NULL;
   unsigned long long frame_symbols_raw     = 0;
   int                wlan                  = 0;
-  const char        *constellation         = "bpsk";
-  const char        *code_rate             = "1/2";
+  const char        *constellation         = "auto";
+  const char        *code_rate             = "auto";
   int                scrambler_init        = 0;
   PyObject          *window_obj            = NULL;
   unsigned long long window_raw            = WFM_WINDOW_UNSET;
-  const char        *mac                   = "none";
+  const char        *mac                   = "auto";
   PyObject          *gap_obj               = NULL;
   unsigned long long gap_raw               = 0;
   double             bandwidth             = 20e6;
   PyObject          *mac_header            = NULL;
-  double             fs                    = 1000000.0;
+  double             fs                    = WFM_SYNTH_FS_DEFAULT;
   PyObject          *_kw                   = kwds;
   int                _kw_owned             = 0;
   if (kwds)
@@ -1180,18 +1269,26 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     }
   if (_kw_owned)
     Py_DECREF (_kw);
-  self->fs = fs;
-  /* gh-2272: a GIL-free call may still be running on this
-     object; new ones are refused from here, so wait for those. */
-  if (jm_inflight_wait (&self->_jm_inflight) < 0)
-    {
-      return -1;
-    }
-  if (self->_gen)
-    {
-      dp_wfm_synth_destroy (self->_gen);
-      self->_gen = NULL;
-    }
+  wfm_source_t _jm_copy      = self->src;
+  _jm_copy.symbols           = NULL;
+  _jm_copy.n_symbols         = 0;
+  _jm_copy.acq_code.bits     = NULL;
+  _jm_copy.acq_code.len      = 0;
+  _jm_copy.data_code.bits    = NULL;
+  _jm_copy.data_code.len     = 0;
+  _jm_copy.retired_sync.bits = NULL;
+  _jm_copy.retired_sync.len  = 0;
+  _jm_copy.retired_crc.bits  = NULL;
+  _jm_copy.retired_crc.len   = 0;
+  _jm_copy.frame             = NULL;
+  _jm_copy.retired_bits.bits = NULL;
+  _jm_copy.retired_bits.len  = 0;
+  _jm_copy.data.bits         = NULL;
+  _jm_copy.data.len          = 0;
+  _jm_copy.fill.bits         = NULL;
+  _jm_copy.fill.len          = 0;
+  _jm_copy.mac_header.bits   = NULL;
+  _jm_copy.mac_header.len    = 0;
   {
     int _i = _enum_index (_enum_wfm_type, type);
     if (_i < 0)
@@ -1202,7 +1299,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       type);
         return -1;
       }
-    self->src.type = _i;
+    _jm_copy.type = _i;
   }
   if (freq != NULL)
     {
@@ -1227,18 +1324,19 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.freq_hi = _hi;
-          self->src.ranged |= WFM_RANGE_FREQ;
+          _jm_copy.freq_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_FREQ;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_FREQ;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FREQ;
         }
-      self->src.freq = _lo;
+      _jm_copy.freq = _lo;
     }
   else
     {
-      self->src.freq = (double)0.0;
+      _jm_copy.freq = (double)0.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FREQ;
     }
   if (snr != NULL)
     {
@@ -1263,18 +1361,19 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.snr_hi = _hi;
-          self->src.ranged |= WFM_RANGE_SNR;
+          _jm_copy.snr_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_SNR;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_SNR;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_SNR;
         }
-      self->src.snr = _lo;
+      _jm_copy.snr = _lo;
     }
   else
     {
-      self->src.snr = (double)100.0;
+      _jm_copy.snr = (double)100.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_SNR;
     }
   {
     int _i = _enum_index (_enum_snr_mode, snr_mode);
@@ -1285,7 +1384,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       snr_mode);
         return -1;
       }
-    self->src.snr_mode = _i;
+    _jm_copy.snr_mode = _i;
   }
   if (seed_raw < 0 || seed_raw > (long long)UINT32_MAX)
     {
@@ -1294,10 +1393,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                     (long long)seed_raw, (long long)0, (long long)UINT32_MAX);
       return -1;
     }
-  uint32_t seed       = (uint32_t)seed_raw;
-  self->src.seed      = seed;
-  self->src.sps       = sps;
-  self->src.pn_length = pn_length;
+  uint32_t seed      = (uint32_t)seed_raw;
+  _jm_copy.seed      = seed;
+  _jm_copy.sps       = sps;
+  _jm_copy.pn_length = pn_length;
   if (pn_poly_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (pn_poly_obj);
@@ -1317,8 +1416,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  uint64_t pn_poly  = (uint64_t)pn_poly_raw;
-  self->src.pn_poly = pn_poly;
+  uint64_t pn_poly = (uint64_t)pn_poly_raw;
+  _jm_copy.pn_poly = pn_poly;
   {
     int _i = _enum_index (_enum_wfm_lfsr, lfsr);
     if (_i < 0)
@@ -1327,7 +1426,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       "invalid lfsr '%s' (choices: galois, fibonacci)", lfsr);
         return -1;
       }
-    self->src.lfsr = _i;
+    _jm_copy.lfsr = _i;
   }
   if (level != NULL)
     {
@@ -1352,20 +1451,21 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.level_hi = _hi;
-          self->src.ranged |= WFM_RANGE_LEVEL;
+          _jm_copy.level_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_LEVEL;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
         }
-      self->src.level = _lo;
+      _jm_copy.level = _lo;
     }
   else
     {
-      self->src.level = (double)0.0;
+      _jm_copy.level = (double)0.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
     }
-  self->src.background = background;
+  _jm_copy.background = background;
   if (f_end != NULL)
     {
       PyObject *_a = NULL, *_b = NULL;
@@ -1389,18 +1489,19 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.f_end_hi = _hi;
-          self->src.ranged |= WFM_RANGE_FEND;
+          _jm_copy.f_end_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_FEND;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_FEND;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FEND;
         }
-      self->src.f_end = _lo;
+      _jm_copy.f_end = _lo;
     }
   else
     {
-      self->src.f_end = (double)0.0;
+      _jm_copy.f_end = (double)0.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FEND;
     }
   if (span_obj != NULL)
     {
@@ -1421,8 +1522,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t span    = (size_t)span_raw;
-  self->src.span = span;
+  size_t span   = (size_t)span_raw;
+  _jm_copy.span = span;
   if (doppler != NULL)
     {
       PyObject *_a = NULL, *_b = NULL;
@@ -1446,18 +1547,19 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.doppler_hi = _hi;
-          self->src.ranged |= WFM_RANGE_DOPPLER;
+          _jm_copy.doppler_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_DOPPLER;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
         }
-      self->src.doppler = _lo;
+      _jm_copy.doppler = _lo;
     }
   else
     {
-      self->src.doppler = (double)0.0;
+      _jm_copy.doppler = (double)0.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
     }
   if (doppler_rate != NULL)
     {
@@ -1482,20 +1584,21 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
               return -1;
             }
           Py_DECREF (_b);
-          self->src.doppler_rate_hi = _hi;
-          self->src.ranged |= WFM_RANGE_DOPPLER_RATE;
+          _jm_copy.doppler_rate_hi = _hi;
+          _jm_copy.ranged |= WFM_RANGE_DOPPLER_RATE;
         }
       else
         {
-          self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
+          _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
         }
-      self->src.doppler_rate = _lo;
+      _jm_copy.doppler_rate = _lo;
     }
   else
     {
-      self->src.doppler_rate = (double)0.0;
+      _jm_copy.doppler_rate = (double)0.0;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
     }
-  self->src.carrier_hz = carrier_hz;
+  _jm_copy.carrier_hz = carrier_hz;
   {
     int _i = _enum_index (_enum_doppler_lifetime, doppler_lifetime);
     if (_i < 0)
@@ -1506,7 +1609,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
             doppler_lifetime);
         return -1;
       }
-    self->src.doppler_lifetime = _i;
+    _jm_copy.doppler_lifetime = _i;
   }
   {
     int _i = _enum_index (_enum_bitmod, modulation);
@@ -1517,7 +1620,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       modulation);
         return -1;
       }
-    self->src.modulation = _i;
+    _jm_copy.modulation = _i;
   }
   {
     int _i = _enum_index (_enum_wfm_pulse, pulse);
@@ -1527,14 +1630,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                       "invalid pulse '%s' (choices: rect, rrc)", pulse);
         return -1;
       }
-    self->src.pulse = _i;
+    _jm_copy.pulse = _i;
   }
-  self->src.rrc_beta = rrc_beta;
-  self->src.rrc_span = rrc_span;
-  if (!Synth_replace_symbols (self, symbols))
-    return -1;
-  if (!Synth_replace_acq_code (self, acq_code))
-    return -1;
+  _jm_copy.rrc_beta = rrc_beta;
+  _jm_copy.rrc_span = rrc_span;
   if (acq_reps_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (acq_reps_obj);
@@ -1554,22 +1653,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t acq_reps    = (size_t)acq_reps_raw;
-  self->src.acq_reps = acq_reps;
-  if (!Synth_replace_data_code (self, data_code))
-    return -1;
-  if (!Synth_replace_sync (self, sync))
-    return -1;
-  if (!Synth_replace_crc (self, crc))
-    return -1;
-  self->src.symbol_rate    = symbol_rate;
-  self->src.dsss_code_only = dsss_code_only;
-  if (!Synth_replace_frame (self, frame))
-    return -1;
-  if (!Synth_replace_bits (self, bits))
-    return -1;
-  if (!Synth_replace_data (self, data))
-    return -1;
+  size_t acq_reps         = (size_t)acq_reps_raw;
+  _jm_copy.acq_reps       = acq_reps;
+  _jm_copy.symbol_rate    = symbol_rate;
+  _jm_copy.dsss_code_only = dsss_code_only;
   if (data_len_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (data_len_obj);
@@ -1589,10 +1676,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t data_len    = (size_t)data_len_raw;
-  self->src.data_len = data_len;
-  if (!Synth_replace_fill (self, fill))
-    return -1;
+  size_t data_len   = (size_t)data_len_raw;
+  _jm_copy.data_len = data_len;
   if (code_only_symbols_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (code_only_symbols_obj);
@@ -1614,8 +1699,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t code_only_symbols    = (size_t)code_only_symbols_raw;
-  self->src.code_only_symbols = code_only_symbols;
+  size_t code_only_symbols   = (size_t)code_only_symbols_raw;
+  _jm_copy.code_only_symbols = code_only_symbols;
   if (frame_symbols_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (frame_symbols_obj);
@@ -1636,33 +1721,34 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t frame_symbols    = (size_t)frame_symbols_raw;
-  self->src.frame_symbols = frame_symbols;
-  self->src.wlan          = wlan;
+  size_t frame_symbols   = (size_t)frame_symbols_raw;
+  _jm_copy.frame_symbols = frame_symbols;
+  _jm_copy.wlan          = wlan;
   {
     int _i = _enum_index (_enum_ofdm_constellation, constellation);
     if (_i < 0)
       {
-        PyErr_Format (
-            PyExc_ValueError,
-            "invalid constellation '%s' (choices: bpsk, qpsk, qam16, qam64)",
-            constellation);
+        PyErr_Format (PyExc_ValueError,
+                      "invalid constellation '%s' (choices: bpsk, qpsk, "
+                      "qam16, qam64, auto)",
+                      constellation);
         return -1;
       }
-    self->src.constellation = _i;
+    _jm_copy.constellation = _i;
   }
   {
     int _i = _enum_index (_enum_ofdm_code_rate, code_rate);
     if (_i < 0)
       {
-        PyErr_Format (PyExc_ValueError,
-                      "invalid code_rate '%s' (choices: 1/2, 2/3, 3/4, 5/6)",
-                      code_rate);
+        PyErr_Format (
+            PyExc_ValueError,
+            "invalid code_rate '%s' (choices: 1/2, 2/3, 3/4, 5/6, auto)",
+            code_rate);
         return -1;
       }
-    self->src.code_rate = _i;
+    _jm_copy.code_rate = _i;
   }
-  self->src.scrambler_init = scrambler_init;
+  _jm_copy.scrambler_init = scrambler_init;
   if (window_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (window_obj);
@@ -1682,17 +1768,18 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t window    = (size_t)window_raw;
-  self->src.window = window;
+  size_t window   = (size_t)window_raw;
+  _jm_copy.window = window;
   {
     int _i = _enum_index (_enum_ofdm_mac, mac);
     if (_i < 0)
       {
         PyErr_Format (PyExc_ValueError,
-                      "invalid mac '%s' (choices: none, fcs, data)", mac);
+                      "invalid mac '%s' (choices: none, fcs, data, auto)",
+                      mac);
         return -1;
       }
-    self->src.mac = _i;
+    _jm_copy.mac = _i;
   }
   if (gap_obj != NULL)
     {
@@ -1713,11 +1800,214 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t gap          = (size_t)gap_raw;
-  self->src.gap       = gap;
-  self->src.bandwidth = bandwidth;
-  if (!Synth_replace_mac_header (self, mac_header))
-    return -1;
+  size_t gap         = (size_t)gap_raw;
+  _jm_copy.gap       = gap;
+  _jm_copy.bandwidth = bandwidth;
+  if (!_attach_symbols (&_jm_copy, symbols))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.acq_code.bits, &_jm_copy.acq_code.len,
+          acq_code, "acq_code"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.data_code.bits, &_jm_copy.data_code.len,
+          data_code, "data_code"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_sync_refuse_text (
+          (uint8_t **)&_jm_copy.retired_sync.bits, &_jm_copy.retired_sync.len,
+          sync, "sync"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_crc_refuse_text (
+          (uint8_t **)&_jm_copy.retired_crc.bits, &_jm_copy.retired_crc.len,
+          crc, "crc"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_attach_frame (&_jm_copy, frame))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.retired_bits.bits, &_jm_copy.retired_bits.len,
+          bits, "bits"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.data.bits, &_jm_copy.data.len, data, "data"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.fill.bits, &_jm_copy.fill.len, fill, "fill"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_jm_copy.mac_header.bits, &_jm_copy.mac_header.len,
+          mac_header, "mac_header"))
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        free (_jm_copy.symbols);
+        free ((void *)_jm_copy.acq_code.bits);
+        free ((void *)_jm_copy.data_code.bits);
+        free ((void *)_jm_copy.retired_sync.bits);
+        free ((void *)_jm_copy.retired_crc.bits);
+        dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+        free ((void *)_jm_copy.retired_bits.bits);
+        free ((void *)_jm_copy.data.bits);
+        free ((void *)_jm_copy.fill.bits);
+        free ((void *)_jm_copy.mac_header.bits);
+        return -1;
+      }
+  }
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free (_jm_copy.symbols);
+      free ((void *)_jm_copy.acq_code.bits);
+      free ((void *)_jm_copy.data_code.bits);
+      free ((void *)_jm_copy.retired_sync.bits);
+      free ((void *)_jm_copy.retired_crc.bits);
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_copy.frame);
+      free ((void *)_jm_copy.retired_bits.bits);
+      free ((void *)_jm_copy.data.bits);
+      free ((void *)_jm_copy.fill.bits);
+      free ((void *)_jm_copy.mac_header.bits);
+      return -1;
+    }
+  if (self->_gen)
+    {
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free (self->src.symbols);
+  free ((void *)self->src.acq_code.bits);
+  free ((void *)self->src.data_code.bits);
+  free ((void *)self->src.retired_sync.bits);
+  free ((void *)self->src.retired_crc.bits);
+  dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
+  free ((void *)self->src.retired_bits.bits);
+  free ((void *)self->src.data.bits);
+  free ((void *)self->src.fill.bits);
+  free ((void *)self->src.mac_header.bits);
+  self->src = _jm_copy;
+  self->fs  = fs;
   return 0;
 }
 
@@ -1752,7 +2042,12 @@ Synth_set_type (SynthObject *self, PyObject *value, void *closure)
                     s);
       return -1;
     }
-  self->src.type = _i;
+  const char *_why = dp_wfm_source_set_type (&self->src, _i);
+  if (_why)
+    {
+      PyErr_SetString (PyExc_ValueError, _why);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -1768,8 +2063,9 @@ static int
 Synth_set_freq (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -1789,14 +2085,23 @@ Synth_set_freq (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.freq_hi = _hi;
-      self->src.ranged |= WFM_RANGE_FREQ;
+      _jm_copy.freq_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_FREQ;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_FREQ;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FREQ;
     }
-  self->src.freq = _lo;
+  _jm_copy.freq = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -1812,8 +2117,9 @@ static int
 Synth_set_snr (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -1833,14 +2139,23 @@ Synth_set_snr (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.snr_hi = _hi;
-      self->src.ranged |= WFM_RANGE_SNR;
+      _jm_copy.snr_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_SNR;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_SNR;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_SNR;
     }
-  self->src.snr = _lo;
+  _jm_copy.snr = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -1873,7 +2188,17 @@ Synth_set_snr_mode (SynthObject *self, PyObject *value, void *closure)
                     s);
       return -1;
     }
-  self->src.snr_mode = _i;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.snr_mode     = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -1896,8 +2221,18 @@ Synth_set_seed (SynthObject *self, PyObject *value, void *closure)
                     (long long)_v_raw, (long long)0, (long long)UINT32_MAX);
       return -1;
     }
-  uint32_t _v    = (uint32_t)_v_raw;
-  self->src.seed = _v;
+  uint32_t     _v       = (uint32_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.seed         = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -1913,7 +2248,17 @@ Synth_set_sps (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.sps = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.sps          = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -1929,7 +2274,17 @@ Synth_set_pn_length (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.pn_length = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.pn_length    = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -1961,8 +2316,18 @@ Synth_set_pn_poly (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  uint64_t _v       = (uint64_t)_v_raw;
-  self->src.pn_poly = _v;
+  uint64_t     _v       = (uint64_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.pn_poly      = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -1994,7 +2359,17 @@ Synth_set_lfsr (SynthObject *self, PyObject *value, void *closure)
                     "invalid lfsr '%s' (choices: galois, fibonacci)", s);
       return -1;
     }
-  self->src.lfsr = _i;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.lfsr         = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2010,8 +2385,9 @@ static int
 Synth_set_level (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -2031,14 +2407,23 @@ Synth_set_level (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.level_hi = _hi;
-      self->src.ranged |= WFM_RANGE_LEVEL;
+      _jm_copy.level_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_LEVEL;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
     }
-  self->src.level = _lo;
+  _jm_copy.level = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2054,7 +2439,17 @@ Synth_set_background (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.background = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.background   = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2070,8 +2465,9 @@ static int
 Synth_set_f_end (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -2091,14 +2487,23 @@ Synth_set_f_end (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.f_end_hi = _hi;
-      self->src.ranged |= WFM_RANGE_FEND;
+      _jm_copy.f_end_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_FEND;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_FEND;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_FEND;
     }
-  self->src.f_end = _lo;
+  _jm_copy.f_end = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2130,8 +2535,18 @@ Synth_set_span (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v      = (size_t)_v_raw;
-  self->src.span = _v;
+  size_t       _v       = (size_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.span         = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2147,8 +2562,9 @@ static int
 Synth_set_doppler (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -2168,14 +2584,23 @@ Synth_set_doppler (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.doppler_hi = _hi;
-      self->src.ranged |= WFM_RANGE_DOPPLER;
+      _jm_copy.doppler_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_DOPPLER;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
     }
-  self->src.doppler = _lo;
+  _jm_copy.doppler = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2191,8 +2616,9 @@ static int
 Synth_set_doppler_rate (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  PyObject *_a = NULL, *_b = NULL;
-  int       _r = _jm_parse_range (value, &_a, &_b);
+  wfm_source_t _jm_copy = self->src;
+  PyObject    *_a = NULL, *_b = NULL;
+  int          _r = _jm_parse_range (value, &_a, &_b);
   if (_r < 0)
     return -1;
   double _lo = 0.0;
@@ -2212,14 +2638,23 @@ Synth_set_doppler_rate (SynthObject *self, PyObject *value, void *closure)
           return -1;
         }
       Py_DECREF (_b);
-      self->src.doppler_rate_hi = _hi;
-      self->src.ranged |= WFM_RANGE_DOPPLER_RATE;
+      _jm_copy.doppler_rate_hi = _hi;
+      _jm_copy.ranged |= WFM_RANGE_DOPPLER_RATE;
     }
   else
     {
-      self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
+      _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
     }
-  self->src.doppler_rate = _lo;
+  _jm_copy.doppler_rate = _lo;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2235,7 +2670,17 @@ Synth_set_carrier_hz (SynthObject *self, PyObject *value, void *closure)
   double _v = 0.0;
   if (!PyArg_Parse (value, "d", &_v))
     return -1;
-  self->src.carrier_hz = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.carrier_hz   = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2269,7 +2714,17 @@ Synth_set_doppler_lifetime (SynthObject *self, PyObject *value, void *closure)
           "invalid doppler_lifetime '%s' (choices: per_instance, persist)", s);
       return -1;
     }
-  self->src.doppler_lifetime = _i;
+  wfm_source_t _jm_copy     = self->src;
+  _jm_copy.doppler_lifetime = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2301,7 +2756,17 @@ Synth_set_modulation (SynthObject *self, PyObject *value, void *closure)
                     "invalid modulation '%s' (choices: none, bpsk, qpsk)", s);
       return -1;
     }
-  self->src.modulation = _i;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.modulation   = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2333,7 +2798,17 @@ Synth_set_pulse (SynthObject *self, PyObject *value, void *closure)
                     "invalid pulse '%s' (choices: rect, rrc)", s);
       return -1;
     }
-  self->src.pulse = _i;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.pulse        = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2349,7 +2824,17 @@ Synth_set_rrc_beta (SynthObject *self, PyObject *value, void *closure)
   double _v = 0.0;
   if (!PyArg_Parse (value, "d", &_v))
     return -1;
-  self->src.rrc_beta = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.rrc_beta     = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2365,7 +2850,17 @@ Synth_set_rrc_span (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.rrc_span = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.rrc_span     = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2460,8 +2955,18 @@ Synth_set_acq_reps (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v          = (size_t)_v_raw;
-  self->src.acq_reps = _v;
+  size_t       _v       = (size_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.acq_reps     = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2550,7 +3055,17 @@ Synth_set_symbol_rate (SynthObject *self, PyObject *value, void *closure)
   double _v = 0.0;
   if (!PyArg_Parse (value, "d", &_v))
     return -1;
-  self->src.symbol_rate = _v;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.symbol_rate  = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2566,7 +3081,17 @@ Synth_set_dsss_code_only (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.dsss_code_only = _v;
+  wfm_source_t _jm_copy   = self->src;
+  _jm_copy.dsss_code_only = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2678,8 +3203,18 @@ Synth_set_data_len (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v          = (size_t)_v_raw;
-  self->src.data_len = _v;
+  size_t       _v       = (size_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.data_len     = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2754,8 +3289,18 @@ Synth_set_code_only_symbols (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v                   = (size_t)_v_raw;
-  self->src.code_only_symbols = _v;
+  size_t       _v            = (size_t)_v_raw;
+  wfm_source_t _jm_copy      = self->src;
+  _jm_copy.code_only_symbols = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2788,8 +3333,18 @@ Synth_set_frame_symbols (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v               = (size_t)_v_raw;
-  self->src.frame_symbols = _v;
+  size_t       _v        = (size_t)_v_raw;
+  wfm_source_t _jm_copy  = self->src;
+  _jm_copy.frame_symbols = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2805,24 +3360,34 @@ Synth_set_wlan (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.wlan = _v;
+  const char *_why = dp_wfm_source_set_wlan (&self->src, _v);
+  if (_why)
+    {
+      PyErr_SetString (PyExc_ValueError, _why);
+      return -1;
+    }
   return 0;
+}
+static PyObject *
+Synth_read_constellation (SynthObject *self, double fs)
+{
+  long _v = (long)(dp_wfm_source_constellation (&self->src, fs));
+  if (_v < 0 || _v >= 5)
+    {
+      PyErr_Format (
+          PyExc_ValueError,
+          "constellation holds out-of-range ofdm_constellation value %ld"
+          " (valid: 0..4)",
+          _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_ofdm_constellation[_v]);
 }
 static PyObject *
 Synth_get_constellation (SynthObject *self, void *closure)
 {
   (void)closure;
-  long _v = (long)(self->src.constellation);
-  if (_v < 0 || _v >= 4)
-    {
-      PyErr_Format (
-          PyExc_ValueError,
-          "constellation holds out-of-range ofdm_constellation value %ld"
-          " (valid: 0..3)",
-          _v);
-      return NULL;
-    }
-  return PyUnicode_FromString (_enum_ofdm_constellation[_v]);
+  return Synth_read_constellation (self, self->fs);
 }
 static int
 Synth_set_constellation (SynthObject *self, PyObject *value, void *closure)
@@ -2834,28 +3399,39 @@ Synth_set_constellation (SynthObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_ofdm_constellation, s);
   if (_i < 0)
     {
-      PyErr_Format (
-          PyExc_ValueError,
-          "invalid constellation '%s' (choices: bpsk, qpsk, qam16, qam64)", s);
+      PyErr_Format (PyExc_ValueError,
+                    "invalid constellation '%s' (choices: bpsk, qpsk, qam16, "
+                    "qam64, auto)",
+                    s);
       return -1;
     }
-  self->src.constellation = _i;
+  const char *_why = dp_wfm_source_set_constellation (&self->src, _i);
+  if (_why)
+    {
+      PyErr_SetString (PyExc_ValueError, _why);
+      return -1;
+    }
   return 0;
+}
+static PyObject *
+Synth_read_code_rate (SynthObject *self, double fs)
+{
+  long _v = (long)(dp_wfm_source_code_rate (&self->src, fs));
+  if (_v < 0 || _v >= 5)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "code_rate holds out-of-range ofdm_code_rate value %ld"
+                    " (valid: 0..4)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_ofdm_code_rate[_v]);
 }
 static PyObject *
 Synth_get_code_rate (SynthObject *self, void *closure)
 {
   (void)closure;
-  long _v = (long)(self->src.code_rate);
-  if (_v < 0 || _v >= 4)
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "code_rate holds out-of-range ofdm_code_rate value %ld"
-                    " (valid: 0..3)",
-                    _v);
-      return NULL;
-    }
-  return PyUnicode_FromString (_enum_ofdm_code_rate[_v]);
+  return Synth_read_code_rate (self, self->fs);
 }
 static int
 Synth_set_code_rate (SynthObject *self, PyObject *value, void *closure)
@@ -2867,11 +3443,17 @@ Synth_set_code_rate (SynthObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_ofdm_code_rate, s);
   if (_i < 0)
     {
-      PyErr_Format (PyExc_ValueError,
-                    "invalid code_rate '%s' (choices: 1/2, 2/3, 3/4, 5/6)", s);
+      PyErr_Format (
+          PyExc_ValueError,
+          "invalid code_rate '%s' (choices: 1/2, 2/3, 3/4, 5/6, auto)", s);
       return -1;
     }
-  self->src.code_rate = _i;
+  const char *_why = dp_wfm_source_set_code_rate (&self->src, _i);
+  if (_why)
+    {
+      PyErr_SetString (PyExc_ValueError, _why);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -2887,7 +3469,17 @@ Synth_set_scrambler_init (SynthObject *self, PyObject *value, void *closure)
   int _v = 0;
   if (!PyArg_Parse (value, "i", &_v))
     return -1;
-  self->src.scrambler_init = _v;
+  wfm_source_t _jm_copy   = self->src;
+  _jm_copy.scrambler_init = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2925,24 +3517,39 @@ Synth_set_window (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v        = (size_t)_v_raw;
-  self->src.window = _v;
+  size_t       _v       = (size_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.window       = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
+}
+static PyObject *
+Synth_read_mac (SynthObject *self, double fs)
+{
+  long _v = (long)(dp_wfm_source_mac (&self->src, fs));
+  if (_v < 0 || _v >= 4)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "mac holds out-of-range ofdm_mac value %ld"
+                    " (valid: 0..3)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_ofdm_mac[_v]);
 }
 static PyObject *
 Synth_get_mac (SynthObject *self, void *closure)
 {
   (void)closure;
-  long _v = (long)(self->src.mac);
-  if (_v < 0 || _v >= 3)
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "mac holds out-of-range ofdm_mac value %ld"
-                    " (valid: 0..2)",
-                    _v);
-      return NULL;
-    }
-  return PyUnicode_FromString (_enum_ofdm_mac[_v]);
+  return Synth_read_mac (self, self->fs);
 }
 static int
 Synth_set_mac (SynthObject *self, PyObject *value, void *closure)
@@ -2955,10 +3562,20 @@ Synth_set_mac (SynthObject *self, PyObject *value, void *closure)
   if (_i < 0)
     {
       PyErr_Format (PyExc_ValueError,
-                    "invalid mac '%s' (choices: none, fcs, data)", s);
+                    "invalid mac '%s' (choices: none, fcs, data, auto)", s);
       return -1;
     }
-  self->src.mac = _i;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.mac          = _i;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -2990,8 +3607,18 @@ Synth_set_gap (SynthObject *self, PyObject *value, void *closure)
       }
     Py_DECREF (_ix);
   }
-  size_t _v     = (size_t)_v_raw;
-  self->src.gap = _v;
+  size_t       _v       = (size_t)_v_raw;
+  wfm_source_t _jm_copy = self->src;
+  _jm_copy.gap          = _v;
+  {
+    const char *_chk = dp_wfm_source_rate_why (&_jm_copy);
+    if (_chk)
+      {
+        PyErr_SetString (PyExc_ValueError, _chk);
+        return -1;
+      }
+  }
+  self->src = _jm_copy;
   return 0;
 }
 static PyObject *
@@ -3007,7 +3634,12 @@ Synth_set_bandwidth (SynthObject *self, PyObject *value, void *closure)
   double _v = 0.0;
   if (!PyArg_Parse (value, "d", &_v))
     return -1;
-  self->src.bandwidth = _v;
+  const char *_why = dp_wfm_source_set_bandwidth (&self->src, _v);
+  if (_why)
+    {
+      PyErr_SetString (PyExc_ValueError, _why);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -3057,7 +3689,7 @@ static PyObject *
 Synth_get_fs (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyFloat_FromDouble (self->fs);
+  return PyFloat_FromDouble (dp_wfm_source_fs (&self->src, self->fs));
 }
 static int
 Synth_set_fs (SynthObject *self, PyObject *value, void *closure)
@@ -3279,7 +3911,9 @@ static PyGetSetDef Synth_getset[] = {
     "data_len-bit frames, one chunk per frame, and its last chunk is padded "
     "from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst "
     "per frame), and continuous dsss (one bit per data symbol, no frame); not "
-    "with data_from_file.\n",
+    "with data_from_file. A type=ofdm source given neither takes pn:768:15, "
+    "96 octets of the PN15 m-sequence from its default seed, which with the "
+    "default mac's FCS is a 100-octet PSDU.\n",
     NULL },
   { "data_len", (getter)Synth_get_data_len, (setter)Synth_set_data_len,
     "Bits of the data source per frame: the data:LEN field of the common "
@@ -3310,20 +3944,36 @@ static PyGetSetDef Synth_getset[] = {
     "on the stream's own symbol clock, so its edges land at any chip phase.\n",
     NULL },
   { "wlan", (getter)Synth_get_wlan, (setter)Synth_set_wlan,
-    "For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9, "
-    "12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate "
-    "(--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. "
-    "Refused beside constellation or code_rate, with a bandwidth other than "
-    "20 MHz, and on any other type.\n",
+    "For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints it, "
+    "one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation "
+    "and code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = "
+    "not given. Refused beside a given constellation or code_rate, at any "
+    "other bandwidth (where a 10 or 5 MHz source is spelled by its "
+    "constellation and code_rate), and on any other type. Set on a live ofdm "
+    "source, it is refused at once beside a given pair (set constellation or "
+    "code_rate to auto first), when no row of the table names it, and at a "
+    "bandwidth other than 20 MHz.\n",
     NULL },
   { "constellation", (getter)Synth_get_constellation,
     (setter)Synth_set_constellation,
     "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, "
     "qam64; the pair with code_rate must be a row of the standard's rate "
-    "table.\n",
+    "table, and is given whole or not at all. auto (the default) is the pair "
+    "wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 "
+    "Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the "
+    "resolved value, never auto. Set on a live ofdm source, the pair stays "
+    "whole: with code_rate auto, code_rate is fixed at the value it read; "
+    "auto returns both halves to auto; beside wlan it is refused; a pair the "
+    "table lacks is written and refused when the source builds "
+    "(dp_wfm_source_set_constellation). On any other type it reads back what "
+    "was given, auto unless set.\n",
     NULL },
   { "code_rate", (getter)Synth_get_code_rate, (setter)Synth_set_code_rate,
-    "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.\n",
+    "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; "
+    "given with constellation, or neither is. auto (the default) as for "
+    "constellation. Set on a live ofdm source, the pair stays whole by "
+    "constellation's rules, mirrored. On any other type it reads back what "
+    "was given, auto unless set.\n",
     NULL },
   { "scrambler_init", (getter)Synth_get_scrambler_init,
     (setter)Synth_set_scrambler_init,
@@ -3344,7 +3994,9 @@ static PyGetSetDef Synth_getset[] = {
   { "mac", (getter)Synth_get_mac, (setter)Synth_set_mac,
     "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
     "fcs: an MPDU without its FCS, which the PHY appends. data: a header "
-    "(mac_header) and a body, with the FCS appended.\n",
+    "(mac_header) and a body, with the FCS appended. auto (the default) is "
+    "fcs; a Synth reads, and a record holds, fcs. On any other type it reads "
+    "back what was given, auto unless set.\n",
     NULL },
   { "gap", (getter)Synth_get_gap, (setter)Synth_set_gap,
     "For type=ofdm: idle samples after each PPDU, at the output rate, filled "
@@ -3354,7 +4006,9 @@ static PyGetSetDef Synth_getset[] = {
     "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for "
     "802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an "
     "integer multiple of it, at most 128 times it; the multiple is the "
-    "oversampling M, done by a larger transform.\n",
+    "oversampling M, done by a larger transform. Set on a live ofdm source "
+    "whose rate wlan spells, a bandwidth other than 20 MHz is refused at "
+    "once.\n",
     NULL },
   { "mac_header", (getter)Synth_get_mac_header, (setter)Synth_set_mac_header,
     "For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data "
@@ -3368,7 +4022,9 @@ static PyGetSetDef Synth_getset[] = {
     NULL },
   { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs,
     "Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz "
-    "against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.\n",
+    "against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. For "
+    "type ofdm an fs at this default is read as unset and becomes the "
+    "bandwidth, which `fs` then reads back.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -3957,7 +4613,10 @@ static PyTypeObject SynthType = {
       "burst\n"
       "    per frame), and continuous dsss (one bit per data symbol, no "
       "frame);\n"
-      "    not with data_from_file.\n"
+      "    not with data_from_file. A type=ofdm source given neither takes\n"
+      "    pn:768:15, 96 octets of the PN15 m-sequence from its default "
+      "seed,\n"
+      "    which with the default mac's FCS is a 100-octet PSDU.\n"
       "data_len : int, default 0\n"
       "    Bits of the data source per frame: the data:LEN field of the "
       "common\n"
@@ -3996,25 +4655,56 @@ static PyTypeObject SynthType = {
       "    on the stream's own symbol clock, so its edges land at any chip "
       "phase.\n"
       "wlan : int, default 0\n"
-      "    For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of "
-      "6, 9,\n"
-      "    12, 18, 24, 36, 48, 54: a second spelling of constellation and\n"
-      "    code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 "
-      "= not\n"
-      "    given. Refused beside constellation or code_rate, with a "
-      "bandwidth\n"
-      "    other than 20 MHz, and on any other type.\n"
-      "constellation : str, default ``\"bpsk\"``\n"
+      "    For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 "
+      "prints\n"
+      "    it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of\n"
+      "    constellation and code_rate (--wlan 36 is --constellation qam16\n"
+      "    --code-rate 3/4). 0 = not given. Refused beside a given "
+      "constellation\n"
+      "    or code_rate, at any other bandwidth (where a 10 or 5 MHz source "
+      "is\n"
+      "    spelled by its constellation and code_rate), and on any other "
+      "type. Set\n"
+      "    on a live ofdm source, it is refused at once beside a given pair "
+      "(set\n"
+      "    constellation or code_rate to auto first), when no row of the "
+      "table\n"
+      "    names it, and at a bandwidth other than 20 MHz.\n"
+      "constellation : str, default ``\"auto\"``\n"
       "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
       "qam16,\n"
       "    qam64; the pair with code_rate must be a row of the standard's "
       "rate\n"
-      "    table.\n"
-      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``.\n"
-      "code_rate : str, default ``\"1/2\"``\n"
+      "    table, and is given whole or not at all. auto (the default) is the "
+      "pair\n"
+      "    wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or "
+      "9\n"
+      "    Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record "
+      "holds,\n"
+      "    the resolved value, never auto. Set on a live ofdm source, the "
+      "pair\n"
+      "    stays whole: with code_rate auto, code_rate is fixed at the value "
+      "it\n"
+      "    read; auto returns both halves to auto; beside wlan it is refused; "
+      "a\n"
+      "    pair the table lacks is written and refused when the source "
+      "builds\n"
+      "    (dp_wfm_source_set_constellation). On any other type it reads back "
+      "what\n"
+      "    was given, auto unless set.\n"
+      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``, "
+      "``\"auto\"``.\n"
+      "code_rate : str, default ``\"auto\"``\n"
       "    For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, "
-      "5/6.\n"
-      "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``.\n"
+      "5/6;\n"
+      "    given with constellation, or neither is. auto (the default) as "
+      "for\n"
+      "    constellation. Set on a live ofdm source, the pair stays whole by\n"
+      "    constellation's rules, mirrored. On any other type it reads back "
+      "what\n"
+      "    was given, auto unless set.\n"
+      "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``, "
+      "``\"auto\"``.\n"
       "scrambler_init : int, default 0\n"
       "    For type=ofdm: the 7-bit initial state of the data scrambler, 1 to "
       "127.\n"
@@ -4036,13 +4726,17 @@ static PyTypeObject SynthType = {
       "the\n"
       "    scene is refused for. What is stored, set and written is what was\n"
       "    given.\n"
-      "mac : str, default ``\"none\"``\n"
+      "mac : str, default ``\"auto\"``\n"
       "    For type=ofdm: how the caller's octets become the PSDU. none: as "
       "given.\n"
       "    fcs: an MPDU without its FCS, which the PHY appends. data: a "
       "header\n"
-      "    (mac_header) and a body, with the FCS appended.\n"
-      "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``.\n"
+      "    (mac_header) and a body, with the FCS appended. auto (the default) "
+      "is\n"
+      "    fcs; a Synth reads, and a record holds, fcs. On any other type it "
+      "reads\n"
+      "    back what was given, auto unless set.\n"
+      "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``, ``\"auto\"``.\n"
       "gap : int, default 0\n"
       "    For type=ofdm: idle samples after each PPDU, at the output rate, "
       "filled\n"
@@ -4052,7 +4746,11 @@ static PyTypeObject SynthType = {
       "    802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be "
       "an\n"
       "    integer multiple of it, at most 128 times it; the multiple is the\n"
-      "    oversampling M, done by a larger transform.\n"
+      "    oversampling M, done by a larger transform. Set on a live ofdm "
+      "source\n"
+      "    whose rate wlan spells, a bandwidth other than 20 MHz is refused "
+      "at\n"
+      "    once.\n"
       "mac_header : bytes | None, default None\n"
       "    For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a "
       "data\n"
@@ -4068,10 +4766,19 @@ static PyTypeObject SynthType = {
       "    appends the frame's octets (the data source) and the FCS. Refused "
       "with\n"
       "    mac none or fcs, and without it for mac data.\n"
-      "fs : float, default 1000000.0\n"
+      "fs : float, default WFM_SYNTH_FS_DEFAULT\n"
       "    Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz\n"
-      "    against 1 MHz; pass `fs=1.0` to give `freq` in cycles per "
-      "sample.\n"),
+      "    against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. "
+      "For\n"
+      "    type ofdm an fs at this default is read as unset and becomes the\n"
+      "    bandwidth, which `fs` then reads back.\n"
+      "\n"
+      "Raises\n"
+      "------\n"
+      "ValueError\n"
+      "    The fields given are not a whole source: "
+      "``dp_wfm_source_rate_why``\n"
+      "    refused them, and its sentence is the message.\n"),
 };
 
 /* Factory shared body: inject {type: <name>} into kwds, call the type. */
@@ -4205,17 +4912,18 @@ Segment_dealloc (SegmentObject *self)
 static int
 Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
 {
-  self->fs               = 1.0;
-  self->num_samples      = 0;
-  self->off_samples      = 0;
-  self->repeats          = 1;
-  self->delay_samples    = 0;
-  self->gap_noise        = 0;
-  self->ranged           = 0;
-  self->num_samples_hi   = 0;
-  self->off_samples_hi   = 0;
-  self->delay_samples_hi = 0;
-  PyObject *kw           = kwds ? PyDict_Copy (kwds) : PyDict_New ();
+  SegmentObject _jm_copy;
+  _jm_copy.fs               = 1.0;
+  _jm_copy.num_samples      = 0;
+  _jm_copy.off_samples      = 0;
+  _jm_copy.repeats          = 1;
+  _jm_copy.delay_samples    = 0;
+  _jm_copy.gap_noise        = 0;
+  _jm_copy.ranged           = 0;
+  _jm_copy.num_samples_hi   = 0;
+  _jm_copy.off_samples_hi   = 0;
+  _jm_copy.delay_samples_hi = 0;
+  PyObject *kw              = kwds ? PyDict_Copy (kwds) : PyDict_New ();
   if (!kw)
     return -1;
   {
@@ -4225,7 +4933,7 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
         double _v = 0.0;
         if (!PyArg_Parse (_o, "d", &_v))
           goto fail;
-        self->fs = _v;
+        _jm_copy.fs = _v;
         if (PyDict_DelItemString (kw, "fs") < 0)
           goto fail;
       }
@@ -4298,14 +5006,14 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
             }
             size_t _hi = (size_t)_hi_raw;
             Py_DECREF (_b);
-            self->num_samples_hi = _hi;
-            self->ranged |= WFM_RANGE_NUM_SAMPLES;
+            _jm_copy.num_samples_hi = _hi;
+            _jm_copy.ranged |= WFM_RANGE_NUM_SAMPLES;
           }
         else
           {
-            self->ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
+            _jm_copy.ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
           }
-        self->num_samples = _lo;
+        _jm_copy.num_samples = _lo;
         if (PyDict_DelItemString (kw, "num_samples") < 0)
           goto fail;
       }
@@ -4378,14 +5086,14 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
             }
             size_t _hi = (size_t)_hi_raw;
             Py_DECREF (_b);
-            self->off_samples_hi = _hi;
-            self->ranged |= WFM_RANGE_OFF_SAMPLES;
+            _jm_copy.off_samples_hi = _hi;
+            _jm_copy.ranged |= WFM_RANGE_OFF_SAMPLES;
           }
         else
           {
-            self->ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES;
+            _jm_copy.ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES;
           }
-        self->off_samples = _lo;
+        _jm_copy.off_samples = _lo;
         if (PyDict_DelItemString (kw, "off_samples") < 0)
           goto fail;
       }
@@ -4413,8 +5121,8 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
             }
           Py_DECREF (_ix);
         }
-        size_t _v     = (size_t)_v_raw;
-        self->repeats = _v;
+        size_t _v        = (size_t)_v_raw;
+        _jm_copy.repeats = _v;
         if (PyDict_DelItemString (kw, "repeats") < 0)
           goto fail;
       }
@@ -4487,14 +5195,14 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
             }
             size_t _hi = (size_t)_hi_raw;
             Py_DECREF (_b);
-            self->delay_samples_hi = _hi;
-            self->ranged |= WFM_RANGE_DELAY_SAMPLES;
+            _jm_copy.delay_samples_hi = _hi;
+            _jm_copy.ranged |= WFM_RANGE_DELAY_SAMPLES;
           }
         else
           {
-            self->ranged &= ~(unsigned)WFM_RANGE_DELAY_SAMPLES;
+            _jm_copy.ranged &= ~(unsigned)WFM_RANGE_DELAY_SAMPLES;
           }
-        self->delay_samples = _lo;
+        _jm_copy.delay_samples = _lo;
         if (PyDict_DelItemString (kw, "delay_samples") < 0)
           goto fail;
       }
@@ -4513,7 +5221,7 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
                           "invalid gap_noise '%s' (choices: auto, off)", _s);
             goto fail;
           }
-        self->gap_noise = _i;
+        _jm_copy.gap_noise = _i;
         if (PyDict_DelItemString (kw, "gap_noise") < 0)
           goto fail;
       }
@@ -4528,7 +5236,7 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
     }
   if (!_fs_pos)
     {
-      PyObject *_fs = PyFloat_FromDouble ((double)self->fs);
+      PyObject *_fs = PyFloat_FromDouble ((double)_jm_copy.fs);
       int       _r  = _fs ? PyDict_SetItemString (kw, "fs", _fs) : -1;
       Py_XDECREF (_fs);
       if (_r < 0)
@@ -4542,7 +5250,7 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
   if (!one)
     return -1;
   if (_fs_pos)
-    self->fs = (double)((SynthObject *)one)->fs;
+    _jm_copy.fs = (double)((SynthObject *)one)->fs;
   PyObject *list = PyList_New (1);
   if (!list)
     {
@@ -4550,6 +5258,16 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   PyList_SET_ITEM (list, 0, one); /* steals */
+  self->fs               = _jm_copy.fs;
+  self->num_samples      = _jm_copy.num_samples;
+  self->off_samples      = _jm_copy.off_samples;
+  self->repeats          = _jm_copy.repeats;
+  self->delay_samples    = _jm_copy.delay_samples;
+  self->gap_noise        = _jm_copy.gap_noise;
+  self->ranged           = _jm_copy.ranged;
+  self->num_samples_hi   = _jm_copy.num_samples_hi;
+  self->off_samples_hi   = _jm_copy.off_samples_hi;
+  self->delay_samples_hi = _jm_copy.delay_samples_hi;
   Py_XSETREF (self->sources, list);
   return 0;
 fail:
@@ -4913,7 +5631,27 @@ static PyObject *
 Segment_get_fs (SegmentObject *self, void *closure)
 {
   (void)closure;
-  return PyFloat_FromDouble (self->fs);
+  wfm_segment_t _jm_seg;
+  memset (&_jm_seg, 0, sizeof _jm_seg);
+  _jm_seg.fs               = self->fs;
+  _jm_seg.num_samples      = self->num_samples;
+  _jm_seg.off_samples      = self->off_samples;
+  _jm_seg.repeats          = self->repeats;
+  _jm_seg.delay_samples    = self->delay_samples;
+  _jm_seg.gap_noise        = self->gap_noise;
+  _jm_seg.ranged           = self->ranged;
+  _jm_seg.num_samples_hi   = self->num_samples_hi;
+  _jm_seg.off_samples_hi   = self->off_samples_hi;
+  _jm_seg.delay_samples_hi = self->delay_samples_hi;
+  size_t        _ns;
+  wfm_source_t *_srcs = _Segment_sources_c (self->sources, &_ns);
+  if (!_srcs)
+    return NULL;
+  _jm_seg.sources   = _srcs;
+  _jm_seg.n_sources = _ns;
+  double _gv        = dp_wfm_segment_fs (&_jm_seg, self->fs);
+  free (_srcs);
+  return PyFloat_FromDouble (_gv);
 }
 static int
 Segment_set_fs (SegmentObject *self, PyObject *value, void *closure)
@@ -5757,6 +6495,8 @@ Segment_flat_constellation (SegmentObject *self, void *closure)
       return NULL;
     }
   PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_constellation ((SynthObject *)_it, self->fs);
   return PyObject_GetAttrString (_it, "constellation");
 }
 static PyObject *
@@ -5770,6 +6510,8 @@ Segment_flat_code_rate (SegmentObject *self, void *closure)
       return NULL;
     }
   PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_code_rate ((SynthObject *)_it, self->fs);
   return PyObject_GetAttrString (_it, "code_rate");
 }
 static PyObject *
@@ -5811,6 +6553,8 @@ Segment_flat_mac (SegmentObject *self, void *closure)
       return NULL;
     }
   PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_mac ((SynthObject *)_it, self->fs);
   return PyObject_GetAttrString (_it, "mac");
 }
 static PyObject *
@@ -5881,7 +6625,11 @@ static PyGetSetDef Segment_getset[] = {
   { "fs", (getter)Segment_get_fs, (setter)Segment_set_fs,
     "Sample rate in Hz, one per segment and shared by all its sources. At the "
     "default 1.0 every frequency is normalised (cycles per sample); state it "
-    "whenever a scene is in real Hz.\n",
+    "whenever a scene is in real Hz. A segment with a type=ofdm source reads "
+    "the default 1.0 as unset and takes that source's bandwidth (20e6 unless "
+    "given), which it then reads back and a record holds; ofdm sources that "
+    "differ in bandwidth leave it no one rate, read back the 1.0 given and "
+    "are refused.\n",
     NULL },
   { "num_samples", (getter)Segment_get_num_samples,
     (setter)Segment_set_num_samples,
@@ -6122,7 +6870,9 @@ static PyGetSetDef Segment_getset[] = {
     "data_len-bit frames, one chunk per frame, and its last chunk is padded "
     "from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst "
     "per frame), and continuous dsss (one bit per data symbol, no frame); not "
-    "with data_from_file.\n",
+    "with data_from_file. A type=ofdm source given neither takes pn:768:15, "
+    "96 octets of the PN15 m-sequence from its default seed, which with the "
+    "default mac's FCS is a 100-octet PSDU.\n",
     NULL },
   { "data_len", (getter)Segment_flat_data_len, NULL,
     "Bits of the data source per frame: the data:LEN field of the common "
@@ -6151,19 +6901,35 @@ static PyGetSetDef Segment_getset[] = {
     "on the stream's own symbol clock, so its edges land at any chip phase.\n",
     NULL },
   { "wlan", (getter)Segment_flat_wlan, NULL,
-    "For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9, "
-    "12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate "
-    "(--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. "
-    "Refused beside constellation or code_rate, with a bandwidth other than "
-    "20 MHz, and on any other type.\n",
+    "For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints it, "
+    "one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation "
+    "and code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = "
+    "not given. Refused beside a given constellation or code_rate, at any "
+    "other bandwidth (where a 10 or 5 MHz source is spelled by its "
+    "constellation and code_rate), and on any other type. Set on a live ofdm "
+    "source, it is refused at once beside a given pair (set constellation or "
+    "code_rate to auto first), when no row of the table names it, and at a "
+    "bandwidth other than 20 MHz.\n",
     NULL },
   { "constellation", (getter)Segment_flat_constellation, NULL,
     "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, "
     "qam64; the pair with code_rate must be a row of the standard's rate "
-    "table.\n",
+    "table, and is given whole or not at all. auto (the default) is the pair "
+    "wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9 "
+    "Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds, the "
+    "resolved value, never auto. Set on a live ofdm source, the pair stays "
+    "whole: with code_rate auto, code_rate is fixed at the value it read; "
+    "auto returns both halves to auto; beside wlan it is refused; a pair the "
+    "table lacks is written and refused when the source builds "
+    "(dp_wfm_source_set_constellation). On any other type it reads back what "
+    "was given, auto unless set.\n",
     NULL },
   { "code_rate", (getter)Segment_flat_code_rate, NULL,
-    "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.\n",
+    "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6; "
+    "given with constellation, or neither is. auto (the default) as for "
+    "constellation. Set on a live ofdm source, the pair stays whole by "
+    "constellation's rules, mirrored. On any other type it reads back what "
+    "was given, auto unless set.\n",
     NULL },
   { "scrambler_init", (getter)Segment_flat_scrambler_init, NULL,
     "For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127. "
@@ -6183,7 +6949,9 @@ static PyGetSetDef Segment_getset[] = {
   { "mac", (getter)Segment_flat_mac, NULL,
     "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
     "fcs: an MPDU without its FCS, which the PHY appends. data: a header "
-    "(mac_header) and a body, with the FCS appended.\n",
+    "(mac_header) and a body, with the FCS appended. auto (the default) is "
+    "fcs; a Synth reads, and a record holds, fcs. On any other type it reads "
+    "back what was given, auto unless set.\n",
     NULL },
   { "gap", (getter)Segment_flat_gap, NULL,
     "For type=ofdm: idle samples after each PPDU, at the output rate, filled "
@@ -6193,7 +6961,9 @@ static PyGetSetDef Segment_getset[] = {
     "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for "
     "802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an "
     "integer multiple of it, at most 128 times it; the multiple is the "
-    "oversampling M, done by a larger transform.\n",
+    "oversampling M, done by a larger transform. Set on a live ofdm source "
+    "whose rate wlan spells, a bandwidth other than 20 MHz is refused at "
+    "once.\n",
     NULL },
   { "mac_header", (getter)Segment_flat_mac_header, NULL,
     "For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data "
@@ -6523,7 +7293,10 @@ static PyTypeObject SegmentType = {
       "burst\n"
       "    per frame), and continuous dsss (one bit per data symbol, no "
       "frame);\n"
-      "    not with data_from_file.\n"
+      "    not with data_from_file. A type=ofdm source given neither takes\n"
+      "    pn:768:15, 96 octets of the PN15 m-sequence from its default "
+      "seed,\n"
+      "    which with the default mac's FCS is a 100-octet PSDU.\n"
       "data_len : int, default 0\n"
       "    Bits of the data source per frame: the data:LEN field of the "
       "common\n"
@@ -6562,25 +7335,56 @@ static PyTypeObject SegmentType = {
       "    on the stream's own symbol clock, so its edges land at any chip "
       "phase.\n"
       "wlan : int, default 0\n"
-      "    For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of "
-      "6, 9,\n"
-      "    12, 18, 24, 36, 48, 54: a second spelling of constellation and\n"
-      "    code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 "
-      "= not\n"
-      "    given. Refused beside constellation or code_rate, with a "
-      "bandwidth\n"
-      "    other than 20 MHz, and on any other type.\n"
-      "constellation : str, default ``\"bpsk\"``\n"
+      "    For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 "
+      "prints\n"
+      "    it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of\n"
+      "    constellation and code_rate (--wlan 36 is --constellation qam16\n"
+      "    --code-rate 3/4). 0 = not given. Refused beside a given "
+      "constellation\n"
+      "    or code_rate, at any other bandwidth (where a 10 or 5 MHz source "
+      "is\n"
+      "    spelled by its constellation and code_rate), and on any other "
+      "type. Set\n"
+      "    on a live ofdm source, it is refused at once beside a given pair "
+      "(set\n"
+      "    constellation or code_rate to auto first), when no row of the "
+      "table\n"
+      "    names it, and at a bandwidth other than 20 MHz.\n"
+      "constellation : str, default ``\"auto\"``\n"
       "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
       "qam16,\n"
       "    qam64; the pair with code_rate must be a row of the standard's "
       "rate\n"
-      "    table.\n"
-      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``.\n"
-      "code_rate : str, default ``\"1/2\"``\n"
+      "    table, and is given whole or not at all. auto (the default) is the "
+      "pair\n"
+      "    wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or "
+      "9\n"
+      "    Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record "
+      "holds,\n"
+      "    the resolved value, never auto. Set on a live ofdm source, the "
+      "pair\n"
+      "    stays whole: with code_rate auto, code_rate is fixed at the value "
+      "it\n"
+      "    read; auto returns both halves to auto; beside wlan it is refused; "
+      "a\n"
+      "    pair the table lacks is written and refused when the source "
+      "builds\n"
+      "    (dp_wfm_source_set_constellation). On any other type it reads back "
+      "what\n"
+      "    was given, auto unless set.\n"
+      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``, "
+      "``\"auto\"``.\n"
+      "code_rate : str, default ``\"auto\"``\n"
       "    For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, "
-      "5/6.\n"
-      "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``.\n"
+      "5/6;\n"
+      "    given with constellation, or neither is. auto (the default) as "
+      "for\n"
+      "    constellation. Set on a live ofdm source, the pair stays whole by\n"
+      "    constellation's rules, mirrored. On any other type it reads back "
+      "what\n"
+      "    was given, auto unless set.\n"
+      "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``, "
+      "``\"auto\"``.\n"
       "scrambler_init : int, default 0\n"
       "    For type=ofdm: the 7-bit initial state of the data scrambler, 1 to "
       "127.\n"
@@ -6602,13 +7406,17 @@ static PyTypeObject SegmentType = {
       "the\n"
       "    scene is refused for. What is stored, set and written is what was\n"
       "    given.\n"
-      "mac : str, default ``\"none\"``\n"
+      "mac : str, default ``\"auto\"``\n"
       "    For type=ofdm: how the caller's octets become the PSDU. none: as "
       "given.\n"
       "    fcs: an MPDU without its FCS, which the PHY appends. data: a "
       "header\n"
-      "    (mac_header) and a body, with the FCS appended.\n"
-      "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``.\n"
+      "    (mac_header) and a body, with the FCS appended. auto (the default) "
+      "is\n"
+      "    fcs; a Synth reads, and a record holds, fcs. On any other type it "
+      "reads\n"
+      "    back what was given, auto unless set.\n"
+      "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``, ``\"auto\"``.\n"
       "gap : int, default 0\n"
       "    For type=ofdm: idle samples after each PPDU, at the output rate, "
       "filled\n"
@@ -6618,7 +7426,11 @@ static PyTypeObject SegmentType = {
       "    802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be "
       "an\n"
       "    integer multiple of it, at most 128 times it; the multiple is the\n"
-      "    oversampling M, done by a larger transform.\n"
+      "    oversampling M, done by a larger transform. Set on a live ofdm "
+      "source\n"
+      "    whose rate wlan spells, a bandwidth other than 20 MHz is refused "
+      "at\n"
+      "    once.\n"
       "mac_header : bytes | None, default None\n"
       "    For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a "
       "data\n"
@@ -6639,7 +7451,15 @@ static PyTypeObject SegmentType = {
       "At\n"
       "    the default 1.0 every frequency is normalised (cycles per "
       "sample);\n"
-      "    state it whenever a scene is in real Hz.\n"
+      "    state it whenever a scene is in real Hz. A segment with a "
+      "type=ofdm\n"
+      "    source reads the default 1.0 as unset and takes that source's "
+      "bandwidth\n"
+      "    (20e6 unless given), which it then reads back and a record holds; "
+      "ofdm\n"
+      "    sources that differ in bandwidth leave it no one rate, read back "
+      "the\n"
+      "    1.0 given and are refused.\n"
       "num_samples : int | tuple[int, int], default 0\n"
       "    Segment on-time in samples, before the trailing gap: 0 derives it "
       "from\n"
@@ -6680,7 +7500,14 @@ static PyTypeObject SegmentType = {
       "    signal stops (clean scenes still get exact-zero gaps). off: gaps "
       "are\n"
       "    hard zeros.\n"
-      "    One of ``\"auto\"``, ``\"off\"``.\n"),
+      "    One of ``\"auto\"``, ``\"off\"``.\n"
+      "\n"
+      "Raises\n"
+      "------\n"
+      "ValueError\n"
+      "    The fields given are not a whole source: "
+      "``dp_wfm_source_rate_why``\n"
+      "    refused them, and its sentence is the message.\n"),
 };
 
 typedef struct
@@ -7498,6 +8325,22 @@ Composer_from_json (PyObject *cls, PyObject *args)
                          "dp_wfm_compose_from_json_why failed");
       return NULL;
     }
+  {
+    size_t               _cn;
+    int                  _cr = 0, _cc = 0;
+    const wfm_segment_t *_cs = dp_wfm_compose_segments (st, &_cn, &_cr, &_cc);
+    for (size_t _ci = 0; _ci < _cn; _ci++)
+      for (size_t _ck = 0; _ck < _cs[_ci].n_sources; _ck++)
+        {
+          const char *_chk = dp_wfm_source_rate_why (&_cs[_ci].sources[_ck]);
+          if (_chk)
+            {
+              PyErr_SetString (PyExc_ValueError, _chk);
+              dp_wfm_compose_destroy (st);
+              return NULL;
+            }
+        }
+  }
   ComposerObject *self = (ComposerObject *)type->tp_alloc (type, 0);
   if (!self)
     {
@@ -7529,6 +8372,22 @@ Composer_from_file (PyObject *cls, PyObject *args)
         PyErr_SetString (PyExc_OSError, "dp_wfm_compose_from_file_why failed");
       return NULL;
     }
+  {
+    size_t               _cn;
+    int                  _cr = 0, _cc = 0;
+    const wfm_segment_t *_cs = dp_wfm_compose_segments (st, &_cn, &_cr, &_cc);
+    for (size_t _ci = 0; _ci < _cn; _ci++)
+      for (size_t _ck = 0; _ck < _cs[_ci].n_sources; _ck++)
+        {
+          const char *_chk = dp_wfm_source_rate_why (&_cs[_ci].sources[_ck]);
+          if (_chk)
+            {
+              PyErr_SetString (PyExc_ValueError, _chk);
+              dp_wfm_compose_destroy (st);
+              return NULL;
+            }
+        }
+  }
   ComposerObject *self = (ComposerObject *)type->tp_alloc (type, 0);
   if (!self)
     {

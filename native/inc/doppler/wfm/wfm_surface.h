@@ -478,6 +478,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .n_choices = (int)(sizeof OFDM_CONSTELLATION_NAMES / sizeof *OFDM_CONSTELLATION_NAMES),
     .json = "constellation",
     .json_omit = 1,
+    .json_keep_zero = 1,
     .has_when = 1,
     .when_row = WFM_SURFACE_source_type,
     .when_value = 9,
@@ -492,6 +493,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .n_choices = (int)(sizeof OFDM_CODE_RATE_NAMES / sizeof *OFDM_CODE_RATE_NAMES),
     .json = "code_rate",
     .json_omit = 1,
+    .json_keep_zero = 1,
     .has_when = 1,
     .when_row = WFM_SURFACE_source_type,
     .when_value = 9,
@@ -531,6 +533,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .n_choices = (int)(sizeof OFDM_MAC_NAMES / sizeof *OFDM_MAC_NAMES),
     .json = "mac",
     .json_omit = 1,
+    .json_keep_zero = 1,
     .has_when = 1,
     .when_row = WFM_SURFACE_source_type,
     .when_value = 9,
@@ -830,17 +833,18 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
 
 /** wfmgen --help option lines for the OFDM section of USAGE. */
 #define WFM_SURFACE_HELP_OFDM \
-  "  --wlan N        For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one\n" \
-  "                  of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of\n" \
-  "                  constellation and code_rate (--wlan 36 is --constellation\n" \
-  "                  qam16 --code-rate 3/4). (default 0)\n" \
+  "  --wlan N        For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6\n" \
+  "                  prints it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second\n" \
+  "                  spelling of constellation and code_rate (--wlan 36 is\n" \
+  "                  --constellation qam16 --code-rate 3/4). (default 0)\n" \
   "  --constellation C\n" \
   "                  For type=ofdm: the subcarrier constellation, one of bpsk,\n" \
   "                  qpsk, qam16, qam64; the pair with code_rate must be a row of\n" \
-  "                  the standard's rate table. One of: bpsk | qpsk | qam16 |\n" \
-  "                  qam64. (default bpsk)\n" \
+  "                  the standard's rate table, and is given whole or not at all.\n" \
+  "                  One of: bpsk | qpsk | qam16 | qam64 | auto. (default auto)\n" \
   "  --code-rate R   For type=ofdm: the convolutional code rate, one of 1/2, 2/3,\n" \
-  "                  3/4, 5/6. One of: 1/2 | 2/3 | 3/4 | 5/6. (default 1/2)\n" \
+  "                  3/4, 5/6; given with constellation, or neither is. One of:\n" \
+  "                  1/2 | 2/3 | 3/4 | 5/6 | auto. (default auto)\n" \
   "  --scrambler-init S\n" \
   "                  For type=ofdm: the 7-bit initial state of the data scrambler,\n" \
   "                  1 to 127. (default 0)\n" \
@@ -848,7 +852,7 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  rate, 0 for none, at most 80 times fs over bandwidth (the\n" \
   "                  shortest OFDM symbol).\n" \
   "  --mac M         For type=ofdm: how the caller's octets become the PSDU. One\n" \
-  "                  of: none | fcs | data. (default none)\n" \
+  "                  of: none | fcs | data | auto. (default auto)\n" \
   "  --gap N         For type=ofdm: idle samples after each PPDU, at the output\n" \
   "                  rate, filled with noise at the source's noise variance.\n" \
   "                  (default 0)\n" \

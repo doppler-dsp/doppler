@@ -158,6 +158,7 @@ _Synth component API._ [More...](#detailed-description)
 | ---: | :--- |
 | define  | [**WFM\_DSSS\_ENDED**](wfm__synth__core_8h.md#define-wfm_dsss_ended)  `2u`<br> |
 | define  | [**WFM\_SYNTH\_FRAME\_MAX**](wfm__synth__core_8h.md#define-wfm_synth_frame_max)  `((size\_t)1 &lt;&lt; 24)`<br> |
+| define  | [**WFM\_SYNTH\_FS\_DEFAULT**](wfm__synth__core_8h.md#define-wfm_synth_fs_default)  `1e6`<br> |
 | define  | [**WFM\_SYNTH\_SNR\_CLEAN**](wfm__synth__core_8h.md#define-wfm_synth_snr_clean)  `100.0`<br> |
 | define  | [**WFM\_SYNTH\_STATE\_MAGIC**](wfm__synth__core_8h.md#define-wfm_synth_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('W','F','M','S')`<br> |
 | define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `7u`<br> |
@@ -2278,6 +2279,23 @@ double eb_db = wfm_synth_snr_over_fs (2, wfm_synth_bps (WFM_SYNTH_QPSK),
 
 
 The most samples one frame may occupy: 2^24 (128 MB of cf32). A frame is allocated whole, at install and again, transiently, by set\_state. 
+
+
+        
+
+<hr>
+
+
+
+### define WFM\_SYNTH\_FS\_DEFAULT 
+
+```C++
+#define WFM_SYNTH_FS_DEFAULT `1e6`
+```
+
+
+
+The sample rate a Synth that is given none runs at, Hz: 1 MHz, so `freq` is in Hz against 1 MHz. The `fs` init param's default (`default_raw`). For an ofdm source it reads as unset and becomes the bandwidth ([**dp\_wfm\_source\_ofdm\_defaults()**](wfm__compose_8h.md#function-dp_wfm_source_ofdm_defaults)): it is no whole multiple of 20, 10 or 5 MHz, so ofdm could never render at it. 
 
 
         

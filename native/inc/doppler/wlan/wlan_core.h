@@ -85,6 +85,19 @@ extern "C"
  *         samples at the output rate, and refuses this value as out of range
  *         (it is above `80 * M`). `0` is the explicit rectangular choice. */
 #define WLAN_WINDOW_STANDARD UINT32_MAX
+/** @brief The constellation argument that means "not given": with
+ *         #WLAN_CODE_AUTO and no rate in Mb/s, dp_wlan_rate_resolve() turns
+ *         the pair into #WLAN_MBPS_DEFAULT's. It is the index after 64-QAM's
+ *         and names no constellation: an index is a position in the list
+ *         `bpsk, qpsk, qam16, qam64, auto`, not a modulation order. */
+#define WLAN_CONSTELLATION_AUTO 4
+/** @brief The code-rate argument that means "not given"; see
+ *         #WLAN_CONSTELLATION_AUTO. The index after 5/6's. */
+#define WLAN_CODE_AUTO 4
+/** @brief The data rate a caller who gives none gets, in Mb/s at 20 MHz:
+ *         Table 17-6's 16-QAM at 3/4, the rate of Annex I's example. The
+ *         pair is looked up in the table, never written beside this. */
+#define WLAN_MBPS_DEFAULT 36u
 /** @brief The L-STF, in samples (8 us at 20 MHz). */
 #define WLAN_STF_LEN 160u
 /** @brief The L-LTF, in samples (8 us at 20 MHz). */
@@ -217,9 +230,19 @@ typedef struct
 
 /**
  * @brief Create a rate holder, by the index of the constellation and of the
- *        code rate, with the window and the oversampling its PPDUs use.
- * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
- * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6.
+ *        code rate or by the data rate in Mb/s, with the window and the
+ *        oversampling its PPDUs use.
+ *
+ * The rate is resolved first, by dp_wlan_rate_resolve(): the pair as given,
+ * the pair @p mbps names, or, with neither, #WLAN_MBPS_DEFAULT's pair.
+ * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM, or
+ *                       #WLAN_CONSTELLATION_AUTO.
+ * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6, or
+ *                       #WLAN_CODE_AUTO.
+ * @param mbps           0, or the data rate at 20 MHz in Mb/s (6, 9, 12, 18,
+ *                       24, 36, 48 or 54) with the pair left at auto. The
+ *                       object holds no clocking: the same PPDU played at 10
+ *                       or 5 MHz carries @p mbps / 2 or / 4.
  * @param window         Window length in samples at the output rate, or
  *                       WLAN_WINDOW_STANDARD for the standard's 100 ns
  *                       transition (`2 * M` samples, see
@@ -233,13 +256,14 @@ typedef struct
  *                       transition is 2 * M.
  * @param oversample     `M`, 1 to WLAN_OVERSAMPLE_MAX: the output rate over
  *                       the 20 MHz clock (see dp_wlan_layout()).
- * @return Heap-allocated state, or NULL if an index, @p window or
- *         @p oversample is outside its range (every pair of the four
- *         constellations and four code rates is built).
+ * @return Heap-allocated state, or NULL if the rate does not resolve, or an
+ *         index, @p window or @p oversample is outside its range (every pair
+ *         of the four constellations and four code rates is built).
  * @note Caller must call dp_wlan_destroy() when done.
  */
 dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
-                                 uint32_t window, uint32_t oversample);
+                                 uint32_t mbps, uint32_t window,
+                                 uint32_t oversample);
 
 /**
  * @brief Bits per subcarrier of a constellation index: the one map from the
@@ -296,25 +320,76 @@ dp_wlan_window_standard (uint32_t oversample)
 uint32_t dp_wlan_window_resolve (uint32_t window, uint32_t oversample);
 
 /**
+ * @brief The constellation and code rate a caller means: the one place a
+ *        rate given as a pair, as Mb/s, or not at all, becomes a pair.
+ *
+ * A rate is a pair (docs/design/wlan.md, section 10), so it is given whole:
+ *
+ * | constellation, code_rate | mbps | resolves to                          |
+ * | ------------------------ | ---- | ------------------------------------ |
+ * | both auto                | 0    | #WLAN_MBPS_DEFAULT's pair            |
+ * | both auto                | N    | Table 17-6's pair for N              |
+ * | both given               | 0    | the pair, unchanged                  |
+ * | one auto, one given      | any  | refused: half a pair                 |
+ * | either given             | N    | refused: two spellings of one rate   |
+ *
+ * Each pair is read from @p t, never written here. A given pair is
+ * returned unchanged and not range-checked: dp_wlan_params_why() does
+ * that. Both faces call this, so they refuse in the same words: `Wlan`
+ * through dp_wlan_create(), and the wfmgen `ofdm` source, whose `wlan`
+ * field is @p mbps.
+ * @param t                  The tables.
+ * @param[in,out] constellation  An index or #WLAN_CONSTELLATION_AUTO;
+ *                           the resolved index on success, unchanged on a
+ *                           refusal.
+ * @param[in,out] code_rate  An index or #WLAN_CODE_AUTO; as above.
+ * @param mbps               0, or a data rate at 20 MHz in Mb/s.
+ * @return NULL on success, or a static sentence saying why not.
+ *
+ * @code
+ * >>> from doppler.wlan import Wlan
+ * >>> Wlan().rate_mbps            # neither given: the default pair
+ * 36
+ * >>> Wlan(mbps=54).rate_mbps
+ * 54
+ * >>> Wlan(constellation="qam16")
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: constellation and code_rate are one rate: give both, or neither
+ * @endcode
+ */
+const char *dp_wlan_rate_resolve (const dp_wlan_tables_t *t,
+                                  int *constellation, int *code_rate,
+                                  unsigned mbps);
+
+/**
  * @brief Why dp_wlan_create() would refuse these arguments, or NULL if it
  *        would not: the first argument that fails, by name.
  *
- * The oversampling is checked before the window, because the window's limit
- * depends on it.
- * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
- * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6.
+ * The rate is resolved first (dp_wlan_rate_resolve(), whose sentence is
+ * returned when it refuses). The oversampling is checked before the window,
+ * because the window's limit depends on it.
+ * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM, or
+ *                       #WLAN_CONSTELLATION_AUTO.
+ * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6, or
+ *                       #WLAN_CODE_AUTO.
+ * @param mbps           0, or the data rate at 20 MHz in Mb/s.
  * @param window         Window length in samples at the output rate.
  * @param oversample     `M`.
  * @return A static sentence naming the argument and its range, or NULL.
  */
 const char *dp_wlan_params_why (int constellation, int code_rate,
-                                uint32_t window, uint32_t oversample);
+                                uint32_t mbps, uint32_t window,
+                                uint32_t oversample);
 
 /**
  * @brief dp_wlan_create(), and the reason when it refuses. The binding calls
  *        this one.
- * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
- * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6.
+ * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM, or
+ *                       #WLAN_CONSTELLATION_AUTO.
+ * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6, or
+ *                       #WLAN_CODE_AUTO.
+ * @param mbps           0, or the data rate at 20 MHz in Mb/s.
  * @param window         Window length in samples at the output rate.
  * @param oversample     `M`.
  * @param[out] why       On a refusal only, dp_wlan_params_why()'s sentence;
@@ -330,13 +405,13 @@ const char *dp_wlan_params_why (int constellation, int code_rate,
  * >>> Wlan(constellation="qam256")
  * Traceback (most recent call last):
  *     ...
- * ValueError: constellation must be one of "bpsk", "qpsk", "qam16", "qam64", got 'qam256'
+ * ValueError: constellation must be one of "bpsk", "qpsk", "qam16", "qam64", "auto", got 'qam256'
  *
  * @endcode
  */
 dp_wlan_state_t *dp_wlan_create_why (int constellation, int code_rate,
-                                     uint32_t window, uint32_t oversample,
-                                     const char **why);
+                                     uint32_t mbps, uint32_t window,
+                                     uint32_t oversample, const char **why);
 
 /**
  * @brief Destroy a rate holder.
@@ -555,8 +630,24 @@ typedef enum
 {
   WLAN_MAC_NONE = 0, /**< the whole PSDU, as given                    */
   WLAN_MAC_FCS  = 1, /**< an MPDU without its FCS: append the FCS     */
-  WLAN_MAC_DATA = 2  /**< a header and a body: header, body, FCS      */
+  WLAN_MAC_DATA = 2, /**< a header and a body: header, body, FCS      */
+  WLAN_MAC_AUTO = 3  /**< not given: dp_wlan_mac_resolve() reads FCS  */
 } dp_wlan_mac_t;
+
+/**
+ * @brief The MAC mode a caller means: #WLAN_MAC_AUTO is #WLAN_MAC_FCS (the
+ *        preset appends the FCS), and any other value is returned as given.
+ *
+ * `static inline` so that wfmgen's draw library, which links no DSP, calls it
+ * instead of keeping a copy, as it does dp_wlan_window_standard().
+ * @param mac  A dp_wlan_mac_t value, or #WLAN_MAC_AUTO.
+ * @return The mode.
+ */
+static inline dp_wlan_mac_t
+dp_wlan_mac_resolve (int mac)
+{
+  return mac == WLAN_MAC_AUTO ? WLAN_MAC_FCS : (dp_wlan_mac_t)mac;
+}
 
 /**
  * @brief The PSDU length a MAC wrap produces.

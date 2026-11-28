@@ -66,16 +66,19 @@ static const char *const STAGE_KIND_NAMES[]
    wfm_synth_bridge.c hold dp_wlan_code_t and dp_wlan_mac_t to 0, 1, 2 (3),
    and test_wfm_ofdm_bridge.c holds each NAME to its enumerator and the
    constellation names to dp_wlan_n_bpsc. A reorder here fails that test.
+   `auto`, last in each, is WLAN_CONSTELLATION_AUTO / WLAN_CODE_AUTO /
+   WLAN_MAC_AUTO: "not given", read and written as the resolved value.
    SSOT: enum=ofdm_constellation */
 static const char *const OFDM_CONSTELLATION_NAMES[]
-    = { "bpsk", "qpsk", "qam16", "qam64" };
+    = { "bpsk", "qpsk", "qam16", "qam64", "auto" };
 
 /* SSOT: enum=ofdm_code_rate */
 static const char *const OFDM_CODE_RATE_NAMES[]
-    = { "1/2", "2/3", "3/4", "5/6" };
+    = { "1/2", "2/3", "3/4", "5/6", "auto" };
 
 /* SSOT: enum=ofdm_mac */
-static const char *const OFDM_MAC_NAMES[] = { "none", "fcs", "data" };
+static const char *const OFDM_MAC_NAMES[]
+    = { "none", "fcs", "data", "auto" };
 
 /* SSOT: enum=wfm_pulse */
 static const char *const PULSE_NAMES[] = { "rect", "rrc" };

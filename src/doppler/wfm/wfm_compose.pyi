@@ -209,7 +209,9 @@ class Synth:
         data_len-bit frames, one chunk per frame, and its last chunk is padded
         from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst
         per frame), and continuous dsss (one bit per data symbol, no frame);
-        not with data_from_file.
+        not with data_from_file. A type=ofdm source given neither takes
+        pn:768:15, 96 octets of the PN15 m-sequence from its default seed,
+        which with the default mac's FCS is a 100-octet PSDU.
     data_len : int, default 0
         Bits of the data source per frame: the data:LEN field of the common
         frame (preamble x reps, sync, data:LEN, crc). 0 takes a finite source
@@ -233,19 +235,35 @@ class Synth:
         give it with code_only_symbols, or both 0 for no window. The frame runs
         on the stream's own symbol clock, so its edges land at any chip phase.
     wlan : int, default 0
-        For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9,
-        12, 18, 24, 36, 48, 54: a second spelling of constellation and
-        code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not
-        given. Refused beside constellation or code_rate, with a bandwidth
-        other than 20 MHz, and on any other type.
-    constellation : str, default ``"bpsk"``
+        For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints
+        it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of
+        constellation and code_rate (--wlan 36 is --constellation qam16
+        --code-rate 3/4). 0 = not given. Refused beside a given constellation
+        or code_rate, at any other bandwidth (where a 10 or 5 MHz source is
+        spelled by its constellation and code_rate), and on any other type. Set
+        on a live ofdm source, it is refused at once beside a given pair (set
+        constellation or code_rate to auto first), when no row of the table
+        names it, and at a bandwidth other than 20 MHz.
+    constellation : str, default ``"auto"``
         For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16,
         qam64; the pair with code_rate must be a row of the standard's rate
-        table.
-        One of ``"bpsk"``, ``"qpsk"``, ``"qam16"``, ``"qam64"``.
-    code_rate : str, default ``"1/2"``
-        For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.
-        One of ``"1/2"``, ``"2/3"``, ``"3/4"``, ``"5/6"``.
+        table, and is given whole or not at all. auto (the default) is the pair
+        wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9
+        Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds,
+        the resolved value, never auto. Set on a live ofdm source, the pair
+        stays whole: with code_rate auto, code_rate is fixed at the value it
+        read; auto returns both halves to auto; beside wlan it is refused; a
+        pair the table lacks is written and refused when the source builds
+        (dp_wfm_source_set_constellation). On any other type it reads back what
+        was given, auto unless set.
+        One of ``"bpsk"``, ``"qpsk"``, ``"qam16"``, ``"qam64"``, ``"auto"``.
+    code_rate : str, default ``"auto"``
+        For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6;
+        given with constellation, or neither is. auto (the default) as for
+        constellation. Set on a live ofdm source, the pair stays whole by
+        constellation's rules, mirrored. On any other type it reads back what
+        was given, auto unless set.
+        One of ``"1/2"``, ``"2/3"``, ``"3/4"``, ``"5/6"``, ``"auto"``.
     scrambler_init : int, default 0
         For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127.
         0 draws a fresh state for each PPDU from seed, so a run is reproducible
@@ -260,11 +278,13 @@ class Synth:
         no oversampling the read is WFM_WINDOW_UNSET, 2**64 - 1, which the
         scene is refused for. What is stored, set and written is what was
         given.
-    mac : str, default ``"none"``
+    mac : str, default ``"auto"``
         For type=ofdm: how the caller's octets become the PSDU. none: as given.
         fcs: an MPDU without its FCS, which the PHY appends. data: a header
-        (mac_header) and a body, with the FCS appended.
-        One of ``"none"``, ``"fcs"``, ``"data"``.
+        (mac_header) and a body, with the FCS appended. auto (the default) is
+        fcs; a Synth reads, and a record holds, fcs. On any other type it reads
+        back what was given, auto unless set.
+        One of ``"none"``, ``"fcs"``, ``"data"``, ``"auto"``.
     gap : int, default 0
         For type=ofdm: idle samples after each PPDU, at the output rate, filled
         with noise at the source's noise variance.
@@ -272,7 +292,9 @@ class Synth:
         For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for
         802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an
         integer multiple of it, at most 128 times it; the multiple is the
-        oversampling M, done by a larger transform.
+        oversampling M, done by a larger transform. Set on a live ofdm source
+        whose rate wlan spells, a bandwidth other than 20 MHz is refused at
+        once.
     mac_header : bytes | None, default None
         For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
         frame's header). A Field of whole octets on the command line and in a
@@ -282,9 +304,17 @@ class Synth:
         np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). The PHY
         appends the frame's octets (the data source) and the FCS. Refused with
         mac none or fcs, and without it for mac data.
-    fs : float, default 1000000.0
+    fs : float, default WFM_SYNTH_FS_DEFAULT
         Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz
-        against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.
+        against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. For
+        type ofdm an fs at this default is read as unset and becomes the
+        bandwidth, which `fs` then reads back.
+
+    Raises
+    ------
+    ValueError
+        The fields given are not a whole source: ``dp_wfm_source_rate_why``
+        refused them, and its sentence is the message.
     """
 
     def __init__(
@@ -684,7 +714,9 @@ class Segment:
         data_len-bit frames, one chunk per frame, and its last chunk is padded
         from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst
         per frame), and continuous dsss (one bit per data symbol, no frame);
-        not with data_from_file.
+        not with data_from_file. A type=ofdm source given neither takes
+        pn:768:15, 96 octets of the PN15 m-sequence from its default seed,
+        which with the default mac's FCS is a 100-octet PSDU.
     data_len : int, default 0
         Bits of the data source per frame: the data:LEN field of the common
         frame (preamble x reps, sync, data:LEN, crc). 0 takes a finite source
@@ -708,19 +740,35 @@ class Segment:
         give it with code_only_symbols, or both 0 for no window. The frame runs
         on the stream's own symbol clock, so its edges land at any chip phase.
     wlan : int, default 0
-        For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9,
-        12, 18, 24, 36, 48, 54: a second spelling of constellation and
-        code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not
-        given. Refused beside constellation or code_rate, with a bandwidth
-        other than 20 MHz, and on any other type.
-    constellation : str, default ``"bpsk"``
+        For type=ofdm: the data rate at 20 MHz in Mb/s, as Table 17-6 prints
+        it, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of
+        constellation and code_rate (--wlan 36 is --constellation qam16
+        --code-rate 3/4). 0 = not given. Refused beside a given constellation
+        or code_rate, at any other bandwidth (where a 10 or 5 MHz source is
+        spelled by its constellation and code_rate), and on any other type. Set
+        on a live ofdm source, it is refused at once beside a given pair (set
+        constellation or code_rate to auto first), when no row of the table
+        names it, and at a bandwidth other than 20 MHz.
+    constellation : str, default ``"auto"``
         For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16,
         qam64; the pair with code_rate must be a row of the standard's rate
-        table.
-        One of ``"bpsk"``, ``"qpsk"``, ``"qam16"``, ``"qam64"``.
-    code_rate : str, default ``"1/2"``
-        For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.
-        One of ``"1/2"``, ``"2/3"``, ``"3/4"``, ``"5/6"``.
+        table, and is given whole or not at all. auto (the default) is the pair
+        wlan names, or with no wlan the 36 Mb/s pair, qam16 and 3/4 (18 or 9
+        Mb/s at a 10 or 5 MHz bandwidth). A Synth reads, and a record holds,
+        the resolved value, never auto. Set on a live ofdm source, the pair
+        stays whole: with code_rate auto, code_rate is fixed at the value it
+        read; auto returns both halves to auto; beside wlan it is refused; a
+        pair the table lacks is written and refused when the source builds
+        (dp_wfm_source_set_constellation). On any other type it reads back what
+        was given, auto unless set.
+        One of ``"bpsk"``, ``"qpsk"``, ``"qam16"``, ``"qam64"``, ``"auto"``.
+    code_rate : str, default ``"auto"``
+        For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6;
+        given with constellation, or neither is. auto (the default) as for
+        constellation. Set on a live ofdm source, the pair stays whole by
+        constellation's rules, mirrored. On any other type it reads back what
+        was given, auto unless set.
+        One of ``"1/2"``, ``"2/3"``, ``"3/4"``, ``"5/6"``, ``"auto"``.
     scrambler_init : int, default 0
         For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127.
         0 draws a fresh state for each PPDU from seed, so a run is reproducible
@@ -735,11 +783,13 @@ class Segment:
         no oversampling the read is WFM_WINDOW_UNSET, 2**64 - 1, which the
         scene is refused for. What is stored, set and written is what was
         given.
-    mac : str, default ``"none"``
+    mac : str, default ``"auto"``
         For type=ofdm: how the caller's octets become the PSDU. none: as given.
         fcs: an MPDU without its FCS, which the PHY appends. data: a header
-        (mac_header) and a body, with the FCS appended.
-        One of ``"none"``, ``"fcs"``, ``"data"``.
+        (mac_header) and a body, with the FCS appended. auto (the default) is
+        fcs; a Synth reads, and a record holds, fcs. On any other type it reads
+        back what was given, auto unless set.
+        One of ``"none"``, ``"fcs"``, ``"data"``, ``"auto"``.
     gap : int, default 0
         For type=ofdm: idle samples after each PPDU, at the output rate, filled
         with noise at the source's noise variance.
@@ -747,7 +797,9 @@ class Segment:
         For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for
         802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an
         integer multiple of it, at most 128 times it; the multiple is the
-        oversampling M, done by a larger transform.
+        oversampling M, done by a larger transform. Set on a live ofdm source
+        whose rate wlan spells, a bandwidth other than 20 MHz is refused at
+        once.
     mac_header : bytes | None, default None
         For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
         frame's header). A Field of whole octets on the command line and in a
@@ -760,7 +812,11 @@ class Segment:
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
-        state it whenever a scene is in real Hz.
+        state it whenever a scene is in real Hz. A segment with a type=ofdm
+        source reads the default 1.0 as unset and takes that source's bandwidth
+        (20e6 unless given), which it then reads back and a record holds; ofdm
+        sources that differ in bandwidth leave it no one rate, read back the
+        1.0 given and are refused.
     num_samples : int | tuple[int, int], default 0
         Segment on-time in samples, before the trailing gap: 0 derives it from
         the sources, or 1024 when they set none. A finite data source sets its
@@ -788,6 +844,12 @@ class Segment:
         signal stops (clean scenes still get exact-zero gaps). off: gaps are
         hard zeros.
         One of ``"auto"``, ``"off"``.
+
+    Raises
+    ------
+    ValueError
+        The fields given are not a whole source: ``dp_wfm_source_rate_why``
+        refused them, and its sentence is the message.
     """
 
     sources: list[Synth]

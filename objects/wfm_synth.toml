@@ -378,8 +378,10 @@ doc = 'The waveform. For `bits` attach the pattern with set_bits(), for `symbols
 [[wfm_synth.init_params]]
 name = "fs"
 type = "double"
-default = "1000000.0"
-doc = "Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample."
+# WFM_SYNTH_FS_DEFAULT (wfm_synth_core.h), which the ofdm rule
+# (dp_wfm_source_fs) reads as unset: one constant for both.
+default_raw = "WFM_SYNTH_FS_DEFAULT"
+doc = "Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. For type ofdm an fs at this default is read as unset and becomes the bandwidth, which `fs` then reads back."
 
 [[wfm_synth.init_params]]
 name = "freq"

@@ -62,6 +62,8 @@ enum {
 
 #define WFM_SYNTH_SNR_CLEAN 100.0
 
+#define WFM_SYNTH_FS_DEFAULT 1e6
+
 JM_FORCEINLINE int
 wfm_synth_bps (int type)
 {

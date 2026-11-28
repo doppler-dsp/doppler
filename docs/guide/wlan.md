@@ -38,7 +38,11 @@ says what follows from it:
 
 `rate_mbps` is the data rate at 20 MHz as Table 17-6 prints it (6, 9, 12,
 18, 24, 36, 48 or 54; 0 for the eight pairs the table does not list), and
-`n_dbps / 4` says the same. In C, `dp_wlan_mbps()` and `dp_wlan_rate_from_mbps()` read the
+`n_dbps / 4` says the same. `Wlan(mbps=N)` names a rate by that number
+instead, and `Wlan()` is 36 Mb/s, 16-QAM at 3/4, Annex I's rate. A pair is
+given whole or not at all: `Wlan(constellation="qam16")` alone is refused.
+The object holds no clocking, so `mbps` is the 20 MHz rate; the same PPDU
+played at 10 or 5 MHz carries half or a quarter of it. In C, `dp_wlan_mbps()` and `dp_wlan_rate_from_mbps()` read the
 table both ways. `n_bpsc` is bits per subcarrier, `n_cbps` the coded bits and `n_dbps` the data
 bits in one OFDM symbol, and `n_sym(psdu_len)` the symbols a PSDU of that many
 octets fills: its bits, with the 16-bit SERVICE field and six tail bits, padded

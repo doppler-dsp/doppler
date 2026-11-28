@@ -3014,6 +3014,7 @@
           "fs": 40000000,
           "gap": 40,
           "lfsr": "galois",
+          "mac": "fcs",
           "off_samples": 0,
           "pn_length": 15,
           "pn_poly": 0,
@@ -3079,6 +3080,49 @@
           "type": "ofdm",
           "window": 2,
           "wlan": 36
+        }
+      ],
+      "version": 1
+    }
+  },
+  "ofdm_zero_config": {
+    "argv": [
+      "--type",
+      "ofdm"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 7056
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "code_rate": "3/4",
+          "constellation": "qam16",
+          "data": "pn:768:15",
+          "data_sent": {
+            "bits": 768,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
+          "freq": 0,
+          "fs": 20000000,
+          "lfsr": "galois",
+          "mac": "fcs",
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "ofdm",
+          "window": 2
         }
       ],
       "version": 1

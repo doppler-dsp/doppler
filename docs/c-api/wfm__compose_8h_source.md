@@ -61,6 +61,8 @@ typedef enum
 
 #define WFM_WINDOW_UNSET SIZE_MAX
 
+#define WFM_SEGMENT_FS_DEFAULT 1.0
+
 typedef struct {
     int type;        
     double freq;     
@@ -243,6 +245,32 @@ const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
 const char *dp_wfm_ofdm_fs_error(const wfm_source_t *src, double fs);
 
 size_t dp_wfm_source_window(const wfm_source_t *src, double fs);
+
+const char *dp_wfm_source_ofdm_defaults(const wfm_source_t *src, double fs,
+                                        wfm_source_t *out, double *fs_out);
+
+int dp_wfm_source_constellation(const wfm_source_t *src, double fs);
+
+int dp_wfm_source_code_rate(const wfm_source_t *src, double fs);
+
+const char *dp_wfm_source_set_constellation(wfm_source_t *src,
+                                            int           constellation);
+
+const char *dp_wfm_source_set_code_rate(wfm_source_t *src, int code_rate);
+
+const char *dp_wfm_source_set_wlan(wfm_source_t *src, int wlan);
+
+const char *dp_wfm_source_set_type(wfm_source_t *src, int type);
+
+const char *dp_wfm_source_set_bandwidth(wfm_source_t *src, double bandwidth);
+
+const char *dp_wfm_source_rate_why(const wfm_source_t *src);
+
+int dp_wfm_source_mac(const wfm_source_t *src, double fs);
+
+double dp_wfm_source_fs(const wfm_source_t *src, double fs);
+
+double dp_wfm_segment_fs(const wfm_segment_t *seg, double fs);
 
 size_t dp_wfm_source_acq_code_bits(const wfm_source_t *src, double fs,
                                    uint8_t *out, size_t max);

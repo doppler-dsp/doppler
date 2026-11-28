@@ -47,7 +47,7 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
       = { "type", "fs",        "freq",    "snr",  "snr_mode", "seed",
           "sps",  "pn_length", "pn_poly", "lfsr", "f_end",    NULL };
   const char        *type_str     = "tone";
-  double             fs           = 1000000.0;
+  double             fs           = WFM_SYNTH_FS_DEFAULT;
   double             freq         = 0.0;
   double             snr          = 100.0;
   const char        *snr_mode_str = "auto";
@@ -1292,9 +1292,12 @@ static PyTypeObject _SynthEngineType = {
     "    One of ``\"tone\"``, ``\"noise\"``, ``\"pn\"``, ``\"bpsk\"``, "
     "``\"qpsk\"``,\n"
     "    ``\"chirp\"``, ``\"bits\"``, ``\"symbols\"``, ``\"dsss\"``.\n"
-    "fs : float, default 1000000.0\n"
+    "fs : float, default WFM_SYNTH_FS_DEFAULT\n"
     "    Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz\n"
-    "    against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.\n"
+    "    against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample. "
+    "For\n"
+    "    type ofdm an fs at this default is read as unset and becomes the\n"
+    "    bandwidth, which `fs` then reads back.\n"
     "freq : float, default 0.0\n"
     "    Carrier frequency offset in Hz (−fs/2 … fs/2). A complex LO is "
     "created\n"

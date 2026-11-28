@@ -35,6 +35,9 @@ extern "C"
 #define WLAN_SYM_LEN 80u
 #define WLAN_OVERSAMPLE_MAX 128u
 #define WLAN_WINDOW_STANDARD UINT32_MAX
+#define WLAN_CONSTELLATION_AUTO 4
+#define WLAN_CODE_AUTO 4
+#define WLAN_MBPS_DEFAULT 36u
 #define WLAN_STF_LEN 160u
 #define WLAN_LTF_LEN 160u
 #define WLAN_SIG_BITS 24u
@@ -105,7 +108,8 @@ typedef struct
 } dp_wlan_state_t;
 
 dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
-                                 uint32_t window, uint32_t oversample);
+                                 uint32_t mbps, uint32_t window,
+                                 uint32_t oversample);
 
 unsigned dp_wlan_n_bpsc (int constellation);
 
@@ -117,12 +121,17 @@ dp_wlan_window_standard (uint32_t oversample)
 
 uint32_t dp_wlan_window_resolve (uint32_t window, uint32_t oversample);
 
+const char *dp_wlan_rate_resolve (const dp_wlan_tables_t *t,
+                                  int *constellation, int *code_rate,
+                                  unsigned mbps);
+
 const char *dp_wlan_params_why (int constellation, int code_rate,
-                                uint32_t window, uint32_t oversample);
+                                uint32_t mbps, uint32_t window,
+                                uint32_t oversample);
 
 dp_wlan_state_t *dp_wlan_create_why (int constellation, int code_rate,
-                                     uint32_t window, uint32_t oversample,
-                                     const char **why);
+                                     uint32_t mbps, uint32_t window,
+                                     uint32_t oversample, const char **why);
 
 void dp_wlan_destroy (dp_wlan_state_t *state);
 
@@ -167,8 +176,15 @@ typedef enum
 {
   WLAN_MAC_NONE = 0, 
   WLAN_MAC_FCS  = 1, 
-  WLAN_MAC_DATA = 2  
+  WLAN_MAC_DATA = 2, 
+  WLAN_MAC_AUTO = 3  
 } dp_wlan_mac_t;
+
+static inline dp_wlan_mac_t
+dp_wlan_mac_resolve (int mac)
+{
+  return mac == WLAN_MAC_AUTO ? WLAN_MAC_FCS : (dp_wlan_mac_t)mac;
+}
 
 size_t dp_wlan_mpdu_len (dp_wlan_mac_t mode, size_t header_len,
                          size_t body_len);

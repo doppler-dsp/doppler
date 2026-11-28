@@ -63,6 +63,9 @@ source (void)
   /* The rectangular window, asked for: the pins below are at window 0. A
      source that keeps the default has its own test (the default window). */
   s.window = 0;
+  /* The PSDU is the source's octets, asked for: the pins below are at mac
+     none. The zero-config source (auto, the FCS) has its own test. */
+  s.mac = WLAN_MAC_NONE;
   return s;
 }
 
@@ -231,6 +234,11 @@ test_each_name_is_its_value (void)
   DP_CHECK (strcmp (OFDM_MAC_NAMES[WLAN_MAC_NONE], "none") == 0);
   DP_CHECK (strcmp (OFDM_MAC_NAMES[WLAN_MAC_FCS], "fcs") == 0);
   DP_CHECK (strcmp (OFDM_MAC_NAMES[WLAN_MAC_DATA], "data") == 0);
+  /* auto is each table's last name and wlan's "not given" */
+  DP_CHECK (strcmp (OFDM_MAC_NAMES[WLAN_MAC_AUTO], "auto") == 0);
+  DP_CHECK (strcmp (OFDM_CODE_RATE_NAMES[WLAN_CODE_AUTO], "auto") == 0);
+  DP_CHECK (strcmp (OFDM_CONSTELLATION_NAMES[WLAN_CONSTELLATION_AUTO], "auto")
+            == 0);
   static const char *const c[4] = { "bpsk", "qpsk", "qam16", "qam64" };
   static const unsigned    b[4] = { 1, 2, 4, 6 };
   for (int k = 0; k < 4; k++)
@@ -238,9 +246,9 @@ test_each_name_is_its_value (void)
       DP_CHECK (strcmp (OFDM_CONSTELLATION_NAMES[k], c[k]) == 0);
       DP_CHECK (dp_wlan_n_bpsc (k) == b[k]);
     }
-  /* the table offers only what wlan builds */
+  /* the table offers only what wlan builds, and auto */
   DP_CHECK (sizeof OFDM_CONSTELLATION_NAMES / sizeof *OFDM_CONSTELLATION_NAMES
-            == 4);
+            == 5);
   DP_CHECK (dp_wlan_n_bpsc (4) == 0 && dp_wlan_n_bpsc (-1) == 0);
   return 0;
 }
@@ -411,21 +419,37 @@ r_pulse (wfm_source_t *s)
   s->pulse = 1;
 }
 static void
-r_nodata (wfm_source_t *s)
-{
-  s->data = (wfm_seq_t){ 0 };
-}
-static void
 r_qam256 (wfm_source_t *s)
 {
-  s->wlan          = 0;
-  s->constellation = 4;
+  s->wlan          = 0; /* 4 is auto: the index past it, with a code rate */
+  s->constellation = 5;
+  s->code_rate     = WLAN_CODE_3_4;
 }
 static void
 r_rate4 (wfm_source_t *s)
 {
-  s->wlan      = 0;
-  s->code_rate = 4;
+  s->wlan          = 0;
+  s->constellation = 2;
+  s->code_rate     = 5;
+}
+static void
+r_half_c (wfm_source_t *s)
+{
+  s->wlan          = 0; /* qam16 given, the code rate left at auto */
+  s->constellation = 2;
+  s->code_rate     = WLAN_CODE_AUTO;
+}
+static void
+r_half_r (wfm_source_t *s)
+{
+  s->wlan          = 0;
+  s->constellation = WLAN_CONSTELLATION_AUTO;
+  s->code_rate     = WLAN_CODE_1_2;
+}
+static void
+r_wlan_half (wfm_source_t *s)
+{
+  s->code_rate = WLAN_CODE_3_4; /* wlan 36 beside half a pair */
 }
 static void
 r_norow (wfm_source_t *s)
@@ -470,9 +494,13 @@ static int
 test_each_refusal_names_its_field (void)
 {
   static const refusal_t t[] = {
-    { "wlan not one of the eight", r_wlan7, "wlan is the 20 MHz data rate" },
-    { "wlan negative", r_wlanneg, "wlan is the 20 MHz data rate" },
-    { "wlan with constellation", r_both, "wlan is a spelling" },
+    { "wlan not one of the eight", r_wlan7, "the data rate is one of 6, 9" },
+    { "wlan negative", r_wlanneg, "the data rate is one of 6, 9" },
+    { "wlan with constellation", r_both, "is a spelling of constellation" },
+    { "wlan beside a code_rate", r_wlan_half,
+      "is a spelling of constellation" },
+    { "a constellation alone", r_half_c, "are one rate: give both" },
+    { "a code_rate alone", r_half_r, "are one rate: give both" },
     { "wlan with another bandwidth", r_bw, "wlan is the data rate at 20 MHz" },
     { "bandwidth negative", r_bwneg, "bandwidth is 20e6" },
     { "bandwidth not an 802.11 one", r_bwodd, "bandwidth is 20e6" },
@@ -491,7 +519,6 @@ test_each_refusal_names_its_field (void)
     { "scrambler_init negative", r_scrneg, "scrambler_init is the 7-bit" },
     { "sps on a finished waveform", r_sps, "ofdm renders finished samples" },
     { "pulse on a finished waveform", r_pulse, "ofdm renders finished" },
-    { "no data source", r_nodata, "an ofdm source sends a data source" },
     { "an index past 64-QAM", r_qam256, "constellation is one of" },
     { "a code_rate index past 5/6", r_rate4, "code_rate is one of" },
     { "a pair with no SIGNAL RATE", r_norow, "no SIGNAL RATE bits" },
@@ -519,6 +546,7 @@ test_each_refusal_names_its_field (void)
   wfm_source_t s  = source ();
   s.wlan          = 0;
   s.constellation = 1;
+  s.code_rate     = WLAN_CODE_1_2;
   const char *why = dp_wfm_source_to_synth_error (&s, 30e6);
   DP_CHECK (why && strstr (why, "fs must be an integer multiple"));
   why = dp_wfm_source_to_synth_error (&s, 20e6 * 129.0);
@@ -1065,8 +1093,8 @@ test_the_default_window_is_the_standards_100_ns (void)
   /* negative control: that is not the rectangular PPDU. The window adds `2 M`
      samples, and the same count rendered at 0 differs. */
   s.bandwidth     = 0.0;
-  s.constellation = 0;
-  s.code_rate     = 0;
+  s.constellation = WLAN_CONSTELLATION_AUTO;
+  s.code_rate     = WLAN_CODE_AUTO;
   s.wlan          = 36;
   size_t len0     = 0;
   cf    *rect     = reference (&r36, WLAN_MAC_NONE, s.data_len / 8u, 0,
@@ -1087,8 +1115,17 @@ test_the_default_window_is_the_standards_100_ns (void)
   z.snr            = from.snr;
   z.data           = from.data;
   z.data_len       = from.data_len;
-  z.wlan           = from.wlan;
   z.scrambler_init = from.scrambler_init;
+  /* its zeros are values too: the pair bpsk 1/2 and mac none, so wlan
+     beside them is a second spelling of the rate, refused. A zero-filling
+     caller names the pair (or starts from WFM_SOURCE_DEFAULTS, whose pair
+     is auto). */
+  z.wlan = 36;
+  why    = dp_wfm_source_to_synth_error (&z, 20e6);
+  DP_CHECK (why && strstr (why, "is a spelling of constellation"));
+  z.wlan          = 0;
+  z.constellation = 2;
+  z.code_rate     = WLAN_CODE_3_4;
   DP_CHECK (z.window == 0u); /* nobody set it: the struct's own zero */
   DP_CHECK (check_render (&z, 20e6, &r36, WLAN_MAC_NONE, 0u, 1u) == 0);
 
@@ -1102,12 +1139,449 @@ test_the_default_window_is_the_standards_100_ns (void)
   return 0;
 }
 
+/* The zero-config source: type ofdm and nothing else (but a fixed scrambler
+   state, so the test can build the same PPDU) renders wlan's 36 Mb/s PPDU
+   of the default payload, pn:768:15, with its FCS appended, at the
+   bandwidth's own rate: what dp_wfm_source_ofdm_defaults decides. Each
+   default is held by the one control that fails without it. */
+static int
+test_the_zero_config_source_is_36_mbps_with_its_fcs (void)
+{
+  wfm_source_t s   = WFM_SOURCE_DEFAULTS;
+  s.type           = WFM_SYNTH_FRAMES;
+  s.snr            = 100.0;
+  s.window         = 0;
+  s.scrambler_init = 93;
+  /* the payload: 96 octets of the default PN15 Field, MSB first */
+  const wfm_seq_t pn = { .kind = WFM_SEQ_PN, .len = 768u, .reg_bits = 15u };
+  uint8_t         pbits[768], body[96], psdu[100];
+  DP_REQUIRE (dp_wfm_seq_bits (&pn, pbits, 768u) == 768u);
+  for (size_t k = 0; k < 96; k++)
+    {
+      body[k] = 0;
+      for (unsigned j = 0; j < 8u; j++)
+        body[k] = (uint8_t)(body[k] | (pbits[8u * k + j] << (7u - j)));
+    }
+  DP_REQUIRE (dp_wlan_mpdu (WLAN_MAC_FCS, NULL, 0, body, 96, psdu, sizeof psdu)
+              == 100u); /* Annex I's PSDU length */
+  dp_wlan_rate_t r36;
+  DP_REQUIRE (dp_wlan_rate_from_mbps (dp_wlan_tables_standard (),
+                                      WLAN_MBPS_DEFAULT, &r36));
+  const size_t len = dp_wlan_ppdu_len (dp_wlan_rate_n_sym (&r36, 100), 0u, 1u);
+  cf          *want = malloc (len * sizeof *want);
+  DP_REQUIRE (want);
+  DP_REQUIRE (dp_wlan_ppdu (dp_wlan_tables_standard (), &r36, psdu, 100, 93u,
+                            0u, 1u, want, len)
+              == len);
+  /* fs 1.0, the segment's default, is read as the 20 MHz bandwidth */
+  DP_CHECK (dp_wfm_source_to_synth_error (&s, 1.0) == NULL);
+  cf *got = render (&s, 1.0, len);
+  DP_REQUIRE (got);
+  double e;
+  DP_CHECK (rel_l2 (got, want, len, &e) < 1e-6 && e > 0.0);
+  free (got);
+  /* controls: each old default renders another signal */
+  wfm_source_t o = s;
+  o.mac          = WLAN_MAC_NONE; /* no FCS: another PSDU */
+  got            = render (&o, 1.0, len);
+  DP_REQUIRE (got);
+  DP_CHECK (rel_l2 (got, want, len, &e) > 1e-3);
+  free (got);
+  o               = s;
+  o.constellation = 0; /* v0.85.0's default pair, bpsk 1/2: 6 Mb/s */
+  o.code_rate     = WLAN_CODE_1_2;
+  got             = render (&o, 1.0, len);
+  DP_REQUIRE (got);
+  DP_CHECK (rel_l2 (got, want, len, &e) > 1e-3);
+  free (got);
+  free (want);
+  return 0;
+}
+
+/* What a source renders with reads back as that, never auto, through the
+   getters a Synth's properties call; and resolving a resolved source
+   changes nothing, so a composer's own segments compose again. */
+static int
+test_the_defaults_read_back_resolved_and_resolve_once (void)
+{
+  wfm_source_t s = WFM_SOURCE_DEFAULTS;
+  s.type         = WFM_SYNTH_FRAMES;
+  DP_CHECK (s.constellation == WLAN_CONSTELLATION_AUTO);
+  DP_CHECK (dp_wfm_source_constellation (&s, 1.0) == 2); /* qam16 */
+  DP_CHECK (dp_wfm_source_code_rate (&s, 1.0) == WLAN_CODE_3_4);
+  DP_CHECK (dp_wfm_source_mac (&s, 1.0) == WLAN_MAC_FCS);
+  s.wlan = 54; /* the pair wlan names */
+  DP_CHECK (dp_wfm_source_constellation (&s, 1.0) == 3);
+  DP_CHECK (dp_wfm_source_code_rate (&s, 1.0) == WLAN_CODE_3_4);
+  /* resolve, then resolve again */
+  s.wlan = 0;
+  wfm_source_t r1, r2;
+  double       f1, f2;
+  DP_REQUIRE (dp_wfm_source_ofdm_defaults (&s, 1.0, &r1, &f1) == NULL);
+  DP_CHECK (r1.constellation == 2 && r1.code_rate == WLAN_CODE_3_4);
+  DP_CHECK (r1.mac == WLAN_MAC_FCS && f1 == 20e6);
+  DP_CHECK (r1.data.kind == WFM_SEQ_PN && r1.data.len == 768u);
+  DP_REQUIRE (dp_wfm_source_ofdm_defaults (&r1, f1, &r2, &f2) == NULL);
+  DP_CHECK (memcmp (&r1, &r2, sizeof r1) == 0 && f2 == f1);
+  /* a wlan source keeps its pair unset, so it resolves again too */
+  s.wlan = 36;
+  DP_REQUIRE (dp_wfm_source_ofdm_defaults (&s, 1.0, &r1, &f1) == NULL);
+  DP_CHECK (r1.constellation == WLAN_CONSTELLATION_AUTO);
+  DP_CHECK (dp_wfm_source_ofdm_defaults (&r1, f1, &r2, &f2) == NULL);
+  /* a pair that does not resolve, forced through the struct (a live
+     object's half pair, a bad index, a rate beside a pair): each half reads
+     as stored when it is a value, and the default's where it is auto or no
+     value, so a read agrees with a write and auto is never read. The given
+     halves are not the default's, so masking cannot pass for a read-back. */
+  static const struct
+  {
+    int c, r, wlan, want_c, want_r;
+  } stuck[] = {
+    { 0, WLAN_CODE_AUTO, 0, 0, WLAN_CODE_3_4 }, /* bpsk given: (bpsk, 3/4) */
+    { WLAN_CONSTELLATION_AUTO, WLAN_CODE_5_6, 0, 2, WLAN_CODE_5_6 },
+    { 1, WLAN_CODE_1_2, 36, 1, WLAN_CODE_1_2 }, /* wlan beside a pair */
+    { WLAN_CONSTELLATION_AUTO, WLAN_CODE_AUTO, 7, 2, WLAN_CODE_3_4 },
+    { 9, 6, 0, 2, WLAN_CODE_3_4 }, /* no values: the default's */
+  };
+  for (size_t i = 0; i < sizeof stuck / sizeof *stuck; i++)
+    {
+      wfm_source_t x  = s;
+      x.wlan          = stuck[i].wlan;
+      x.constellation = stuck[i].c;
+      x.code_rate     = stuck[i].r;
+      const int gc    = dp_wfm_source_constellation (&x, 1.0);
+      const int gr    = dp_wfm_source_code_rate (&x, 1.0);
+      if (gc != stuck[i].want_c || gr != stuck[i].want_r)
+        DP_TEST_ERR ("stuck %zu: read (%d, %d)", i, gc, gr);
+      DP_CHECK (gc == stuck[i].want_c && gr == stuck[i].want_r);
+    }
+  /* (qam16, 5/6) reads as written, and is refused at build as a whole
+     pair Table 17-6 lacks is */
+  {
+    wfm_source_t x  = s;
+    x.wlan          = 0;
+    x.constellation = 2;
+    x.code_rate     = WLAN_CODE_5_6;
+    DP_CHECK (dp_wfm_source_constellation (&x, 1.0) == 2);
+    DP_CHECK (dp_wfm_source_code_rate (&x, 1.0) == WLAN_CODE_5_6);
+    const char *why = dp_wfm_source_to_synth_error (&x, 20e6);
+    DP_CHECK (why && strstr (why, "no SIGNAL RATE bits"));
+  }
+  {
+    wfm_source_t x = s;
+    x.mac          = 7; /* no mode: read as the default's, never auto */
+    DP_CHECK (dp_wfm_source_mac (&x, 1.0) == WLAN_MAC_FCS);
+  }
+  /* another type reads back what it holds: auto unless set */
+  {
+    wfm_source_t t = WFM_SOURCE_DEFAULTS; /* a tone */
+    DP_CHECK (dp_wfm_source_constellation (&t, 1.0)
+              == WLAN_CONSTELLATION_AUTO);
+    DP_CHECK (dp_wfm_source_code_rate (&t, 1.0) == WLAN_CODE_AUTO);
+    DP_CHECK (dp_wfm_source_mac (&t, 1.0) == WLAN_MAC_AUTO);
+  }
+  /* another type is copied as it is */
+  s.type = WFM_SYNTH_BPSK;
+  s.wlan = 0;
+  DP_REQUIRE (dp_wfm_source_ofdm_defaults (&s, 1.0, &r1, &f1) == NULL);
+  DP_CHECK (memcmp (&s, &r1, sizeof s) == 0 && f1 == 1.0);
+  return 0;
+}
+
+/* A blob of v0.85.0's default (bpsk, 1/2, none: what an old default source
+   was) is refused by a zero-config source, never reinterpreted as it. */
+static int
+test_a_blob_of_the_old_defaults_is_refused (void)
+{
+  wfm_source_t s          = WFM_SOURCE_DEFAULTS;
+  s.type                  = WFM_SYNTH_FRAMES;
+  s.snr                   = 100.0;
+  wfm_source_t old        = s;
+  old.constellation       = 0;
+  old.code_rate           = WLAN_CODE_1_2;
+  old.mac                 = WLAN_MAC_NONE;
+  dp_wfm_synth_state_t *a = dp_wfm_source_to_synth (&old, 20e6);
+  DP_REQUIRE (a);
+  cf skip[50];
+  dp_wfm_synth_steps (a, skip, 50);
+  const size_t nb   = dp_wfm_synth_state_bytes (a);
+  uint8_t     *blob = malloc (nb);
+  DP_REQUIRE (blob);
+  dp_wfm_synth_get_state (a, blob);
+  dp_wfm_synth_state_t *b = dp_wfm_source_to_synth (&s, 20e6);
+  DP_REQUIRE (b);
+  DP_CHECK (dp_wfm_synth_set_state (b, blob) == DP_ERR_INVALID);
+  /* control: the zero-config source accepts its own */
+  dp_wfm_synth_state_t *c = dp_wfm_source_to_synth (&s, 20e6);
+  DP_REQUIRE (c);
+  dp_wfm_synth_steps (b, skip, 50);
+  uint8_t *own = malloc (dp_wfm_synth_state_bytes (b));
+  DP_REQUIRE (own);
+  dp_wfm_synth_get_state (b, own);
+  DP_CHECK (dp_wfm_synth_set_state (c, own) == DP_OK);
+  free (own);
+  free (blob);
+  dp_wfm_synth_destroy (a);
+  dp_wfm_synth_destroy (b);
+  dp_wfm_synth_destroy (c);
+  return 0;
+}
+
+/* The fs rule reads a face's default as unset, which is safe only while
+   no bandwidth ofdm takes makes a default a legal fs: for each default and
+   each M the bandwidth default / M is the one that would, and the validator
+   must refuse it. A new bandwidth that made 1.0 or 1e6 legal turns this
+   red, because the rule would then silently change a valid request. */
+static int
+test_no_bandwidth_makes_a_default_fs_legal (void)
+{
+  /* the names are the defaults the faces declare */
+  const wfm_segment_t g = WFM_SEGMENT_DEFAULTS;
+  DP_CHECK (g.fs == WFM_SEGMENT_FS_DEFAULT);
+  static const double defaults[]
+      = { WFM_SEGMENT_FS_DEFAULT, WFM_SYNTH_FS_DEFAULT };
+  for (size_t d = 0; d < 2; d++)
+    for (unsigned m = 1; m <= WLAN_OVERSAMPLE_MAX; m++)
+      {
+        wfm_source_t s  = source ();
+        s.wlan          = 0;
+        s.constellation = 2;
+        s.code_rate     = WLAN_CODE_3_4;
+        s.bandwidth     = defaults[d] / m;
+        const char *why = dp_wfm_source_error (&s);
+        if (!why)
+          DP_TEST_ERR ("bandwidth %g makes fs %g legal at M = %u", s.bandwidth,
+                       defaults[d], m);
+        DP_CHECK (why != NULL);
+      }
+  /* the consequence, stated: an explicit fs at a default resolves to the
+     bandwidth, and renders what the bandwidth's own rate does */
+  wfm_source_t s = source ();
+  for (size_t d = 0; d < 2; d++)
+    {
+      wfm_source_t r;
+      double       f = 0;
+      DP_CHECK (dp_wfm_source_ofdm_defaults (&s, defaults[d], &r, &f) == NULL);
+      DP_CHECK (f == 20e6);
+      DP_CHECK (dp_wfm_source_to_synth_error (&s, defaults[d]) == NULL);
+      cf *a = render (&s, defaults[d], 400);
+      cf *b = render (&s, 20e6, 400);
+      DP_REQUIRE (a && b);
+      DP_CHECK (memcmp (a, b, 400 * sizeof *a) == 0);
+      free (a);
+      free (b);
+    }
+  /* every other fs that is no whole multiple is still refused */
+  static const double other[] = { 2.0, 1.5e6, 30e6, 2e6 };
+  for (size_t i = 0; i < sizeof other / sizeof *other; i++)
+    {
+      const char *why = dp_wfm_source_to_synth_error (&s, other[i]);
+      DP_CHECK (why && strstr (why, "fs must be an integer multiple"));
+    }
+  return 0;
+}
+
+/* The rate an ofdm source and its segment READ, which is the rate they
+   render at: both defaults read as the bandwidth, any other fs as given,
+   and a tone keeps its own. The segment asks every source in any order,
+   and reads its given fs when two ofdm sources name differing rates (the
+   composer refuses that segment). Rejects a read of the stored default,
+   which is what a Synth and a Segment read before the read-backs. */
+static int
+test_the_read_back_fs_is_the_rate_rendered_at (void)
+{
+  static const double defaults[]
+      = { WFM_SEGMENT_FS_DEFAULT, WFM_SYNTH_FS_DEFAULT };
+  wfm_source_t o = source (), t = WFM_SOURCE_DEFAULTS;
+  for (size_t d = 0; d < 2; d++)
+    {
+      DP_CHECK (dp_wfm_source_fs (&o, defaults[d]) == 20e6);
+      DP_CHECK (dp_wfm_source_fs (&t, defaults[d]) == defaults[d]);
+    }
+  DP_CHECK (dp_wfm_source_fs (&o, 40e6) == 40e6);
+  wfm_source_t h  = o; /* half a pair: the rate needs none */
+  h.wlan          = 0;
+  h.constellation = 0;
+  h.code_rate     = WLAN_CODE_AUTO;
+  DP_CHECK (dp_wfm_source_fs (&h, 1.0) == 20e6);
+  wfm_source_t n = o;
+  n.bandwidth    = 10e6;
+  n.wlan         = 0;
+  DP_CHECK (dp_wfm_source_fs (&n, 1e6) == 10e6);
+
+  /* a segment: every order of [tone, ofdm] reads the bandwidth */
+  wfm_source_t  pair[2] = { t, o };
+  wfm_segment_t g       = WFM_SEGMENT_DEFAULTS;
+  g.sources             = pair;
+  g.n_sources           = 2;
+  DP_CHECK (dp_wfm_segment_fs (&g, 1.0) == 20e6);
+  pair[0] = o;
+  pair[1] = t;
+  DP_CHECK (dp_wfm_segment_fs (&g, 1.0) == 20e6);
+  DP_CHECK (dp_wfm_segment_fs (&g, 40e6) == 40e6);
+  /* two that disagree read the fs given, and the composer refuses them */
+  pair[1] = n;
+  DP_CHECK (dp_wfm_segment_fs (&g, 1.0) == 1.0);
+  DP_CHECK (dp_wfm_scene_error (&g, 1, 0, 0) != NULL);
+  g.n_sources = 0;
+  DP_CHECK (dp_wfm_segment_fs (&g, 1.0) == 1.0);
+  return 0;
+}
+
+/* A live ofdm source's pair stays whole through every setter
+   (dp_wfm_source_set_constellation()'s table): a half beside an auto other
+   fixes the other at its read, in either order; auto returns both halves;
+   a half beside wlan and wlan beside a given pair are each refused with
+   the struct untouched; a pair the table lacks is written and refused at
+   build; another type stores a half as given. */
+static int
+test_a_live_pair_stays_whole (void)
+{
+  wfm_source_t o = WFM_SOURCE_DEFAULTS;
+  o.type         = WFM_SYNTH_FRAMES;
+  o.wlan         = 0;
+
+  /* either order: the other half is fixed at the default pair's */
+  wfm_source_t a = o;
+  DP_CHECK (dp_wfm_source_set_constellation (&a, 0) == NULL);
+  DP_CHECK (a.constellation == 0 && a.code_rate == WLAN_CODE_3_4);
+  DP_CHECK (dp_wfm_source_error (&a) == NULL); /* whole: it builds */
+  wfm_source_t b = o;
+  DP_CHECK (dp_wfm_source_set_code_rate (&b, WLAN_CODE_1_2) == NULL);
+  DP_CHECK (b.code_rate == WLAN_CODE_1_2 && b.constellation == 2);
+  DP_CHECK (dp_wfm_source_error (&b) == NULL);
+
+  /* auto is the pair's: a given pair, one half to auto, both stored auto
+     and read as the default pair; then a half fixes the other at its
+     read (3/4), not at the 1/2 it held before */
+  wfm_source_t p  = o;
+  p.constellation = 0;
+  p.code_rate     = WLAN_CODE_1_2;
+  DP_CHECK (dp_wfm_source_set_code_rate (&p, WLAN_CODE_AUTO) == NULL);
+  DP_CHECK (p.constellation == WLAN_CONSTELLATION_AUTO
+            && p.code_rate == WLAN_CODE_AUTO);
+  DP_CHECK (dp_wfm_source_constellation (&p, 1.0) == 2
+            && dp_wfm_source_code_rate (&p, 1.0) == WLAN_CODE_3_4);
+  DP_CHECK (dp_wfm_source_set_constellation (&p, 1) == NULL);
+  DP_CHECK (p.constellation == 1 && p.code_rate == WLAN_CODE_3_4);
+
+  /* a half beside wlan: refused, untouched */
+  wfm_source_t w  = o, w0;
+  w.wlan          = 54;
+  w0              = w;
+  const char *why = dp_wfm_source_set_constellation (&w, 0);
+  DP_CHECK (why && strstr (why, "the rate is set by wlan") != NULL);
+  DP_CHECK (memcmp (&w, &w0, sizeof w) == 0);
+  why = dp_wfm_source_set_code_rate (&w, WLAN_CODE_1_2);
+  DP_CHECK (why && strstr (why, "the rate is set by wlan") != NULL);
+  DP_CHECK (memcmp (&w, &w0, sizeof w) == 0);
+  /* auto beside wlan is the pair it already is: written */
+  DP_CHECK (dp_wfm_source_set_code_rate (&w, WLAN_CODE_AUTO) == NULL);
+
+  /* wlan beside a given pair: refused, untouched; 0 always written */
+  wfm_source_t g  = o, g0;
+  g.constellation = 0;
+  g.code_rate     = WLAN_CODE_1_2;
+  g0              = g;
+  why             = dp_wfm_source_set_wlan (&g, 54);
+  DP_CHECK (why
+            && strstr (why, "the rate is set by constellation and code_rate")
+                   != NULL);
+  DP_CHECK (memcmp (&g, &g0, sizeof g) == 0);
+  DP_CHECK (dp_wfm_source_set_wlan (&g, 0) == NULL && g.wlan == 0);
+
+  /* a given pair the table lacks: written, refused at build */
+  wfm_source_t q  = o;
+  q.constellation = 2;
+  q.code_rate     = WLAN_CODE_3_4;
+  DP_CHECK (dp_wfm_source_set_code_rate (&q, WLAN_CODE_5_6) == NULL);
+  DP_CHECK (q.constellation == 2 && q.code_rate == WLAN_CODE_5_6);
+  why = dp_wfm_source_error (&q);
+  DP_CHECK (why && strstr (why, "no SIGNAL RATE bits") != NULL);
+
+  /* another type: stored as given, the other half left alone */
+  wfm_source_t t = WFM_SOURCE_DEFAULTS;
+  DP_CHECK (dp_wfm_source_set_constellation (&t, 0) == NULL);
+  DP_CHECK (t.constellation == 0 && t.code_rate == WLAN_CODE_AUTO);
+  DP_CHECK (dp_wfm_source_set_wlan (&t, 54) == NULL && t.wlan == 54);
+  return 0;
+}
+
+/* No write leaves a source that reads as a valid pair and is refused when
+   it builds: the type, wlan and bandwidth setters write through the same
+   check as the halves (dp_wfm_source_rate_why), each refusal leaving the
+   struct byte-for-byte as it was, and the check is the build's own. */
+static int
+test_every_write_keeps_the_rate_buildable (void)
+{
+  const char *why;
+
+  /* tone -> ofdm with half a pair: refused, still tone */
+  wfm_source_t h = WFM_SOURCE_DEFAULTS, h0;
+  DP_CHECK (dp_wfm_source_set_constellation (&h, 0) == NULL);
+  h0  = h;
+  why = dp_wfm_source_set_type (&h, WFM_SYNTH_FRAMES);
+  DP_CHECK (why && strstr (why, "are one rate: give both") != NULL);
+  DP_CHECK (memcmp (&h, &h0, sizeof h) == 0);
+  /* the build says the same thing: the check is the build's */
+  h0.type = WFM_SYNTH_FRAMES;
+  DP_CHECK (dp_wfm_source_rate_why (&h0) == why);
+
+  /* tone -> ofdm with a whole pair: written, and the rate builds */
+  wfm_source_t w = WFM_SOURCE_DEFAULTS;
+  DP_CHECK (dp_wfm_source_set_constellation (&w, 0) == NULL);
+  DP_CHECK (dp_wfm_source_set_code_rate (&w, WLAN_CODE_1_2) == NULL);
+  DP_CHECK (dp_wfm_source_set_type (&w, WFM_SYNTH_FRAMES) == NULL);
+  DP_CHECK (w.type == WFM_SYNTH_FRAMES && w.constellation == 0
+            && w.code_rate == WLAN_CODE_1_2);
+  DP_CHECK (dp_wfm_source_rate_why (&w) == NULL);
+
+  /* tone -> ofdm with wlan beside a pair: the resolver's second spelling */
+  wfm_source_t s = w, s0;
+  s.type         = WFM_SYNTH_TONE;
+  DP_CHECK (dp_wfm_source_set_wlan (&s, 36) == NULL); /* tone: as given */
+  s0  = s;
+  why = dp_wfm_source_set_type (&s, WFM_SYNTH_FRAMES);
+  DP_CHECK (why && strstr (why, "is a spelling of constellation") != NULL);
+  DP_CHECK (memcmp (&s, &s0, sizeof s) == 0);
+
+  /* ofdm -> another type is always written */
+  DP_CHECK (dp_wfm_source_set_type (&w, WFM_SYNTH_TONE) == NULL);
+
+  /* a wlan no row names, on a live ofdm source: refused at the write */
+  wfm_source_t n = WFM_SOURCE_DEFAULTS, n0;
+  n.type         = WFM_SYNTH_FRAMES;
+  n0             = n;
+  why            = dp_wfm_source_set_wlan (&n, 7);
+  DP_CHECK (why && strstr (why, "the data rate is one of") != NULL);
+  DP_CHECK (memcmp (&n, &n0, sizeof n) == 0);
+  DP_CHECK (dp_wfm_source_set_wlan (&n, 36) == NULL && n.wlan == 36);
+
+  /* wlan beside a bandwidth other than 20 MHz: refused at the bandwidth
+     write, and 20 MHz (or 0, its spelling) is written */
+  n0  = n;
+  why = dp_wfm_source_set_bandwidth (&n, 10e6);
+  DP_CHECK (why && strstr (why, "wlan is the data rate at 20 MHz") != NULL);
+  DP_CHECK (memcmp (&n, &n0, sizeof n) == 0);
+  DP_CHECK (dp_wfm_source_set_bandwidth (&n, 0.0) == NULL);
+  /* and the mirror: wlan set at 10 MHz */
+  wfm_source_t b = WFM_SOURCE_DEFAULTS, b0;
+  b.type         = WFM_SYNTH_FRAMES;
+  DP_CHECK (dp_wfm_source_set_bandwidth (&b, 10e6) == NULL);
+  b0  = b;
+  why = dp_wfm_source_set_wlan (&b, 36);
+  DP_CHECK (why && strstr (why, "wlan is the data rate at 20 MHz") != NULL);
+  DP_CHECK (memcmp (&b, &b0, sizeof b) == 0);
+  return 0;
+}
+
 int
 main (void)
 {
   make_data ();
   int rc = 0;
   rc |= test_renders_the_ppdu_wlan_builds ();
+  rc |= test_every_write_keeps_the_rate_buildable ();
   rc |= test_the_default_window_is_the_standards_100_ns ();
   rc |= test_mac_data_renders_header_body_and_fcs ();
   rc |= test_each_name_is_its_value ();
@@ -1123,6 +1597,12 @@ main (void)
   rc |= test_step_is_steps ();
   rc |= test_the_attach_refuses_what_the_validator_refuses ();
   rc |= test_a_data_file_gone_between_validation_and_build ();
+  rc |= test_the_zero_config_source_is_36_mbps_with_its_fcs ();
+  rc |= test_the_defaults_read_back_resolved_and_resolve_once ();
+  rc |= test_a_blob_of_the_old_defaults_is_refused ();
+  rc |= test_no_bandwidth_makes_a_default_fs_legal ();
+  rc |= test_the_read_back_fs_is_the_rate_rendered_at ();
+  rc |= test_a_live_pair_stays_whole ();
   if (rc)
     return 1;
   DP_TEST_END ("wfm_ofdm_bridge");

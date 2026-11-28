@@ -43,7 +43,7 @@ main (void)
   ok &= (memcmp (psdu + 24, body, 100) == 0);
 
   /* how many OFDM symbols it fills at 36 Mb/s: 16-QAM, rate 3/4 */
-  dp_wlan_state_t *w = dp_wlan_create (2, 2, 0, 1);
+  dp_wlan_state_t *w = dp_wlan_create (2, 2, 0u, 0, 1);
   if (!w)
     return 1;
   printf (

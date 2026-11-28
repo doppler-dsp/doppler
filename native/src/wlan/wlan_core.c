@@ -247,10 +247,48 @@ dp_wlan_window_resolve (uint32_t window, uint32_t oversample)
                                         : window;
 }
 
-const char *
-dp_wlan_params_why (int constellation, int code_rate, uint32_t window,
-                    uint32_t oversample)
+/* The index dp_wlan_create() takes for a pair's bits per subcarrier: the
+   inverse of dp_wlan_n_bpsc(), so the four values are written once. */
+static int
+wlan_constellation_of (unsigned n_bpsc)
 {
+  for (int k = 0; k < WLAN_CONSTELLATION_AUTO; k++)
+    if (dp_wlan_n_bpsc (k) == n_bpsc)
+      return k;
+  return -1;
+}
+
+const char *
+dp_wlan_rate_resolve (const dp_wlan_tables_t *t, int *constellation,
+                      int *code_rate, unsigned mbps)
+{
+  const int c_auto = *constellation == WLAN_CONSTELLATION_AUTO;
+  const int r_auto = *code_rate == WLAN_CODE_AUTO;
+  if (mbps && !(c_auto && r_auto))
+    return "a data rate in Mb/s is a spelling of constellation and "
+           "code_rate: give the rate, or constellation and code_rate, not "
+           "both";
+  if (c_auto != r_auto)
+    return "constellation and code_rate are one rate: give both, or neither";
+  if (!c_auto)
+    return NULL; /* the pair as given; dp_wlan_params_why range-checks it */
+  dp_wlan_rate_t r;
+  if (!dp_wlan_rate_from_mbps (t, mbps ? mbps : WLAN_MBPS_DEFAULT, &r))
+    return "the data rate is one of 6, 9, 12, 18, 24, 36, 48 or 54 Mb/s at "
+           "20 MHz";
+  *constellation = wlan_constellation_of (r.n_bpsc);
+  *code_rate     = (int)r.code;
+  return NULL;
+}
+
+const char *
+dp_wlan_params_why (int constellation, int code_rate, uint32_t mbps,
+                    uint32_t window, uint32_t oversample)
+{
+  const char *why = dp_wlan_rate_resolve (dp_wlan_tables_standard (),
+                                          &constellation, &code_rate, mbps);
+  if (why)
+    return why;
   if (constellation < 0 || constellation > 3)
     return "constellation must be 0 to 3";
   if (code_rate < 0 || code_rate > 3)
@@ -271,11 +309,14 @@ dp_wlan_n_bpsc (int constellation)
 }
 
 dp_wlan_state_t *
-dp_wlan_create (int constellation, int code_rate, uint32_t window,
-                uint32_t oversample)
+dp_wlan_create (int constellation, int code_rate, uint32_t mbps,
+                uint32_t window, uint32_t oversample)
 {
-  if (dp_wlan_params_why (constellation, code_rate, window, oversample))
+  if (dp_wlan_params_why (constellation, code_rate, mbps, window, oversample))
     return NULL;
+  /* params_why has accepted the rate, so it resolves */
+  (void)dp_wlan_rate_resolve (dp_wlan_tables_standard (), &constellation,
+                              &code_rate, mbps);
   const dp_wlan_rate_t r
       = { dp_wlan_n_bpsc (constellation), (dp_wlan_code_t)code_rate };
   dp_wlan_state_t *s = dp_xcalloc (1, sizeof *s);
@@ -285,22 +326,23 @@ dp_wlan_create (int constellation, int code_rate, uint32_t window,
   s->n_dbps          = dp_wlan_n_dbps (&r);
   s->window          = dp_wlan_window_resolve (window, oversample);
   s->oversample      = oversample;
-  unsigned mbps      = 0;
+  unsigned printed   = 0;
   s->rate_mbps
-      = dp_wlan_mbps (dp_wlan_tables_standard (), &r, &mbps) ? mbps : 0u;
+      = dp_wlan_mbps (dp_wlan_tables_standard (), &r, &printed) ? printed : 0u;
   return s;
 }
 
 dp_wlan_state_t *
-dp_wlan_create_why (int constellation, int code_rate, uint32_t window,
-                    uint32_t oversample, const char **why)
+dp_wlan_create_why (int constellation, int code_rate, uint32_t mbps,
+                    uint32_t window, uint32_t oversample, const char **why)
 {
-  const char *w
-      = dp_wlan_params_why (constellation, code_rate, window, oversample);
+  const char *w = dp_wlan_params_why (constellation, code_rate, mbps, window,
+                                      oversample);
   if (w && why)
     *why = w;
   return w ? NULL
-           : dp_wlan_create (constellation, code_rate, window, oversample);
+           : dp_wlan_create (constellation, code_rate, mbps, window,
+                             oversample);
 }
 
 void

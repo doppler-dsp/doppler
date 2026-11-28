@@ -37,13 +37,16 @@ def test_the_counts_follow_from_the_rate(constellation, code_rate):
 
 
 def test_defaults_and_the_annex_i_rate():
+    # zero config is 36 Mb/s, Annex I's rate: 16-QAM at 3/4, 144 data bits
+    # per 4 us symbol, and a 100-octet PSDU needs 6 of them
     w = Wlan()
-    assert (w.n_bpsc, w.n_dbps) == (4, 96)  # 16-QAM, rate 1/2
-    # 16-QAM at 3/4 is 36 Mb/s: 144 data bits per 4 us symbol, and a
-    # 100-octet PSDU needs 6 of them
-    w = Wlan(constellation="qam16", code_rate="r34")
-    assert w.n_dbps == 144
+    assert (w.n_bpsc, w.n_dbps, w.rate_mbps) == (4, 144, 36)
     assert w.n_sym(100) == 6
+    # the same object by either spelling
+    for v in (Wlan(mbps=36), Wlan(constellation="qam16", code_rate="r34")):
+        assert (v.n_bpsc, v.n_dbps, v.rate_mbps) == (4, 144, 36)
+    # the control: v0.85.0's Wlan() was 16-QAM at 1/2, 24 Mb/s
+    assert Wlan(constellation="qam16", code_rate="r12").rate_mbps == 24
 
 
 def test_n_sym_refuses_a_length_outside_the_psdu_range():

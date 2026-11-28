@@ -554,7 +554,7 @@ main (void)
     }
 
     /* the object */
-    dp_wlan_state_t *w = dp_wlan_create (2, 2, 0, 1);
+    dp_wlan_state_t *w = dp_wlan_create (2, 2, 0u, 0, 1);
     DP_REQUIRE (w != NULL);
     DP_CHECK (w->n_bpsc == 4 && w->n_cbps == 192 && w->n_dbps == 144);
     DP_CHECK (w->rate_mbps == 36);
@@ -563,19 +563,20 @@ main (void)
     dp_wlan_destroy (w);
     dp_wlan_destroy (NULL);
     {
-      dp_wlan_state_t *x = dp_wlan_create (0, 1, 0, 1); /* BPSK 2/3: no row */
+      dp_wlan_state_t *x
+          = dp_wlan_create (0, 1, 0u, 0, 1); /* BPSK 2/3: no row */
       DP_REQUIRE (x != NULL);
       DP_CHECK (x->rate_mbps == 0);
       dp_wlan_destroy (x);
     }
-    DP_CHECK (dp_wlan_create (-1, 0, 0, 1) == NULL);
-    DP_CHECK (dp_wlan_create (4, 0, 0, 1) == NULL);
-    DP_CHECK (dp_wlan_create (0, 4, 0, 1) == NULL);
+    DP_CHECK (dp_wlan_create (-1, 0, 0u, 0, 1) == NULL);
+    DP_CHECK (dp_wlan_create (5, 0, 0u, 0, 1) == NULL);
+    DP_CHECK (dp_wlan_create (0, 5, 0u, 0, 1) == NULL);
     /* every constellation at every rate that gives whole bits: all do here */
     for (int m = 0; m < 4; m++)
       for (int c = 0; c < 4; c++)
         {
-          dp_wlan_state_t *x = dp_wlan_create (m, c, 0, 1);
+          dp_wlan_state_t *x = dp_wlan_create (m, c, 0u, 0, 1);
           DP_CHECK (x != NULL);
           /* the state holds the bits per subcarrier dp_wlan_n_bpsc names */
           DP_CHECK (x && x->n_bpsc == dp_wlan_n_bpsc (m));
@@ -1537,7 +1538,7 @@ main (void)
             { 10240, 128, 1 }, { 10241, 128, 0 } };
     for (size_t i = 0; i < sizeof cr / sizeof *cr; i++)
       {
-        dp_wlan_state_t *x = dp_wlan_create (2, 2, cr[i].window, cr[i].m);
+        dp_wlan_state_t *x = dp_wlan_create (2, 2, 0u, cr[i].window, cr[i].m);
         DP_CHECK ((x != NULL) == cr[i].ok);
         if (x)
           {
@@ -1567,9 +1568,9 @@ main (void)
         uint32_t    w, m;
         const char *why;
       } why[] = {
-        { 4, 0, 0, 1, "constellation must be 0 to 3" },
+        { 5, 0, 0, 1, "constellation must be 0 to 3" },
         { -1, 0, 0, 1, "constellation must be 0 to 3" },
-        { 0, 4, 0, 1, "code_rate must be 0 to 3" },
+        { 0, 5, 0, 1, "code_rate must be 0 to 3" },
         { 0, 0, 0, 0, "oversample must be 1 to 128" },
         { 0, 0, 0, 129, "oversample must be 1 to 128" },
         { 0, 0, 81, 1, "window must be 0 to 80 * oversample" },
@@ -1578,28 +1579,28 @@ main (void)
       };
       for (size_t i = 0; i < sizeof why / sizeof *why; i++)
         {
-          const char *p
-              = dp_wlan_params_why (why[i].c, why[i].r, why[i].w, why[i].m);
+          const char *p = dp_wlan_params_why (why[i].c, why[i].r, 0u, why[i].w,
+                                              why[i].m);
           DP_CHECK (p != NULL && strcmp (p, why[i].why) == 0);
           const char *got = NULL;
-          DP_CHECK (
-              dp_wlan_create_why (why[i].c, why[i].r, why[i].w, why[i].m, &got)
-              == NULL);
+          DP_CHECK (dp_wlan_create_why (why[i].c, why[i].r, 0u, why[i].w,
+                                        why[i].m, &got)
+                    == NULL);
           DP_CHECK (got != NULL && strcmp (got, why[i].why) == 0);
         }
       /* the minimal pairs: accepted, no reason, and why left as it was */
       const char      *sentinel = "untouched";
       const char      *got      = sentinel;
-      dp_wlan_state_t *ok       = dp_wlan_create_why (0, 0, 80, 1, &got);
+      dp_wlan_state_t *ok       = dp_wlan_create_why (0, 0, 0u, 80, 1, &got);
       DP_CHECK (ok != NULL && got == sentinel);
-      DP_CHECK (dp_wlan_params_why (0, 0, 80, 1) == NULL);
+      DP_CHECK (dp_wlan_params_why (0, 0, 0u, 80, 1) == NULL);
       dp_wlan_destroy (ok);
     }
 
     /* a pair with no SIGNAL RATE bits cannot be sent: capacity 0 and the rate
        is named, whatever else is wrong */
     {
-      dp_wlan_state_t *x = dp_wlan_create (0, 1, 0, 1); /* BPSK 2/3 */
+      dp_wlan_state_t *x = dp_wlan_create (0, 1, 0u, 0, 1); /* BPSK 2/3 */
       DP_REQUIRE (x != NULL && x->rate_mbps == 0);
       DP_CHECK (dp_wlan_ppdu_max_out (x, 100) == 0);
       uint8_t octets[4]     = { 0 };
@@ -1616,7 +1617,7 @@ main (void)
     /* the PSDU length edges at M = 1: 1 octet, and 4095 at 6 Mb/s, which is
        WLAN_N_SYM_MAX symbols, the layout's largest PPDU */
     {
-      dp_wlan_state_t *x = dp_wlan_create (0, 0, 0, 1); /* BPSK 1/2 */
+      dp_wlan_state_t *x = dp_wlan_create (0, 0, 0u, 0, 1); /* BPSK 1/2 */
       DP_REQUIRE (x != NULL);
       static const size_t edges[] = { 1, 4095 };
       for (size_t i = 0; i < 2; i++)
@@ -1641,7 +1642,7 @@ main (void)
       psdu[i] = (uint8_t)(i * 37 + 11);
     for (uint32_t m = 1; m <= 2; m++)
       {
-        dp_wlan_state_t *w = dp_wlan_create (2, 2, 4 * m, m);
+        dp_wlan_state_t *w = dp_wlan_create (2, 2, 0u, 4 * m, m);
         DP_REQUIRE (w != NULL);
         const dp_wlan_rate_t r   = { 4, WLAN_CODE_3_4 };
         const size_t         cap = dp_wlan_ppdu_max_out (w, 100);
@@ -1759,8 +1760,9 @@ main (void)
         DP_CHECK (dp_wlan_window_resolve (WLAN_WINDOW_STANDARD, m) == 2u * m);
         DP_CHECK (dp_wlan_window_resolve (0, m) == 0);
         DP_CHECK (dp_wlan_window_resolve (3, m) == 3);
-        dp_wlan_state_t *d = dp_wlan_create (2, 2, WLAN_WINDOW_STANDARD, m);
-        dp_wlan_state_t *r = dp_wlan_create (2, 2, 0, m);
+        dp_wlan_state_t *d
+            = dp_wlan_create (2, 2, 0u, WLAN_WINDOW_STANDARD, m);
+        dp_wlan_state_t *r = dp_wlan_create (2, 2, 0u, 0, m);
         DP_REQUIRE (d != NULL && r != NULL);
         /* the state holds the count, never the sentinel */
         DP_CHECK (d->window == 2u * m && r->window == 0);
@@ -1772,11 +1774,12 @@ main (void)
       }
     /* the oversampling is still named first, and a refusal about the window
        never quotes the sentinel */
-    DP_CHECK (strstr (dp_wlan_params_why (0, 0, WLAN_WINDOW_STANDARD, 0),
+    DP_CHECK (strstr (dp_wlan_params_why (0, 0, 0u, WLAN_WINDOW_STANDARD, 0),
                       "oversample")
               != NULL);
-    DP_CHECK (dp_wlan_params_why (0, 0, WLAN_WINDOW_STANDARD, 4) == NULL);
-    DP_CHECK (strstr (dp_wlan_params_why (0, 0, 81, 1), "0 to 80") != NULL);
+    DP_CHECK (dp_wlan_params_why (0, 0, 0u, WLAN_WINDOW_STANDARD, 4) == NULL);
+    DP_CHECK (strstr (dp_wlan_params_why (0, 0, 0u, 81, 1), "0 to 80")
+              != NULL);
     /* the free functions refuse the sentinel, leaving the modulator alone */
     {
       dp_ofdm_state_t *o = dp_ofdm_create ();
@@ -1921,7 +1924,7 @@ main (void)
   {
     const dp_wlan_tables_t *t = dp_wlan_tables_standard ();
     const dp_wlan_rate_t    r = { 4, WLAN_CODE_3_4 };
-    dp_wlan_state_t        *w = dp_wlan_create (2, 2, 0, 1);
+    dp_wlan_state_t        *w = dp_wlan_create (2, 2, 0u, 0, 1);
     DP_REQUIRE (w != NULL);
     uint8_t psdu[100];
     for (size_t i = 0; i < 100; i++)
@@ -1993,6 +1996,84 @@ main (void)
               == -1);
     DP_CHECK (strcmp (why, "the output buffer is shorter than the MPDU") == 0);
     dp_wlan_destroy (w);
+  }
+
+  /* dp_wlan_rate_resolve: every row of its table, the pair always read
+     from the table, and the outputs untouched on a refusal */
+  {
+    const dp_wlan_tables_t *std = dp_wlan_tables_standard ();
+    int                     c, r;
+    /* both auto, no rate: the default's pair, which the table names */
+    c = WLAN_CONSTELLATION_AUTO;
+    r = WLAN_CODE_AUTO;
+    DP_CHECK (dp_wlan_rate_resolve (std, &c, &r, 0) == NULL);
+    dp_wlan_rate_t want;
+    DP_REQUIRE (dp_wlan_rate_from_mbps (std, WLAN_MBPS_DEFAULT, &want));
+    DP_CHECK (dp_wlan_n_bpsc (c) == want.n_bpsc && r == (int)want.code);
+    DP_CHECK (c == 2 && r == WLAN_CODE_3_4); /* 36 is 16-QAM at 3/4 */
+    /* both auto with a rate: each of the eight, read from the table */
+    for (size_t i = 0; i < std->n_signal_rates; i++)
+      {
+        const unsigned m = std->signal_rates[i].mbps;
+        c                = WLAN_CONSTELLATION_AUTO;
+        r                = WLAN_CODE_AUTO;
+        DP_CHECK (dp_wlan_rate_resolve (std, &c, &r, m) == NULL);
+        DP_CHECK (dp_wlan_n_bpsc (c) == std->signal_rates[i].rate.n_bpsc);
+        DP_CHECK (r == (int)std->signal_rates[i].rate.code);
+        /* and dp_wlan_create agrees: mbps N is the pair's object */
+        dp_wlan_state_t *a = dp_wlan_create (WLAN_CONSTELLATION_AUTO,
+                                             WLAN_CODE_AUTO, m, 0, 1);
+        dp_wlan_state_t *b = dp_wlan_create (c, r, 0u, 0, 1);
+        DP_REQUIRE (a && b);
+        DP_CHECK (a->rate_mbps == m && b->rate_mbps == m);
+        DP_CHECK (a->n_bpsc == b->n_bpsc && a->code == b->code);
+        dp_wlan_destroy (a);
+        dp_wlan_destroy (b);
+      }
+    /* both given: unchanged, even a pair with no row (params_why's job) */
+    c = 0;
+    r = WLAN_CODE_2_3;
+    DP_CHECK (dp_wlan_rate_resolve (std, &c, &r, 0) == NULL);
+    DP_CHECK (c == 0 && r == WLAN_CODE_2_3);
+    /* refusals leave the outputs as they were */
+    static const struct
+    {
+      int         c, r;
+      unsigned    mbps;
+      const char *why;
+    } bad[] = {
+      { 2, WLAN_CODE_AUTO, 0, "are one rate: give both" },
+      { WLAN_CONSTELLATION_AUTO, 0, 0, "are one rate: give both" },
+      { 2, WLAN_CODE_3_4, 36, "is a spelling of constellation" },
+      { 2, WLAN_CODE_AUTO, 36, "is a spelling of constellation" },
+      { WLAN_CONSTELLATION_AUTO, 0, 36, "is a spelling of constellation" },
+      { WLAN_CONSTELLATION_AUTO, WLAN_CODE_AUTO, 37, "one of 6, 9, 12" },
+      { WLAN_CONSTELLATION_AUTO, WLAN_CODE_AUTO, 5, "one of 6, 9, 12" },
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++)
+      {
+        c             = bad[i].c;
+        r             = bad[i].r;
+        const char *w = dp_wlan_rate_resolve (std, &c, &r, bad[i].mbps);
+        DP_CHECK (w && strstr (w, bad[i].why));
+        DP_CHECK (c == bad[i].c && r == bad[i].r);
+        /* the constructor refuses in the same words */
+        const char *got = NULL;
+        DP_CHECK (
+            dp_wlan_create_why (bad[i].c, bad[i].r, bad[i].mbps, 0, 1, &got)
+            == NULL);
+        DP_CHECK (got && w && strcmp (got, w) == 0);
+      }
+    /* an empty table names no default: refused, not a guess */
+    c = WLAN_CONSTELLATION_AUTO;
+    r = WLAN_CODE_AUTO;
+    DP_CHECK (dp_wlan_rate_resolve (dp_wlan_tables_empty (), &c, &r, 0)
+              != NULL);
+    DP_CHECK (c == WLAN_CONSTELLATION_AUTO && r == WLAN_CODE_AUTO);
+    /* the MAC: auto is the FCS, every other mode as given */
+    DP_CHECK (dp_wlan_mac_resolve (WLAN_MAC_AUTO) == WLAN_MAC_FCS);
+    DP_CHECK (dp_wlan_mac_resolve (WLAN_MAC_NONE) == WLAN_MAC_NONE);
+    DP_CHECK (dp_wlan_mac_resolve (WLAN_MAC_DATA) == WLAN_MAC_DATA);
   }
 
   DP_TEST_END ("test_wlan_core");

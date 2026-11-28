@@ -50,7 +50,7 @@ OR = ", ".join(map(str, RATES[:-1])) + f" or {RATES[-1]}"  # ..., 48 or 54
 SITES = {
     "modules/wfm_compose.toml": COMMA,
     "native/inc/doppler/wfm/wfm_compose.h": COMMA,
-    "native/src/wfm/wfm_synth_bridge.c": OR,
+    "native/src/wlan/wlan_core.c": OR,
     "native/inc/doppler/wlan/wlan_core.h": OR,
     "objects/wlan.toml": OR,
     "docs/design/wlan.md": COMMA,

@@ -450,10 +450,19 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: AccTrace(n=8, mode="exp", alpha=0.25),
         _acctrace_feed,
     ),
+    # The input is interleaved I/Q int16, two elements per sample: the feed
+    # interleaves each complex sample, so an odd cut (777 samples) is 1554
+    # elements, whole samples that still split the decimator mid-pair. Fed
+    # only the real parts it was 777 elements, which the binding refuses as
+    # half a sample (just-makeit#1999).
     "HalfbandDecimatorQ15": (
         lambda: HalfbandDecimatorQ15(_HB_TAPS),
         lambda o, seg: np.array(
-            o.execute(np.clip(seg.real * 1000, -32767, 32767).astype(np.int16))
+            o.execute(
+                np.clip(seg.view(np.float32) * 1000, -32767, 32767).astype(
+                    np.int16
+                )
+            )
         ),
     ),
     # Compositions — children nested as self-validating sub-blobs.

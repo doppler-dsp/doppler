@@ -375,3 +375,15 @@ def test_various_filter_lengths(att, pb, sb):
     assert 0.85 <= amp_out <= 1.15, (
         f"att={att}: passband amplitude={amp_out:.4f} (expected ≈ 1.0)"
     )
+
+
+def test_odd_length_input_is_refused(dec51):
+    """An int16 block of odd length is not whole I/Q samples: refused.
+
+    The input is interleaved I/Q (``elements_per_sample = 2``), so five
+    elements are two samples and a stray I. The binding used to divide the
+    length by two and drop the fifth element without a word
+    (just-makeit#1999); it now raises before the kernel runs.
+    """
+    with pytest.raises(ValueError, match="elements_per_sample = 2"):
+        dec51.execute(np.zeros(5, dtype=np.int16))

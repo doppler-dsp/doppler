@@ -32,7 +32,10 @@
     .rrc_beta = 0.35, \
     .rrc_span = 8, \
     .acq_reps = 1, \
+    .constellation = 4 /* ofdm_constellation: auto */, \
+    .code_rate = 4 /* ofdm_code_rate: auto */, \
     .window = WFM_WINDOW_UNSET, \
+    .mac = 3 /* ofdm_mac: auto */, \
     .bandwidth = 20e6 \
   }
 

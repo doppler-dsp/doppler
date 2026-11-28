@@ -132,6 +132,7 @@ extern "C"
   void dp_mpsk_receiver_set_norm_freq (dp_mpsk_receiver_state_t *state, double val);
   double dp_mpsk_receiver_get_lock (const dp_mpsk_receiver_state_t *state);
   int dp_mpsk_receiver_get_locked (const dp_mpsk_receiver_state_t *state);
+  int dp_mpsk_receiver_get_sync_locked (const dp_mpsk_receiver_state_t *state);
 
   int64_t dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state);
 

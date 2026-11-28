@@ -165,6 +165,19 @@ static PyStructSequence_Field Ccsds415PoolObj_status_fields[] = {
   { "cn0_dbhz_est", "C/N0 estimate, dB-Hz (the seed's)." },
   { "code_locked", "Presence flag: the Dll's lock detector." },
   { "locked", "Health flag: the symbol-lock detector." },
+  { "carrier_locked", "The pre-despread carrier loop's lock detector (loop 1, "
+                      "the NDA tracker), dp_carrier_nda_get_locked()." },
+  { "demod_carrier_locked",
+    "The demodulator's (loop 2's) carrier lock detector, "
+    "dp_mpsk_receiver_get_locked(); 0 with no demodulator built." },
+  { "sync_locked",
+    "The demodulator's timing (sync) lock detector, "
+    "dp_mpsk_receiver_get_sync_locked(); 0 with no demodulator built. With "
+    "`locked`, `code_locked`, `carrier_locked` and `demod_carrier_locked`, "
+    "the five flags the error-rate window opens on, each read as up only "
+    "while `state` is tracking: the flags of a receiver searching or refining "
+    "are not its link's (dp_ber_lock_all(); async-dsss-receiver.md, \"The "
+    "error-rate window\")." },
   { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
   { "lock_threshold", "`locked` declares strictly above this." },
   { "car_last_error", "Pre-despread loop's residual, rad (slope 1)." },
@@ -186,9 +199,9 @@ static PyStructSequence_Desc Ccsds415PoolObj_status_desc
     = { "doppler.dsss.PoolReceiverStatus",
         "One AsyncDsssPool receiver's status record, read after the "
         "controller's step: state (1 refining, 2 tracking, 3 idle, 4 lost; a "
-        "pooled receiver never searches), the live estimates, both lock "
+        "pooled receiver never searches), the live estimates, the five lock "
         "flags, and the two clocks in input samples.",
-        Ccsds415PoolObj_status_fields, 15 };
+        Ccsds415PoolObj_status_fields, 18 };
 static PyTypeObject *Ccsds415PoolObj_status_type = NULL;
 
 static PyObject *
@@ -251,21 +264,25 @@ Ccsds415PoolObj_status (Ccsds415PoolObject *self, PyObject *args,
   PyStructSequence_SET_ITEM (_o, 4, PyFloat_FromDouble (_r.cn0_dbhz_est));
   PyStructSequence_SET_ITEM (_o, 5, PyLong_FromLong ((long)_r.code_locked));
   PyStructSequence_SET_ITEM (_o, 6, PyLong_FromLong ((long)_r.locked));
-  PyStructSequence_SET_ITEM (_o, 7, PyFloat_FromDouble (_r.lock_metric));
-  PyStructSequence_SET_ITEM (_o, 8, PyFloat_FromDouble (_r.lock_threshold));
-  PyStructSequence_SET_ITEM (_o, 9, PyFloat_FromDouble (_r.car_last_error));
-  PyStructSequence_SET_ITEM (_o, 10, PyFloat_FromDouble (_r.mpsk_last_error));
-  PyStructSequence_SET_ITEM (
-      _o, 11,
-      PyLong_FromUnsignedLongLong ((unsigned long long)_r.state_samples));
-  PyStructSequence_SET_ITEM (
-      _o, 12,
-      PyLong_FromUnsignedLongLong ((unsigned long long)_r.both_down_samples));
-  PyStructSequence_SET_ITEM (
-      _o, 13,
-      PyLong_FromUnsignedLongLong ((unsigned long long)_r.refused_hits));
+  PyStructSequence_SET_ITEM (_o, 7, PyLong_FromLong ((long)_r.carrier_locked));
+  PyStructSequence_SET_ITEM (_o, 8,
+                             PyLong_FromLong ((long)_r.demod_carrier_locked));
+  PyStructSequence_SET_ITEM (_o, 9, PyLong_FromLong ((long)_r.sync_locked));
+  PyStructSequence_SET_ITEM (_o, 10, PyFloat_FromDouble (_r.lock_metric));
+  PyStructSequence_SET_ITEM (_o, 11, PyFloat_FromDouble (_r.lock_threshold));
+  PyStructSequence_SET_ITEM (_o, 12, PyFloat_FromDouble (_r.car_last_error));
+  PyStructSequence_SET_ITEM (_o, 13, PyFloat_FromDouble (_r.mpsk_last_error));
   PyStructSequence_SET_ITEM (
       _o, 14,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.state_samples));
+  PyStructSequence_SET_ITEM (
+      _o, 15,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.both_down_samples));
+  PyStructSequence_SET_ITEM (
+      _o, 16,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.refused_hits));
+  PyStructSequence_SET_ITEM (
+      _o, 17,
       PyLong_FromUnsignedLongLong (
           (unsigned long long)_r.carrier_lock_n_noncoh));
   return _o;
@@ -830,7 +847,8 @@ static PyMethodDef Ccsds415PoolObj_methods[] = {
   { "status", (PyCFunction)(void *)Ccsds415PoolObj_status,
     METH_VARARGS | METH_KEYWORDS,
     "status(receiver) -> PoolReceiverStatus record (state, doppler_hz, "
-    "chip_phase, code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
+    "chip_phase, code_rate, cn0_dbhz_est, code_locked, locked, "
+    "carrier_locked, demod_carrier_locked, sync_locked, lock_metric, "
     "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
     "both_down_samples, refused_hits, carrier_lock_n_noncoh)\n"
     "\n"

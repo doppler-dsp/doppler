@@ -358,6 +358,19 @@ static PyStructSequence_Field Ccsds415ReceiverObj_status_fields[] = {
   { "cn0_dbhz_est", "C/N0 estimate, dB-Hz (the seed's)." },
   { "code_locked", "Presence flag: the Dll's lock detector." },
   { "locked", "Health flag: the symbol-lock detector." },
+  { "carrier_locked", "The pre-despread carrier loop's lock detector (loop 1, "
+                      "the NDA tracker), dp_carrier_nda_get_locked()." },
+  { "demod_carrier_locked",
+    "The demodulator's (loop 2's) carrier lock detector, "
+    "dp_mpsk_receiver_get_locked(); 0 with no demodulator built." },
+  { "sync_locked",
+    "The demodulator's timing (sync) lock detector, "
+    "dp_mpsk_receiver_get_sync_locked(); 0 with no demodulator built. With "
+    "`locked`, `code_locked`, `carrier_locked` and `demod_carrier_locked`, "
+    "the five flags the error-rate window opens on, each read as up only "
+    "while `state` is tracking: the flags of a receiver searching or refining "
+    "are not its link's (dp_ber_lock_all(); async-dsss-receiver.md, \"The "
+    "error-rate window\")." },
   { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
   { "lock_threshold", "`locked` declares strictly above this." },
   { "car_last_error", "Pre-despread loop's residual, rad (slope 1)." },
@@ -378,9 +391,9 @@ static PyStructSequence_Field Ccsds415ReceiverObj_status_fields[] = {
 static PyStructSequence_Desc Ccsds415ReceiverObj_status_desc
     = { "doppler.dsss.ReceiverStatus",
         "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 "
-        "tracking, 4 lost), the live estimates, both lock flags, and the two "
-        "clocks in input samples.",
-        Ccsds415ReceiverObj_status_fields, 15 };
+        "tracking, 4 lost), the live estimates, the five lock flags, and the "
+        "two clocks in input samples.",
+        Ccsds415ReceiverObj_status_fields, 18 };
 static PyTypeObject *Ccsds415ReceiverObj_status_type = NULL;
 
 static PyObject *
@@ -416,21 +429,25 @@ Ccsds415ReceiverObj_status (Ccsds415ReceiverObject *self,
   PyStructSequence_SET_ITEM (_o, 4, PyFloat_FromDouble (_r.cn0_dbhz_est));
   PyStructSequence_SET_ITEM (_o, 5, PyLong_FromLong ((long)_r.code_locked));
   PyStructSequence_SET_ITEM (_o, 6, PyLong_FromLong ((long)_r.locked));
-  PyStructSequence_SET_ITEM (_o, 7, PyFloat_FromDouble (_r.lock_metric));
-  PyStructSequence_SET_ITEM (_o, 8, PyFloat_FromDouble (_r.lock_threshold));
-  PyStructSequence_SET_ITEM (_o, 9, PyFloat_FromDouble (_r.car_last_error));
-  PyStructSequence_SET_ITEM (_o, 10, PyFloat_FromDouble (_r.mpsk_last_error));
-  PyStructSequence_SET_ITEM (
-      _o, 11,
-      PyLong_FromUnsignedLongLong ((unsigned long long)_r.state_samples));
-  PyStructSequence_SET_ITEM (
-      _o, 12,
-      PyLong_FromUnsignedLongLong ((unsigned long long)_r.both_down_samples));
-  PyStructSequence_SET_ITEM (
-      _o, 13,
-      PyLong_FromUnsignedLongLong ((unsigned long long)_r.refused_hits));
+  PyStructSequence_SET_ITEM (_o, 7, PyLong_FromLong ((long)_r.carrier_locked));
+  PyStructSequence_SET_ITEM (_o, 8,
+                             PyLong_FromLong ((long)_r.demod_carrier_locked));
+  PyStructSequence_SET_ITEM (_o, 9, PyLong_FromLong ((long)_r.sync_locked));
+  PyStructSequence_SET_ITEM (_o, 10, PyFloat_FromDouble (_r.lock_metric));
+  PyStructSequence_SET_ITEM (_o, 11, PyFloat_FromDouble (_r.lock_threshold));
+  PyStructSequence_SET_ITEM (_o, 12, PyFloat_FromDouble (_r.car_last_error));
+  PyStructSequence_SET_ITEM (_o, 13, PyFloat_FromDouble (_r.mpsk_last_error));
   PyStructSequence_SET_ITEM (
       _o, 14,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.state_samples));
+  PyStructSequence_SET_ITEM (
+      _o, 15,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.both_down_samples));
+  PyStructSequence_SET_ITEM (
+      _o, 16,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.refused_hits));
+  PyStructSequence_SET_ITEM (
+      _o, 17,
       PyLong_FromUnsignedLongLong (
           (unsigned long long)_r.carrier_lock_n_noncoh));
   return _o;
@@ -1775,21 +1792,23 @@ static PyMethodDef Ccsds415ReceiverObj_methods[] = {
     "ValueError: seed refused: ...\n" },
   { "status", (PyCFunction)Ccsds415ReceiverObj_status, METH_NOARGS,
     "status() -> ReceiverStatus record (state, doppler_hz, chip_phase, "
-    "code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
-    "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
-    "both_down_samples, refused_hits, carrier_lock_n_noncoh)\n"
+    "code_rate, cn0_dbhz_est, code_locked, locked, carrier_locked, "
+    "demod_carrier_locked, sync_locked, lock_metric, lock_threshold, "
+    "car_last_error, mpsk_last_error, state_samples, both_down_samples, "
+    "refused_hits, carrier_lock_n_noncoh)\n"
     "\n"
     "Read the status record, by value: the state; where the emitter is\n"
-    "now (the live carrier), its chip phase, code rate and C/N0; both lock\n"
-    "flags with the symbol-lock metric and threshold; both carrier\n"
+    "now (the live carrier), its chip phase, code rate and C/N0; the five\n"
+    "lock flags with the symbol-lock metric and threshold; both carrier\n"
     "residuals; and the two clocks in input samples (since the state was\n"
     "entered; both flags down without a break).\n"
     "\n"
     "Cheap and allocation-free: every field is a read of live state. The\n"
     "one-at-a-time getters report the same fields, `doppler_hz` apart (see\n"
-    "the record); this is the face a controller reads. No timestamp: the\n"
-    "clocks are in input samples, and the holder, which owns the sample\n"
-    "clock, stamps the record.\n"
+    "the record), and the three loop flags past `locked` are published here\n"
+    "alone; this is the face a controller reads. No timestamp: the clocks\n"
+    "are in input samples, and the holder, which owns the sample clock,\n"
+    "stamps the record.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1807,6 +1826,8 @@ static PyMethodDef Ccsds415ReceiverObj_methods[] = {
     ">>> st = rx.status()\n"
     ">>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # searching\n"
     "(0, 0.0, 0, 0)\n"
+    ">>> (st.carrier_locked, st.demod_carrier_locked, st.sync_locked)\n"
+    "(0, 0, 0)\n"
     ">>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)\n"
     ">>> st = rx.status()\n"
     ">>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining\n"

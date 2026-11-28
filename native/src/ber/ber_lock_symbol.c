@@ -1,6 +1,6 @@
 /*
- * ber_lock_symbol.c — ber module-level function, and its C-only sibling
- * dp_ber_lock_transitions(). Implementation notes and
+ * ber_lock_symbol.c — ber module-level function, and its C-only siblings
+ * dp_ber_lock_all() and dp_ber_lock_transitions(). Implementation notes and
  * the measured consequences of getting each one wrong live on the
  * declaration in ber/ber_core.h.
  */
@@ -41,6 +41,32 @@ dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
       before += flags[i] ? 1u : 0u;
     }
   return -1;
+}
+
+int64_t
+dp_ber_lock_all (const uint8_t *const *flags, size_t n_flags, size_t n,
+                 size_t sustain, double min_frac, size_t limit, size_t *which)
+{
+  int64_t start = 0;
+  size_t  w     = 0;
+  for (size_t k = 0; k < n_flags; k++)
+    {
+      const int64_t s = dp_ber_lock_symbol (flags[k], n, sustain, min_frac);
+      if (s < 0 || (uint64_t)s > (uint64_t)limit)
+        {
+          if (which)
+            *which = k;
+          return -1;
+        }
+      if (s >= start)
+        {
+          start = s;
+          w     = k;
+        }
+    }
+  if (which)
+    *which = w;
+  return start;
 }
 
 size_t

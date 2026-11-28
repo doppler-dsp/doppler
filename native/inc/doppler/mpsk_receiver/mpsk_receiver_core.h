@@ -872,6 +872,15 @@ extern "C"
    * @return 1 while carrier lock is declared, else 0 (0 after create and
    *         reset). */
   int dp_mpsk_receiver_get_locked (const dp_mpsk_receiver_state_t *state);
+  /** @brief Binary timing (sync) lock flag: the hysteretic detector on
+   *  `sync.lock`, under dp_mpsk_receiver_get_sync_lock_rule() -- the
+   *  decision its two threshold getters describe, and the
+   *  `<prefix>.sync.locked` telemetry probe's value. An indicator only,
+   *  like the carrier's: it steers no loop and gates no output.
+   * @param state  Receiver state. Must be non-NULL.
+   * @return 1 while timing lock is declared, else 0 (0 after create and
+   *         reset). */
+  int dp_mpsk_receiver_get_sync_locked (const dp_mpsk_receiver_state_t *state);
 
   /**
    * @brief Symbols from reset to the FIRST carrier-lock declaration, or -1 if

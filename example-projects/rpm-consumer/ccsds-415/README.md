@@ -125,14 +125,15 @@ count.
     were shifted and by how much. A frame read where none was sent is
     wrong whatever its CRC says.
 
-The locked stream opens where the symbol lock and the code lock are both
-sustained: the later of the two, each sustained by `dp_ber_lock_symbol()`.
-That is the rule the receiver's certification record scores by (the design
-page's §4.12, "The error-rate window"), applied to the two lock flags
-`dp_async_dsss_receiver_status()` publishes. The record takes the latest
-of five; the other three (carrier, demodulator carrier, sync) are not
-published yet (#3350), so the window here can open before the record's
-would, and the rate counts what settling the record leaves out.
+The locked stream opens where all five lock flags of
+`dp_async_dsss_receiver_status()` are sustained: symbol, code, carrier,
+demodulator carrier and sync, each read as up only while the receiver is
+tracking. `dp_ber_lock_all()` takes the latest of their sustained symbols,
+each sustained by `dp_ber_lock_symbol()`'s rule. That is the window the
+receiver's certification record scores in (the design page's §4.12, "The
+error-rate window"), through the same primitive. Since #3350 the symbol and
+code flags are gated on tracking too, as the record reads them, so a run
+from before it may open its window earlier than one after.
 
 ## Chunks
 

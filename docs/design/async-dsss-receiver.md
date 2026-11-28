@@ -1980,9 +1980,11 @@ at 4 and 5 dB locks inside it (agreed;
 `validate_async_dsss_receiver_pullin`'s `check_acq()` holds it per cell).
 
 - **The start** is the latest of the five flags' sustained times
-    (`dp_ber_lock_all()`, `native/tests/dp_ber_test.h`): symbol, code,
-    carrier, demodulator carrier and sync, read through one reader,
-    `dp_s415_lock_flags()` (`native/tests/dp_s415_test.h`). A flag is
+    (`dp_ber_lock_all()`, `doppler/ber/ber_core.h`): symbol, code,
+    carrier, demodulator carrier and sync, the five lock flags of the
+    receiver's status record, each up only while it tracks. Every harness
+    reads them through one reader, `dp_s415_lock_flags()`
+    (`native/tests/dp_s415_test.h`), which reads `status()`. A flag is
     sustained at the first of 200 decisions up in a row after which it is up
     for 90% of the rest (`dp_ber_lock_symbol()`).
 - **A link whose latest flag has not sustained 20 s after arrival has not

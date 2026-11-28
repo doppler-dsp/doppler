@@ -823,6 +823,18 @@ MpskReceiverR_getprop_locked (MpskReceiverRObject *self,
   return PyLong_FromLong ((long)dp_mpsk_receiver_get_locked (self->handle));
 }
 static PyObject *
+MpskReceiverR_getprop_sync_locked (MpskReceiverRObject *self,
+                                   void                *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong (
+      (long)dp_mpsk_receiver_get_sync_locked (self->handle));
+}
+static PyObject *
 MpskReceiverR_getprop_lock_time (MpskReceiverRObject *self,
                                  void                *Py_UNUSED (closure))
 {
@@ -982,6 +994,13 @@ static PyGetSetDef MpskReceiverR_getset[] = {
     "this has declared. So a caller uses it to size a measurement window, and "
     "a wrong reading costs them that window and costs the demodulator "
     "nothing. `lock_time` dates its first declaration.\n",
+    NULL },
+  { "sync_locked", (getter)MpskReceiverR_getprop_sync_locked, NULL,
+    "Binary timing (sync) lock flag from the hysteretic (verify-counted) "
+    "detector on `sync.lock`: the decision `sync_lock_thresh` and "
+    "`sync_lock_drop_thresh` describe, beside `locked`, the carrier's. An "
+    "INDICATOR only, like `locked`: it steers no loop and gates no output. 0 "
+    "after create and reset.\n",
     NULL },
   { "lock_time", (getter)MpskReceiverR_getprop_lock_time, NULL,
     "Symbols from reset to the FIRST carrier-lock declaration, or -1 if the "

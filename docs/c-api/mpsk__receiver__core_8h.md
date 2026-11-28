@@ -109,6 +109,7 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 |  double | [**dp\_mpsk\_receiver\_get\_sync\_lock\_drop\_thresh**](#function-dp_mpsk_receiver_get_sync_lock_drop_thresh) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Timing DROP threshold on_ `sync.lock` _. Equal to the declare threshold when the timing loop carries no level hysteresis._ |
 |  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_mpsk\_receiver\_get\_sync\_lock\_rule**](#function-dp_mpsk_receiver_get_sync_lock_rule) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_The timing lock decision's whole rule, on_ `sync.lock` _: its two levels and its verify counts, where the timing decision keeps its hysteresis._ |
 |  double | [**dp\_mpsk\_receiver\_get\_sync\_lock\_thresh**](#function-dp_mpsk_receiver_get_sync_lock_thresh) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Timing DECLARE threshold on_ `sync.lock` _, derived by symsync's own (rolloff, esno\_min, pfa, pd) geometry rather than pinned._ |
+|  int | [**dp\_mpsk\_receiver\_get\_sync\_locked**](#function-dp_mpsk_receiver_get_sync_locked) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Binary timing (sync) lock flag: the hysteretic detector on_ `sync.lock` _, under_[_**dp\_mpsk\_receiver\_get\_sync\_lock\_rule()**_](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_get_sync_lock_rule) __ _the decision its two threshold getters describe, and the_`<prefix>.sync.locked` _telemetry probe's value. An indicator only, like the carrier's: it steers no loop and gates no output._ |
 |  double | [**dp\_mpsk\_receiver\_get\_timing\_rate**](#function-dp_mpsk_receiver_get_timing_rate) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Smoothed tracked samples per symbol — departs from the nominal_ `sps` _by exactly the sample-clock offset the timing loop is tracking._ |
 |  double | [**dp\_mpsk\_receiver\_get\_zeta**](#function-dp_mpsk_receiver_get_zeta) (const [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Loop damping in use — derived_ `1/sqrt(2)` _unless pinned (§8.1)._ |
 |  void | [**dp\_mpsk\_receiver\_reset**](#function-dp_mpsk_receiver_reset) ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Re-seed the front end and both loops to their create-time state._  |
@@ -1503,6 +1504,40 @@ double dp_mpsk_receiver_get_sync_lock_thresh (
 **Returns:**
 
 Timing-loop lock declare threshold. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_receiver\_get\_sync\_locked 
+
+_Binary timing (sync) lock flag: the hysteretic detector on_ `sync.lock` _, under_[_**dp\_mpsk\_receiver\_get\_sync\_lock\_rule()**_](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_get_sync_lock_rule) __ _the decision its two threshold getters describe, and the_`<prefix>.sync.locked` _telemetry probe's value. An indicator only, like the carrier's: it steers no loop and gates no output._
+```C++
+int dp_mpsk_receiver_get_sync_locked (
+    const dp_mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Receiver state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+1 while timing lock is declared, else 0 (0 after create and reset). 
 
 
 

@@ -11,7 +11,8 @@
  *
  *   - the LEO pass model R_env comes from (DP_CCSDS_415_R_ENV_HZ_S is held
  *     equal to dp_s415_r_env() by test_async_dsss_receiver_core.c);
- *   - dp_s415_lock_flags(), which reads the receiver's private fields;
+ *   - dp_s415_lock_flags(), the five flags of the receiver's status record
+ *     in one order;
  *   - DP_S415_SCORE_S, the error rate's scored stretch;
  *   - dp_s415_emitter(), the scene of dp_air_test.h, which owns the front
  *     end's model;
@@ -56,24 +57,21 @@ enum
   DP_S415_N_FLAGS
 };
 
-/** Read the five flags of @p rx into @p f, all down unless it is tracking
- *  (the flags of a receiver that is searching or refining are not its
- *  link's). */
+/** Read the five flags of @p rx's status record into @p f, all down unless
+ *  it is tracking (the flags of a receiver that is searching or refining
+ *  are not its link's). The public record only: a downstream program reads
+ *  the same five through dp_async_dsss_receiver_status(). */
 static inline void
 dp_s415_lock_flags (const dp_async_dsss_receiver_state_t *rx,
                     unsigned char                         f[DP_S415_N_FLAGS])
 {
-  const int tr = rx->state == ASYNC_DSSS_RX_TRACKING;
-  f[DP_S415_FLAG_SYM]
-      = (unsigned char)(tr && dp_async_dsss_receiver_get_locked (rx));
-  f[DP_S415_FLAG_CODE]
-      = (unsigned char)(tr && dp_async_dsss_receiver_get_code_locked (rx));
-  f[DP_S415_FLAG_CAR]
-      = (unsigned char)(tr && dp_carrier_nda_get_locked (&rx->car));
-  f[DP_S415_FLAG_DEMOD]
-      = (unsigned char)(tr && rx->rx && rx->rx->l.car_lock.locked);
-  f[DP_S415_FLAG_SYNC]
-      = (unsigned char)(tr && rx->rx && rx->rx->l.timing.lock.locked);
+  const async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
+  const int                          tr = st.state == ASYNC_DSSS_RX_TRACKING;
+  f[DP_S415_FLAG_SYM]                   = (unsigned char)(tr && st.locked);
+  f[DP_S415_FLAG_CODE]  = (unsigned char)(tr && st.code_locked);
+  f[DP_S415_FLAG_CAR]   = (unsigned char)(tr && st.carrier_locked);
+  f[DP_S415_FLAG_DEMOD] = (unsigned char)(tr && st.demod_carrier_locked);
+  f[DP_S415_FLAG_SYNC]  = (unsigned char)(tr && st.sync_locked);
 }
 
 /* ── The use case's residual rate, R_env (async-dsss-receiver.md §1.8) ─────

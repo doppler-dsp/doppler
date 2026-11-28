@@ -761,6 +761,41 @@ main (void)
     dp_mpsk_receiver_destroy (rx);
   }
 
+  /* sync_locked is the timing loop's own decision (doppler#3350): the
+     getter reads the detector on `sync.lock` at every symbol, from 0 on a
+     fresh receiver to 1 once timing locks, and back to 0 on reset. The
+     carrier's flag declares on a different statistic with different verify
+     counts, so the record holds a symbol where the two disagree, and there
+     a getter that read the carrier's decision is red. */
+  {
+    const double bn   = 0.01;
+    const double foff = dp_test_freq_offset_inside_bw (bn, 4, 4.0) / SPS;
+    dp_mpsk_receiver_state_t *rx
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, bn, 0.65, 0.0);
+    DP_REQUIRE (rx != NULL);
+    make_mpsk (tx, idx, 4, foff, 30.0, 61u);
+    DP_CHECK (dp_mpsk_receiver_get_sync_locked (rx) == 0);
+    const size_t chunk   = (size_t)SPS; /* one symbol */
+    int          seen_up = 0, differs = 0, agrees = 1;
+    for (size_t i = 0; i + chunk <= NSAMP; i += chunk)
+      {
+        (void)dp_mpsk_receiver_steps (rx, tx + i, chunk, out, NSYM);
+        const int up = dp_mpsk_receiver_get_sync_locked (rx);
+        agrees &= up == rx->l.timing.lock.locked;
+        seen_up |= up;
+        /* the precondition reads the detectors, not the face */
+        differs |= rx->l.timing.lock.locked != rx->l.car_lock.locked;
+      }
+    DP_CHECK (agrees);
+    DP_CHECK (seen_up);
+    /* the negative control's precondition: a symbol that tells them apart */
+    DP_REQUIRE (differs);
+    DP_CHECK (dp_mpsk_receiver_get_sync_locked (rx) == 1);
+    dp_mpsk_receiver_reset (rx);
+    DP_CHECK (dp_mpsk_receiver_get_sync_locked (rx) == 0);
+    dp_mpsk_receiver_destroy (rx);
+  }
+
   free (tx);
   free (idx);
   free (out);

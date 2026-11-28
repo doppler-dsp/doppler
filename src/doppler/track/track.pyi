@@ -5289,6 +5289,15 @@ class MpskReceiver:
         """
 
     @property
+    def sync_locked(self) -> int:
+        """Binary timing (sync) lock flag from the hysteretic (verify-counted)
+        detector on `sync.lock`: the decision `sync_lock_thresh` and
+        `sync_lock_drop_thresh` describe, beside `locked`, the carrier's. An
+        INDICATOR only, like `locked`: it steers no loop and gates no output. 0
+        after create and reset.
+        """
+
+    @property
     def lock_time(self) -> int:
         """Symbols from reset to the FIRST carrier-lock declaration, or -1 if
         the receiver has not locked yet -- the acquisition time as a number,
@@ -5877,6 +5886,15 @@ class BpskReceiver:
         or not this has declared. So a caller uses it to size a measurement
         window, and a wrong reading costs them that window and costs the
         demodulator nothing. `lock_time` dates its first declaration.
+        """
+
+    @property
+    def sync_locked(self) -> int:
+        """Binary timing (sync) lock flag from the hysteretic (verify-counted)
+        detector on `sync.lock`: the decision `sync_lock_thresh` and
+        `sync_lock_drop_thresh` describe, beside `locked`, the carrier's. An
+        INDICATOR only, like `locked`: it steers no loop and gates no output. 0
+        after create and reset.
         """
 
     @property
@@ -6523,6 +6541,15 @@ class MpskReceiverR:
         or not this has declared. So a caller uses it to size a measurement
         window, and a wrong reading costs them that window and costs the
         demodulator nothing. `lock_time` dates its first declaration.
+        """
+
+    @property
+    def sync_locked(self) -> int:
+        """Binary timing (sync) lock flag from the hysteretic (verify-counted)
+        detector on `sync.lock`: the decision `sync_lock_thresh` and
+        `sync_lock_drop_thresh` describe, beside `locked`, the carrier's. An
+        INDICATOR only, like `locked`: it steers no loop and gates no output. 0
+        after create and reset.
         """
 
     @property

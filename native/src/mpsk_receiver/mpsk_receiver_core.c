@@ -722,6 +722,12 @@ dp_mpsk_receiver_get_locked (const dp_mpsk_receiver_state_t *state)
   return state->l.car_lock.locked;
 }
 
+int
+dp_mpsk_receiver_get_sync_locked (const dp_mpsk_receiver_state_t *state)
+{
+  return state->l.timing.lock.locked;
+}
+
 int64_t
 dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state)
 {

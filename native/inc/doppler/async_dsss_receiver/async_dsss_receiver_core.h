@@ -1412,8 +1412,8 @@ typedef enum
    *   end, and the call returns after it, so no call can release, search,
    *   refine and hand over again.
    *
-   * So `P(x_len) = ceil(ratio x dp_dll_steps_max_out(dll, x_len + H)) + 1
-   * + ceil(segments x ratio) + 1`. It is 0 in a state that cannot reach
+   * So `P(x_len) = ceil(ratio x dp_dll_steps_max_out(dll, x_len + H)) +
+   * 1 + ceil(segments x ratio) + 1`. It is 0 in a state that cannot reach
    * the chain within a call: a search-only receiver
    * (dp_async_dsss_receiver_set_search_only()) reports its hits and never
    * seeds, a pooled receiver waits idle for a seed given between calls, and

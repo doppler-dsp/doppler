@@ -47,6 +47,15 @@ extern "C"
     size_t         trk_dll_cap; 
     float _Complex *trk_rc_buf;
     size_t         trk_rc_cap; 
+    /* Symbols a call produced past its out, delivered first by the next
+     * call (#2469). A fixed capacity, so the blob keeps one size per
+     * object, padded like the carry. */
+    float _Complex *hold_buf; 
+    size_t          hold_len; 
+    size_t          hold_cap; 
+    float _Complex *steps_buf; 
+    size_t          steps_cap; 
+    size_t          consumed;  
     uint8_t *code;
     size_t   code_len; 
     /* Config carried across a dll/rc/rx rebuild (create-time or
@@ -88,7 +97,10 @@ extern "C"
 
   void dp_dsss_receiver_reset (dp_dsss_receiver_state_t *state);
 
-  size_t dp_dsss_receiver_steps_max_out (dp_dsss_receiver_state_t *state);
+  size_t dp_dsss_receiver_steps_max_out (dp_dsss_receiver_state_t *state,
+                                         size_t                    x_len);
+
+  size_t dp_dsss_receiver_get_consumed (const dp_dsss_receiver_state_t *state);
 
   size_t dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
                               const float _Complex *x, size_t x_len,
@@ -141,10 +153,12 @@ extern "C"
     uint64_t sps;            
     uint64_t n;              
     uint64_t car_carry_len;  
+    uint64_t hold_cap; 
+    uint64_t hold_len; 
   } dsss_receiver_extra_t;
 
 #define DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('D', 'S', 'R', 'X')
-#define DSSS_RECEIVER_STATE_VERSION 5u /* v5: the dll child grew (DLL v16 to
+#define DSSS_RECEIVER_STATE_VERSION 6u /* v6: the held symbols' store (#2469); v5: the dll child grew (DLL v16 to
                                            v18: the window sum, the rate
                                            table, the last look's terms); v4:
                                            the search child is the

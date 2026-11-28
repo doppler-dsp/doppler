@@ -164,14 +164,13 @@ run_trial (const uint8_t *code, int sign_idx, size_t seed, double seed_err,
                   "the receiver takes the seed");
   out->dwell              = rx->ca->dwell_target;
   out->segments           = rx->refine_segments;
-  size_t          max_out = dp_async_dsss_receiver_steps_max_out (rx);
-  float _Complex *syms = dp_xmalloc ((max_out ? max_out : TE) * sizeof *syms);
+  size_t          max_out = dp_async_dsss_receiver_steps_max_out (rx, TE);
+  float _Complex *syms    = dp_xmalloc (max_out * sizeof *syms);
   const float _Complex *x = cap->x + PRE_SILENCE;
   const size_t          n = cap->n - PRE_SILENCE;
   for (size_t pos = 0; pos + TE <= n; pos += TE)
     {
-      (void)dp_async_dsss_receiver_steps (rx, x + pos, TE, syms,
-                                          max_out ? max_out : TE);
+      (void)dp_async_dsss_receiver_steps (rx, x + pos, TE, syms, max_out);
       if (dp_async_dsss_receiver_get_tracking (rx) == 1)
         {
           out->handed   = 1;

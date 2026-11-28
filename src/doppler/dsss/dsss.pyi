@@ -2386,6 +2386,19 @@ class AsyncDsssReceiver:
     ) -> NDArray[np.complex64]:
         """Stream raw cf32 samples; emit demodulated symbols once tracking.
 
+        **No symbol is dropped.** Symbols held by an earlier call are delivered
+        first, in order. A call consumes its input only when nothing stays held
+        after that and its symbols fit: `P(x_len)` (see
+        dp_async_dsss_receiver_steps_max_out()) is at most the room left in out
+        plus the store, which holds what one call of a code period can produce.
+        What does not fit in out is held for the next call. A call that cannot
+        consume returns what it delivered and takes nothing:
+        dp_async_dsss_receiver_get_consumed() reads 0, and the caller calls
+        again with the same x. A C caller that sizes out below
+        dp_async_dsss_receiver_steps_max_out() for a call longer than a code
+        period meets this every time, so it must check consumed() or size out
+        from that function, as the Python binding does.
+
         Drives the state machine. It emits nothing while searching or refining
         (an empty return is normal, not an error): a hit seeds the
         frozen-carrier refine chain, `CarrierAcquisition` sharpens the coarse
@@ -2418,8 +2431,9 @@ class AsyncDsssReceiver:
         Returns
         -------
         NDArray[np.complex64]
-            Number of symbols written: 0 while searching, refining or lost, or
-            before a full symbol's worth of input.
+            Number of symbols written: held ones first, then this call's; 0
+            while searching, refining or lost with nothing held, or before a
+            full symbol's worth of input.
 
         Examples
         --------
@@ -2466,21 +2480,46 @@ class AsyncDsssReceiver:
 
         """
 
-    def steps_max_out(self) -> int:
-        """The output capacity steps() needs beyond the input's.
+    def steps_max_out(self, x_len: int, /) -> int:
+        """The capacity that lets the next steps() call on x_len samples
+        deliver everything it can: the symbols held, plus the most the call can
+        produce.
 
-        Returns 0, which is NOT a bound. A call runs more samples than its
-        `x_len` through the tracking chain at a hand-over: the hand-over ring's
-        tail (up to refine_hist_cap samples) or the search history's, through a
-        fresh chain. Their symbols can outnumber `x_len`, and those past
-        `max_out` are dropped (see dp_async_dsss_receiver_steps()). A call that
-        completes a carried code period adds at most one symbol: create()
-        refuses a symbol shorter than a code period. A true bound is #2469.
+        Sized to this, a call never holds and never refuses its input
+        (dp_async_dsss_receiver_steps()), which is how the Python binding calls
+        it. The most a call can produce, `P(x_len)`, is bounded by the chain's
+        structure, not by the nominal rate:
+
+        - the call runs at most `x_len + H` samples through the tracking chain,
+          `H = max(tsamps - 1, refine_hist_cap, srch_hist_cap)`: the carry, or
+          at a hand-over the refine ring's tail or the search history's;
+        - the live Dll emits at most dp_dll_steps_max_out() of them, its own
+          bound, which carries its rate headroom;
+        - the RateConverter emits at most `ceil(ratio x n) + 1` of `n` partials
+          (`ratio = sps x symbol_rate / (segments x chip_rate / code_len)`,
+          fixed by configuration), and MpskReceiver at most one symbol per
+          input;
+        - a hand-over rebuilds the Dll and the RateConverter with fresh phases,
+          one more close and one more output: `ceil(segments x ratio) + 1`. A
+          call holds at most one: the release clock runs once a call, at its
+          end, and the call returns after it, so no call can release, search,
+          refine and hand over again.
+
+        So `P(x_len) = ceil(ratio x dp_dll_steps_max_out(dll, x_len + H)) + 1
+
+        + ceil(segments x ratio) + 1`. A Debug build holds the bound to the
+
+        chain: a call that produces more than it aborts (#2469).
+
+        Parameters
+        ----------
+        x_len : int
+            Input samples the call will be given.
 
         Returns
         -------
         int
-            0.
+            Held symbols plus `P(x_len)`; SIZE_MAX if that overflows.
         """
 
     def seed(
@@ -3223,6 +3262,12 @@ class AsyncDsssReceiver:
         """
 
     @property
+    def consumed(self) -> int:
+        """Inputs the last dp_async_dsss_receiver_steps() call took: its x_len,
+        or 0 when it held its input back.
+        """
+
+    @property
     def rank(self) -> int:
         """Which surviving peak of a dwell the search takes; 0 = the strongest.
         Set with dp_async_dsss_receiver_set_rank().
@@ -3505,6 +3550,19 @@ class Ccsds415Receiver:
     ) -> NDArray[np.complex64]:
         """Stream raw cf32 samples; emit demodulated symbols once tracking.
 
+        **No symbol is dropped.** Symbols held by an earlier call are delivered
+        first, in order. A call consumes its input only when nothing stays held
+        after that and its symbols fit: `P(x_len)` (see
+        dp_async_dsss_receiver_steps_max_out()) is at most the room left in out
+        plus the store, which holds what one call of a code period can produce.
+        What does not fit in out is held for the next call. A call that cannot
+        consume returns what it delivered and takes nothing:
+        dp_async_dsss_receiver_get_consumed() reads 0, and the caller calls
+        again with the same x. A C caller that sizes out below
+        dp_async_dsss_receiver_steps_max_out() for a call longer than a code
+        period meets this every time, so it must check consumed() or size out
+        from that function, as the Python binding does.
+
         Drives the state machine. It emits nothing while searching or refining
         (an empty return is normal, not an error): a hit seeds the
         frozen-carrier refine chain, `CarrierAcquisition` sharpens the coarse
@@ -3537,8 +3595,9 @@ class Ccsds415Receiver:
         Returns
         -------
         NDArray[np.complex64]
-            Number of symbols written: 0 while searching, refining or lost, or
-            before a full symbol's worth of input.
+            Number of symbols written: held ones first, then this call's; 0
+            while searching, refining or lost with nothing held, or before a
+            full symbol's worth of input.
 
         Examples
         --------
@@ -3585,21 +3644,46 @@ class Ccsds415Receiver:
 
         """
 
-    def steps_max_out(self) -> int:
-        """The output capacity steps() needs beyond the input's.
+    def steps_max_out(self, x_len: int, /) -> int:
+        """The capacity that lets the next steps() call on x_len samples
+        deliver everything it can: the symbols held, plus the most the call can
+        produce.
 
-        Returns 0, which is NOT a bound. A call runs more samples than its
-        `x_len` through the tracking chain at a hand-over: the hand-over ring's
-        tail (up to refine_hist_cap samples) or the search history's, through a
-        fresh chain. Their symbols can outnumber `x_len`, and those past
-        `max_out` are dropped (see dp_async_dsss_receiver_steps()). A call that
-        completes a carried code period adds at most one symbol: create()
-        refuses a symbol shorter than a code period. A true bound is #2469.
+        Sized to this, a call never holds and never refuses its input
+        (dp_async_dsss_receiver_steps()), which is how the Python binding calls
+        it. The most a call can produce, `P(x_len)`, is bounded by the chain's
+        structure, not by the nominal rate:
+
+        - the call runs at most `x_len + H` samples through the tracking chain,
+          `H = max(tsamps - 1, refine_hist_cap, srch_hist_cap)`: the carry, or
+          at a hand-over the refine ring's tail or the search history's;
+        - the live Dll emits at most dp_dll_steps_max_out() of them, its own
+          bound, which carries its rate headroom;
+        - the RateConverter emits at most `ceil(ratio x n) + 1` of `n` partials
+          (`ratio = sps x symbol_rate / (segments x chip_rate / code_len)`,
+          fixed by configuration), and MpskReceiver at most one symbol per
+          input;
+        - a hand-over rebuilds the Dll and the RateConverter with fresh phases,
+          one more close and one more output: `ceil(segments x ratio) + 1`. A
+          call holds at most one: the release clock runs once a call, at its
+          end, and the call returns after it, so no call can release, search,
+          refine and hand over again.
+
+        So `P(x_len) = ceil(ratio x dp_dll_steps_max_out(dll, x_len + H)) + 1
+
+        + ceil(segments x ratio) + 1`. A Debug build holds the bound to the
+
+        chain: a call that produces more than it aborts (#2469).
+
+        Parameters
+        ----------
+        x_len : int
+            Input samples the call will be given.
 
         Returns
         -------
         int
-            0.
+            Held symbols plus `P(x_len)`; SIZE_MAX if that overflows.
         """
 
     def seed(
@@ -4339,6 +4423,12 @@ class Ccsds415Receiver:
     def threads(self) -> int:
         """Workers the searcher runs, the calling thread included; 1 = serial.
         Set with dp_async_dsss_receiver_set_threads().
+        """
+
+    @property
+    def consumed(self) -> int:
+        """Inputs the last dp_async_dsss_receiver_steps() call took: its x_len,
+        or 0 when it held its input back.
         """
 
     @property

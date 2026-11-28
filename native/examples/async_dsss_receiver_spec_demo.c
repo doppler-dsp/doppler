@@ -364,16 +364,14 @@ run_draw (const uint8_t *code, const uint8_t *payload, const struct regime *r,
      record of every push and every symbol, sized to the whole capture. */
   const size_t max_pushes
       = (LEAD_IN + cap.clean_left * 2u + cap.stage_cap) / PUSH + 1;
-  size_t syms_cap = dp_async_dsss_receiver_steps_max_out (rx);
-  if (syms_cap < PUSH)
-    syms_cap = PUSH;
-  float complex *x       = malloc ((size_t)PUSH * sizeof *x);
-  float complex *block   = malloc (syms_cap * sizeof *block);
-  float complex *syms    = malloc ((size_t)PAYLOAD_LEN * sizeof *syms);
-  uint8_t       *flags   = malloc ((size_t)PAYLOAD_LEN * sizeof *flags);
-  int           *state   = malloc (max_pushes * sizeof *state);
-  int           *locked  = malloc (max_pushes * sizeof *locked);
-  size_t        *emitted = malloc (max_pushes * sizeof *emitted);
+  const size_t   syms_cap = dp_async_dsss_receiver_steps_max_out (rx, PUSH);
+  float complex *x        = malloc ((size_t)PUSH * sizeof *x);
+  float complex *block    = malloc (syms_cap * sizeof *block);
+  float complex *syms     = malloc ((size_t)PAYLOAD_LEN * sizeof *syms);
+  uint8_t       *flags    = malloc ((size_t)PAYLOAD_LEN * sizeof *flags);
+  int           *state    = malloc (max_pushes * sizeof *state);
+  int           *locked   = malloc (max_pushes * sizeof *locked);
+  size_t        *emitted  = malloc (max_pushes * sizeof *emitted);
   CHECK (x && block && syms && flags && state && locked && emitted,
          "the buffers allocate");
 

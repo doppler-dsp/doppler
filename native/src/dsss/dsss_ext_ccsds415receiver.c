@@ -103,15 +103,23 @@ _enum_Ccsds415Receiver_async_dsss_rx_state_name (long v)
 
 static PyObject *
 Ccsds415ReceiverObj_steps_max_out (Ccsds415ReceiverObject *self,
-                                   PyObject               *Py_UNUSED (ignored))
+                                   PyObject               *args)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  Py_ssize_t x_len = 0;
+  if (!PyArg_ParseTuple (args, "n", &x_len))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (
-      dp_async_dsss_receiver_steps_max_out (self->handle));
+      dp_async_dsss_receiver_steps_max_out (self->handle, (size_t)x_len));
 }
 
 static PyObject *
@@ -168,10 +176,9 @@ Ccsds415ReceiverObj_steps (Ccsds415ReceiverObject *self, PyObject *args,
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax    = dp_async_dsss_receiver_steps_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
-                            ? _omax
-                            : ((size_t)PyArray_SIZE (x_arr));
+      size_t _omax = dp_async_dsss_receiver_steps_max_out (
+          self->handle, (size_t)PyArray_SIZE (x_arr));
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -232,9 +239,9 @@ Ccsds415ReceiverObj_steps (Ccsds415ReceiverObject *self, PyObject *args,
       return NULL;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = dp_async_dsss_receiver_steps_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  size_t _cap  = dp_async_dsss_receiver_steps_max_out (
+      self->handle, (size_t)PyArray_SIZE (x_arr));
+  (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
     {
@@ -1019,6 +1026,18 @@ Ccsds415Receiver_getprop_threads (Ccsds415ReceiverObject *self,
       (long)dp_async_dsss_receiver_get_threads (self->handle));
 }
 static PyObject *
+Ccsds415Receiver_getprop_consumed (Ccsds415ReceiverObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_async_dsss_receiver_get_consumed (self->handle));
+}
+static PyObject *
 Ccsds415Receiver_getprop_rank (Ccsds415ReceiverObject *self,
                                void                   *Py_UNUSED (closure))
 {
@@ -1355,6 +1374,10 @@ static PyGetSetDef Ccsds415Receiver_getset[] = {
     "Workers the searcher runs, the calling thread included; 1 = serial. Set "
     "with dp_async_dsss_receiver_set_threads().\n",
     NULL },
+  { "consumed", (getter)Ccsds415Receiver_getprop_consumed, NULL,
+    "Inputs the last dp_async_dsss_receiver_steps() call took: its x_len, or "
+    "0 when it held its input back.\n",
+    NULL },
   { "rank", (getter)Ccsds415Receiver_getprop_rank, NULL,
     "Which surviving peak of a dwell the search takes; 0 = the strongest. Set "
     "with dp_async_dsss_receiver_set_rank().\n",
@@ -1540,6 +1563,19 @@ static PyMethodDef Ccsds415ReceiverObj_methods[] = {
     "\n"
     "Stream raw cf32 samples; emit demodulated symbols once tracking.\n"
     "\n"
+    "**No symbol is dropped.** Symbols held by an earlier call are delivered\n"
+    "first, in order. A call consumes its input only when nothing stays held\n"
+    "after that and its symbols fit: `P(x_len)` (see\n"
+    "dp_async_dsss_receiver_steps_max_out()) is at most the room left in out\n"
+    "plus the store, which holds what one call of a code period can produce.\n"
+    "What does not fit in out is held for the next call. A call that cannot\n"
+    "consume returns what it delivered and takes nothing:\n"
+    "dp_async_dsss_receiver_get_consumed() reads 0, and the caller calls\n"
+    "again with the same x. A C caller that sizes out below\n"
+    "dp_async_dsss_receiver_steps_max_out() for a call longer than a code\n"
+    "period meets this every time, so it must check consumed() or size out\n"
+    "from that function, as the Python binding does.\n"
+    "\n"
     "Drives the state machine. It emits nothing while searching or refining\n"
     "(an empty return is normal, not an error): a hit seeds the\n"
     "frozen-carrier refine chain, `CarrierAcquisition` sharpens the coarse\n"
@@ -1572,8 +1608,9 @@ static PyMethodDef Ccsds415ReceiverObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    Number of symbols written: 0 while searching, refining or lost, or\n"
-    "    before a full symbol's worth of input.\n"
+    "    Number of symbols written: held ones first, then this call's; 0\n"
+    "    while searching, refining or lost with nothing held, or before a\n"
+    "    full symbol's worth of input.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1618,23 +1655,48 @@ static PyMethodDef Ccsds415ReceiverObj_methods[] = {
     ">>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))\n"
     "True\n" },
   { "steps_max_out", (PyCFunction)Ccsds415ReceiverObj_steps_max_out,
-    METH_NOARGS,
-    "steps_max_out() -> int\n"
+    METH_VARARGS,
+    "steps_max_out(x_len) -> int\n"
     "\n"
-    "The output capacity steps() needs beyond the input's.\n"
+    "The capacity that lets the next steps() call on x_len samples\n"
+    "deliver everything it can: the symbols held, plus the most the call can\n"
+    "produce.\n"
     "\n"
-    "Returns 0, which is NOT a bound. A call runs more samples than its\n"
-    "`x_len` through the tracking chain at a hand-over: the hand-over ring's\n"
-    "tail (up to refine_hist_cap samples) or the search history's, through a\n"
-    "fresh chain. Their symbols can outnumber `x_len`, and those past\n"
-    "`max_out` are dropped (see dp_async_dsss_receiver_steps()). A call that\n"
-    "completes a carried code period adds at most one symbol: create()\n"
-    "refuses a symbol shorter than a code period. A true bound is #2469.\n"
+    "Sized to this, a call never holds and never refuses its input\n"
+    "(dp_async_dsss_receiver_steps()), which is how the Python binding calls\n"
+    "it. The most a call can produce, `P(x_len)`, is bounded by the chain's\n"
+    "structure, not by the nominal rate:\n"
+    "\n"
+    "- the call runs at most `x_len + H` samples through the tracking chain,\n"
+    "  `H = max(tsamps - 1, refine_hist_cap, srch_hist_cap)`: the carry, or\n"
+    "  at a hand-over the refine ring's tail or the search history's;\n"
+    "- the live Dll emits at most dp_dll_steps_max_out() of them, its own\n"
+    "  bound, which carries its rate headroom;\n"
+    "- the RateConverter emits at most `ceil(ratio x n) + 1` of `n` partials\n"
+    "  (`ratio = sps x symbol_rate / (segments x chip_rate / code_len)`,\n"
+    "  fixed by configuration), and MpskReceiver at most one symbol per\n"
+    "  input;\n"
+    "- a hand-over rebuilds the Dll and the RateConverter with fresh phases,\n"
+    "  one more close and one more output: `ceil(segments x ratio) + 1`. A\n"
+    "  call holds at most one: the release clock runs once a call, at its\n"
+    "  end, and the call returns after it, so no call can release, search,\n"
+    "  refine and hand over again.\n"
+    "\n"
+    "So `P(x_len) = ceil(ratio x dp_dll_steps_max_out(dll, x_len + H)) + 1\n"
+    "\n"
+    "+ ceil(segments x ratio) + 1`. A Debug build holds the bound to the\n"
+    "\n"
+    "chain: a call that produces more than it aborts (#2469).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x_len : int\n"
+    "    Input samples the call will be given.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    0.\n" },
+    "    Held symbols plus `P(x_len)`; SIZE_MAX if that overflows.\n" },
   { "seed", (PyCFunction)(void *)Ccsds415ReceiverObj_seed,
     METH_VARARGS | METH_KEYWORDS,
     "seed(chip_phase, doppler_hz_est, cn0_dbhz_est) -> None\n"

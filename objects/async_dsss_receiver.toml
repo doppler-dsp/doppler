@@ -401,6 +401,13 @@ params = [{ name = "n", type = "int" }]
 name = "threads"
 type = "int"
 
+# steps() holds what does not fit out and takes no input while anything is
+# held or its symbols cannot fit (#2469); this says whether the last call
+# took its input, as the Resampler's block forms say.
+[[async_dsss_receiver.properties]]
+name = "consumed"
+type = "size_t"
+
 # The controller's two levers (docs/design/async-dsss-receiver.md §7.2): which
 # surviving peak of a dwell this receiver takes, and the code phases other
 # receivers already hold.

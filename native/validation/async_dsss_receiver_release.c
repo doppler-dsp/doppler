@@ -223,8 +223,8 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
   dp_async_dsss_receiver_state_t *rx  = make_rx (code, cn0_dbhz);
   float complex                  *sig = malloc (TE * sizeof *sig);
   float complex                  *blk = malloc (TE * sizeof *blk);
-  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx);
-  float complex *syms = malloc ((cap ? cap : TE) * sizeof *syms);
+  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx, TE);
+  float complex *syms = malloc (cap * sizeof *syms);
   if (!syn || !g || !rx || !sig || !blk || !syms)
     return 1;
 
@@ -319,7 +319,7 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
           bfill -= TE;
         }
 
-      (void)dp_async_dsss_receiver_steps (rx, blk, TE, syms, cap ? cap : TE);
+      (void)dp_async_dsss_receiver_steps (rx, blk, TE, syms, cap);
       int code_on = dp_async_dsss_receiver_get_code_locked (rx) == 1;
       int sym_on  = dp_async_dsss_receiver_get_locked (rx) == 1;
       int trk     = dp_async_dsss_receiver_get_tracking (rx) == 1;

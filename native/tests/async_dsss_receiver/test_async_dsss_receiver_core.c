@@ -2426,13 +2426,16 @@ _test_fine_seed_bound (void)
   /* Mid-refine, the ring partly filled: seeded, then fed a dwell's half. */
   DP_REQUIRE (dp_async_dsss_receiver_seed (a, 0.0, 0.0, 40.0) == DP_OK);
   {
-    const size_t    n = (size_t)(0.1 * 1.0e7);
-    float _Complex *x = calloc (n, sizeof *x);
-    float _Complex out[64];
-    DP_REQUIRE (x != NULL);
+    const size_t    n   = (size_t)(0.1 * 1.0e7);
+    const size_t    cap = dp_async_dsss_receiver_steps_max_out (a, n);
+    float _Complex *x   = calloc (n, sizeof *x);
+    float _Complex *out = malloc (cap * sizeof *out);
+    DP_REQUIRE (x != NULL && out != NULL);
     for (size_t i = 0; i < n; i++)
       x[i] = (float _Complex) (code[(i / 2) % 1023] ? -1.0f : 1.0f);
-    (void)dp_async_dsss_receiver_steps (a, x, n, out, 64);
+    (void)dp_async_dsss_receiver_steps (a, x, n, out, cap);
+    DP_CHECK (dp_async_dsss_receiver_get_consumed (a) == n);
+    free (out);
     free (x);
   }
   DP_CHECK (a->state == ASYNC_DSSS_RX_REFINING && a->fine_n > 0
@@ -2700,7 +2703,8 @@ _test_a_refused_blob_changes_nothing (void)
                        - a->srch_hist_cap * sizeof (float _Complex)
                        - a->tsamps * sizeof (float _Complex)
                        - a->refine_hist_cap * sizeof (float _Complex)
-                       - a->fine_cap * sizeof (float _Complex);
+                       - a->fine_cap * sizeof (float _Complex)
+                       - a->hold_cap * sizeof (float _Complex);
           const dp_state_hdr_t *h = (const dp_state_hdr_t *)(blob + off);
           DP_REQUIRE_MSG (h->magic == DLL_STATE_MAGIC,
                           "the offset names the live Dll's header");
@@ -3562,28 +3566,36 @@ _test_emission_by_state (void)
   return 0;
 }
 
-/* Output capacity (#2461 #108, #115): steps() never writes past max_out,
- * and the symbols past it are DROPPED, not held for the next call. Two
- * receivers run in lockstep on one capture: B always has room for the
- * call's x_len (enough on this fixture, at about 0.25 symbols a code
- * period -- not in general, #2469); A has the same, except on the first
- * call where B emits several symbols, where A gets capacity 1. A must keep
- * exactly B's first symbol there, leave a guard region past max_out
- * untouched, and then match B bit for bit on every later call -- a
- * deferral would show up as extra symbols in A's next call. Sabotages:
- * write one past max_out -> red; hold the overflow for the next call ->
- * red. */
+/* Output capacity (#2469): steps() never writes past max_out, and what does
+ * not fit is held and delivered by the next call, in order -- no symbol is
+ * dropped. Two receivers on one capture, one sample a call: B with out
+ * sized by steps_max_out(), so it never holds, and A starved: each
+ * sample's first call has no room and every retry ONE slot, called again
+ * on the same sample until it consumes it, then with no input until
+ * nothing is held. So every symbol A makes passes through the store. A's
+ * stream equals B's symbol for symbol, a guard past max_out is never
+ * written, and A did hold. (Capacity 1 alone never makes this receiver
+ * hold: create() refuses a symbol shorter than a code period, and a call
+ * it can take at capacity 1 makes one symbol at most, measured here.) Then a
+ * third receiver never drains (max_out 0): once it holds, a call neither
+ * consumes nor changes what is held, and a call with room delivers exactly
+ * those symbols, B's first ones, and consumes again. Sabotages: discard the
+ * held symbols -> A's stream is short, red; consume while holding -> the
+ * never-draining receiver takes input, red; write one past max_out -> the
+ * guard, red. */
 static int
 _test_output_capacity (void)
 {
-  const size_t    sf = 7, spc = 4;
-  const double    fs       = 1.0e6 * (double)spc;
-  const double    sym_rate = 35714.29;
+  const size_t sf = 7, spc = 4;
+  const double fs = 1.0e6 * (double)spc;
+  /* just under one symbol a code period (te = 28, a symbol 28.6 samples):
+     the hand-over's ring replay, about 2.4 periods, emits two or three
+     symbols in one call, which is what capacity 1 must hold */
+  const double    sym_rate = 140000.0;
   const double    tsym     = fs / sym_rate;
   const size_t    te       = sf * spc;
   const size_t    n_sym    = 400;
   const size_t    pre      = te * 5 + 3;
-  const size_t    chunk    = 512;
   const size_t    guard    = 16;
   float _Complex *x;
   size_t          n;
@@ -3595,44 +3607,164 @@ _test_output_capacity (void)
       = _searching_rx (70.0, sym_rate, 0.0, false);
   dp_async_dsss_receiver_state_t *b
       = _searching_rx (70.0, sym_rate, 0.0, false);
-  DP_REQUIRE (a != NULL && b != NULL);
-  DP_CHECK (dp_async_dsss_receiver_steps_max_out (a) == 0);
-  float _Complex *oa      = malloc ((chunk + guard) * sizeof *oa);
-  float _Complex *ob      = malloc (chunk * sizeof *ob);
-  int             starved = 0, after = 0, wrote_past = 0;
-  size_t          total_b = 0;
-  for (size_t pos = 0; pos < n; pos += chunk)
+  dp_async_dsss_receiver_state_t *c
+      = _searching_rx (70.0, sym_rate, 0.0, false);
+  DP_REQUIRE (a != NULL && b != NULL && c != NULL);
+  const size_t    capb = dp_async_dsss_receiver_steps_max_out (b, 1);
+  const size_t    most = 2 * n_sym + capb;
+  float _Complex *ob   = malloc (capb * sizeof *ob);
+  float _Complex *oa   = malloc ((1 + guard) * sizeof *oa);
+  float _Complex *sa   = malloc (most * sizeof *sa);
+  float _Complex *sb   = malloc (most * sizeof *sb);
+  DP_REQUIRE (ob && oa && sa && sb);
+  size_t la = 0, lb = 0;
+  int    held = 0, wrote_past = 0;
+  for (size_t g = 0; g < guard; g++)
+    oa[1 + g] = 12345.0f;
+  for (size_t pos = 0; pos < n; pos++)
     {
-      size_t kk = n - pos < chunk ? n - pos : chunk;
-      size_t kb = dp_async_dsss_receiver_steps (b, x + pos, kk, ob, chunk);
-      total_b += kb;
-      size_t cap = (!starved && kb >= 2) ? 1 : chunk;
-      for (size_t g = 0; g < guard; g++)
-        oa[cap + g] = 12345.0f;
-      size_t ka = dp_async_dsss_receiver_steps (a, x + pos, kk, oa, cap);
-      for (size_t g = 0; g < guard; g++)
-        wrote_past |= oa[cap + g] != 12345.0f;
-      if (cap == 1)
+      const size_t kb = dp_async_dsss_receiver_steps (b, x + pos, 1, ob, capb);
+      DP_REQUIRE (lb + kb <= most);
+      memcpy (sb + lb, ob, kb * sizeof *ob);
+      lb += kb;
+      /* A sample's first call has no room, so whatever it makes is held;
+         each retry has one slot, delivering a held symbol, until the store
+         is empty and the sample is taken. */
+      size_t tries = 0;
+      do
         {
-          starved = 1;
-          DP_CHECK (ka == 1);
-          DP_CHECK (memcmp (oa, ob, sizeof *oa) == 0);
-          continue;
+          const size_t ka = dp_async_dsss_receiver_steps (a, x + pos, 1, oa,
+                                                          tries++ ? 1 : 0);
+          DP_REQUIRE (la + ka <= most);
+          memcpy (sa + la, oa, ka * sizeof *oa);
+          la += ka;
+          held |= a->hold_len > 0;
         }
-      if (ka != kb || memcmp (oa, ob, ka * sizeof *oa) != 0)
-        {
-          DP_TEST_ERR ("  call at %zu: A gave %zu, B %zu%s\n", pos, ka, kb,
-                       starved ? " (after the starved call)" : "");
-          fails++;
-        }
-      after += starved;
+      while (dp_async_dsss_receiver_get_consumed (a) == 0);
     }
-  DP_CHECK (wrote_past == 0);
-  DP_CHECK (starved == 1);
-  DP_CHECK (after > 0);
-  DP_CHECK (total_b > n_sym * 3 / 4);
+  /* Then empty calls: what is still held comes out, one at a time. */
+  size_t ka;
+  while ((ka = dp_async_dsss_receiver_steps (a, x, 0, oa, 1)) > 0)
+    {
+      DP_REQUIRE (la + ka <= most);
+      memcpy (sa + la, oa, ka * sizeof *oa);
+      la += ka;
+    }
+  for (size_t g = 0; g < guard; g++)
+    wrote_past |= oa[1 + g] != 12345.0f;
+  DP_CHECK_MSG (held, "at capacity 1, a call held symbols (the premise)");
+  DP_CHECK_MSG (la == lb && memcmp (sa, sb, lb * sizeof *sa) == 0,
+                "held and delivered in order: A's stream is B's");
+  if (la != lb)
+    DP_TEST_ERR ("  A gave %zu symbols, B %zu\n", la, lb);
+  DP_CHECK_MSG (wrote_past == 0, "nothing is written past max_out");
+  DP_CHECK (lb > n_sym * 3 / 4);
+
+  /* Never draining: max_out 0 until it holds, then once more. */
+  size_t pos = 0;
+  while (pos < n && c->hold_len == 0)
+    (void)dp_async_dsss_receiver_steps (c, x + pos++, 1, oa, 0);
+  DP_REQUIRE (c->hold_len > 0);
+  const size_t was = c->hold_len;
+  DP_CHECK (dp_async_dsss_receiver_steps (c, x + pos, 1, oa, 0) == 0);
+  DP_CHECK_MSG (dp_async_dsss_receiver_get_consumed (c) == 0
+                    && c->hold_len == was,
+                "held, a call of no room takes nothing and keeps the hold");
+  const size_t    capc = dp_async_dsss_receiver_steps_max_out (c, 1);
+  float _Complex *oc   = malloc (capc * sizeof *oc);
+  DP_REQUIRE (oc && capc >= was);
+  const size_t kc = dp_async_dsss_receiver_steps (c, x + pos, 1, oc, capc);
+  DP_CHECK_MSG (kc >= was && memcmp (oc, sb, was * sizeof *oc) == 0,
+                "a call with room delivers the held symbols first, in order");
+  DP_CHECK_MSG (dp_async_dsss_receiver_get_consumed (c) == 1,
+                "and consumes again");
   dp_async_dsss_receiver_destroy (a);
   dp_async_dsss_receiver_destroy (b);
+  dp_async_dsss_receiver_destroy (c);
+  free (oc);
+  free (oa);
+  free (ob);
+  free (sa);
+  free (sb);
+  free (x);
+  free (data);
+  return fails;
+}
+
+/* Held symbols ride the blob (#2469): a receiver holding symbols, restored
+ * into a twin, delivers the same stream as the original from there on --
+ * the held ones first. The store is a fixed size, padded like the carry,
+ * so the blob keeps one size per object, and a blob claiming more held
+ * symbols than the store holds is refused with the twin untouched.
+ * Sabotages: leave the store out of get_state/set_state -> the twin's
+ * stream lacks the held symbols, red; drop the hold_len check -> the
+ * oversized count is accepted, red. */
+static int
+_test_held_symbols_round_trip (void)
+{
+  const size_t    sf = 7, spc = 4;
+  const double    fs       = 1.0e6 * (double)spc;
+  const double    sym_rate = 140000.0;
+  const size_t    te       = sf * spc;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  int             fails = 0;
+  dp_dsss_capture (CODE7, sf, spc, fs, fs / sym_rate, 0.0, 70.0, 300,
+                   te * 5 + 3, 7, &x, &n, &data);
+  dp_async_dsss_receiver_state_t *a
+      = _searching_rx (70.0, sym_rate, 0.0, false);
+  dp_async_dsss_receiver_state_t *b
+      = _searching_rx (70.0, sym_rate, 0.0, false);
+  DP_REQUIRE (a != NULL && b != NULL);
+  /* Starved (max_out 0) until it holds, then a couple more symbols' worth
+     so the store holds several. */
+  float _Complex none[1];
+  size_t pos = 0;
+  while (pos < n && a->hold_len < 2)
+    {
+      (void)dp_async_dsss_receiver_steps (a, x + pos, 1, none, 0);
+      pos += dp_async_dsss_receiver_get_consumed (a);
+      if (a->hold_len && !dp_async_dsss_receiver_get_consumed (a))
+        break; /* holding: a no-room call takes nothing more */
+    }
+  DP_REQUIRE (a->hold_len > 0);
+  const size_t sz = dp_async_dsss_receiver_state_bytes (a);
+  DP_CHECK_MSG (sz == dp_async_dsss_receiver_state_bytes (b),
+                "one size per object, holding or not");
+  uint8_t *blob = malloc (sz);
+  DP_REQUIRE (blob);
+  dp_async_dsss_receiver_get_state (a, blob);
+  DP_CHECK (dp_async_dsss_receiver_set_state (b, blob) == DP_OK);
+  DP_CHECK (b->hold_len == a->hold_len);
+  /* From here both see the same calls: the same stream comes out. */
+  const size_t    cap = dp_async_dsss_receiver_steps_max_out (a, te);
+  float _Complex *oa  = malloc (cap * sizeof *oa);
+  float _Complex *ob  = malloc (cap * sizeof *ob);
+  DP_REQUIRE (oa && ob);
+  size_t total = 0;
+  for (; pos + te <= n; pos += te)
+    {
+      const size_t ka = dp_async_dsss_receiver_steps (a, x + pos, te, oa, cap);
+      const size_t kb = dp_async_dsss_receiver_steps (b, x + pos, te, ob, cap);
+      if (ka != kb || memcmp (oa, ob, ka * sizeof *oa) != 0)
+        fails++;
+      total += ka;
+    }
+  DP_CHECK_MSG (fails == 0, "the twin delivers the original's stream");
+  DP_CHECK (total > 0);
+  /* A count past the store is refused, the twin as it was. */
+  dp_async_dsss_receiver_get_state (a, blob);
+  async_dsss_receiver_extra_t *ex
+      = (async_dsss_receiver_extra_t *)(blob + sizeof (dp_state_hdr_t));
+  ex->hold_len        = (uint64_t)a->hold_cap + 1;
+  const size_t before = b->hold_len;
+  DP_CHECK_MSG (dp_async_dsss_receiver_set_state (b, blob) == DP_ERR_INVALID
+                    && b->hold_len == before,
+                "a held count past the store is refused");
+  dp_async_dsss_receiver_destroy (a);
+  dp_async_dsss_receiver_destroy (b);
+  free (blob);
   free (oa);
   free (ob);
   free (x);
@@ -4161,7 +4293,7 @@ _test_accessor_coverage (void)
   (void)dp_async_dsss_receiver_get_car_nco_freq (rx);
   (void)dp_async_dsss_receiver_get_car_last_error (rx);
   (void)dp_async_dsss_receiver_get_mpsk_last_error (rx);
-  (void)dp_async_dsss_receiver_steps_max_out (rx); /* 0 until first stream */
+  (void)dp_async_dsss_receiver_steps_max_out (rx, 0);
 
   /* Raw sub-loop reconfiguration: valid grids/detectors, then the chain's
    * accept + both reject branches (segments < 1, and sps not a multiple of n).
@@ -7407,6 +7539,7 @@ main (void)
   (void)_test_symbol_lock_detector_symbol_by_symbol ();
   (void)_test_emission_by_state ();
   DP_CHECK (_test_output_capacity () == 0);
+  DP_CHECK (_test_held_symbols_round_trip () == 0);
   DP_CHECK (_test_differential_does_not_change_the_symbols () == 0);
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();

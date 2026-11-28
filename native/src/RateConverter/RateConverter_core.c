@@ -905,6 +905,7 @@ dp_RateConverter_create (double rate, int compensate)
      receiver's IANDD/RRC vocabulary. */
   s->pulse             = RC_PULSE_NONE;
   s->rate              = rate;
+  s->ctrl_rate_max     = INFINITY; /* no bound until an owner sets one */
   s->compensate        = compensate;
   s->cic_precision     = CIC_PRECISION_DEFAULT;
   s->cic_headroom_bits = dp_cic_precision_headroom (CIC_PRECISION_DEFAULT);
@@ -941,6 +942,7 @@ dp_RateConverter_create_matched (double rate, int compensate, int pulse,
     return NULL;
 
   s->rate              = rate;
+  s->ctrl_rate_max     = INFINITY; /* no bound until an owner sets one */
   s->compensate        = compensate;
   s->cic_precision     = CIC_PRECISION_DEFAULT;
   s->cic_headroom_bits = dp_cic_precision_headroom (CIC_PRECISION_DEFAULT);
@@ -1300,6 +1302,18 @@ dp_RateConverter_execute (dp_RateConverter_state_t *s,
                         s->stage_ptrs[s->n_stages - 1], src, n, out, max_out);
 }
 
+/* The control the terminal stage is handed: the caller's, held so the
+ * steered rate stays at or under ctrl_rate_max (the header's derivation).
+ * The lower clamp is the stage's own (RESAMP_CTRL_RATE_MIN); a NaN control
+ * passes through to it. */
+static inline double
+rc_bound_ctrl (const dp_RateConverter_state_t *s, const resamp_state_t *r,
+               double ctrl)
+{
+  const double hi = s->ctrl_rate_max - r->rate;
+  return ctrl > hi ? hi : ctrl;
+}
+
 /* Run a resamp stage with a constant rate deviation on every input — the
  * scalar control-port form, built on the per-input streaming push. */
 static size_t
@@ -1314,7 +1328,8 @@ rc_resamp_exec_ctrl (dp_RateConverter_state_t *s, resamp_state_t *r,
          terminal one — and the input block is const, so gaining it in place
          is not an option. Per-sample is what the push path does anyway. */
       float _Complex v = rc_agc_tap (s, in[i]);
-      oi += dp_resamp_execute_ctrl_push (r, v, ctrl, out + oi, max_out - oi);
+      oi += dp_resamp_execute_ctrl_push (r, v, rc_bound_ctrl (s, r, ctrl),
+                                         out + oi, max_out - oi);
     }
   return oi;
 }
@@ -1423,8 +1438,9 @@ dp_RateConverter_execute_ctrl_push_tap (dp_RateConverter_state_t *s,
     *pre_out = cur;
   if (n_pre)
     *n_pre = 1;
-  return dp_resamp_execute_ctrl_push ((resamp_state_t *)s->stage_ptrs[last],
-                                      cur, ctrl, out, max_out);
+  resamp_state_t *term = (resamp_state_t *)s->stage_ptrs[last];
+  return dp_resamp_execute_ctrl_push (term, cur, rc_bound_ctrl (s, term, ctrl),
+                                      out, max_out);
 }
 
 size_t

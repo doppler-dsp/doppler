@@ -532,6 +532,11 @@ dp_ratesync_create (double sps, int pulse, double beta, size_t span, size_t m,
       free (s);
       return NULL;
     }
+  /* One strobe per input (doppler#3289): the steered rate stays at or under
+     m, so one input yields at most m outputs and two strobes, which need
+     m + 1, cannot share it. The nominal rate is under 1 (sps >= m, refused
+     above, and the cascade decimates), so only a transient meets it. */
+  s->mf->ctrl_rate_max = (double)m;
 
   dp_ratesync_loop_init (&s->loop, sps, m, bn, zeta, ted);
   dp_ratesync_loop_bind_cascade (&s->loop, s->mf);

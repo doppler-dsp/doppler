@@ -2187,7 +2187,7 @@ the_carried_remainder_is_in_the_blob_and_checked (void)
 static int
 a_rate_past_the_headroom_drops_without_aborting (void)
 {
-  int          fails = 0;
+  int          fails = 0, full = 0;
   const size_t sf = 31, segments = 4;
   const double sps  = 2.0;
   uint8_t     *code = malloc (sf);
@@ -2211,12 +2211,23 @@ a_rate_past_the_headroom_drops_without_aborting (void)
       const size_t    cap = dp_dll_steps_max_out (d, 62);
       float _Complex *out = malloc (cap * sizeof *out);
       DP_REQUIRE (out);
-      if (dp_dll_steps (d, x + pos, 62, out, cap) > cap)
-        fails++;
+      /* a call that returns its whole capacity stopped there: the scene's
+         premise, a drop past the headroom, actually happens */
+      if (dp_dll_steps (d, x + pos, 62, out, cap) == cap)
+        full++;
       free (out);
     }
-  DP_CHECK_MSG (fails == 0, "past the headroom, a call stops at its "
-                            "capacity and does not abort");
+  /* the aid reaches the NCO: the code runs past twice nominal, which holds
+     in Release too */
+  const double rate
+      = (double)d->code_nco.phase_inc / 4294967296.0 * ((double)sf * sps);
+  if (!(rate > 2.0))
+    fails++;
+  DP_CHECK_MSG (rate > 2.0, "the aid puts the code past twice nominal");
+  DP_CHECK_MSG (full > 0, "past the headroom, a call stops at its capacity "
+                          "(and a Debug build does not abort)");
+  if (!full)
+    fails++;
   dp_dll_destroy (d);
   free (x);
   free (code);

@@ -941,10 +941,14 @@ extern "C"
        control has pushed the accumulator over: that input emits two. Asking
        for only one silently DROPS the second, which permanently shifts the
        strobe parity and leaves the loop sliding — measured as `rate_est`
-       walking monotonically away while the eye never opens. The cascade rate
-       is m/sps <= 1, so an input can complete at most two output periods, and
-       with m >= 2 those can contain at most one on-time strobe: the
-       single-symbol return of this function is still correct. */
+       walking monotonically away while the eye never opens. The
+       single-symbol return of this function is correct because one input
+       holds at most one on-time strobe: a strobe is every m-th output, so
+       two need m + 1 outputs from one input, and one input yields at most
+       ceil(rate + ctrl). The cascade's nominal rate is m/sps <= 1, but the
+       control is unclamped, so create() bounds the steered rate on the
+       converter, rate + ctrl <= m (ctrl_rate_max, doppler#3289): an
+       acquisition transient steered past m is held there. */
     float _Complex ys[4];
     int            n_pre = 0;
     size_t         n     = dp_RateConverter_execute_ctrl_push_tap (

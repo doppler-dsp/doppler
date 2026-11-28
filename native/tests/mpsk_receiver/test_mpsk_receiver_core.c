@@ -2343,5 +2343,77 @@ main (void)
     dp_mpsk_receiver_destroy (b);
   }
 
+  /* One strobe per input (doppler#3289): the front end's converter holds
+     the steered rate at or under m_out, so one input yields at most m_out
+     terminal outputs and two strobes, which need m_out + 1, never share it.
+     Forced to exactly m_out the bound is reached; forced to m_out + 0.5 it
+     holds; and a free-running receiver on a clean stream never reaches it.
+     At m_out 2: the step folds at most four outputs (ys[4]) and the rest
+     wait as the converter's debt, so at m_out 4 no call can see the five two
+     strobes need, and the overwrite is reachable only at m_out 2 or 3.
+     Sabotage: the bound removed (the front end left at +INFINITY) -> at
+     m_out + 0.5 an input yields m_out + 1 and holds two strobes, red. */
+  {
+    const size_t MO = 2; /* m_out: where the overwrite is reachable */
+    /* its own stimulus: main's tx and idx are freed by here */
+    float _Complex *stx  = malloc (NSAMP * sizeof *stx);
+    int            *sidx = malloc (NSYM * sizeof *sidx);
+    DP_CHECK (stx && sidx);
+    make_mpsk (stx, sidx, 2, 0.0, 30.0, 91u);
+    const double over[2] = { 0.0, 0.5 };
+    for (size_t v = 0; v < 2; v++)
+      {
+        dp_mpsk_receiver_state_t *rx
+            = RX (2, SPS, MO, MPSK_RX_PULSE_IANDD, 0.01, 0.65, 0.0);
+        DP_CHECK (rx != NULL);
+        if (!rx)
+          break;
+        const double ctrl = (double)MO + over[v] - rx->l.timing.term_rate;
+        size_t       most = 0, shared = 0;
+        for (size_t i = 0; i < NSAMP; i++)
+          {
+            rx->l.timing.ctrl = ctrl; /* forced */
+            const size_t o0   = rx->l.timing.out_count;
+            float _Complex y;
+            (void)mpsk_receiver_step_ted (rx, stx[i], &y,
+                                          RATESYNC_TED_GARDNER);
+            const size_t o1      = rx->l.timing.out_count;
+            size_t       strobes = 0;
+            for (size_t k = o0; k < o1; k++)
+              strobes += k % MO == 0;
+            most = o1 - o0 > most ? o1 - o0 : most;
+            shared += strobes > 1;
+          }
+        DP_CHECK_MSG (
+            most == MO && shared == 0,
+            "MpskReceiver: the rate bound holds one strobe an input");
+        if (most != MO || shared)
+          DP_TEST_ERR ("  m_out + %.1f: up to %zu outputs an input, %zu "
+                       "inputs held two strobes\n",
+                       over[v], most, shared);
+        dp_mpsk_receiver_destroy (rx);
+      }
+    dp_mpsk_receiver_state_t *rx
+        = RX (2, SPS, MO, MPSK_RX_PULSE_IANDD, 0.01, 0.65, 0.0);
+    DP_CHECK (rx != NULL);
+    if (rx)
+      {
+        double worst = 0.0;
+        for (size_t i = 0; i < NSAMP; i++)
+          {
+            float _Complex y;
+            (void)mpsk_receiver_step_ted (rx, stx[i], &y,
+                                          RATESYNC_TED_GARDNER);
+            const double st = rx->l.timing.term_rate + rx->l.timing.ctrl;
+            worst           = st > worst ? st : worst;
+          }
+        DP_CHECK_MSG (worst < (double)MO,
+                      "MpskReceiver: tracking never reaches the rate bound");
+        dp_mpsk_receiver_destroy (rx);
+      }
+    free (stx);
+    free (sidx);
+  }
+
   DP_TEST_END ("test_mpsk_receiver_core");
 }

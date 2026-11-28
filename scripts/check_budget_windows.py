@@ -13,7 +13,9 @@ score from somewhere else:
   NULL, or one flag of several, they score a loop that is still pulling in:
   one async-receiver draw read 13,948 errors where the observed-lock window
   reads 27 (#3231);
-- **the best-lag search**: `_best_ber()` scores the minimum over lags and
+- **the best-lag search**: `_best_ber()` (and `dp_dsss_best_ber()`, its
+  shared copy in dp_dsss_test.h for the DSSS receiver tests) scores the
+  minimum over lags and
   rotations, an optimisation over the answer rather than a measurement
   (#3080).
 
@@ -43,17 +45,22 @@ LIST = "scripts/.budget-window-exempt"
 #: Where the paths are defined: their own definitions and bindings.
 DEFINING = (
     "native/tests/dp_ber_test.h",
+    "native/tests/dp_dsss_test.h",
     "native/inc/doppler/ber/",
     "native/src/ber/",
 )
 C_CALL = re.compile(
-    r"(?<![\w.>])(dp_ber_settle|dp_ber_settle_from|_best_ber)\s*\("
+    r"(?<![\w.>])(dp_ber_settle|dp_ber_settle_from|_best_ber|dp_dsss_best_ber)"
+    r"\s*\("
 )
 PY_CALL = re.compile(r"(?<![\w])(settle_from|ber_settle_from|_best_ber)\s*\(")
 C_COMMENT = re.compile(r"/\*.*?\*/|//[^\n]*|\"(?:\\.|[^\"\\\n])*\"", re.S)
 #: A C definition: the name at the start of a line, the GNU style's
 #: function-definition layout (`static inline size_t\ndp_ber_settle (`).
-C_DEF = re.compile(r"^(dp_ber_settle|dp_ber_settle_from|_best_ber)\s*\(", re.M)
+C_DEF = re.compile(
+    r"^(dp_ber_settle|dp_ber_settle_from|_best_ber|dp_dsss_best_ber)\s*\(",
+    re.M,
+)
 
 
 def _c_code(src: str) -> str:

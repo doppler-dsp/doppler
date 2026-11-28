@@ -112,6 +112,15 @@ HalfbandDecimatorQ15Obj_execute (HalfbandDecimatorQ15Object *self,
     {
       return NULL;
     }
+  if (PyArray_SIZE (x_arr) % 2 != 0)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "x has %zd elements, not a multiple of"
+                    " elements_per_sample = 2",
+                    (Py_ssize_t)PyArray_SIZE (x_arr));
+      Py_DECREF (x_arr);
+      return NULL;
+    }
   const int16_t *x     = (const int16_t *)PyArray_DATA (x_arr);
   size_t         x_len = (size_t)PyArray_SIZE (x_arr) / 2;
   if (out_obj && out_obj != Py_None)

@@ -205,3 +205,48 @@ def test_json_fs_defaults_to_one_so_freq_is_normalised():
     y = np.asarray(G.Composer.from_json(json.dumps(scene)).compose())
     got_hz = float(np.angle(y[1] * np.conj(y[0])) / (2.0 * np.pi))
     assert abs(got_hz - 0.08) < 1e-4, f"tone at {got_hz}, expected 0.08"
+
+
+def test_refused_assignment_leaves_the_source_as_it_was():
+    """A setter that refuses its value changes nothing.
+
+    Every composer setter parses into a copy of the source and commits it
+    only when the parse succeeds, so a bad ``acq_code`` leaves the old
+    code, byte for byte. The rejected case is a setter that clears the
+    field before parsing the new value.
+    """
+    s = G.Synth(acq_code=b"\x01\x00\x01\x01", data=b"\x01\x01\x00")
+    before = bytes(s.acq_code)
+    with pytest.raises((ValueError, TypeError)):
+        s.acq_code = "this is not bits"
+    assert bytes(s.acq_code) == before
+
+
+def test_refused_synth_reinit_leaves_every_field_as_it_was():
+    """A ``Synth`` re-``__init__`` refused on its LAST argument writes nothing.
+
+    ``acq_code`` and ``data`` parse before ``mac_header`` does. The
+    constructor used to write each field as it went, so a bad
+    ``mac_header`` left the new ``acq_code`` and ``data`` on a source that
+    raised; it now parses into a copy and commits it whole (gh-2864).
+    """
+    s = G.Synth(acq_code=b"\x01\x00\x01\x01", data=b"\x01\x01\x00")
+    before = (bytes(s.acq_code), bytes(s.data))
+    with pytest.raises((ValueError, TypeError)):
+        s.__init__(acq_code=b"\x00\x00", data=b"\x01", mac_header="bad")
+    assert (bytes(s.acq_code), bytes(s.data)) == before
+
+
+def test_refused_segment_reinit_leaves_its_own_fields_as_they_were():
+    """A ``Segment`` re-``__init__`` refused by its source writes nothing.
+
+    A segment parses its own scalars (``repeats``) first and only then
+    builds its source from the remaining keywords, so a bad
+    ``mac_header`` fails after ``repeats`` was read. The segment used to
+    have stored it by then; it now parses into a copy and commits it with
+    the new source (gh-2864).
+    """
+    s = G.Segment(acq_code=b"\x01\x00\x01\x01", repeats=2)
+    with pytest.raises((ValueError, TypeError)):
+        s.__init__(acq_code=b"\x00\x00", repeats=5, mac_header="bad")
+    assert s.repeats == 2
